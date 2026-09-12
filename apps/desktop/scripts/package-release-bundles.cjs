@@ -36,8 +36,44 @@ if (fs.existsSync(readmeSrc)) {
   fs.copyFileSync(readmeSrc, path.join(PORTABLE_DIR, 'README.md'));
 }
 
+const iconSrc = path.join(REPO_ROOT, 'apps/desktop/src-tauri/icons/icon.ico');
+if (fs.existsSync(iconSrc)) {
+  fs.copyFileSync(iconSrc, path.join(PORTABLE_DIR, 'icon.ico'));
+}
+
 const batContent = `@echo off\r\necho Starting ProcessForge Industrial Studio...\r\nstart "" "app\\index.html"\r\n`;
 fs.writeFileSync(path.join(PORTABLE_DIR, 'Start-ProcessForge.bat'), batContent);
+
+const installCmdContent = `@echo off
+setlocal
+title ProcessForge Setup
+echo ========================================================
+echo   ProcessForge Industrial Digital Twin Studio Setup
+echo ========================================================
+echo Installing ProcessForge to %LOCALAPPDATA%\\ProcessForge...
+
+set "TARGET=%LOCALAPPDATA%\\ProcessForge"
+if not exist "%TARGET%" mkdir "%TARGET%"
+if not exist "%TARGET%\\app" mkdir "%TARGET%\\app"
+
+xcopy /E /I /Y "%~dp0app" "%TARGET%\\app" > nul
+if exist "%~dp0icon.ico" copy /Y "%~dp0icon.ico" "%TARGET%\\" > nul
+if exist "%~dp0Start-ProcessForge.bat" copy /Y "%~dp0Start-ProcessForge.bat" "%TARGET%\\" > nul
+
+echo Setting up Desktop shortcut...
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\\ProcessForge.lnk'); $s.TargetPath = '%TARGET%\\Start-ProcessForge.bat'; $s.IconLocation = '%TARGET%\\icon.ico,0'; $s.Description = 'ProcessForge Industrial Twin Studio'; $s.Save()"
+
+echo Setting up Start Menu shortcut...
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('StartMenu') + '\\Programs\\ProcessForge.lnk'); $s.TargetPath = '%TARGET%\\Start-ProcessForge.bat'; $s.IconLocation = '%TARGET%\\icon.ico,0'; $s.Description = 'ProcessForge Industrial Twin Studio'; $s.Save()"
+
+echo ========================================================
+echo   Installation Complete! Launching ProcessForge...
+echo ========================================================
+start "" "%TARGET%\\Start-ProcessForge.bat"
+timeout /t 2 > nul
+exit
+`;
+fs.writeFileSync(path.join(PORTABLE_DIR, 'Install-ProcessForge.cmd'), installCmdContent);
 
 // Zip portable bundle
 const portableZip = path.join(RELEASE_DIST, 'process-forge-windows-portable-x64.zip');
