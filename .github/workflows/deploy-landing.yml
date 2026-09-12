@@ -12,9 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: 'pages'
@@ -23,9 +21,6 @@ concurrency:
 jobs:
   build-and-deploy:
     name: Build & Deploy to GitHub Pages
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -62,14 +57,10 @@ jobs:
           cp -r apps/web/dist/* apps/docs-landing/dist/studio/
           touch apps/docs-landing/dist/.nojekyll
 
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload GitHub Pages Artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy to GitHub Pages Branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: apps/docs-landing/dist
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: apps/docs-landing/dist
+          publish_branch: gh-pages
+          cname: ''
