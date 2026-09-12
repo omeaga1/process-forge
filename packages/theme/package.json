@@ -1,0 +1,20 @@
+{
+  "name": "@process-forge/theme",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Osaka Jade design system tokens, Tailwind preset, and canvas color definitions for ProcessForge",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/__tests__/**/*.test.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"Theme lint clean\""
+  },
+  "devDependencies": {
+    "@process-forge/typescript-config": "workspace:*",
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2"
+  }
+}

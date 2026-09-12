@@ -59,6 +59,18 @@ importers:
         specifier: ^5.8.2
         version: 5.9.3
 
+  packages/theme:
+    devDependencies:
+      '@process-forge/typescript-config':
+        specifier: workspace:*
+        version: link:../../tooling/typescript-config
+      '@types/node':
+        specifier: ^22.13.9
+        version: 22.20.2
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+
   tooling/typescript-config: {}
 
 packages:
