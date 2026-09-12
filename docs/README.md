@@ -22,6 +22,7 @@ Historical log of foundational engineering decisions, their context, and consequ
 * [**ADR-0002: Deterministic Simulation vs. LLM Math**](adr/0002-deterministic-sim-vs-llm.md) — Decoupling probabilistic AI compilation from deterministic calculus.
 * [**ADR-0003: Osaka Jade Default Theme**](adr/0003-osaka-jade-theme.md) — Adopting a deep mineral slate and luminous jade aesthetic.
 * [**ADR-0004: Anti-Laziness Protocol & Scaffold Manifest**](adr/0004-anti-laziness-registry.md) — Zero-tolerance AST enforcement for placeholders and temporary scaffolding.
+* [**ADR-0005: Zero Raw API Keys, ForgeHub & Agent-Driven Packages**](adr/0005-zero-raw-keys-and-agent-driven-packages.md) — OAuth authentication, self-contained community plugins, and sub-agent capability recommendations.
 
 ---
 
