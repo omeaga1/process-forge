@@ -48,7 +48,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       senderTitle: 'Lead Orchestration Engineer (Master Agent)',
       text: `Process simulation initialized for "${graph.name}". I am monitoring whole-plant mass balance and line bottlenecks across all ${graph.nodes.length} unit operations.`,
       timestamp: '14:26',
-      modelBadge: PROVIDER_METADATA[getAiConfig().provider]?.badgeName || 'Offline Solver',
+      modelBadge: PROVIDER_METADATA[getAiConfig().provider]?.badgeName || 'Offline (Local)',
       isOffline: getAiConfig().provider === 'offline',
       suggestedPrompts: [
         'Where are the bottlenecks in this line?',
@@ -274,6 +274,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               backgroundColor: 'rgba(255, 255, 255, 0.03)',
               border: `1px solid ${OsakaJadePalette.border.default}`,
               fontSize: 10,
+              lineHeight: 1.4,
               color: OsakaJadePalette.text.secondary,
               display: 'flex',
               alignItems: 'center',
@@ -281,10 +282,10 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               gap: 6
             }}
           >
-            <span>
-              <strong style={{ color: OsakaJadePalette.text.primary }}>Offline Solver: </strong>
-              Mass-balance ODE math is solving locally (Zero keys).
-            </span>
+            <div>
+              <strong style={{ color: OsakaJadePalette.text.primary }}>Offline Mode: </strong>
+              Local simulation physics running. Connect MCP or OAuth to consult Master Agent.
+            </div>
             <button
               type="button"
               onClick={() => setIsAiModalOpen(true)}
@@ -396,44 +397,82 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           borderTop: `1px solid ${OsakaJadePalette.border.default}`,
           display: 'flex',
           gap: 8,
-          backgroundColor: OsakaJadePalette.background.base
+          backgroundColor: OsakaJadePalette.background.base,
+          alignItems: 'center'
         }}
       >
-        <input
-          type="text"
-          placeholder={isProcessing ? 'Processing...' : 'Ask Lead Orchestration Engineer...'}
-          value={inputText}
-          disabled={isProcessing}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
-          style={{
-            flex: 1,
-            backgroundColor: OsakaJadePalette.background.surfaceElevated,
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            borderRadius: 6,
-            padding: '8px 10px',
-            color: OsakaJadePalette.text.primary,
-            fontSize: 12,
-            outline: 'none',
-            opacity: isProcessing ? 0.6 : 1
-          }}
-        />
-        <button
-          onClick={() => handleSendMessage()}
-          disabled={isProcessing || !inputText.trim()}
-          style={{
-            backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
-            color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
-            border: 'none',
-            borderRadius: 6,
-            padding: '8px 12px',
-            fontWeight: 700,
-            fontSize: 11,
-            cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer'
-          }}
-        >
-          Send
-        </button>
+        {aiConfig.provider === 'offline' ? (
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '6px 12px',
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.background.surfaceElevated,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              fontSize: 11,
+              color: OsakaJadePalette.text.muted
+            }}
+          >
+            <span>Orchestrator offline. Connect MCP or OAuth.</span>
+            <button
+              type="button"
+              onClick={() => setIsAiModalOpen(true)}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 5,
+                backgroundColor: OsakaJadePalette.jade.glow,
+                color: OsakaJadePalette.background.base,
+                border: 'none',
+                fontWeight: 700,
+                fontSize: 11,
+                cursor: 'pointer'
+              }}
+            >
+              Connect AI
+            </button>
+          </div>
+        ) : (
+          <>
+            <input
+              type="text"
+              placeholder={isProcessing ? 'Processing...' : 'Ask Lead Orchestration Engineer...'}
+              value={inputText}
+              disabled={isProcessing}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
+              style={{
+                flex: 1,
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                borderRadius: 6,
+                padding: '8px 10px',
+                color: OsakaJadePalette.text.primary,
+                fontSize: 12,
+                outline: 'none',
+                opacity: isProcessing ? 0.6 : 1
+              }}
+            />
+            <button
+              onClick={() => handleSendMessage()}
+              disabled={isProcessing || !inputText.trim()}
+              style={{
+                backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
+                color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
+                border: 'none',
+                borderRadius: 6,
+                padding: '8px 12px',
+                fontWeight: 700,
+                fontSize: 11,
+                cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer'
+              }}
+            >
+              Send
+            </button>
+          </>
+        )}
       </div>
 
       {/* AI Model & Provider Modal */}

@@ -305,43 +305,43 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       {activeTab === 'CHAT' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Offline Engine Notification Banner */}
+            {/* Offline Local Unit-Ops Banner */}
             {aiConfig.provider === 'offline' && (
               <div
                 style={{
-                  padding: '10px 14px',
+                  padding: '12px 16px',
                   borderRadius: 8,
                   backgroundColor: 'rgba(255, 255, 255, 0.03)',
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  fontSize: 11,
-                  lineHeight: 1.4,
+                  fontSize: 12,
+                  lineHeight: 1.5,
                   color: OsakaJadePalette.text.secondary,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  gap: 10
+                  gap: 12
                 }}
               >
                 <div>
-                  <strong style={{ color: OsakaJadePalette.text.primary }}>Offline Deterministic Mode: </strong>
-                  Operating via local physics ODEs & ISA-5.1 CAD generator (Zero API keys).
+                  <strong style={{ color: OsakaJadePalette.text.primary }}>Offline Mode (Local Unit-Ops Only): </strong>
+                  You have 100% offline access to all created and plugin-installed Unit-Ops (dressing, nozzles, internals, and physics). Connect via MCP or OAuth to activate AI Sub-Agents for equipment generation and chat.
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsAiModalOpen(true)}
                   style={{
-                    padding: '4px 10px',
-                    borderRadius: 5,
+                    padding: '6px 14px',
+                    borderRadius: 6,
                     backgroundColor: 'rgba(16, 185, 129, 0.15)',
                     border: `1px solid ${OsakaJadePalette.jade.glow}`,
                     color: OsakaJadePalette.jade.glow,
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: 700,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap'
                   }}
                 >
-                  Connect AI Model
+                  Connect MCP / OAuth
                 </button>
               </div>
             )}
@@ -544,44 +544,82 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
               borderTop: `1px solid ${OsakaJadePalette.border.default}`,
               display: 'flex',
               gap: 8,
-              backgroundColor: OsakaJadePalette.background.surface
+              backgroundColor: OsakaJadePalette.background.surface,
+              alignItems: 'center'
             }}
           >
-            <input
-              type="text"
-              placeholder={isProcessing ? 'Processing...' : `Instruct ${node.name.split(' ')[0]} Sub-Agent...`}
-              value={inputText}
-              disabled={isProcessing}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
-              style={{
-                flex: 1,
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                borderRadius: 6,
-                padding: '8px 12px',
-                color: OsakaJadePalette.text.primary,
-                fontSize: 13,
-                outline: 'none',
-                opacity: isProcessing ? 0.6 : 1
-              }}
-            />
-            <button
-              onClick={() => handleSendMessage()}
-              disabled={isProcessing || !inputText.trim()}
-              style={{
-                backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
-                color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
-                border: 'none',
-                borderRadius: 6,
-                padding: '8px 14px',
-                fontWeight: 700,
-                fontSize: 12,
-                cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Send
-            </button>
+            {aiConfig.provider === 'offline' ? (
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px 14px',
+                  borderRadius: 6,
+                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                  border: `1px solid ${OsakaJadePalette.border.default}`,
+                  fontSize: 12,
+                  color: OsakaJadePalette.text.muted
+                }}
+              >
+                <span>AI Sub-Agent is offline. Connect via MCP or OAuth to chat.</span>
+                <button
+                  type="button"
+                  onClick={() => setIsAiModalOpen(true)}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: 5,
+                    backgroundColor: OsakaJadePalette.jade.glow,
+                    color: OsakaJadePalette.background.base,
+                    border: 'none',
+                    fontWeight: 700,
+                    fontSize: 11,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Connect AI
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  placeholder={isProcessing ? 'Processing...' : `Instruct ${node.name.split(' ')[0]} Sub-Agent...`}
+                  value={inputText}
+                  disabled={isProcessing}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
+                  style={{
+                    flex: 1,
+                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                    border: `1px solid ${OsakaJadePalette.border.default}`,
+                    borderRadius: 6,
+                    padding: '8px 12px',
+                    color: OsakaJadePalette.text.primary,
+                    fontSize: 13,
+                    outline: 'none',
+                    opacity: isProcessing ? 0.6 : 1
+                  }}
+                />
+                <button
+                  onClick={() => handleSendMessage()}
+                  disabled={isProcessing || !inputText.trim()}
+                  style={{
+                    backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
+                    color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '8px 14px',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Send
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -226,7 +226,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           Save Simulation
         </button>
 
-        {/* AI Model Connection Button */}
+        {/* AI Connection Button (Zero-Key MCP & OAuth) */}
         <button
           onClick={onOpenAiModal}
           style={{
@@ -242,10 +242,17 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             fontWeight: 600,
             cursor: 'pointer'
           }}
-          title="Configure AI Model / Key (Gemini, Claude, OpenAI, Local MCP)"
+          title="Manage AI Connection (MCP or OAuth 2.0 PKCE - Zero Raw Keys)"
         >
           {activeAiProvider === 'offline' ? <Zap size={14} /> : <Cpu size={14} color={OsakaJadePalette.jade.glow} />}
-          <span>AI Model: {activeAiProvider === 'offline' ? 'Offline Solver' : activeAiProvider.toUpperCase()}</span>
+          <span>
+            AI Connection:{' '}
+            {activeAiProvider === 'offline'
+              ? 'OFFLINE (LOCAL)'
+              : activeAiProvider === 'mcp'
+              ? 'MCP CONNECTED'
+              : 'OAUTH SIGNED IN'}
+          </span>
         </button>
 
         {/* MCP Server Setup */}
