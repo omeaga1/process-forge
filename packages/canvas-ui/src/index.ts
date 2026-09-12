@@ -5,4 +5,6 @@ export * from './components/edges/AnimatedStreamEdge.js';
 export * from './components/studio/UnitOpPopOutStudio.js';
 export * from './components/dock/MasterOrchestratorDock.js';
 export * from './components/marketplace/ForgeHubModal.js';
+export * from './components/animations/EquipmentAnimations.js';
+export * from './components/studio/UnitOpDressingTab.js';
 export * from './components/ProcessCanvas.js';

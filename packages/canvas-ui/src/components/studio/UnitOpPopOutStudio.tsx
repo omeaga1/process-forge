@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { OsakaJadePalette } from '@process-forge/theme';
-import type { ProcessNode } from '@process-forge/protocol';
+import type { ProcessNode, UnitOpDressing } from '@process-forge/protocol';
 import type { ChatMessage } from '../../types.js';
+import { UnitAnim } from '../animations/EquipmentAnimations.js';
+import { UnitOpDressingTab } from './UnitOpDressingTab.js';
 
 interface UnitOpPopOutStudioProps {
   node: ProcessNode | null;
   isOpen: boolean;
   onClose: () => void;
   onUpdateConfig: (nodeId: string, updatedConfig: Record<string, unknown>) => void;
+  onUpdateDressing?: (nodeId: string, updatedDressing: UnitOpDressing) => void;
   onPublishToForgeHub: (node: ProcessNode) => void;
   upstreamContext?: string;
   downstreamContext?: string;
@@ -18,13 +21,14 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   isOpen,
   onClose,
   onUpdateConfig,
+  onUpdateDressing,
   onPublishToForgeHub,
   upstreamContext = 'Reactor B-101 (45 gal/min Latex)',
   downstreamContext = 'Conveyor CV-400 (48 cans/min capacity)'
 }) => {
   if (!isOpen || !node) return null;
 
-  const [activeTab, setActiveTab] = useState<'CHAT' | 'PARAMETERS' | 'SYSTEM_CONTEXT'>('CHAT');
+  const [activeTab, setActiveTab] = useState<'CHAT' | 'PARAMETERS' | 'DRESSING' | 'SYSTEM_CONTEXT'>('CHAT');
   const [inputText, setInputText] = useState('');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
@@ -77,6 +81,25 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           rejectRatePercentage: 0.5,
           rejectChuteEnabled: true
         };
+      } else if (message.toLowerCase().includes('dressing') || message.toLowerCase().includes('jacket') || message.toLowerCase().includes('nozzle') || message.toLowerCase().includes('agitator')) {
+        agentReply =
+          'I have reconfigured the mechanical dressing for this unit: updated nozzle port elevations, installed a high-shear Rushton turbine, and attached a thermal utility jacket. You can view the live SVG model under the "Dressing & Nozzles" tab.';
+        const newDressing: UnitOpDressing = {
+          nozzles: node.dressing?.nozzles?.length ? node.dressing.nozzles : [
+            { id: 'N1', name: 'Feed Inlet', role: 'inlet', x: 20, y: 15, position: 'top', sizeInches: 3, ratingPsi: 150 },
+            { id: 'N2', name: 'Bottom Drain', role: 'drain', x: 50, y: 95, position: 'bottom', sizeInches: 2, ratingPsi: 150 }
+          ],
+          internals: {
+            agitatorType: 'rushton',
+            hasJacket: true,
+            jacketType: 'steam',
+            baffleCount: 4,
+            packingType: 'none',
+            hasDemister: false,
+            hasSprayHeader: false
+          }
+        };
+        onUpdateDressing?.(node.id, newDressing);
       } else {
         agentReply = `I have validated the kinematics for ${node.name}. Mass flow is in steady state with upstream feed (${upstreamContext}) and downstream queue (${downstreamContext}).`;
       }
@@ -103,7 +126,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         position: 'fixed',
         top: 0,
         right: 0,
-        width: 520,
+        width: 580,
         height: '100vh',
         backgroundColor: OsakaJadePalette.background.surfaceElevated,
         borderLeft: `1px solid ${OsakaJadePalette.border.strong}`,
@@ -115,10 +138,10 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}
     >
-      {/* Pop-Out Header */}
+      {/* Pop-Out Header with Live Animated Unit Preview */}
       <div
         style={{
-          padding: '16px 20px',
+          padding: '12px 18px',
           borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
           display: 'flex',
           justifyContent: 'space-between',
@@ -126,12 +149,29 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           backgroundColor: OsakaJadePalette.background.surface
         }}
       >
-        <div>
-          <div style={{ fontSize: 11, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase' }}>
-            Unit-Op Sub-Agent Studio
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 8,
+              backgroundColor: OsakaJadePalette.background.surfaceElevated,
+              border: `1px solid ${OsakaJadePalette.jade.glow}44`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden'
+            }}
+          >
+            <UnitAnim kind={node.kind} dressing={node.dressing} isRunning={true} />
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
-            {node.name}
+          <div>
+            <div style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase' }}>
+              Unit-Op Sub-Agent Studio
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
+              {node.name}
+            </div>
           </div>
         </div>
 
@@ -173,11 +213,28 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             borderBottom: activeTab === 'CHAT' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
             color: activeTab === 'CHAT' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
             fontWeight: 600,
-            fontSize: 12,
+            fontSize: 11,
             cursor: 'pointer'
           }}
         >
           Sub-Agent Chat
+        </button>
+
+        <button
+          onClick={() => setActiveTab('DRESSING')}
+          style={{
+            flex: 1,
+            padding: '10px 0',
+            backgroundColor: activeTab === 'DRESSING' ? OsakaJadePalette.background.surfaceElevated : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'DRESSING' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
+            color: activeTab === 'DRESSING' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
+            fontWeight: 600,
+            fontSize: 11,
+            cursor: 'pointer'
+          }}
+        >
+          Dressing & Nozzles
         </button>
 
         <button
@@ -190,11 +247,11 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             borderBottom: activeTab === 'PARAMETERS' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
             color: activeTab === 'PARAMETERS' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
             fontWeight: 600,
-            fontSize: 12,
+            fontSize: 11,
             cursor: 'pointer'
           }}
         >
-          Generative Controls
+          Controls
         </button>
 
         <button
@@ -207,11 +264,11 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             borderBottom: activeTab === 'SYSTEM_CONTEXT' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
             color: activeTab === 'SYSTEM_CONTEXT' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
             fontWeight: 600,
-            fontSize: 12,
+            fontSize: 11,
             cursor: 'pointer'
           }}
         >
-          Boundary Context
+          Context
         </button>
       </div>
 
@@ -314,7 +371,17 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         </div>
       )}
 
-      {/* Tab 2: Generative Parameter Controls */}
+      {/* Tab 2: Custom UnitOp Dressing & Nozzle Manager */}
+      {activeTab === 'DRESSING' && (
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <UnitOpDressingTab
+            node={node}
+            onUpdateDressing={(updatedDressing) => onUpdateDressing?.(node.id, updatedDressing)}
+          />
+        </div>
+      )}
+
+      {/* Tab 3: Generative Parameter Controls */}
       {activeTab === 'PARAMETERS' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>

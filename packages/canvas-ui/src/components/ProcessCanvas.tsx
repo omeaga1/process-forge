@@ -186,6 +186,13 @@ export const ProcessCanvas: React.FC = () => {
     }));
   };
 
+  const handleUpdateNodeDressing = (nodeId: string, updatedDressing: any) => {
+    setGraph((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, dressing: updatedDressing } : n))
+    }));
+  };
+
   const popOutNode = useMemo(() => {
     return graph.nodes.find((n) => n.id === popOutNodeId) || null;
   }, [graph.nodes, popOutNodeId]);
@@ -243,6 +250,7 @@ export const ProcessCanvas: React.FC = () => {
         isOpen={popOutNodeId !== null}
         onClose={() => setPopOutNodeId(null)}
         onUpdateConfig={handleUpdateNodeConfig}
+        onUpdateDressing={handleUpdateNodeDressing}
         onPublishToForgeHub={(n) => {
           alert(`Package generated for "${n.name}". Bundle .pfu submitted to ForgeHub registry.`);
         }}

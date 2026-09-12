@@ -2,6 +2,7 @@ import React from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { OsakaJadePalette, MachineStateVisuals } from '@process-forge/theme';
 import type { CanvasNodeData } from '../../types.js';
+import { UnitAnim } from '../animations/EquipmentAnimations.js';
 
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const nodeData = data as unknown as CanvasNodeData;
@@ -129,11 +130,56 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           fontSize: 13,
           fontWeight: 600,
           color: OsakaJadePalette.text.primary,
-          marginBottom: 10,
+          marginBottom: 8,
           lineHeight: '1.3'
         }}
       >
         {processNode.name}
+      </div>
+
+      {/* Live Animated Machine Visual & Physical Dressing */}
+      <div
+        style={{
+          width: '100%',
+          height: 90,
+          marginBottom: 8,
+          borderRadius: 6,
+          backgroundColor: OsakaJadePalette.background.canvas,
+          border: `1px solid ${OsakaJadePalette.border.subtle}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+          overflow: 'hidden'
+        }}
+      >
+        <div style={{ width: 80, height: 80, position: 'relative' }}>
+          <UnitAnim
+            kind={processNode.kind}
+            dressing={processNode.dressing}
+            isRunning={state === 'BUSY'}
+          />
+        </div>
+
+        {/* Dressed Nozzle Badges (if configured) */}
+        {processNode.dressing?.nozzles?.length ? (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 4,
+              right: 6,
+              fontSize: 8,
+              fontWeight: 700,
+              color: OsakaJadePalette.jade[300],
+              backgroundColor: `${OsakaJadePalette.background.surfaceElevated}cc`,
+              padding: '1px 5px',
+              borderRadius: 3,
+              border: `1px solid ${OsakaJadePalette.border.subtle}`
+            }}
+          >
+            {processNode.dressing.nozzles.length} NOZZLES
+          </div>
+        ) : null}
       </div>
 
       {/* Telemetry Readout Grid */}

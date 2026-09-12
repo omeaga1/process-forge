@@ -71,4 +71,19 @@ describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
       }
     }
   });
+
+  it('validates custom mechanical dressing on industrial reactors and surge vessels', () => {
+    const reactor = SHERWIN_WILLIAMS_PAINT_LINE.nodes.find((n) => n.id === 'reactor-101');
+    assert.ok(reactor?.dressing, 'Reactor must have dressing configured');
+    assert.strictEqual(reactor.dressing.nozzles.length, 5);
+    assert.strictEqual(reactor.dressing.internals.agitatorType, 'rushton');
+    assert.strictEqual(reactor.dressing.internals.hasJacket, true);
+    assert.strictEqual(reactor.dressing.internals.jacketType, 'steam');
+    assert.strictEqual(reactor.dressing.internals.baffleCount, 4);
+
+    const surge = SHERWIN_WILLIAMS_PAINT_LINE.nodes.find((n) => n.id === 'surge-tank-200');
+    assert.ok(surge?.dressing, 'Surge tank must have dressing configured');
+    assert.strictEqual(surge.dressing.nozzles.length, 4);
+    assert.strictEqual(surge.dressing.internals.hasDemister, true);
+  });
 });

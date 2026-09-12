@@ -63,6 +63,43 @@ export const PalletizerConfigSchema = z.object({
 });
 export type PalletizerConfig = z.infer<typeof PalletizerConfigSchema>;
 
+export const NozzleDressingSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  role: z.enum(['inlet', 'outlet', 'vent', 'drain', 'utility', 'tap', 'relief']),
+  x: z.number().min(0).max(100),
+  y: z.number().min(0).max(100),
+  position: z.enum(['top', 'bottom', 'left', 'right']),
+  sizeInches: z.number().positive().default(2),
+  ratingPsi: z.number().positive().default(150),
+  elevationMeters: z.number().optional()
+});
+export type NozzleDressing = z.infer<typeof NozzleDressingSchema>;
+
+export const InternalsDressingSchema = z.object({
+  agitatorType: z.enum(['none', 'pitched_blade', 'rushton', 'anchor', 'propeller']).default('none'),
+  agitatorRpm: z.number().min(0).optional(),
+  hasJacket: z.boolean().default(false),
+  jacketType: z.enum(['none', 'steam', 'water', 'glycol', 'electric']).default('none'),
+  jacketPressurePsi: z.number().optional(),
+  baffleCount: z.number().int().min(0).max(8).default(0),
+  packingType: z.enum(['none', 'structured', 'random', 'trays']).default('none'),
+  trayCount: z.number().int().min(0).optional(),
+  hasDemister: z.boolean().default(false),
+  hasSprayHeader: z.boolean().default(false)
+});
+export type InternalsDressing = z.infer<typeof InternalsDressingSchema>;
+
+export const UnitOpDressingSchema = z.object({
+  nozzles: z.array(NozzleDressingSchema).default([]),
+  internals: InternalsDressingSchema.default({}),
+  customSvgShell: z.string().optional(),
+  customSvgDetails: z.string().optional(),
+  colorAccent: z.string().optional(),
+  notes: z.string().optional()
+});
+export type UnitOpDressing = z.infer<typeof UnitOpDressingSchema>;
+
 export const NodeKindSchema = z.enum([
   'BATCH_REACTOR',
   'SURGE_TANK',
@@ -70,7 +107,14 @@ export const NodeKindSchema = z.enum([
   'CONVEYOR',
   'LABELER',
   'PALLETIZER',
-  'CUSTOM_UNIT_OP'
+  'CUSTOM_UNIT_OP',
+  'SEPARATOR',
+  'DISTILLATION_COLUMN',
+  'HEAT_EXCHANGER',
+  'PUMP',
+  'SCRUBBER',
+  'SPRAY_CHAMBER',
+  'MIXER'
 ]);
 export type NodeKind = z.infer<typeof NodeKindSchema>;
 
@@ -90,6 +134,7 @@ export const ProcessNodeSchema = z.object({
     PalletizerConfigSchema,
     z.record(z.unknown())
   ]),
-  assignedSubAgentId: z.string().optional()
+  assignedSubAgentId: z.string().optional(),
+  dressing: UnitOpDressingSchema.optional()
 });
 export type ProcessNode = z.infer<typeof ProcessNodeSchema>;

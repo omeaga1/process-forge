@@ -42,6 +42,20 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
 
   return (
     <>
+      <defs>
+        <marker
+          id={`arrow-${id}`}
+          viewBox="0 0 10 10"
+          refX="6"
+          refY="5"
+          markerWidth="6"
+          markerHeight="6"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 1 L 10 5 L 0 9 z" fill={strokeColor} opacity="0.8" />
+        </marker>
+      </defs>
+
       {/* Background glow path */}
       <path
         id={`${id}-glow`}
@@ -58,14 +72,15 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
         d={edgePath}
         fill="none"
         stroke={strokeColor}
-        strokeWidth={2}
-        strokeDasharray={isFluid ? '6 3' : '4 6'}
+        strokeWidth={2.5}
+        strokeDasharray={isFluid ? '8 4' : '4 8'}
+        markerEnd={`url(#arrow-${id})`}
         style={{
           animation: isBlocked
             ? 'pfPulse 1.5s ease-in-out infinite alternate'
             : isFluid
-              ? 'pfFlow 1s linear infinite'
-              : 'pfDash 0.8s linear infinite'
+              ? 'pf-flow 0.9s linear infinite'
+              : 'pf-flow 0.6s linear infinite'
         }}
       />
 

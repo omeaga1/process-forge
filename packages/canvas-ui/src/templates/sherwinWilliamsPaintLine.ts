@@ -36,7 +36,28 @@ export const SHERWIN_WILLIAMS_PAINT_LINE: ProcessGraph = {
           temperatureCelsius: 23
         }
       },
-      assignedSubAgentId: 'subagent-reactor-101'
+      assignedSubAgentId: 'subagent-reactor-101',
+      dressing: {
+        nozzles: [
+          { id: 'N1', name: 'Raw Resin Charge', role: 'inlet', x: 20, y: 15, position: 'top', sizeInches: 4, ratingPsi: 150 },
+          { id: 'N2', name: 'Vapor Vent / Scrubber Line', role: 'vent', x: 50, y: 10, position: 'top', sizeInches: 3, ratingPsi: 150 },
+          { id: 'N3', name: 'Pigment Slurry Feed', role: 'inlet', x: 80, y: 20, position: 'top', sizeInches: 3, ratingPsi: 150 },
+          { id: 'N4', name: 'Latex Bottom Discharge', role: 'outlet', x: 50, y: 95, position: 'bottom', sizeInches: 3, ratingPsi: 150 },
+          { id: 'N5', name: 'Steam Jacket Infeed', role: 'utility', x: 10, y: 65, position: 'left', sizeInches: 2, ratingPsi: 150 }
+        ],
+        internals: {
+          agitatorType: 'rushton',
+          agitatorRpm: 120,
+          hasJacket: true,
+          jacketType: 'steam',
+          jacketPressurePsi: 150,
+          baffleCount: 4,
+          packingType: 'none',
+          hasDemister: false,
+          hasSprayHeader: true
+        },
+        notes: 'High-shear dispersion cowl with Rushton flat-blade turbine and heating jacket'
+      }
     },
     {
       id: 'surge-tank-200',
@@ -66,7 +87,25 @@ export const SHERWIN_WILLIAMS_PAINT_LINE: ProcessGraph = {
         lowLevelAlarmPercentage: 15,
         highLevelAlarmPercentage: 85
       },
-      assignedSubAgentId: 'subagent-surge-200'
+      assignedSubAgentId: 'subagent-surge-200',
+      dressing: {
+        nozzles: [
+          { id: 'N1', name: 'Latex Transfer Infeed', role: 'inlet', x: 30, y: 15, position: 'top', sizeInches: 3, ratingPsi: 150 },
+          { id: 'N2', name: 'Nitrogen Purge Vent', role: 'vent', x: 60, y: 10, position: 'top', sizeInches: 2, ratingPsi: 150 },
+          { id: 'N3', name: 'Transfer Pump Suction', role: 'outlet', x: 50, y: 95, position: 'bottom', sizeInches: 3, ratingPsi: 150 },
+          { id: 'N4', name: 'Level Transmitter Tap', role: 'tap', x: 85, y: 50, position: 'right', sizeInches: 1, ratingPsi: 150 }
+        ],
+        internals: {
+          agitatorType: 'none',
+          hasJacket: false,
+          jacketType: 'none',
+          baffleCount: 0,
+          packingType: 'none',
+          hasDemister: true,
+          hasSprayHeader: false
+        },
+        notes: 'Atmospheric surge vessel with radar level transmitter and demister pad'
+      }
     },
     {
       id: 'rotary-filler-300',

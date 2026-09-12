@@ -14,7 +14,9 @@ import {
   Check,
   X,
   Boxes,
-  Zap
+  Zap,
+  Activity,
+  Layers
 } from 'lucide-react';
 
 interface PlatformInfo {
@@ -840,6 +842,70 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             </h3>
             <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
               Lightweight Tauri v2 shell for Windows, macOS, and Linux. Built-in automatic update detection notifies you whenever a new release is published with seamless one-click in-app updating.
+            </p>
+          </div>
+
+          {/* Card 7 */}
+          <div
+            style={{
+              padding: '28px',
+              borderRadius: '10px',
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`
+            }}
+          >
+            <div
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '8px',
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '18px',
+                color: OsakaJadePalette.jade[400]
+              }}
+            >
+              <Activity size={24} />
+            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
+              Live Animated Physical Visualizations
+            </h3>
+            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
+              Direct physical SVG animations for reactors, columns, separators, spray chambers, and pumps. Watch dynamic bubble nucleation, vapor shimmer, spinning Rushton impellers, and fluid vortex dynamics update in real time.
+            </p>
+          </div>
+
+          {/* Card 8 */}
+          <div
+            style={{
+              padding: '28px',
+              borderRadius: '10px',
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`
+            }}
+          >
+            <div
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '8px',
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '18px',
+                color: OsakaJadePalette.jade[400]
+              }}
+            >
+              <Layers size={24} />
+            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
+              Mechanical UnitOp Dressing & Nozzle Editor
+            </h3>
+            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
+              Interactive perimeter nozzle placement with ASME 150#/300#/600# flange ratings and pipe sizing. Configure vessel internals including thermal jackets (steam/glycol), baffles, and mist eliminators directly in the pop-out studio.
             </p>
           </div>
         </div>
