@@ -35,4 +35,40 @@ describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
       );
     }
   });
+
+  it('verifies visual positions are non-overlapping and ordered horizontally', () => {
+    let lastX = -1;
+    for (const node of SHERWIN_WILLIAMS_PAINT_LINE.nodes) {
+      assert.ok(node.position.x >= 0, 'Node X position must be non-negative');
+      assert.ok(node.position.y >= 0, 'Node Y position must be non-negative');
+      assert.ok(node.position.x > lastX, `Node ${node.id} should be ordered downstream from previous node`);
+      lastX = node.position.x;
+    }
+  });
+
+  it('verifies strict phase transition contract at rotary filler (fluid to discrete cans)', () => {
+    const filler = SHERWIN_WILLIAMS_PAINT_LINE.nodes.find((n) => n.kind === 'ROTARY_FILLER');
+    assert.ok(filler, 'Rotary filler must be present');
+
+    const inputPort = filler.inputs.find((p) => p.flowDimension === 'CONTINUOUS_VOLUME');
+    const outputPort = filler.outputs.find((p) => p.flowDimension === 'DISCRETE_CONTAINER');
+
+    assert.ok(inputPort, 'Filler must accept CONTINUOUS_VOLUME fluid');
+    assert.ok(outputPort, 'Filler must output DISCRETE_CONTAINER pieces');
+  });
+
+  it('validates edge streams preserve container specifications on packaging line', () => {
+    const discreteEdges = SHERWIN_WILLIAMS_PAINT_LINE.edges.filter(
+      (e) => e.stream.type === 'DISCRETE_CONTAINER_STREAM'
+    );
+    assert.strictEqual(discreteEdges.length, 3); // filler->conveyor, conveyor->labeler, labeler->palletizer
+
+    for (const edge of discreteEdges) {
+      if (edge.stream.type === 'DISCRETE_CONTAINER_STREAM') {
+        assert.strictEqual(edge.stream.containerVolumeGallons, 1.0);
+        assert.strictEqual(edge.stream.containerType, 'CAN_1_GAL');
+        assert.ok(edge.stream.targetPiecesPerMinute > 0);
+      }
+    }
+  });
 });
