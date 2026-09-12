@@ -716,6 +716,82 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             </a>
           </div>
 
+          {/* Quick Direct Platform Download Chips */}
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              marginTop: '8px',
+              marginBottom: '16px'
+            }}
+          >
+            <span style={{ fontSize: '0.78rem', color: OsakaJadePalette.text.muted }}>Direct Native Downloads:</span>
+            <a
+              href="https://github.com/omeaga1/process-forge/releases/latest"
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 12px',
+                borderRadius: '6px',
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                border: `1px solid ${OsakaJadePalette.jade[600]}`,
+                color: OsakaJadePalette.jade[300],
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                textDecoration: 'none',
+                boxShadow: `0 0 10px ${OsakaJadePalette.jade.glow}22`
+              }}
+            >
+              <Download size={13} color={OsakaJadePalette.jade[400]} /> Windows (.msi / .exe)
+            </a>
+            <a
+              href="https://github.com/omeaga1/process-forge/releases/latest"
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 12px',
+                borderRadius: '6px',
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                color: OsakaJadePalette.text.secondary,
+                fontSize: '0.78rem',
+                fontWeight: 500,
+                textDecoration: 'none'
+              }}
+            >
+              <Download size={13} /> macOS (.dmg)
+            </a>
+            <a
+              href="https://github.com/omeaga1/process-forge/releases/latest"
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 12px',
+                borderRadius: '6px',
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                color: OsakaJadePalette.text.secondary,
+                fontSize: '0.78rem',
+                fontWeight: 500,
+                textDecoration: 'none'
+              }}
+            >
+              <Download size={13} /> Linux (.AppImage)
+            </a>
+          </div>
+
           {/* Platform Switcher & Version Meta */}
           <div
             style={{
@@ -742,7 +818,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 fontSize: '0.82rem'
               }}
             >
-              Other platforms (.exe, .dmg, .AppImage)
+              View all checksums & packages
             </button>
             <span>•</span>
             <span>Zero login required to test</span>
