@@ -1,0 +1,23 @@
+{
+  "name": "@process-forge/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Domain entities, stream contracts, and multi-agent interaction schemas for ProcessForge",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/__tests__/**/*.test.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"Protocol lint clean\""
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@process-forge/typescript-config": "workspace:*",
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2"
+  }
+}

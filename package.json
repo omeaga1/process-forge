@@ -1,0 +1,22 @@
+{
+  "name": "process-forge-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Next-generation hybrid process simulation platform with hierarchical agent orchestration",
+  "author": "omeaga1",
+  "license": "Apache-2.0",
+  "packageManager": "pnpm@10.5.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "verify:scaffolds": "node ./packages/scaffold-registry/dist/cli.js check",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4",
+    "typescript": "^5.8.2"
+  }
+}

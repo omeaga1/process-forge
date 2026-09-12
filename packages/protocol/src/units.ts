@@ -1,0 +1,51 @@
+import { z } from 'zod';
+
+export const VolumetricFlowUnitSchema = z.enum(['GALLONS_PER_MIN', 'LITERS_PER_MIN', 'CUBIC_METERS_PER_HOUR']);
+export type VolumetricFlowUnit = z.infer<typeof VolumetricFlowUnitSchema>;
+
+export const MassFlowUnitSchema = z.enum(['KG_PER_HOUR', 'LBS_PER_MIN', 'METRIC_TONS_PER_DAY']);
+export type MassFlowUnit = z.infer<typeof MassFlowUnitSchema>;
+
+export const DiscreteRateUnitSchema = z.enum(['UNITS_PER_MINUTE', 'UNITS_PER_HOUR']);
+export type DiscreteRateUnit = z.infer<typeof DiscreteRateUnitSchema>;
+
+export const FluidPropertiesSchema = z.object({
+  name: z.string().min(1),
+  densityGPerCm3: z.number().positive(),
+  viscosityCentipoise: z.number().positive(),
+  temperatureCelsius: z.number()
+});
+export type FluidProperties = z.infer<typeof FluidPropertiesSchema>;
+
+/**
+ * Standard unit conversion functions for physical flow calculations.
+ */
+export const UnitConverters = {
+  gallonsPerMinToLitersPerMin(gpm: number): number {
+    return gpm * 3.78541;
+  },
+  litersPerMinToGallonsPerMin(lpm: number): number {
+    return lpm / 3.78541;
+  },
+  /**
+   * Calculates discrete container throughput from fluid feed rate and container volume.
+   * e.g., 40 gallons/min feeding 1-gallon cans yields 40 cans/min.
+   */
+  volumetricRateToDiscreteUnitsPerMin(flowGpm: number, containerVolumeGallons: number): number {
+    if (containerVolumeGallons <= 0) {
+      throw new Error('Container volume must be strictly positive');
+    }
+    return flowGpm / containerVolumeGallons;
+  },
+  /**
+   * Calculates required machine cycle time in seconds based on nozzle count and desired discrete throughput.
+   * Example: 40 cans/min with a 10-nozzle filler requires 1 cycle every 15 seconds (10 cans / 15 sec = 40 cans/min).
+   */
+  calculateRequiredCycleSeconds(unitsPerMinute: number, nozzleCount: number): number {
+    if (unitsPerMinute <= 0 || nozzleCount <= 0) {
+      throw new Error('Units per minute and nozzle count must be strictly positive');
+    }
+    const cyclesPerMinute = unitsPerMinute / nozzleCount;
+    return 60 / cyclesPerMinute;
+  }
+};

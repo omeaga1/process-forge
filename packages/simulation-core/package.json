@@ -1,0 +1,23 @@
+{
+  "name": "@process-forge/simulation-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic discrete-event and continuous flow simulation engine for ProcessForge",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/__tests__/**/*.test.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"Simulation core lint clean\""
+  },
+  "dependencies": {
+    "@process-forge/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@process-forge/typescript-config": "workspace:*",
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2"
+  }
+}

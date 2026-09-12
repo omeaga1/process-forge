@@ -1,0 +1,23 @@
+{
+  "name": "@process-forge/scaffold-registry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Anti-laziness tracking system and AST placeholder scanner for ProcessForge",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "verify-scaffolds": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/__tests__/**/*.test.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"Scaffold registry lint clean\""
+  },
+  "devDependencies": {
+    "@process-forge/typescript-config": "workspace:*",
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2"
+  }
+}
