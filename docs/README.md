@@ -25,6 +25,7 @@ Historical log of foundational engineering decisions, their context, and consequ
 * [**ADR-0005: Zero Raw API Keys, ForgeHub & Agent-Driven Packages**](adr/0005-zero-raw-keys-and-agent-driven-packages.md) — OAuth authentication, self-contained community plugins, and sub-agent capability recommendations.
 * [**ADR-0006: Model Context Protocol (MCP) Server Architecture**](adr/0006-model-context-protocol-mcp.md) — Connecting Claude Desktop, Gemini CLI, and ChatGPT as domain software engineers.
 * [**ADR-0007: Whole-Simulation Project Storage & Zero-Friction Guest Mode**](adr/0007-whole-simulation-storage-and-guest-mode.md) — Portable `.pfg.json` bundles, complete digital twin serialization, and friction-free trial.
+* [**ADR-0008: Desktop Auto-Update Protocol & GitHub Pages Showcase Distribution**](adr/0008-desktop-auto-update-and-landing-distribution.md) — GitHub Pages showcase site, one-click multi-platform installers, and Tauri v2 in-app update prompts.
 
 ---
 
@@ -48,5 +49,6 @@ Each workspace package and app includes an in-depth README for localized develop
 * [`@process-forge/canvas-ui`](../packages/canvas-ui/README.md) — Interactive React Flow canvas, Master dock, and Sub-Agent pop-out studio.
 * [`@process-forge/mcp-server`](../packages/mcp-server/README.md) — Model Context Protocol server for Claude, Gemini, and Cursor.
 * [`@process-forge/web`](../apps/web) — Modern browser-based digital twin studio.
+* [`@process-forge/docs-landing`](../apps/docs-landing) — Showcase landing page and installer download portal hosted on GitHub Pages.
 * [`@process-forge/desktop`](../apps/desktop/README.md) — Tauri v2 desktop shell with OS keychain integration.
 * [`@process-forge/scaffold-registry`](../packages/scaffold-registry/README.md) — Anti-laziness manifest, AST scanner, and CLI.

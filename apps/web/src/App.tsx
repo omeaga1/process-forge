@@ -8,6 +8,7 @@ import { HeaderBar } from './components/HeaderBar.js';
 import { McpModal } from './components/McpModal.js';
 import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModal.js';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
+import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
 import {
   saveLocalProject,
   loadCurrentLocalProject,
@@ -102,6 +103,9 @@ export const App: React.FC = () => {
         onOpenGuestModal={() => setIsGuestModalOpen(true)}
         onImportFile={handleImportFile}
       />
+
+      {/* Desktop In-App Auto Update Banner */}
+      <UpdateNotificationBanner />
 
       {/* Main Interactive Studio Canvas */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
