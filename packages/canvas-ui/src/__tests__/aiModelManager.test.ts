@@ -135,9 +135,9 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
 
     assert.strictEqual(res.isOfflineSolver, true);
     assert.strictEqual(res.senderBadge, 'Offline (Local Only)');
-    assert.ok(res.text.includes('AI Sub-Agent for "Jacketed Polymerization Reactor RX-201" is offline'));
+    assert.ok(res.text.includes('Unit-Op Forge for "Jacketed Polymerization Reactor RX-201" is in local offline mode'));
     assert.ok(res.text.includes('Connect via Model Context Protocol (MCP) or sign in with OAuth'));
-    assert.ok(res.errorNotice?.includes('AI Sub-Agent offline'));
+    assert.ok(res.errorNotice?.includes('Unit-Op Forge offline'));
   });
 
   it('when MCP is connected: dispatchUnitOpMessage executes CAD drawing via MCP tool', async () => {
@@ -163,7 +163,7 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
     );
 
     assert.strictEqual(res.isOfflineSolver, false);
-    assert.strictEqual(res.senderBadge, 'MCP Agent');
+    assert.strictEqual(res.senderBadge, 'MCP Forge');
     assert.ok(res.text.includes('[MCP Tool: forge_equipment_drawing]'));
     assert.ok(res.cadDrawing);
     assert.ok(res.cadDrawing?.nozzles.length >= 2);
@@ -219,7 +219,7 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
     );
 
     assert.strictEqual(res.isOfflineSolver, true);
-    assert.ok(res.text.includes('Master Orchestrator is offline'));
+    assert.ok(res.text.includes('Environment Forge is in local offline mode'));
     assert.ok(res.text.includes('Connect via MCP or OAuth'));
   });
 });
