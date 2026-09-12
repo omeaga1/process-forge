@@ -1,29 +1,47 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import {
   Layers,
   Cpu,
-  Download,
   ShoppingBag,
   ShieldCheck,
-  ChevronDown
+  ChevronDown,
+  Save,
+  FolderOpen,
+  AlertCircle
 } from 'lucide-react';
 import { OsakaJadePalette } from '@process-forge/theme';
 
 interface HeaderBarProps {
   currentTemplate: string;
+  isGuestMode: boolean;
   onSelectTemplate: (templateKey: string) => void;
   onOpenMcpModal: () => void;
   onOpenForgeHub: () => void;
-  onExportGraph: () => void;
+  onOpenSaveModal: () => void;
+  onOpenGuestModal: () => void;
+  onImportFile: (file: File) => void;
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
   currentTemplate,
+  isGuestMode,
   onSelectTemplate,
   onOpenMcpModal,
   onOpenForgeHub,
-  onExportGraph
+  onOpenSaveModal,
+  onOpenGuestModal,
+  onImportFile
 }) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onImportFile(file);
+      e.target.value = ''; // reset so same file can be reopened
+    }
+  };
+
   return (
     <header
       style={{
@@ -38,8 +56,16 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         position: 'relative'
       }}
     >
-      {/* Left: Brand & Status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,.pfg,.pfg.json"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+
+      {/* Left: Brand & Status Badges */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div
             style={{
@@ -62,6 +88,30 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             </span>
           </div>
         </div>
+
+        {/* Guest Mode Indicator */}
+        {isGuestMode && (
+          <button
+            onClick={onOpenGuestModal}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '3px 8px',
+              borderRadius: 12,
+              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              fontSize: 11,
+              color: OsakaJadePalette.border.glowAmber,
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+            title="Click to view Guest Mode preservation options"
+          >
+            <AlertCircle size={12} />
+            GUEST MODE • LOCAL ONLY
+          </button>
+        )}
 
         <div
           style={{
@@ -126,8 +176,52 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         </div>
       </div>
 
-      {/* Right: Actions & Trust Status */}
+      {/* Right: Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Open Project File */}
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            backgroundColor: 'transparent',
+            border: `1px solid ${OsakaJadePalette.border.subtle}`,
+            borderRadius: 6,
+            padding: '6px 10px',
+            color: OsakaJadePalette.text.secondary,
+            fontSize: 12,
+            cursor: 'pointer'
+          }}
+          title="Open a saved .pfg.json project file from disk"
+        >
+          <FolderOpen size={14} />
+          Open .pfg
+        </button>
+
+        {/* Save Project Modal Trigger */}
+        <button
+          onClick={onOpenSaveModal}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+            border: `1px solid ${OsakaJadePalette.jade[600]}`,
+            borderRadius: 6,
+            padding: '6px 12px',
+            color: OsakaJadePalette.text.accent,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+          title="Save or Download whole simulation state"
+        >
+          <Save size={14} />
+          Save Simulation
+        </button>
+
+        {/* MCP Server Setup */}
         <button
           onClick={onOpenMcpModal}
           style={{
@@ -148,19 +242,19 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           MCP Server
         </button>
 
+        {/* ForgeHub Marketplace */}
         <button
           onClick={onOpenForgeHub}
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
+            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+            border: `1px solid ${OsakaJadePalette.border.default}`,
             borderRadius: 6,
             padding: '6px 12px',
-            color: OsakaJadePalette.text.accent,
+            color: OsakaJadePalette.text.secondary,
             fontSize: 12,
-            fontWeight: 500,
             cursor: 'pointer'
           }}
         >
@@ -168,26 +262,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           ForgeHub
         </button>
 
-        <button
-          onClick={onExportGraph}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            backgroundColor: 'transparent',
-            border: `1px solid ${OsakaJadePalette.border.subtle}`,
-            borderRadius: 6,
-            padding: '6px 12px',
-            color: OsakaJadePalette.text.secondary,
-            fontSize: 12,
-            cursor: 'pointer'
-          }}
-          title="Export JSON Digital Twin"
-        >
-          <Download size={14} />
-          Export
-        </button>
-
+        {/* Zero Raw Keys Badge */}
         <div
           style={{
             display: 'flex',

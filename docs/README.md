@@ -24,6 +24,7 @@ Historical log of foundational engineering decisions, their context, and consequ
 * [**ADR-0004: Anti-Laziness Protocol & Scaffold Manifest**](adr/0004-anti-laziness-registry.md) — Zero-tolerance AST enforcement for placeholders and temporary scaffolding.
 * [**ADR-0005: Zero Raw API Keys, ForgeHub & Agent-Driven Packages**](adr/0005-zero-raw-keys-and-agent-driven-packages.md) — OAuth authentication, self-contained community plugins, and sub-agent capability recommendations.
 * [**ADR-0006: Model Context Protocol (MCP) Server Architecture**](adr/0006-model-context-protocol-mcp.md) — Connecting Claude Desktop, Gemini CLI, and ChatGPT as domain software engineers.
+* [**ADR-0007: Whole-Simulation Project Storage & Zero-Friction Guest Mode**](adr/0007-whole-simulation-storage-and-guest-mode.md) — Portable `.pfg.json` bundles, complete digital twin serialization, and friction-free trial.
 
 ---
 
