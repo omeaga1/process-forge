@@ -533,6 +533,27 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
           </a>
 
           <a
+            href="https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge-Setup-x64.exe"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              backgroundColor: OsakaJadePalette.jade[500],
+              color: OsakaJadePalette.text.inverse,
+              textDecoration: 'none',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: `0 0 12px ${OsakaJadePalette.jade.glow}44`
+            }}
+          >
+            <Download size={14} />
+            Download Windows (.exe)
+          </a>
+
+          <a
             href="./studio/"
             onClick={(e) => {
               // Graceful fallback for local development or subpath hosting
@@ -675,15 +696,17 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 textDecoration: 'none',
                 fontWeight: 700,
                 fontSize: '1rem',
-                boxShadow: `0 4px 20px ${OsakaJadePalette.jade[500]}44`,
+                boxShadow: `0 4px 20px ${OsakaJadePalette.jade[500]}55`,
                 transition: 'transform 0.15s ease, box-shadow 0.15s ease',
                 cursor: 'pointer'
               }}
             >
-              <Download size={20} color={OsakaJadePalette.text.inverse} />
+              <Download size={22} color={OsakaJadePalette.text.inverse} />
               <div style={{ textAlign: 'left' }}>
                 <div>Download for {platform.name} ({platform.extension})</div>
-                <div style={{ fontSize: '0.72rem', opacity: 0.85, fontWeight: 500 }}>{platform.instruction}</div>
+                <div style={{ fontSize: '0.74rem', opacity: 0.9, fontWeight: 500 }}>
+                  {platform.instruction}
+                </div>
               </div>
             </a>
 
@@ -730,35 +753,35 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
           >
             <span style={{ fontSize: '0.78rem', color: OsakaJadePalette.text.muted }}>Direct Native Downloads:</span>
             <a
-              href="https://github.com/omeaga1/process-forge/releases/download/v0.1.0/process-forge-windows-portable-x64.zip"
+              href="https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge-Setup-x64.exe"
               target="_blank"
               rel="noreferrer"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '5px 12px',
+                padding: '6px 14px',
                 borderRadius: '6px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.jade[600]}`,
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                border: `1px solid ${OsakaJadePalette.jade[500]}`,
                 color: OsakaJadePalette.jade[300],
-                fontSize: '0.78rem',
+                fontSize: '0.8rem',
                 fontWeight: 700,
                 textDecoration: 'none',
-                boxShadow: `0 0 10px ${OsakaJadePalette.jade.glow}22`
+                boxShadow: `0 0 12px ${OsakaJadePalette.jade.glow}33`
               }}
             >
-              <Download size={13} color={OsakaJadePalette.jade[400]} /> Windows (.zip Portable)
+              <Download size={14} color={OsakaJadePalette.jade[400]} /> Windows 1-Click Setup (.exe)
             </a>
             <a
-              href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.0"
+              href="https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip"
               target="_blank"
               rel="noreferrer"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '5px 12px',
+                padding: '6px 12px',
                 borderRadius: '6px',
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
                 border: `1px solid ${OsakaJadePalette.border.default}`,
@@ -768,17 +791,17 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 textDecoration: 'none'
               }}
             >
-              <Download size={13} /> Windows MSI & Native Installers
+              <Download size={13} /> Windows Portable (.zip)
             </a>
             <a
-              href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.0"
+              href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.1"
               target="_blank"
               rel="noreferrer"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '5px 12px',
+                padding: '6px 12px',
                 borderRadius: '6px',
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
                 border: `1px solid ${OsakaJadePalette.border.default}`,
@@ -789,6 +812,69 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               }}
             >
               <Download size={13} /> macOS (.dmg) & Linux
+            </a>
+          </div>
+
+          {/* Windows 1-Click Installer Feature Callout Banner */}
+          <div
+            style={{
+              maxWidth: '860px',
+              margin: '20px auto 0',
+              padding: '14px 20px',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              border: `1px solid ${OsakaJadePalette.jade[500]}55`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+              flexWrap: 'wrap',
+              textAlign: 'left'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Download size={20} color={OsakaJadePalette.jade.glow} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.92rem', color: OsakaJadePalette.text.primary }}>
+                  Windows One-Click Installer: <span style={{ color: OsakaJadePalette.jade[300] }}>ProcessForge-Setup-x64.exe</span>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: OsakaJadePalette.text.secondary, marginTop: '2px' }}>
+                  Double-click to automatically configure desktop shortcut, start menu entry, and local Runge-Kutta physics.
+                </div>
+              </div>
+            </div>
+            <a
+              href="https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge-Setup-x64.exe"
+              style={{
+                padding: '9px 18px',
+                borderRadius: '6px',
+                backgroundColor: OsakaJadePalette.jade[500],
+                color: OsakaJadePalette.text.inverse,
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                whiteSpace: 'nowrap',
+                boxShadow: `0 0 14px ${OsakaJadePalette.jade.glow}44`
+              }}
+            >
+              <Download size={14} />
+              Download .exe (212 KB)
             </a>
           </div>
 
