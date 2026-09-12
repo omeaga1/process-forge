@@ -14,6 +14,8 @@
     "test": "echo \"Docs landing tests passed\""
   },
   "dependencies": {
+    "@process-forge/canvas-ui": "workspace:*",
+    "@process-forge/protocol": "workspace:*",
     "@process-forge/theme": "workspace:*",
     "lucide-react": "^1.16.0",
     "react": "^19.0.0",

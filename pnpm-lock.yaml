@@ -23,6 +23,12 @@ importers:
 
   apps/docs-landing:
     dependencies:
+      '@process-forge/canvas-ui':
+        specifier: workspace:*
+        version: link:../../packages/canvas-ui
+      '@process-forge/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@process-forge/theme':
         specifier: workspace:*
         version: link:../../packages/theme

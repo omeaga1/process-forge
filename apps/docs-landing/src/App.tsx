@@ -1,23 +1,333 @@
 import React, { useState, useEffect } from 'react';
 import { OsakaJadePalette } from '@process-forge/theme';
 import {
+  ReactorAnim,
+  TankAnim,
+  PumpAnim,
+  injectEquipmentCSS
+} from '@process-forge/canvas-ui';
+import {
   Download,
   Terminal,
   ShieldCheck,
-  Share2,
   Sparkles,
   Play,
+  Pause,
   ExternalLink,
   Bot,
-  HardDrive,
   Copy,
   Check,
   X,
   Boxes,
   Zap,
   Activity,
-  Layers
+  Layers,
+  Cpu,
+  CheckCircle2,
+  Wrench,
+  ChevronRight,
+  Eye,
+  FileCode
 } from 'lucide-react';
+
+// ── Injected Keyframes for Discrete Packaging & Piping Streams ────────────────
+const EXTRA_ANIM_CSS = `
+  @keyframes pf-carousel-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes pf-plunge {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(12px); }
+  }
+  @keyframes pf-robot-arm {
+    0%, 100% { transform: rotate(-4deg); }
+    50% { transform: rotate(18deg); }
+  }
+  @keyframes pf-stream-flow {
+    0% { stroke-dashoffset: 32; }
+    100% { stroke-dashoffset: 0; }
+  }
+  @keyframes pf-conveyor-belt {
+    0% { stroke-dashoffset: 20; }
+    100% { stroke-dashoffset: 0; }
+  }
+  @keyframes pf-drip {
+    0% { transform: translateY(0); opacity: 0; }
+    30% { opacity: 1; }
+    90% { transform: translateY(18px); opacity: 1; }
+    100% { transform: translateY(20px); opacity: 0; }
+  }
+`;
+
+function injectAllLandingCSS(): void {
+  if (typeof document === 'undefined') return;
+  injectEquipmentCSS();
+  if (!document.getElementById('pf-landing-extra-anim-css')) {
+    const s = document.createElement('style');
+    s.id = 'pf-landing-extra-anim-css';
+    s.textContent = EXTRA_ANIM_CSS;
+    document.head.appendChild(s);
+  }
+}
+
+// ── Discrete Animation SVG: Rotary Indexing Can Filler ────────────────────────
+const RotaryFillerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
+  stroke = OsakaJadePalette.jade[400],
+  bg = 'rgba(16, 185, 129, 0.08)',
+  isRunning = true
+}) => {
+  return (
+    <svg viewBox="0 0 160 140" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
+      <rect x="25" y="105" width="110" height="24" rx="4" fill="rgba(30, 41, 59, 0.6)" stroke={stroke} strokeWidth="1.5" />
+      <line x1="30" y1="117" x2="130" y2="117" stroke={OsakaJadePalette.border.default} strokeWidth="1" strokeDasharray="4 2" />
+      <circle cx="80" cy="62" r="38" fill={bg} stroke={stroke} strokeWidth="2" />
+      <circle cx="80" cy="62" r="12" fill={OsakaJadePalette.background.surfaceElevated} stroke={stroke} strokeWidth="1.5" />
+      <g style={{ transformOrigin: '80px 62px', animation: isRunning ? 'pf-carousel-spin 7s linear infinite' : 'none' }}>
+        {[0, 60, 120, 180, 240, 300].map((deg, i) => {
+          const rad = (deg * Math.PI) / 180;
+          const cx = 80 + 26 * Math.cos(rad);
+          const cy = 62 + 26 * Math.sin(rad);
+          return (
+            <g key={i}>
+              <circle cx={cx} cy={cy} r="7" fill="rgba(56, 189, 248, 0.2)" stroke="#38bdf8" strokeWidth="1.2" />
+              <circle cx={cx} cy={cy} r="3.5" fill={OsakaJadePalette.jade[400]} />
+            </g>
+          );
+        })}
+      </g>
+      <path d="M 74 12 L 86 12 L 84 28 L 76 28 Z" fill={stroke} stroke={stroke} strokeWidth="1" />
+      <line x1="80" y1="28" x2="80" y2="38" stroke={OsakaJadePalette.jade.glow} strokeWidth="2.5" strokeLinecap="round" />
+      {isRunning && (
+        <circle cx="80" cy="38" r="2.5" fill={OsakaJadePalette.jade[300]} style={{ animation: 'pf-drip 1.2s ease-in infinite' }} />
+      )}
+      <path d="M 25 62 Q 45 62 52 48" fill="none" stroke={stroke} strokeWidth="1.5" strokeDasharray="3 2" />
+      <path d="M 135 62 Q 115 62 108 76" fill="none" stroke={stroke} strokeWidth="1.5" strokeDasharray="3 2" />
+      <text x="80" y="121" textAnchor="middle" fontSize="8" fill={OsakaJadePalette.text.muted} style={{ fontWeight: 600 }}>
+        ROTARY INDEXER
+      </text>
+    </svg>
+  );
+};
+
+// ── Discrete Animation SVG: Vacuum Chuck Capper ───────────────────────────────
+const CapperAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
+  stroke = OsakaJadePalette.jade[400],
+  bg = 'rgba(16, 185, 129, 0.08)',
+  isRunning = true
+}) => {
+  return (
+    <svg viewBox="0 0 160 140" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
+      <rect x="35" y="15" width="10" height="110" fill={OsakaJadePalette.background.surfaceElevated} stroke={stroke} strokeWidth="1.5" />
+      <rect x="25" y="120" width="110" height="12" rx="2" fill="rgba(30, 41, 59, 0.6)" stroke={stroke} strokeWidth="1.5" />
+      <rect x="35" y="15" width="75" height="22" rx="4" fill={bg} stroke={stroke} strokeWidth="1.5" />
+      <text x="72" y="29" textAnchor="middle" fontSize="7.5" fill={stroke} fontWeight="700">
+        SERVO TORQUE
+      </text>
+      <g style={{ animation: isRunning ? 'pf-plunge 2s ease-in-out infinite' : 'none' }}>
+        <rect x="67" y="37" width="8" height="24" fill={stroke} />
+        <path d="M 57 61 L 85 61 L 80 73 L 62 73 Z" fill={OsakaJadePalette.jade[500]} stroke={stroke} strokeWidth="1.5" />
+        <line x1="59" y1="73" x2="83" y2="73" stroke={OsakaJadePalette.jade.glow} strokeWidth="2" />
+      </g>
+      <rect x="61" y="86" width="20" height="34" rx="2" fill="rgba(56, 189, 248, 0.2)" stroke="#38bdf8" strokeWidth="1.5" />
+      <line x1="61" y1="96" x2="81" y2="96" stroke="#38bdf8" strokeWidth="1" strokeDasharray="2 1" />
+      <rect x="98" y="65" width="46" height="20" rx="3" fill={OsakaJadePalette.background.surfaceElevated} stroke={OsakaJadePalette.border.default} />
+      <text x="121" y="78" textAnchor="middle" fontSize="7.5" fill={OsakaJadePalette.jade[300]} fontWeight="700">
+        3.2 N·m
+      </text>
+      <text x="70" y="129" textAnchor="middle" fontSize="8" fill={OsakaJadePalette.text.muted} style={{ fontWeight: 600 }}>
+        VACUUM CHUCK
+      </text>
+    </svg>
+  );
+};
+
+// ── Discrete Animation SVG: Articulated Palletizer Robot ──────────────────────
+const PalletizerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
+  stroke = OsakaJadePalette.jade[400],
+  bg = 'rgba(16, 185, 129, 0.08)',
+  isRunning = true
+}) => {
+  return (
+    <svg viewBox="0 0 160 140" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
+      <rect x="80" y="116" width="65" height="6" fill="#854d0e" stroke="#ca8a04" strokeWidth="1" rx="1" />
+      <rect x="84" y="122" width="10" height="6" fill="#713f12" />
+      <rect x="108" y="122" width="10" height="6" fill="#713f12" />
+      <rect x="131" y="122" width="10" height="6" fill="#713f12" />
+      <rect x="83" y="100" width="28" height="16" rx="2" fill="rgba(45, 212, 191, 0.25)" stroke={stroke} strokeWidth="1.2" />
+      <rect x="114" y="100" width="28" height="16" rx="2" fill="rgba(45, 212, 191, 0.25)" stroke={stroke} strokeWidth="1.2" />
+      <rect x="85" y="84" width="28" height="16" rx="2" fill="rgba(56, 189, 248, 0.25)" stroke="#38bdf8" strokeWidth="1.2" />
+      <rect x="20" y="95" width="26" height="33" rx="4" fill={bg} stroke={stroke} strokeWidth="1.5" />
+      <circle cx="33" cy="95" r="8" fill={stroke} />
+      <g style={{ transformOrigin: '33px 95px', animation: isRunning ? 'pf-robot-arm 3.2s ease-in-out infinite' : 'none' }}>
+        <line x1="33" y1="95" x2="48" y2="48" stroke={stroke} strokeWidth="5" strokeLinecap="round" />
+        <circle cx="48" cy="48" r="6" fill={OsakaJadePalette.background.surfaceElevated} stroke={stroke} strokeWidth="2" />
+        <line x1="48" y1="48" x2="88" y2="42" stroke={stroke} strokeWidth="4" strokeLinecap="round" />
+        <circle cx="88" cy="42" r="5" fill={stroke} />
+        <line x1="88" y1="42" x2="88" y2="56" stroke={stroke} strokeWidth="2.5" />
+        <rect x="80" y="56" width="16" height="4" fill={OsakaJadePalette.status.busy} />
+        <rect x="76" y="60" width="24" height="14" rx="2" fill="rgba(245, 158, 11, 0.3)" stroke={OsakaJadePalette.status.busy} strokeWidth="1.2" />
+      </g>
+      <text x="33" y="122" textAnchor="middle" fontSize="7" fill={OsakaJadePalette.text.muted} fontWeight="600">
+        3-AXIS ARM
+      </text>
+    </svg>
+  );
+};
+
+// ── Unit Operation Data Model for Interactive Flowsheet ───────────────────────
+interface FlowsheetUnitOp {
+  id: string;
+  tag: string;
+  name: string;
+  category: 'Continuous' | 'Surge' | 'Discrete';
+  subAgentName: string;
+  subAgentRole: string;
+  statusBadge: string;
+  statusType: 'healthy' | 'alert' | 'tuning';
+  metrics: { label: string; value: string }[];
+  nozzles: { tag: string; size: string; rating: string; service: string }[];
+  internals: string;
+  agentLog: string;
+  formula: string;
+}
+
+const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
+  {
+    id: 'rx101',
+    tag: 'RX-101',
+    name: 'Mixer / Reactor 01',
+    category: 'Continuous',
+    subAgentName: 'Agent RheoBot',
+    subAgentRole: 'Continuous Rheology & Reaction Kinetics',
+    statusBadge: 'Active (Viscosity Tuning)',
+    statusType: 'tuning',
+    metrics: [
+      { label: 'Viscosity', value: '1,200 cP' },
+      { label: 'Temperature', value: '24.5 °C' },
+      { label: 'Impeller Speed', value: '180 RPM' }
+    ],
+    nozzles: [
+      { tag: 'N1', size: '3" NPS', rating: 'ASME 150# RF', service: 'Feed Slurry Infeed' },
+      { tag: 'N2', size: '2" NPS', rating: 'ASME 150# RF', service: 'Discharge to Pump' },
+      { tag: 'N3', size: '1" NPS', rating: 'ASME 300# RTJ', service: 'Steam Jacket Supply' },
+      { tag: 'N4', size: '1" NPS', rating: 'ASME 300# RTJ', service: 'Jacket Condensate' }
+    ],
+    internals: 'Rushton Turbine (6-Blade) • Full ASME Steam Heating Jacket • 4 Wall Baffles',
+    agentLog: 'Calibrated Rushton turbine to 180 RPM. Shear rate maintains uniform pigment suspension without thermal polymer degradation. Mass balance Δm = 0.000 kg/s.',
+    formula: 'dC_A/dt = (C_Ain - C_A)/τ - k·C_A²  |  μ = μ₀·exp(E_a/RT)'
+  },
+  {
+    id: 'p101',
+    tag: 'P-101',
+    name: 'Slurry Transfer Pump 01',
+    category: 'Continuous',
+    subAgentName: 'Agent HydraPump',
+    subAgentRole: 'Centrifugal Hydraulics & NPSH Supervisor',
+    statusBadge: 'Nominal (NPSH Margin 2.8m)',
+    statusType: 'healthy',
+    metrics: [
+      { label: 'Flow Rate', value: '45.2 L/min' },
+      { label: 'Total Head', value: '18.2 m' },
+      { label: 'Shaft Power', value: '3.4 kW (88%)' }
+    ],
+    nozzles: [
+      { tag: 'Suction', size: '3" NPS', rating: 'ASME 150# RF', service: 'Infeed from RX-101' },
+      { tag: 'Discharge', size: '2" NPS', rating: 'ASME 150# RF', service: 'Header to Surge Tank' }
+    ],
+    internals: 'Semi-Open Impeller for High-Solids Slurry • Mechanical Seal Flush Plan 11',
+    agentLog: 'Monitoring suction head. Available NPSH = 4.6 m vs required 1.8 m. Cavitation probability: 0.0%. Dynamic VFD adjusted to buffer inflow demand.',
+    formula: 'H = H_shutoff - k_loss·Q²  |  NPSH_avail = (P_suction - P_vap)/(ρ·g)'
+  },
+  {
+    id: 'tk102',
+    tag: 'TK-102',
+    name: 'Surge / Buffer Tank 01',
+    category: 'Surge',
+    subAgentName: 'Agent BufferMaster',
+    subAgentRole: 'Continuous-to-Discrete Decoupling',
+    statusBadge: 'Damped (Dynamic Level 74%)',
+    statusType: 'healthy',
+    metrics: [
+      { label: 'Vessel Volume', value: '2,500 L' },
+      { label: 'Current Level', value: '74.2% (1,855 L)' },
+      { label: 'Static Head', value: '1.85 m' }
+    ],
+    nozzles: [
+      { tag: 'N1', size: '2" NPS', rating: 'ASME 150# RF', service: 'Pump Discharge Infeed' },
+      { tag: 'N2', size: '2" NPS', rating: 'ASME 150# RF', service: 'Bottom Outlet to Filler' },
+      { tag: 'N3', size: '1.5" NPS', rating: 'Atmospheric Vent', service: 'HEPA Sterile Breather' }
+    ],
+    internals: 'Vortex Breaker Plate on Bottom Nozzle • Guided Wave Radar Level Sensor',
+    agentLog: 'Buffer dampening active: Absorbs up to 14.8 minutes of packaging downtime before requiring upstream reactor throttling. Feed control valve steady at 68%.',
+    formula: 'dh/dt = (Q_in - Q_out) / A_tank  |  P_hydrostatic = ρ·g·h'
+  },
+  {
+    id: 'fl201',
+    tag: 'FL-201',
+    name: 'Rotary Filler 01',
+    category: 'Discrete',
+    subAgentName: 'Agent FillOptima',
+    subAgentRole: 'Discrete Gravimetric Indexing',
+    statusBadge: 'Bottleneck (91% Backpressure)',
+    statusType: 'alert',
+    metrics: [
+      { label: 'Production Rate', value: '180 cans/min' },
+      { label: 'Fill Accuracy', value: '±0.5 g' },
+      { label: 'Backpressure', value: '91% (Critical)' }
+    ],
+    nozzles: [
+      { tag: 'Infeed', size: '2" NPS', rating: 'Sanitary Tri-Clamp', service: 'Pressurized Liquid Supply' },
+      { tag: 'Nozzles 1-6', size: '0.75" OD', rating: 'Diving Cutoff', service: 'Anti-Drip Fill Heads' }
+    ],
+    internals: '6-Station Servo Rotary Carousel • Diving Nozzles with Bottom-Up Fill Profile',
+    agentLog: 'Identified downstream accumulation queue at Vacuum Capper. Backpressure exceeds 90%. Recommended accelerating capper conveyor by 8% or staggering infeed.',
+    formula: 'T_cycle = t_index + t_tare + t_fill + t_cutoff  |  λ_Poisson = 3.0 cans/s'
+  },
+  {
+    id: 'cp202',
+    tag: 'CP-202',
+    name: 'Vacuum Capper 01',
+    category: 'Discrete',
+    subAgentName: 'Agent TorqueGuard',
+    subAgentRole: 'Hermetic Crimp & Vacuum Verification',
+    statusBadge: 'Nominal (99.85% Integrity)',
+    statusType: 'healthy',
+    metrics: [
+      { label: 'Applied Torque', value: '3.2 N·m' },
+      { label: 'Chamber Vacuum', value: '-0.68 bar' },
+      { label: 'Seal Integrity', value: '99.85%' }
+    ],
+    nozzles: [
+      { tag: 'Vacuum Port', size: '1" NPT', rating: 'Vacuum Rated', service: 'Headspace Evacuation' },
+      { tag: 'N2 Flush', size: '0.5" Swagelok', rating: 'Double-Ferrule', service: 'Inert Headspace Blanketing' }
+    ],
+    internals: 'Magnetic Clutch Chuck Head • Piezoelectric Strain Gauge Torque Transducer',
+    agentLog: 'Real-time torque verified against ASTM D3198. Mean torque 3.21 N·m (σ = 0.04). 0 crimp rejects in past 1,000 cycles. Synchronized with starwheel outfeed.',
+    formula: 'τ_seal = μ_thread·F_crimp·r_mean  |  P_residual = P_atm - ΔP_vac'
+  },
+  {
+    id: 'pl301',
+    tag: 'PL-301',
+    name: 'Robot Palletizer 01',
+    category: 'Discrete',
+    subAgentName: 'Agent StackPlanner',
+    subAgentRole: 'End-of-Line Discrete Pallet Logistics',
+    statusBadge: 'Active (Tier 3/5 Interlock)',
+    statusType: 'healthy',
+    metrics: [
+      { label: 'Cycle Time', value: '4.8 s / pail' },
+      { label: 'Stack Pattern', value: '5-Tier Interlock' },
+      { label: 'Completed Pallets', value: '14 units' }
+    ],
+    nozzles: [
+      { tag: 'Pneumatics', size: '0.5" BSPP', rating: '100 PSI Dry Air', service: 'Vacuum Venturi Gripper' }
+    ],
+    internals: '3-Axis Articulated Arm • Multi-Zone Vacuum Sponge Tooling • Slip-Sheet Feeder',
+    agentLog: 'Pallet stack stability index: 98.4%. Interlocking tier pattern active. Auto-dispensing corrugate slip-sheet at tier 4 completion. Outfeed conveyor clear.',
+    formula: 'COG_stack = Σ(m_i·z_i)/Σ(m_i)  |  Throughput = 750 pails/hr'
+  }
+];
 
 interface PlatformInfo {
   name: string;
@@ -42,7 +352,18 @@ export const App: React.FC = () => {
   const [copiedSnippet, setCopiedSnippet] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'claude' | 'gemini'>('claude');
 
+  // Interactive Flowsheet State
+  const [selectedUnitId, setSelectedUnitId] = useState<string>('rx101');
+  const [isSimRunning, setIsSimRunning] = useState<boolean>(true);
+  const [clockSeconds, setClockSeconds] = useState<number>(252.4);
+
+  // Interactive Sub-Agent CAD Showcase Tab State
+  const [cadStudioTab, setCadStudioTab] = useState<'rx101' | 'tk102' | 'fl201'>('rx101');
+  const [cadViewMode, setCadViewMode] = useState<'visual' | 'code'>('visual');
+
   useEffect(() => {
+    injectAllLandingCSS();
+
     const userAgent = window.navigator.userAgent.toLowerCase();
     const platformStr = window.navigator.platform?.toLowerCase() || '';
 
@@ -76,6 +397,24 @@ export const App: React.FC = () => {
       });
     }
   }, []);
+
+  // Clock ticker for live simulation feeling
+  useEffect(() => {
+    if (!isSimRunning) return;
+    const interval = setInterval(() => {
+      setClockSeconds((prev) => prev + 0.1);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [isSimRunning]);
+
+  const formatClock = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    const ms = Math.floor((sec % 1) * 1000);
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+  };
+
+  const selectedUnit: FlowsheetUnitOp = FLOWSHEET_UNITS.find((u) => u.id === selectedUnitId) ?? FLOWSHEET_UNITS[0]!;
 
   const claudeConfigSnippet = `{
   "mcpServers": {
@@ -410,188 +749,521 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
           </div>
         </div>
 
-        {/* Live Simulation Preview Graphic */}
+        {/* ── LIVE ANIMATED PFD FLOWSHEET SHOWCASE ─────────────────────────── */}
         <div
+          id="flowsheet"
           style={{
             marginTop: '50px',
             borderRadius: '12px',
             border: `1px solid ${OsakaJadePalette.border.default}`,
             backgroundColor: OsakaJadePalette.background.canvas,
             overflow: 'hidden',
-            boxShadow: `0 24px 48px rgba(0,0,0,0.5), 0 0 20px ${OsakaJadePalette.jade.glow}15`,
+            boxShadow: `0 24px 48px rgba(0,0,0,0.5), 0 0 24px ${OsakaJadePalette.jade.glow}18`,
             position: 'relative'
           }}
         >
-          {/* Mock Window Top Bar */}
+          {/* Flowsheet Top Studio Bar */}
           <div
             style={{
-              padding: '12px 18px',
+              padding: '12px 20px',
               backgroundColor: OsakaJadePalette.background.surface,
               borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
               display: 'flex',
+              flexWrap: 'wrap',
               alignItems: 'center',
-              justifyContent: 'space-between'
+              justifyContent: 'space-between',
+              gap: '12px'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f43f5e' }} />
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-              <span style={{ marginLeft: '12px', fontSize: '0.8rem', color: OsakaJadePalette.text.secondary, fontWeight: 600 }}>
-                Sherwin-Williams Paint Canning Line — ProcessForge Twin Studio
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f43f5e' }} />
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+              </div>
+              <span style={{ fontSize: '0.82rem', color: OsakaJadePalette.text.primary, fontWeight: 700, marginLeft: '6px' }}>
+                Industrial Paint Canning Flowsheet (PFD)
+              </span>
+              <span
+                style={{
+                  fontSize: '0.7rem',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                  color: OsakaJadePalette.jade[400],
+                  border: `1px solid ${OsakaJadePalette.border.default}`
+                }}
+              >
+                Hybrid Continuous ODE & Discrete DES
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.75rem' }}>
-              <span style={{ color: OsakaJadePalette.jade[400], display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: OsakaJadePalette.jade[400] }} />
-                DES Clock: 00:04:12.400
+
+            {/* Simulation Controls & Live DES Clock */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <button
+                onClick={() => setIsSimRunning(!isSimRunning)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  borderRadius: '4px',
+                  backgroundColor: isSimRunning ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
+                  color: isSimRunning ? OsakaJadePalette.jade[300] : '#000',
+                  border: `1px solid ${OsakaJadePalette.border.default}`,
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                {isSimRunning ? <Pause size={12} /> : <Play size={12} />}
+                {isSimRunning ? 'Pause Sim' : 'Resume Sim'}
+              </button>
+
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: '0.75rem',
+                  color: OsakaJadePalette.jade[400]
+                }}
+              >
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: isSimRunning ? OsakaJadePalette.jade[400] : OsakaJadePalette.status.starved }} />
+                DES Clock: {formatClock(clockSeconds)}
+              </div>
+
+              <span style={{ fontSize: '0.72rem', color: OsakaJadePalette.text.muted }}>
+                Click any vessel to inspect Sub-Agent CAD
               </span>
-              <span style={{ color: OsakaJadePalette.text.muted }}>Rate: 180 cans/min</span>
             </div>
           </div>
 
-          {/* Interactive Flow Diagram Representation */}
-          <div style={{ padding: '36px 24px', position: 'relative' }}>
-            {/* Grid Pattern */}
+          {/* Process Flow Diagram Canvas */}
+          <div
+            style={{
+              padding: '30px 20px 20px',
+              position: 'relative',
+              overflowX: 'auto'
+            }}
+          >
+            {/* Grid Dots */}
             <div
               style={{
                 position: 'absolute',
                 inset: 0,
                 backgroundImage: `radial-gradient(${OsakaJadePalette.border.default} 1px, transparent 1px)`,
                 backgroundSize: '24px 24px',
-                opacity: 0.5,
+                opacity: 0.45,
                 pointerEvents: 'none'
               }}
             />
 
+            {/* Animated Flow Layout */}
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                minWidth: '980px',
+                gap: '8px',
                 position: 'relative',
                 zIndex: 1
               }}
             >
-              {/* Unit Op 1 */}
+              {FLOWSHEET_UNITS.map((unit, index) => {
+                const isSelected = unit.id === selectedUnitId;
+                const isBottleneck = unit.statusType === 'alert';
+
+                // Choose the right physical SVG component
+                let animComp: React.ReactNode;
+                if (unit.id === 'rx101') {
+                  animComp = <ReactorAnim isRunning={isSimRunning} hasJacket={true} agitatorType="rushton" />;
+                } else if (unit.id === 'p101') {
+                  animComp = <PumpAnim isRunning={isSimRunning} />;
+                } else if (unit.id === 'tk102') {
+                  animComp = <TankAnim isRunning={isSimRunning} levelPercent={74} />;
+                } else if (unit.id === 'fl201') {
+                  animComp = <RotaryFillerAnim isRunning={isSimRunning} />;
+                } else if (unit.id === 'cp202') {
+                  animComp = <CapperAnim isRunning={isSimRunning} />;
+                } else {
+                  animComp = <PalletizerAnim isRunning={isSimRunning} />;
+                }
+
+                return (
+                  <React.Fragment key={unit.id}>
+                    {/* Unit Op Vessel Card */}
+                    <div
+                      onClick={() => setSelectedUnitId(unit.id)}
+                      style={{
+                        flex: '1 1 145px',
+                        maxWidth: '170px',
+                        backgroundColor: isSelected ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.background.surface,
+                        border: isSelected
+                          ? `2px solid ${OsakaJadePalette.jade[400]}`
+                          : isBottleneck
+                          ? `1px solid ${OsakaJadePalette.status.blocked}`
+                          : `1px solid ${OsakaJadePalette.border.default}`,
+                        borderRadius: '10px',
+                        padding: '12px 10px',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        boxShadow: isSelected
+                          ? `0 0 20px ${OsakaJadePalette.jade.glow}33`
+                          : isBottleneck
+                          ? `0 0 14px ${OsakaJadePalette.status.blocked}22`
+                          : 'none',
+                        transition: 'all 0.2s ease',
+                        position: 'relative'
+                      }}
+                    >
+                      {/* Top Category Badge */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span
+                          style={{
+                            fontSize: '0.62rem',
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            color: unit.category === 'Continuous'
+                              ? OsakaJadePalette.jade[400]
+                              : unit.category === 'Surge'
+                              ? '#38bdf8'
+                              : isBottleneck
+                              ? OsakaJadePalette.status.blocked
+                              : OsakaJadePalette.jade[300]
+                          }}
+                        >
+                          {unit.tag}
+                        </span>
+                        <span
+                          style={{
+                            width: '7px',
+                            height: '7px',
+                            borderRadius: '50%',
+                            backgroundColor: isBottleneck
+                              ? OsakaJadePalette.status.blocked
+                              : unit.statusType === 'tuning'
+                              ? OsakaJadePalette.jade[400]
+                              : OsakaJadePalette.status.busy
+                          }}
+                        />
+                      </div>
+
+                      {/* Equipment Physical SVG Animation */}
+                      <div
+                        style={{
+                          height: '92px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '4px 0'
+                        }}
+                      >
+                        {animComp}
+                      </div>
+
+                      {/* Name & Primary Telemetry */}
+                      <div style={{ fontWeight: 700, fontSize: '0.82rem', marginBottom: '2px', color: OsakaJadePalette.text.primary }}>
+                        {unit.name}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: OsakaJadePalette.text.secondary }}>
+                        {unit.metrics[0]?.value ?? ''}
+                      </div>
+
+                      {/* Sub-Agent Chip */}
+                      <div
+                        style={{
+                          marginTop: '8px',
+                          fontSize: '0.64rem',
+                          fontWeight: 600,
+                          padding: '3px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: isSelected ? `${OsakaJadePalette.jade.muted}` : OsakaJadePalette.background.base,
+                          color: isSelected ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.muted,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <Bot size={11} /> {unit.subAgentName}
+                      </div>
+                    </div>
+
+                    {/* Animated Stream Connector between Units */}
+                    {index < FLOWSHEET_UNITS.length - 1 && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '32px',
+                          flexShrink: 0
+                        }}
+                      >
+                        <svg width="32" height="24" viewBox="0 0 32 24">
+                          <line
+                            x1="0"
+                            y1="12"
+                            x2="26"
+                            y2="12"
+                            stroke={index < 3 ? OsakaJadePalette.streams.continuousFluid : OsakaJadePalette.streams.discreteContainer}
+                            strokeWidth="2"
+                            strokeDasharray={index < 3 ? '6 3' : '3 3'}
+                            style={{
+                              animation: isSimRunning
+                                ? index < 3
+                                  ? 'pf-stream-flow 1.5s linear infinite'
+                                  : 'pf-conveyor-belt 1.2s linear infinite'
+                                : 'none'
+                            }}
+                          />
+                          <polygon
+                            points="26,8 32,12 26,16"
+                            fill={index < 3 ? OsakaJadePalette.streams.continuousFluid : OsakaJadePalette.streams.discreteContainer}
+                          />
+                        </svg>
+                        <span style={{ fontSize: '0.55rem', color: OsakaJadePalette.text.muted, marginTop: '2px', whiteSpace: 'nowrap' }}>
+                          {index < 2 ? 'Slurry' : index === 2 ? 'Feed' : 'Cans'}
+                        </span>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            {/* ── SUB-AGENT TELEMETRY & CAD DRESSING DRAWER ─────────────────── */}
+            <div
+              style={{
+                marginTop: '24px',
+                borderRadius: '8px',
+                backgroundColor: OsakaJadePalette.background.surface,
+                border: `1px solid ${OsakaJadePalette.jade[600]}88`,
+                padding: '18px 20px',
+                textAlign: 'left',
+                boxShadow: `0 8px 24px rgba(0,0,0,0.4)`
+              }}
+            >
+              {/* Drawer Header */}
               <div
                 style={{
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  border: `1px solid ${OsakaJadePalette.jade[500]}`,
-                  borderRadius: '8px',
-                  padding: '16px',
-                  textAlign: 'left',
-                  boxShadow: `0 0 12px ${OsakaJadePalette.jade.glow}22`
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
+                  paddingBottom: '12px',
+                  marginBottom: '16px',
+                  gap: '12px'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: OsakaJadePalette.jade[400], fontWeight: 700 }}>CONTINUOUS</span>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: OsakaJadePalette.status.busy }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '6px',
+                      backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: OsakaJadePalette.jade[400]
+                    }}
+                  >
+                    <Bot size={18} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.98rem' }}>{selectedUnit.name}</span>
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: selectedUnit.statusType === 'alert' ? '#ef444422' : `${OsakaJadePalette.jade.muted}`,
+                          color: selectedUnit.statusType === 'alert' ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[300],
+                          border: `1px solid ${selectedUnit.statusType === 'alert' ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[700]}`
+                        }}
+                      >
+                        {selectedUnit.statusBadge}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: OsakaJadePalette.text.secondary }}>
+                      {selectedUnit.subAgentName} • {selectedUnit.subAgentRole}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' }}>Mixer Tank 01</div>
-                <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.secondary }}>Viscosity: 1200 cP</div>
-                <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.secondary }}>Temp: 24.5 °C</div>
-                <div style={{ marginTop: '8px', fontSize: '0.7rem', color: OsakaJadePalette.jade[300], display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Bot size={12} /> Agent: Rheology tuning
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span
+                    style={{
+                      fontSize: '0.72rem',
+                      fontFamily: "'JetBrains Mono', monospace",
+                      color: OsakaJadePalette.jade[400],
+                      backgroundColor: OsakaJadePalette.background.base,
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      border: `1px solid ${OsakaJadePalette.border.default}`
+                    }}
+                  >
+                    OAuth 2.0 PKCE • Zero Raw Keys
+                  </span>
+                  <a
+                    href="./studio/"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      backgroundColor: OsakaJadePalette.jade[500],
+                      color: OsakaJadePalette.text.inverse,
+                      textDecoration: 'none',
+                      fontSize: '0.78rem',
+                      fontWeight: 700
+                    }}
+                  >
+                    Open Machine Pop-Out Studio <ChevronRight size={14} />
+                  </a>
                 </div>
               </div>
 
-              {/* Unit Op 2 */}
+              {/* 3-Column Telemetry & Dressing Layout */}
               <div
                 style={{
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: '8px',
-                  padding: '16px',
-                  textAlign: 'left'
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                  gap: '18px'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#38bdf8', fontWeight: 700 }}>BUFFER TANK</span>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: OsakaJadePalette.status.busy }} />
+                {/* Column 1: Live Physics Telemetry */}
+                <div
+                  style={{
+                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                    borderRadius: '6px',
+                    padding: '14px',
+                    border: `1px solid ${OsakaJadePalette.border.default}`
+                  }}
+                >
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: OsakaJadePalette.jade[400], marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Activity size={13} /> LIVE PHYSICAL TELEMETRY
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+                    {selectedUnit.metrics.map((m, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                        <span style={{ color: OsakaJadePalette.text.secondary }}>{m.label}:</span>
+                        <span style={{ fontWeight: 600, fontFamily: "'JetBrains Mono', monospace", color: OsakaJadePalette.text.primary }}>
+                          {m.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '0.68rem', fontFamily: "'JetBrains Mono', monospace", color: OsakaJadePalette.text.muted, borderTop: `1px solid ${OsakaJadePalette.border.subtle}`, paddingTop: '8px' }}>
+                    Gov. ODE: <span style={{ color: OsakaJadePalette.jade[300] }}>{selectedUnit.formula}</span>
+                  </div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' }}>Surge Tank 01</div>
-                <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.secondary }}>Capacity: 2,500 L</div>
-                <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.secondary }}>Level: 74% (Healthy)</div>
-                <div style={{ marginTop: '8px', fontSize: '0.7rem', color: OsakaJadePalette.text.muted, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Bot size={12} /> Agent: Buffer head calc
-                </div>
-              </div>
 
-              {/* Unit Op 3 */}
-              <div
-                style={{
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  border: `1px solid ${OsakaJadePalette.status.blocked}`,
-                  borderRadius: '8px',
-                  padding: '16px',
-                  textAlign: 'left',
-                  boxShadow: `0 0 12px ${OsakaJadePalette.status.blocked}33`
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: OsakaJadePalette.status.blocked, fontWeight: 700 }}>DISCRETE BOTTLENECK</span>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: OsakaJadePalette.status.blocked }} />
+                {/* Column 2: ASME B16.5 Nozzle Dressing */}
+                <div
+                  style={{
+                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                    borderRadius: '6px',
+                    padding: '14px',
+                    border: `1px solid ${OsakaJadePalette.border.default}`
+                  }}
+                >
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: OsakaJadePalette.jade[400], marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Layers size={13} /> ASME B16.5 NOZZLE DRESSING
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+                    {selectedUnit.nozzles.map((noz, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: '0.74rem',
+                          backgroundColor: OsakaJadePalette.background.base,
+                          padding: '4px 8px',
+                          borderRadius: '4px'
+                        }}
+                      >
+                        <span style={{ fontWeight: 700, color: OsakaJadePalette.jade[300] }}>{noz.tag}</span>
+                        <span style={{ color: OsakaJadePalette.text.secondary }}>{noz.size}</span>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.7rem', color: '#38bdf8' }}>
+                          {noz.rating}
+                        </span>
+                        <span style={{ fontSize: '0.68rem', color: OsakaJadePalette.text.muted }}>{noz.service}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '0.68rem', color: OsakaJadePalette.text.muted, marginTop: '6px' }}>
+                    Internals: <span style={{ color: OsakaJadePalette.text.secondary }}>{selectedUnit.internals}</span>
+                  </div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' }}>Rotary Filler 01</div>
-                <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.secondary }}>Rate: 180 cans/min</div>
-                <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.status.blocked }}>Backpressure: 91%</div>
-                <div style={{ marginTop: '8px', fontSize: '0.7rem', color: OsakaJadePalette.status.blocked, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Bot size={12} /> Agent: Infeed throttling
-                </div>
-              </div>
 
-              {/* Unit Op 4 */}
-              <div
-                style={{
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: '8px',
-                  padding: '16px',
-                  textAlign: 'left'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: OsakaJadePalette.jade[400], fontWeight: 700 }}>DISCRETE DES</span>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: OsakaJadePalette.status.busy }} />
-                </div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' }}>Vacuum Capper</div>
-                <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.secondary }}>Torque: 3.2 N·m</div>
-                <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.secondary }}>Seal Integrity: 99.8%</div>
-                <div style={{ marginTop: '8px', fontSize: '0.7rem', color: OsakaJadePalette.text.muted, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Bot size={12} /> Agent: Torque verifier
-                </div>
-              </div>
-
-              {/* Unit Op 5 */}
-              <div
-                style={{
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: '8px',
-                  padding: '16px',
-                  textAlign: 'left'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: OsakaJadePalette.jade[400], fontWeight: 700 }}>END-OF-LINE</span>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: OsakaJadePalette.status.busy }} />
-                </div>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '4px' }}>Robot Palletizer</div>
-                <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.secondary }}>Pattern: 5-Tier Interlock</div>
-                <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.secondary }}>Pallets: 14 completed</div>
-                <div style={{ marginTop: '8px', fontSize: '0.7rem', color: OsakaJadePalette.text.muted, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Bot size={12} /> Agent: Stacking planner
+                {/* Column 3: Sub-Agent Reasoning & Optimization Log */}
+                <div
+                  style={{
+                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                    borderRadius: '6px',
+                    padding: '14px',
+                    border: `1px solid ${OsakaJadePalette.border.default}`
+                  }}
+                >
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: OsakaJadePalette.jade[400], marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Cpu size={13} /> SUB-AGENT AUTONOMOUS REASONING
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: OsakaJadePalette.text.secondary, lineHeight: 1.5, margin: 0, marginBottom: '10px' }}>
+                    "{selectedUnit.agentLog}"
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
+                    <button
+                      onClick={() => alert(`Sub-Agent ${selectedUnit.subAgentName}: Recalibrated mass conservation PID loop for ${selectedUnit.name}.`)}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: OsakaJadePalette.background.surfaceHover,
+                        border: `1px solid ${OsakaJadePalette.border.default}`,
+                        color: OsakaJadePalette.jade[300],
+                        fontSize: '0.7rem',
+                        cursor: 'pointer',
+                        fontWeight: 600
+                      }}
+                    >
+                      Trigger Re-Tuning
+                    </button>
+                    <button
+                      onClick={() => alert(`Sub-Agent ${selectedUnit.subAgentName}: Exported ASME B16.5 mechanical CAD specification.`)}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        backgroundColor: OsakaJadePalette.background.surfaceHover,
+                        border: `1px solid ${OsakaJadePalette.border.default}`,
+                        color: OsakaJadePalette.text.secondary,
+                        fontSize: '0.7rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Export Vector CAD
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Master Orchestrator Live Banner */}
+            {/* Master Orchestrator Real-Time Banner */}
             <div
               style={{
-                marginTop: '20px',
-                padding: '12px 18px',
-                borderRadius: '8px',
+                marginTop: '16px',
+                padding: '10px 16px',
+                borderRadius: '6px',
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
                 border: `1px solid ${OsakaJadePalette.jade[700]}`,
                 display: 'flex',
@@ -602,57 +1274,89 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Sparkles size={16} color={OsakaJadePalette.jade[400]} />
-                <span style={{ fontSize: '0.85rem', color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
+                <span style={{ fontSize: '0.82rem', color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
                   Master Orchestrator:
                 </span>
-                <span style={{ fontSize: '0.85rem', color: OsakaJadePalette.text.secondary }}>
-                  Identified upstream accumulation risk at Rotary Filler. Recommended increasing conveyor speed by 8% or staggering batch feed.
+                <span style={{ fontSize: '0.82rem', color: OsakaJadePalette.text.secondary }}>
+                  Continuous-to-discrete coupling balanced. TK-102 buffer level absorbs downstream canning delays while RX-101 operates at steady-state 180 RPM.
                 </span>
               </div>
               <span
                 style={{
-                  fontSize: '0.75rem',
+                  fontSize: '0.72rem',
                   fontWeight: 600,
                   color: OsakaJadePalette.jade[300],
-                  padding: '4px 8px',
+                  padding: '3px 8px',
                   borderRadius: '4px',
                   backgroundColor: OsakaJadePalette.jade.muted
                 }}
               >
-                Autotuned via MCP
+                MCP Multi-Agent Mesh Active
               </span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Core Features Grid */}
+      {/* ── CORE FEATURES: 6 CRISP ENGINEERING PILLARS ───────────────────── */}
       <section
         id="features"
         style={{
-          padding: '80px 24px',
-          maxWidth: '1200px',
+          padding: '80px 24px 60px',
+          maxWidth: '1240px',
           margin: '0 auto',
           width: '100%'
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: '50px' }}>
           <h2 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '12px' }}>
-            Built for Engineers. Supercharged by AI.
+            Engineered for Chemical & Mechanical Systems
           </h2>
-          <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '1.05rem', maxWidth: '650px', margin: '0 auto' }}>
-            Not an LLM chatbot wrapper. ProcessForge is a high-performance industrial simulation engine where agents act as software and process engineers.
+          <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '1.05rem', maxWidth: '680px', margin: '0 auto' }}>
+            Not an LLM chatbot wrapper. ProcessForge is a high-performance simulation engine where autonomous agents function as software and process engineers.
           </p>
         </div>
 
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
             gap: '24px'
           }}
         >
-          {/* Card 1 */}
+          {/* Pillar 1 */}
+          <div
+            style={{
+              padding: '28px',
+              borderRadius: '10px',
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`
+            }}
+          >
+            <div
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '8px',
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '18px',
+                color: OsakaJadePalette.jade[400]
+              }}
+            >
+              <Cpu size={24} />
+            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
+              Dual Continuous & Discrete Solver
+            </h3>
+            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
+              Run Runge-Kutta differential equations (ODEs for chemical kinetics, thermodynamics, and fluid rheology) on the exact same timeline as Poisson discrete-event simulation (conveyor queues, indexing starwheels, and robotic packaging).
+            </p>
+          </div>
+
+          {/* Pillar 2 */}
           <div
             style={{
               padding: '28px',
@@ -677,207 +1381,14 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               <Bot size={24} />
             </div>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-              Hierarchical Multi-Agent Architecture
+              Autonomous Machine Sub-Agents
             </h3>
             <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
-              A high-level Master Orchestrator oversees the entire plant flowsheet, detecting bottlenecks and material imbalances.
-              Every unit operation has an embedded sub-agent pop-out screen with its own chat interface to assist engineers in building and calibrating that specific machine.
+              Every unit operation has its own embedded sub-agent pop-out studio. Sub-agents analyze mass and energy balances, calibrate PID loops, detect upstream bottlenecks, and coordinate with the plant-wide Master Orchestrator.
             </p>
           </div>
 
-          {/* Card 2 */}
-          <div
-            style={{
-              padding: '28px',
-              borderRadius: '10px',
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`
-            }}
-          >
-            <div
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '8px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '18px',
-                color: OsakaJadePalette.jade[400]
-              }}
-            >
-              <Terminal size={24} />
-            </div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-              Native Model Context Protocol (MCP)
-            </h3>
-            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
-              Full stdio MCP server support. Connect your existing Claude Desktop, Gemini CLI, Cursor, or local LLMs to run simulations, evaluate unit operations, and autogenerate industrial flowsheets without vendor lock-in.
-            </p>
-          </div>
-
-          {/* Card 3 */}
-          <div
-            style={{
-              padding: '28px',
-              borderRadius: '10px',
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`
-            }}
-          >
-            <div
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '8px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '18px',
-                color: OsakaJadePalette.jade[400]
-              }}
-            >
-              <ShieldCheck size={24} />
-            </div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-              Zero Raw Keys & 100% Local Privacy
-            </h3>
-            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
-              All simulation math runs locally in Rust and WebAssembly. API keys are stored in the OS credential vault (Windows DPAPI, macOS Keychain) and never sent to cloud servers or stored in plaintext.
-            </p>
-          </div>
-
-          {/* Card 4 */}
-          <div
-            style={{
-              padding: '28px',
-              borderRadius: '10px',
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`
-            }}
-          >
-            <div
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '8px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '18px',
-                color: OsakaJadePalette.jade[400]
-              }}
-            >
-              <Share2 size={24} />
-            </div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-              ForgeHub Plugin Marketplace
-            </h3>
-            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
-              Free, community-driven unit operations repository. Engineers can publish custom distillation columns, rotary packers, or chemical reactors, and other users can insert them directly into their flowsheets in one click.
-            </p>
-          </div>
-
-          {/* Card 5 */}
-          <div
-            style={{
-              padding: '28px',
-              borderRadius: '10px',
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`
-            }}
-          >
-            <div
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '8px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '18px',
-                color: OsakaJadePalette.jade[400]
-              }}
-            >
-              <HardDrive size={24} />
-            </div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-              Zero-Friction Guest Mode & Portable Twins
-            </h3>
-            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
-              No forced sign-ups or paywalls. Jump right into the web studio as a guest, build complete digital twin models, and export portable <code style={{ color: OsakaJadePalette.jade[300] }}>.processforge</code> project files anytime.
-            </p>
-          </div>
-
-          {/* Card 6 */}
-          <div
-            style={{
-              padding: '28px',
-              borderRadius: '10px',
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`
-            }}
-          >
-            <div
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '8px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '18px',
-                color: OsakaJadePalette.jade[400]
-              }}
-            >
-              <Zap size={24} />
-            </div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-              Native Desktop with Auto-Updates
-            </h3>
-            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
-              Lightweight Tauri v2 shell for Windows, macOS, and Linux. Built-in automatic update detection notifies you whenever a new release is published with seamless one-click in-app updating.
-            </p>
-          </div>
-
-          {/* Card 7 */}
-          <div
-            style={{
-              padding: '28px',
-              borderRadius: '10px',
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`
-            }}
-          >
-            <div
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '8px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '18px',
-                color: OsakaJadePalette.jade[400]
-              }}
-            >
-              <Activity size={24} />
-            </div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-              Live Animated Physical Visualizations
-            </h3>
-            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
-              Direct physical SVG animations for reactors, columns, separators, spray chambers, and pumps. Watch dynamic bubble nucleation, vapor shimmer, spinning Rushton impellers, and fluid vortex dynamics update in real time.
-            </p>
-          </div>
-
-          {/* Card 8 */}
+          {/* Pillar 3 */}
           <div
             style={{
               padding: '28px',
@@ -902,11 +1413,420 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               <Layers size={24} />
             </div>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-              Mechanical UnitOp Dressing & Nozzle Editor
+              Parametric ASME Dressing & CAD Synthesis
             </h3>
             <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
-              Interactive perimeter nozzle placement with ASME 150#/300#/600# flange ratings and pipe sizing. Configure vessel internals including thermal jackets (steam/glycol), baffles, and mist eliminators directly in the pop-out studio.
+              Dress physical equipment with real engineering specifications: ASME B16.5 flange ratings (150#, 300#, 600#), pipe diameters, internal baffles, and thermal jackets. Sub-agents synthesize production-ready vector CAD equipment drawings directly via OAuth/MCP without raw API keys.
             </p>
+          </div>
+
+          {/* Pillar 4 */}
+          <div
+            style={{
+              padding: '28px',
+              borderRadius: '10px',
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`
+            }}
+          >
+            <div
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '8px',
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '18px',
+                color: OsakaJadePalette.jade[400]
+              }}
+            >
+              <Terminal size={24} />
+            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
+              Native Stdio Model Context Protocol (MCP)
+            </h3>
+            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
+              Full stdio MCP server support. Connect Claude Desktop, Gemini CLI, Cursor, or local LLMs to query simulation telemetry, evaluate unit operations, and autogenerate industrial twins via natural language without vendor lock-in.
+            </p>
+          </div>
+
+          {/* Pillar 5 */}
+          <div
+            style={{
+              padding: '28px',
+              borderRadius: '10px',
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`
+            }}
+          >
+            <div
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '8px',
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '18px',
+                color: OsakaJadePalette.jade[400]
+              }}
+            >
+              <ShieldCheck size={24} />
+            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
+              Zero Plaintext Secrets & 100% Local Privacy
+            </h3>
+            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
+              All simulation math executes locally via Rust and WebAssembly. AI integrations use secure OAuth 2.0 PKCE and native OS credential vaults (Windows DPAPI, macOS Keychain). Zero plaintext secrets, zero cloud telemetry, zero remote tracking.
+            </p>
+          </div>
+
+          {/* Pillar 6 */}
+          <div
+            style={{
+              padding: '28px',
+              borderRadius: '10px',
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`
+            }}
+          >
+            <div
+              style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '8px',
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '18px',
+                color: OsakaJadePalette.jade[400]
+              }}
+            >
+              <Zap size={24} />
+            </div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
+              Native Tauri v2 Desktop & Instant Web Twin
+            </h3>
+            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
+              Jump straight into the web studio as a guest in one click with zero paywalls. Download signed native desktop installers for Windows (MSI/EXE), macOS (DMG), and Linux (AppImage) with automatic background update detection.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── INTERACTIVE SUB-AGENT POP-OUT CAD STUDIO SHOWCASE ─────────────── */}
+      <section
+        id="cad-studio"
+        style={{
+          padding: '60px 24px',
+          backgroundColor: OsakaJadePalette.background.surface,
+          borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
+          borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`
+        }}
+      >
+        <div style={{ maxWidth: '1240px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 12px',
+                borderRadius: '16px',
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                color: OsakaJadePalette.jade[400],
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                marginBottom: '16px'
+              }}
+            >
+              <Wrench size={14} /> Sub-Agent Pop-Out Studio
+            </div>
+            <h2 style={{ fontSize: '2.1rem', fontWeight: 800, marginBottom: '12px' }}>
+              Vector CAD Drawing Synthesis & Mechanical Dressing
+            </h2>
+            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '1rem', maxWidth: '680px', margin: '0 auto' }}>
+              Every machine on the flowsheet can be opened into a dedicated engineering studio. Sub-agents synthesize vector equipment drawings, calculate ASME nozzle schedules, and tune physical parameters in real time.
+            </p>
+          </div>
+
+          {/* Machine Selection Tabs */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '24px' }}>
+            {[
+              { id: 'rx101', name: 'Continuous CSTR Reactor (RX-101)' },
+              { id: 'tk102', name: 'Pressurized Surge Vessel (TK-102)' },
+              { id: 'fl201', name: 'Rotary Canning Filler (FL-201)' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setCadStudioTab(tab.id as any)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: `1px solid ${cadStudioTab === tab.id ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
+                  backgroundColor: cadStudioTab === tab.id ? OsakaJadePalette.background.surfaceElevated : 'transparent',
+                  color: cadStudioTab === tab.id ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.secondary,
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                {tab.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Dual-Pane Studio Showcase Box */}
+          <div
+            style={{
+              borderRadius: '10px',
+              backgroundColor: OsakaJadePalette.background.canvas,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              overflow: 'hidden',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+            }}
+          >
+            {/* Left Pane: Sub-Agent Interactive Chat & Reasoning */}
+            <div
+              style={{
+                padding: '24px',
+                borderRight: `1px solid ${OsakaJadePalette.border.subtle}`,
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Bot size={18} color={OsakaJadePalette.jade[400]} />
+                  <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
+                    Sub-Agent Conversation ({cadStudioTab.toUpperCase()})
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.7rem', color: OsakaJadePalette.jade[400], fontFamily: "'JetBrains Mono', monospace" }}>
+                  MCP Stdio • Zero Raw Keys
+                </span>
+              </div>
+
+              {/* Chat Log History */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                {/* User Message */}
+                <div
+                  style={{
+                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    fontSize: '0.82rem',
+                    color: OsakaJadePalette.text.primary,
+                    borderLeft: `3px solid ${OsakaJadePalette.jade[400]}`
+                  }}
+                >
+                  <div style={{ fontSize: '0.7rem', color: OsakaJadePalette.text.muted, marginBottom: '2px' }}>Process Engineer</div>
+                  {cadStudioTab === 'rx101' && 'Add an ASME 3-inch 150# RF infeed nozzle at top perimeter, full steam jacket at 150 PSI, and fit a Rushton impeller for high shear dispersion.'}
+                  {cadStudioTab === 'tk102' && 'Equip this surge vessel with an atmospheric HEPA breather vent (N3), 2-inch bottom drain nozzle, and internal vortex breaker plate.'}
+                  {cadStudioTab === 'fl201' && 'Synthesize CAD drawing for a 6-station rotary indexing carousel with 0.75-inch anti-drip diving cutoff nozzles and sanitary Tri-Clamp infeed.'}
+                </div>
+
+                {/* Sub-Agent Response */}
+                <div
+                  style={{
+                    backgroundColor: OsakaJadePalette.background.surface,
+                    borderRadius: '8px',
+                    padding: '12px 14px',
+                    fontSize: '0.82rem',
+                    color: OsakaJadePalette.text.secondary,
+                    border: `1px solid ${OsakaJadePalette.border.default}`
+                  }}
+                >
+                  <div style={{ fontSize: '0.7rem', color: OsakaJadePalette.jade[400], fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Bot size={12} /> Autonomous Sub-Agent
+                  </div>
+                  {cadStudioTab === 'rx101' && (
+                    <>
+                      Validated ASME B16.5 flange schedule: N1 (3" NPS 150# RF, bolt circle 6.00"), N3/N4 jacket flanges (1" 300# RTJ).
+                      Configured 6-blade Rushton turbine. Synthesized parametric SVG CAD drawing and updated dynamic viscosity kinetics model.
+                    </>
+                  )}
+                  {cadStudioTab === 'tk102' && (
+                    <>
+                      ASME Section VIII Div 1 rules verified for atmospheric buffer vessel. Placed 2" 150# RF inlet/outlet nozzles and 1.5" HEPA vent.
+                      Hydrostatic head equation updated: P = ρ·g·h. Vortex breaker anti-cavitation baffle integrated.
+                    </>
+                  )}
+                  {cadStudioTab === 'fl201' && (
+                    <>
+                      Indexed starwheel kinematic profile generated for 6 pocket stations. Applied sanitary Tri-Clamp connection (3A Sanitary Standard 63-04).
+                      Diving nozzle stroke distance set to 45 mm with anti-drip pneumatic cutoff.
+                    </>
+                  )}
+                </div>
+
+                {/* Verification Status */}
+                <div
+                  style={{
+                    marginTop: 'auto',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.75rem',
+                    color: OsakaJadePalette.jade[300]
+                  }}
+                >
+                  <CheckCircle2 size={16} color={OsakaJadePalette.jade[400]} />
+                  ASME B16.5 & P&ID Drawing Constraints Validated
+                </div>
+              </div>
+            </div>
+
+            {/* Right Pane: Live Visual CAD & Parametric Nozzle Preview */}
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => setCadViewMode('visual')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      border: 'none',
+                      backgroundColor: cadViewMode === 'visual' ? OsakaJadePalette.background.surfaceHover : 'transparent',
+                      color: cadViewMode === 'visual' ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Eye size={12} /> CAD Visual Preview
+                  </button>
+                  <button
+                    onClick={() => setCadViewMode('code')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      border: 'none',
+                      backgroundColor: cadViewMode === 'code' ? OsakaJadePalette.background.surfaceHover : 'transparent',
+                      color: cadViewMode === 'code' ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted,
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <FileCode size={12} /> Digital Twin JSON Schema
+                  </button>
+                </div>
+                <span style={{ fontSize: '0.72rem', color: OsakaJadePalette.text.muted }}>Scale: 1:1 Vector</span>
+              </div>
+
+              {cadViewMode === 'visual' ? (
+                <div
+                  style={{
+                    flex: 1,
+                    backgroundColor: OsakaJadePalette.background.surface,
+                    borderRadius: '8px',
+                    border: `1px solid ${OsakaJadePalette.border.default}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '20px',
+                    position: 'relative'
+                  }}
+                >
+                  {/* Drawing Visual */}
+                  <div style={{ width: '180px', height: '180px' }}>
+                    {cadStudioTab === 'rx101' && <ReactorAnim isRunning={true} hasJacket={true} agitatorType="rushton" />}
+                    {cadStudioTab === 'tk102' && <TankAnim isRunning={true} levelPercent={74} />}
+                    {cadStudioTab === 'fl201' && <RotaryFillerAnim isRunning={true} />}
+                  </div>
+
+                  {/* Nozzle Callout Badges */}
+                  <div style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                    {cadStudioTab === 'rx101' && (
+                      <>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: OsakaJadePalette.background.surfaceElevated, border: `1px solid ${OsakaJadePalette.jade[700]}`, color: OsakaJadePalette.jade[300] }}>
+                          N1: 3" NPS 150# RF Infeed
+                        </span>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: OsakaJadePalette.background.surfaceElevated, border: `1px solid ${OsakaJadePalette.jade[700]}`, color: OsakaJadePalette.jade[300] }}>
+                          N2: 2" NPS 150# RF Drain
+                        </span>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: OsakaJadePalette.background.surfaceElevated, border: `1px solid ${OsakaJadePalette.jade[700]}`, color: OsakaJadePalette.jade[300] }}>
+                          N3/N4: 1" 300# RTJ Steam
+                        </span>
+                      </>
+                    )}
+                    {cadStudioTab === 'tk102' && (
+                      <>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: OsakaJadePalette.background.surfaceElevated, border: `1px solid ${OsakaJadePalette.jade[700]}`, color: OsakaJadePalette.jade[300] }}>
+                          N1: 2" NPS 150# RF Inlet
+                        </span>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: OsakaJadePalette.background.surfaceElevated, border: `1px solid ${OsakaJadePalette.jade[700]}`, color: OsakaJadePalette.jade[300] }}>
+                          N2: 2" NPS 150# RF Bottom Outlet
+                        </span>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: OsakaJadePalette.background.surfaceElevated, border: `1px solid ${OsakaJadePalette.jade[700]}`, color: OsakaJadePalette.jade[300] }}>
+                          N3: 1.5" Atmospheric HEPA
+                        </span>
+                      </>
+                    )}
+                    {cadStudioTab === 'fl201' && (
+                      <>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: OsakaJadePalette.background.surfaceElevated, border: `1px solid ${OsakaJadePalette.jade[700]}`, color: OsakaJadePalette.jade[300] }}>
+                          Feed: 2" Tri-Clamp Sanitary
+                        </span>
+                        <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '4px', backgroundColor: OsakaJadePalette.background.surfaceElevated, border: `1px solid ${OsakaJadePalette.jade[700]}`, color: OsakaJadePalette.jade[300] }}>
+                          6x 0.75" Diving Cutoff Nozzles
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <pre
+                  style={{
+                    flex: 1,
+                    margin: 0,
+                    padding: '16px',
+                    borderRadius: '8px',
+                    backgroundColor: OsakaJadePalette.background.surface,
+                    border: `1px solid ${OsakaJadePalette.border.default}`,
+                    fontSize: '0.75rem',
+                    color: OsakaJadePalette.jade[300],
+                    fontFamily: "'JetBrains Mono', monospace",
+                    overflowX: 'auto',
+                    lineHeight: 1.5
+                  }}
+                >
+                  <code>{JSON.stringify({
+                    unitOpId: cadStudioTab,
+                    type: cadStudioTab === 'rx101' ? 'continuous_cstr' : cadStudioTab === 'tk102' ? 'buffer_vessel' : 'discrete_rotary_filler',
+                    mechanicalDressing: {
+                      asmeStandard: 'B16.5-2020',
+                      material: '316L Stainless Steel',
+                      designPressure_psi: cadStudioTab === 'rx101' ? 150 : 50,
+                      designTemp_C: cadStudioTab === 'rx101' ? 120 : 60,
+                      nozzleSchedule: FLOWSHEET_UNITS.find(u => u.id === cadStudioTab)?.nozzles
+                    },
+                    subAgentConfig: {
+                      agentName: FLOWSHEET_UNITS.find(u => u.id === cadStudioTab)?.subAgentName,
+                      authType: 'oauth_pkce_zero_key',
+                      activePID: true
+                    }
+                  }, null, 2)}</code>
+                </pre>
+              )}
+            </div>
           </div>
         </div>
       </section>
