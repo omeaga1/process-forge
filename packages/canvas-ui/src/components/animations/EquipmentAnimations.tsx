@@ -345,11 +345,13 @@ export const TankAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
 export const CustomEquipmentAnim: React.FC<{
   shellSvg?: string;
   detailsSvg?: string;
+  viewBox?: string;
   stroke?: string;
   bg?: string;
 }> = ({
   shellSvg = '',
   detailsSvg = '',
+  viewBox = '0 0 100 100',
   stroke = OsakaJadePalette.jade[400],
   bg = 'rgba(16, 185, 129, 0.08)'
 }) => {
@@ -360,7 +362,7 @@ export const CustomEquipmentAnim: React.FC<{
   const cleanDetail = sanitize(detailsSvg);
 
   return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
+    <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
       <g fill={bg} stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: cleanShell }} />
       {cleanDetail && (
         <g fill="none" stroke={stroke} strokeWidth="1.2" strokeLinecap="round" opacity="0.75" dangerouslySetInnerHTML={{ __html: cleanDetail }} />
@@ -390,6 +392,7 @@ export const UnitAnim: React.FC<UnitAnimProps> = ({ kind, dressing, isRunning = 
       <CustomEquipmentAnim
         shellSvg={dressing.customSvgShell}
         detailsSvg={dressing.customSvgDetails}
+        viewBox={dressing.viewBox}
         stroke={stroke}
       />
     );

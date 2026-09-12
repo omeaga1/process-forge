@@ -5,6 +5,7 @@ import { executeSimulateLine } from '../tools/simulateLine.js';
 import { executeDiagnoseBottlenecks } from '../tools/diagnoseBottlenecks.js';
 import { executeQueryUnitSubAgent } from '../tools/queryUnitSubAgent.js';
 import { executePackageUnitOp } from '../tools/packageUnitOp.js';
+import { executeForgeEquipmentDrawing } from '../tools/forgeEquipmentDrawing.js';
 import { createProcessForgeMcpServer } from '../server.js';
 import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates.js';
 
@@ -81,6 +82,34 @@ describe('ProcessForge MCP Server Tools', () => {
     const parsed = JSON.parse(bundle.serializedBundle);
     assert.strictEqual(parsed.bundleVersion, '1.0.0');
     assert.strictEqual(parsed.name, node.name);
+  });
+
+  it('synthesizes an ISA-5.1 CAD equipment drawing via forge_equipment_drawing', () => {
+    const res = executeForgeEquipmentDrawing({
+      description: 'Fractionation column with 8 sieve trays, overhead vapor outlet and reboiler return',
+      machineType: 'DISTILLATION_COLUMN',
+      unitName: 'T-100 Crude Column'
+    });
+
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.drawing.category, 'Separations');
+    assert.ok(res.svgMarkup.includes('<svg'));
+    assert.ok(res.suggestedDressing.customSvgShell.length > 0);
+    assert.ok(res.suggestedDressing.nozzles.length >= 4);
+    assert.ok(res.reasoningTrace.includes('Step 1'));
+  });
+
+  it('synthesizes equipment drawing when querying unit subagent with drawing inquiry', () => {
+    const res = executeQueryUnitSubAgent({
+      machineType: 'BATCH_REACTOR',
+      unitName: 'R-101 Polymerization Reactor',
+      inquiry: 'Draw this reactor as a jacketed CSTR with Rushton turbine and emergency relief nozzle'
+    });
+
+    assert.ok(res.equipmentDrawing, 'Should include synthesized CAD drawing');
+    assert.strictEqual(res.equipmentDrawing.category, 'Reactors');
+    assert.ok(res.softwareEngineerResponse.includes('CAD Drafting Sub-Agent'));
+    assert.ok(res.equipmentDrawing.nozzles.some((n) => n.role === 'relief'));
   });
 
   it('initializes MCP server instance with tool capabilities', () => {

@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { validateProcessGraph } from '@process-forge/protocol';
 import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates/sherwinWilliamsPaintLine.js';
+import { synthesizeEquipmentDrawing } from '@process-forge/protocol';
 
 describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
   it('passes strict graph topology and mass conservation validation', () => {
@@ -85,5 +86,40 @@ describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
     assert.ok(surge?.dressing, 'Surge tank must have dressing configured');
     assert.strictEqual(surge.dressing.nozzles.length, 4);
     assert.strictEqual(surge.dressing.internals.hasDemister, true);
+  });
+
+  it('synthesizes custom ISA-5.1 CAD drawing for sub-agent equipment and updates dressing', () => {
+    const dwg = synthesizeEquipmentDrawing('Fractionation distillation tower with 6 sieve trays and top reflux nozzle', {
+      kind: 'DISTILLATION_COLUMN',
+      machineName: 'C-301 Solvent Recovery Column'
+    });
+
+    assert.ok(dwg.svgShell.includes('<rect'));
+    assert.ok(dwg.svgShell.includes('<ellipse'));
+    assert.ok(dwg.nozzles.length >= 4);
+
+    const updatedDressing = {
+      customSvgShell: dwg.svgShell,
+      customSvgDetails: dwg.svgDetails,
+      viewBox: dwg.viewBox,
+      defaultSize: dwg.defaultSize,
+      drawingPrompt: 'Fractionation distillation tower with 6 sieve trays and top reflux nozzle',
+      generatedBySubAgent: true,
+      nozzles: dwg.nozzles,
+      internals: {
+        agitatorType: 'none' as const,
+        hasJacket: false,
+        jacketType: 'none' as const,
+        baffleCount: 0,
+        packingType: 'trays' as const,
+        hasDemister: true,
+        hasSprayHeader: false,
+        trayCount: 6
+      }
+    };
+
+    assert.strictEqual(updatedDressing.generatedBySubAgent, true);
+    assert.strictEqual(updatedDressing.nozzles.length, dwg.nozzles.length);
+    assert.ok(updatedDressing.customSvgShell.length > 0);
   });
 });

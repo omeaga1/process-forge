@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 import { OsakaJadePalette } from '@process-forge/theme';
-import type { ProcessNode, UnitOpDressing, NozzleDressing, InternalsDressing } from '@process-forge/protocol';
+import {
+  type ProcessNode,
+  type UnitOpDressing,
+  type NozzleDressing,
+  type InternalsDressing,
+  synthesizeEquipmentDrawing
+} from '@process-forge/protocol';
 import { UnitAnim } from '../animations/EquipmentAnimations.js';
-import { Plus, Trash2, Sliders, Eye, Sparkles, Check } from 'lucide-react';
+import { Plus, Trash2, Sliders, Eye, Sparkles, Check, RotateCcw } from 'lucide-react';
 
 interface UnitOpDressingTabProps {
   node: ProcessNode;
@@ -49,6 +55,62 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
     initialDressing.nozzles[0]?.id || null
   );
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [aiPrompt, setAiPrompt] = useState<string>('');
+  const [isForging, setIsForging] = useState<boolean>(false);
+
+  const handleForgeDrawing = (promptToUse?: string) => {
+    const text = promptToUse || aiPrompt;
+    if (!text.trim()) return;
+    setIsForging(true);
+    setTimeout(() => {
+      const dwg = synthesizeEquipmentDrawing(text, {
+        kind: node.kind,
+        machineName: node.name
+      });
+      const updated: UnitOpDressing = {
+        ...dressing,
+        customSvgShell: dwg.svgShell,
+        customSvgDetails: dwg.svgDetails,
+        viewBox: dwg.viewBox,
+        defaultSize: dwg.defaultSize,
+        drawingPrompt: text,
+        generatedBySubAgent: true,
+        nozzles: dwg.nozzles,
+        internals: {
+          agitatorType: dwg.internals.agitatorType ?? dressing.internals.agitatorType ?? 'none',
+          hasJacket: dwg.internals.hasJacket ?? dressing.internals.hasJacket ?? false,
+          jacketType: dwg.internals.jacketType ?? dressing.internals.jacketType ?? 'none',
+          baffleCount: dwg.internals.baffleCount ?? dressing.internals.baffleCount ?? 0,
+          packingType: dwg.internals.packingType ?? dressing.internals.packingType ?? 'none',
+          hasDemister: dwg.internals.hasDemister ?? dressing.internals.hasDemister ?? false,
+          hasSprayHeader: dwg.internals.hasSprayHeader ?? dressing.internals.hasSprayHeader ?? false,
+          trayCount: dwg.internals.trayCount ?? dressing.internals.trayCount
+        }
+      };
+      setDressing(updated);
+      setSelectedNozzleId(dwg.nozzles[0]?.id || null);
+      onUpdateDressing(updated);
+      setIsForging(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    }, 400);
+  };
+
+  const handleResetToStandard = () => {
+    const updated: UnitOpDressing = {
+      ...dressing,
+      customSvgShell: undefined,
+      customSvgDetails: undefined,
+      viewBox: undefined,
+      defaultSize: undefined,
+      drawingPrompt: undefined,
+      generatedBySubAgent: false
+    };
+    setDressing(updated);
+    onUpdateDressing(updated);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2000);
+  };
 
   const handleUpdateInternals = (updates: Partial<InternalsDressing>) => {
     const updated: UnitOpDressing = {
@@ -110,9 +172,146 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
   const selectedNozzle = dressing.nozzles.find((n) => n.id === selectedNozzleId);
 
   return (
-    <div style={{ display: 'flex', gap: '20px', height: '100%', overflowY: 'auto', padding: '16px' }}>
-      {/* Left Column: Live Animated SVG Preview with Interactive Nozzle Pins */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%', overflowY: 'auto', padding: '16px' }}>
+      {/* AI Equipment CAD Forge Bar (OAuth / MCP Connected) */}
       <div
+        style={{
+          padding: '12px 16px',
+          backgroundColor: OsakaJadePalette.background.surfaceElevated,
+          borderRadius: '10px',
+          border: `1px solid ${OsakaJadePalette.border.default}`,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Sparkles size={16} color={OsakaJadePalette.jade[400]} />
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: OsakaJadePalette.text.primary }}>
+              Sub-Agent CAD Drawing Studio
+            </span>
+            <span
+              style={{
+                fontSize: '0.68rem',
+                fontWeight: 600,
+                padding: '1px 6px',
+                borderRadius: '4px',
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                color: OsakaJadePalette.jade[300],
+                border: `1px solid ${OsakaJadePalette.jade[700]}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: OsakaJadePalette.jade[400] }} />
+              OAuth / MCP Connected • Zero Raw Keys
+            </span>
+          </div>
+
+          {dressing.customSvgShell && (
+            <button
+              onClick={handleResetToStandard}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.72rem',
+                padding: '4px 10px',
+                backgroundColor: 'transparent',
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                borderRadius: '6px',
+                color: OsakaJadePalette.text.secondary,
+                cursor: 'pointer'
+              }}
+            >
+              <RotateCcw size={12} />
+              Reset to Standard Dynamic Animation
+            </button>
+          )}
+        </div>
+
+        {/* Input Field & Action Button */}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <input
+            type="text"
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleForgeDrawing();
+            }}
+            placeholder="Describe equipment geometry for Sub-Agent to draw (e.g. 'Fractionation tower with 6 trays' or 'Jacketed CSTR with relief vent')..."
+            style={{
+              flex: 1,
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              borderRadius: '6px',
+              padding: '8px 12px',
+              color: OsakaJadePalette.text.primary,
+              fontSize: '0.82rem',
+              outline: 'none'
+            }}
+          />
+          <button
+            onClick={() => handleForgeDrawing()}
+            disabled={isForging || !aiPrompt.trim()}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: isForging || !aiPrompt.trim() ? OsakaJadePalette.background.surface : OsakaJadePalette.jade[500],
+              color: isForging || !aiPrompt.trim() ? OsakaJadePalette.text.muted : '#0c1214',
+              border: `1px solid ${isForging || !aiPrompt.trim() ? OsakaJadePalette.border.default : OsakaJadePalette.jade[400]}`,
+              borderRadius: '6px',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: isForging || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <Sparkles size={14} />
+            {isForging ? 'Synthesizing CAD...' : 'Forge CAD Drawing'}
+          </button>
+        </div>
+
+        {/* Quick Suggestion Chips */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.7rem', color: OsakaJadePalette.text.muted }}>Quick CAD Presets:</span>
+          {[
+            { label: 'Jacketed CSTR', prompt: 'Jacketed CSTR with Rushton turbine and relief vent' },
+            { label: 'Distillation Tower', prompt: 'Vertical distillation tower with 6 sieve trays and top reflux nozzle' },
+            { label: 'Spherical LPG Tank', prompt: 'Spherical LPG storage vessel with relief nozzle on support legs' },
+            { label: 'Cyclone Separator', prompt: 'Cyclone separator for vapor-solid particulate separation' },
+            { label: 'Shell & Tube Exchanger', prompt: 'Horizontal shell and tube heat exchanger with baffles' },
+            { label: 'Spray Atomizer', prompt: 'Twin-fluid spray atomizer with conical droplet dispersion' }
+          ].map((chip) => (
+            <button
+              key={chip.label}
+              onClick={() => {
+                setAiPrompt(chip.prompt);
+                handleForgeDrawing(chip.prompt);
+              }}
+              style={{
+                fontSize: '0.7rem',
+                padding: '2px 8px',
+                borderRadius: '12px',
+                backgroundColor: OsakaJadePalette.background.surface,
+                border: `1px solid ${OsakaJadePalette.border.subtle}`,
+                color: OsakaJadePalette.jade[300],
+                cursor: 'pointer'
+              }}
+            >
+              + {chip.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Two-Column CAD Dressing Studio */}
+      <div style={{ display: 'flex', gap: '20px', flex: 1, minHeight: '480px' }}>
+        {/* Left Column: Live Animated SVG Preview with Interactive Nozzle Pins */}
+        <div
         style={{
           flex: '1 1 45%',
           display: 'flex',
@@ -662,6 +861,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
         </div>
       </div>
     </div>
+  </div>
   );
 };
 

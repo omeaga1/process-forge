@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
 import { OsakaJadePalette } from '@process-forge/theme';
-import type { ProcessNode, UnitOpDressing } from '@process-forge/protocol';
+import {
+  type ProcessNode,
+  type UnitOpDressing,
+  synthesizeEquipmentDrawing,
+  type EquipmentCadDrawing
+} from '@process-forge/protocol';
 import type { ChatMessage } from '../../types.js';
-import { UnitAnim } from '../animations/EquipmentAnimations.js';
+import { UnitAnim, CustomEquipmentAnim } from '../animations/EquipmentAnimations.js';
 import { UnitOpDressingTab } from './UnitOpDressingTab.js';
 
 interface UnitOpPopOutStudioProps {
@@ -38,9 +43,10 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       text: `Hello! I am your dedicated machine software engineer for "${node.name}". I handle the mathematical state machine, dynamic cycle calculations, and port boundary contracts. How can we optimize this unit?`,
       timestamp: '14:26',
       suggestedPrompts: [
+        'Draw a jacketed CSTR with Rushton turbine and relief vent',
+        'Draw a distillation tower with 6 sieve trays and reflux',
         'Recalculate cycle time for 5-gallon pails',
-        'Add an automated optical reject chute',
-        'Check mass balance against upstream reactor'
+        'Add an automated optical reject chute'
       ]
     }
   ]);
@@ -66,22 +72,69 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
     setTimeout(() => {
       let agentReply = `I have analyzed your request for "${node.name}".`;
       let proposedConfigUpdate: Record<string, unknown> | null = null;
+      let cadDrawing: EquipmentCadDrawing | undefined;
+      const lower = message.toLowerCase();
 
-      if (message.toLowerCase().includes('5-gallon') || message.toLowerCase().includes('pail')) {
+      if (
+        lower.includes('draw') ||
+        lower.includes('sketch') ||
+        lower.includes('cad') ||
+        lower.includes('geometry') ||
+        lower.includes('draft') ||
+        lower.includes('distill') ||
+        lower.includes('column') ||
+        lower.includes('tower') ||
+        lower.includes('sphere') ||
+        lower.includes('bullet') ||
+        lower.includes('cyclone') ||
+        lower.includes('spray') ||
+        lower.includes('atomiz') ||
+        lower.includes('exchanger') ||
+        (lower.includes('reactor') && (lower.includes('cone') || lower.includes('rushton') || lower.includes('jacket')))
+      ) {
+        cadDrawing = synthesizeEquipmentDrawing(message, {
+          kind: node.kind,
+          machineName: node.name
+        });
+
+        agentReply = `I have drafted an ISA-5.1 compliant CAD equipment drawing for "${node.name}". Using the 8-step Drawing-with-Thought pipeline, I validated the coordinate grid (viewBox "${cadDrawing.viewBox}"), generated ${cadDrawing.nozzles.length} perimeter nozzles, and configured internal dressing. The drawing is applied to this unit below and in the flow canvas.`;
+
+        const newDressing: UnitOpDressing = {
+          ...node.dressing,
+          customSvgShell: cadDrawing.svgShell,
+          customSvgDetails: cadDrawing.svgDetails,
+          viewBox: cadDrawing.viewBox,
+          defaultSize: cadDrawing.defaultSize,
+          drawingPrompt: message,
+          generatedBySubAgent: true,
+          nozzles: cadDrawing.nozzles,
+          internals: {
+            agitatorType: cadDrawing.internals.agitatorType ?? node.dressing?.internals.agitatorType ?? 'none',
+            hasJacket: cadDrawing.internals.hasJacket ?? node.dressing?.internals.hasJacket ?? false,
+            jacketType: cadDrawing.internals.jacketType ?? node.dressing?.internals.jacketType ?? 'none',
+            baffleCount: cadDrawing.internals.baffleCount ?? node.dressing?.internals.baffleCount ?? 0,
+            packingType: cadDrawing.internals.packingType ?? node.dressing?.internals.packingType ?? 'none',
+            hasDemister: cadDrawing.internals.hasDemister ?? node.dressing?.internals.hasDemister ?? false,
+            hasSprayHeader: cadDrawing.internals.hasSprayHeader ?? node.dressing?.internals.hasSprayHeader ?? false,
+            trayCount: cadDrawing.internals.trayCount ?? node.dressing?.internals.trayCount
+          }
+        };
+        onUpdateDressing?.(node.id, newDressing);
+      } else if (lower.includes('5-gallon') || lower.includes('pail')) {
         agentReply =
           'Understood. Switching from 1-gal cans to 5-gal pails: volumetric flow requires increasing dwell time to 28.5s per fill cycle. Throughput will adjust from 45 cpm to 9 pails/min to conserve fluid mass balance.';
         proposedConfigUpdate = {
           containerVolumeGallons: 5.0,
           fillTimePerCycleSeconds: 28.5
         };
-      } else if (message.toLowerCase().includes('reject') || message.toLowerCase().includes('chute')) {
+      } else if (lower.includes('reject') || lower.includes('chute')) {
         agentReply =
           'I have added an optical inspection reject gate to this unit. The defect scrap rate is set to 0.5%, with non-conforming containers diverting to a secondary gravity chute.';
         proposedConfigUpdate = {
           rejectRatePercentage: 0.5,
           rejectChuteEnabled: true
         };
-      } else if (message.toLowerCase().includes('dressing') || message.toLowerCase().includes('jacket') || message.toLowerCase().includes('nozzle') || message.toLowerCase().includes('agitator')) {
+      } else if (lower.includes('dressing') || lower.includes('jacket') || lower.includes('nozzle') || lower.includes('agitator')) {
         agentReply =
           'I have reconfigured the mechanical dressing for this unit: updated nozzle port elevations, installed a high-shear Rushton turbine, and attached a thermal utility jacket. You can view the live SVG model under the "Dressing & Nozzles" tab.';
         const newDressing: UnitOpDressing = {
@@ -109,7 +162,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         sender: 'agent',
         senderTitle: `UnitOpSubAgent [${node.name.split(' ')[0]}]`,
         text: agentReply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        cadDrawing
       };
 
       setChatHistory((prev) => [...prev, agentMsg]);
@@ -166,8 +220,27 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             <UnitAnim kind={node.kind} dressing={node.dressing} isRunning={true} />
           </div>
           <div>
-            <div style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase' }}>
-              Unit-Op Sub-Agent Studio
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase' }}>
+                Unit-Op Sub-Agent Studio
+              </span>
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 600,
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  color: OsakaJadePalette.jade[300],
+                  border: `1px solid ${OsakaJadePalette.jade[700]}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: OsakaJadePalette.jade[400] }} />
+                OAuth / MCP Connected • Zero Raw Keys
+              </span>
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
               {node.name}
@@ -296,6 +369,108 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                     {msg.senderTitle} • {msg.timestamp}
                   </div>
                   <div>{msg.text}</div>
+
+                  {/* CAD Drawing Preview Card */}
+                  {msg.cadDrawing && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 12,
+                        borderRadius: 8,
+                        backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                        border: `1px solid ${OsakaJadePalette.jade[700]}`,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: OsakaJadePalette.jade[300], textTransform: 'uppercase' }}>
+                          ISA-5.1 CAD Vector Symbol
+                        </span>
+                        <span style={{ fontSize: 10, color: OsakaJadePalette.text.muted }}>
+                          {msg.cadDrawing.category} • {msg.cadDrawing.defaultSize.width}×{msg.cadDrawing.defaultSize.height}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
+                        {msg.cadDrawing.label}
+                      </div>
+                      <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
+                        {msg.cadDrawing.description}
+                      </div>
+
+                      {/* Live SVG CAD Drawing preview */}
+                      <div
+                        style={{
+                          width: '100%',
+                          height: 140,
+                          borderRadius: 6,
+                          backgroundColor: OsakaJadePalette.background.canvas,
+                          border: `1px solid ${OsakaJadePalette.border.subtle}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: 8
+                        }}
+                      >
+                        <CustomEquipmentAnim
+                          shellSvg={msg.cadDrawing.svgShell}
+                          detailsSvg={msg.cadDrawing.svgDetails}
+                          viewBox={msg.cadDrawing.viewBox}
+                          stroke={OsakaJadePalette.jade[400]}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, fontSize: 10, color: OsakaJadePalette.text.secondary }}>
+                        <span>Nozzles: {msg.cadDrawing.nozzles.length}</span>
+                        <span>•</span>
+                        <span>Internals: {msg.cadDrawing.internals.agitatorType || msg.cadDrawing.internals.packingType || 'Standard'}</span>
+                        {msg.cadDrawing.internals.hasJacket && <span>• Jacket: {msg.cadDrawing.internals.jacketType}</span>}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          onUpdateDressing?.(node.id, {
+                            ...node.dressing,
+                            customSvgShell: msg.cadDrawing!.svgShell,
+                            customSvgDetails: msg.cadDrawing!.svgDetails,
+                            viewBox: msg.cadDrawing!.viewBox,
+                            defaultSize: msg.cadDrawing!.defaultSize,
+                            drawingPrompt: msg.text,
+                            generatedBySubAgent: true,
+                            nozzles: msg.cadDrawing!.nozzles,
+                            internals: {
+                              agitatorType: msg.cadDrawing!.internals.agitatorType ?? node.dressing?.internals.agitatorType ?? 'none',
+                              hasJacket: msg.cadDrawing!.internals.hasJacket ?? node.dressing?.internals.hasJacket ?? false,
+                              jacketType: msg.cadDrawing!.internals.jacketType ?? node.dressing?.internals.jacketType ?? 'none',
+                              baffleCount: msg.cadDrawing!.internals.baffleCount ?? node.dressing?.internals.baffleCount ?? 0,
+                              packingType: msg.cadDrawing!.internals.packingType ?? node.dressing?.internals.packingType ?? 'none',
+                              hasDemister: msg.cadDrawing!.internals.hasDemister ?? node.dressing?.internals.hasDemister ?? false,
+                              hasSprayHeader: msg.cadDrawing!.internals.hasSprayHeader ?? node.dressing?.internals.hasSprayHeader ?? false,
+                              trayCount: msg.cadDrawing!.internals.trayCount ?? node.dressing?.internals.trayCount
+                            }
+                          });
+                        }}
+                        style={{
+                          marginTop: 4,
+                          padding: '6px 12px',
+                          backgroundColor: OsakaJadePalette.jade[600],
+                          color: '#0c1214',
+                          border: 'none',
+                          borderRadius: 6,
+                          fontWeight: 700,
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6
+                        }}
+                      >
+                        ✓ Applied CAD Drawing to {node.name}
+                      </button>
+                    </div>
+                  )}
 
                   {/* Quick suggestion prompt pills */}
                   {msg.suggestedPrompts && (

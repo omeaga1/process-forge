@@ -1,4 +1,8 @@
-import type { GenerativeInspectorWidget } from '@process-forge/protocol';
+import {
+  type GenerativeInspectorWidget,
+  synthesizeEquipmentDrawing,
+  type EquipmentCadDrawing
+} from '@process-forge/protocol';
 
 export interface QueryUnitSubAgentParams {
   machineType: 'BATCH_REACTOR' | 'SURGE_TANK' | 'ROTARY_FILLER' | 'CONVEYOR' | 'LABELER' | 'PALLETIZER' | string;
@@ -21,6 +25,7 @@ export interface UnitSubAgentResponsePayload {
   recommendedConfig: Record<string, unknown>;
   generativeUiSchema: GenerativeInspectorWidget;
   suggestedCapabilityPackages: string[];
+  equipmentDrawing?: EquipmentCadDrawing;
 }
 
 export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitSubAgentResponsePayload {
@@ -193,6 +198,26 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
     }
   }
 
+  let equipmentDrawing: EquipmentCadDrawing | undefined;
+  const lowerInquiry = inquiry.toLowerCase();
+  if (
+    lowerInquiry.includes('draw') ||
+    lowerInquiry.includes('sketch') ||
+    lowerInquiry.includes('cad') ||
+    lowerInquiry.includes('geometry') ||
+    lowerInquiry.includes('symbol') ||
+    lowerInquiry.includes('draft') ||
+    lowerInquiry.includes('jacket') ||
+    lowerInquiry.includes('nozzle') ||
+    lowerInquiry.includes('agitator')
+  ) {
+    equipmentDrawing = synthesizeEquipmentDrawing(inquiry, {
+      kind: machineType,
+      machineName: unitName
+    });
+    softwareEngineerResponse += `\n\n[CAD Drafting Sub-Agent]: Synthesized ISA-5.1 vector CAD drawing for ${unitName} based on 8-step Drawing-with-Thought reasoning. Shell & details generated with ${equipmentDrawing.nozzles.length} perimeter nozzles.`;
+  }
+
   return {
     subAgentId,
     unitName,
@@ -200,6 +225,7 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
     softwareEngineerResponse,
     recommendedConfig,
     generativeUiSchema,
-    suggestedCapabilityPackages
+    suggestedCapabilityPackages,
+    equipmentDrawing
   };
 }

@@ -1,4 +1,10 @@
-import type { ProcessNode, ProcessEdge, GraphDiagnostic, BottleneckAnalysis } from '@process-forge/protocol';
+import type {
+  ProcessNode,
+  ProcessEdge,
+  GraphDiagnostic,
+  BottleneckAnalysis,
+  EquipmentCadDrawing
+} from '@process-forge/protocol';
 import type { MachineOperationalState } from '@process-forge/simulation-core';
 
 export interface ChatMessage {
@@ -9,6 +15,7 @@ export interface ChatMessage {
   timestamp: string;
   suggestedPrompts?: string[];
   proposedDiff?: Record<string, unknown>;
+  cadDrawing?: EquipmentCadDrawing;
 }
 
 export interface CanvasNodeData extends Record<string, unknown> {

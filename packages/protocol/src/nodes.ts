@@ -95,6 +95,10 @@ export const UnitOpDressingSchema = z.object({
   internals: InternalsDressingSchema.default({}),
   customSvgShell: z.string().optional(),
   customSvgDetails: z.string().optional(),
+  viewBox: z.string().optional(),
+  defaultSize: z.object({ width: z.number(), height: z.number() }).optional(),
+  drawingPrompt: z.string().optional(),
+  generatedBySubAgent: z.boolean().optional(),
   colorAccent: z.string().optional(),
   notes: z.string().optional()
 });

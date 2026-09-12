@@ -4,3 +4,4 @@ export * from './streams.js';
 export * from './graph.js';
 export * from './agents.js';
 export * from './storage.js';
+export * from './cad/equipmentCadEngine.js';

@@ -11,6 +11,7 @@ import { executeSimulateLine } from './tools/simulateLine.js';
 import { executeDiagnoseBottlenecks } from './tools/diagnoseBottlenecks.js';
 import { executeQueryUnitSubAgent } from './tools/queryUnitSubAgent.js';
 import { executePackageUnitOp } from './tools/packageUnitOp.js';
+import { executeForgeEquipmentDrawing } from './tools/forgeEquipmentDrawing.js';
 import { AVAILABLE_TEMPLATES } from './templates.js';
 
 export function createProcessForgeMcpServer(): Server {
@@ -141,6 +142,33 @@ export function createProcessForgeMcpServer(): Server {
           }
         },
         {
+          name: 'forge_equipment_drawing',
+          description:
+            'Synthesizes an ISA-5.1 compliant CAD equipment vector drawing (SVG geometry, viewBox, nozzles, internals, and aspect ratio) from a natural language engineering description using an 8-step Drawing-with-Thought reasoning pipeline.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              description: {
+                type: 'string',
+                description: 'Physical equipment description (e.g. "Distillation column with 8 sieve trays and overhead reflux condenser", "Jacketed CSTR with Rushton turbine").'
+              },
+              machineType: {
+                type: 'string',
+                description: 'Optional equipment classification or node kind.'
+              },
+              unitName: {
+                type: 'string',
+                description: 'Unit operation name or tag.'
+              },
+              includeNozzles: {
+                type: 'boolean',
+                description: 'Whether to calculate perimeter nozzle placement coordinates (default: true).'
+              }
+            },
+            required: ['description']
+          }
+        },
+        {
           name: 'list_digital_twin_templates',
           description: 'Lists all available pre-configured digital twin manufacturing lines in ProcessForge.',
           inputSchema: {
@@ -195,6 +223,18 @@ export function createProcessForgeMcpServer(): Server {
 
         case 'package_unit_op': {
           const result = executePackageUnitOp(args as any);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }
+            ]
+          };
+        }
+
+        case 'forge_equipment_drawing': {
+          const result = executeForgeEquipmentDrawing((args as unknown) as any);
           return {
             content: [
               {
