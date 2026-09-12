@@ -342,10 +342,10 @@ export const App: React.FC = () => {
   const [platform, setPlatform] = useState<PlatformInfo>({
     name: 'Windows',
     os: 'windows',
-    extension: '.zip / .msi',
-    filename: 'process-forge-windows-portable-x64.zip',
-    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.0/process-forge-windows-portable-x64.zip',
-    instruction: 'Windows 10 / 11 (64-bit Portable x64 & MSI)'
+    extension: '.exe',
+    filename: 'ProcessForge-Setup-x64.exe',
+    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest/download/ProcessForge-Setup-x64.exe',
+    instruction: 'Windows 10 / 11 (64-bit 1-Click Installer .exe)'
   });
 
   const [isOtherModalOpen, setIsOtherModalOpen] = useState<boolean>(false);
@@ -390,10 +390,10 @@ export const App: React.FC = () => {
       setPlatform({
         name: 'Windows',
         os: 'windows',
-        extension: '.zip / .msi',
-        filename: 'process-forge-windows-portable-x64.zip',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.0/process-forge-windows-portable-x64.zip',
-        instruction: 'Windows 10 / 11 (64-bit Portable x64 & MSI)'
+        extension: '.exe',
+        filename: 'ProcessForge-Setup-x64.exe',
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest/download/ProcessForge-Setup-x64.exe',
+        instruction: 'Windows 10 / 11 (64-bit 1-Click Installer .exe)'
       });
     }
   }, []);
@@ -2167,9 +2167,9 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 <Download size={16} color={OsakaJadePalette.jade[400]} />
               </a>
 
-              {/* Windows MSI */}
+              {/* Windows One-Click Setup */}
               <a
-                href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.0"
+                href="https://github.com/omeaga1/process-forge/releases/latest/download/ProcessForge-Setup-x64.exe"
                 target="_blank"
                 rel="noreferrer"
                 style={{
@@ -2185,8 +2185,8 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Windows Native Installer (.msi / .exe)</div>
-                  <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.muted }}>GitHub Release v0.1.0 Tauri v2 Bundle</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Windows One-Click Setup (.exe)</div>
+                  <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.muted }}>Windows 10 / 11 64-bit • Automated Install with Desktop & Start Menu Shortcuts</div>
                 </div>
                 <Download size={16} color={OsakaJadePalette.jade[400]} />
               </a>

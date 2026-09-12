@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "dev": "echo \"Run 'cargo tauri dev' inside apps/desktop to launch desktop dev\"",
-    "build": "echo \"Desktop bundle config verified\"",
+    "build": "node scripts/build-windows-installer.cjs",
     "typecheck": "echo \"Desktop shell typecheck clean\"",
     "lint": "echo \"Desktop shell lint clean\""
   },

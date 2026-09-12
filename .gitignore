@@ -42,3 +42,7 @@ src-tauri/target/
 # Test coverage
 coverage/
 .nyc_output/
+
+# Release distributions
+release-dist/
+apps/desktop/installer/staging/

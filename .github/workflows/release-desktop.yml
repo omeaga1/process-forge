@@ -68,20 +68,20 @@ jobs:
           tagName: ${{ github.ref_name || inputs.tag || 'v0.1.0' }}
           releaseName: 'ProcessForge ${{ github.ref_name || inputs.tag || ''v0.1.0'' }}'
           releaseBody: |
-            Official ProcessForge Native Desktop Release for Windows (.msi/.exe), macOS (.dmg), and Linux (.AppImage).
+            Official ProcessForge Native Desktop Release for Windows (.exe installer & portable), macOS, and Linux.
             
             ### Included Artifacts
-            - **Windows**: `ProcessForge_${{ github.ref_name || inputs.tag || 'v0.1.0' }}_x64-setup.exe` and `.msi`
-            - **macOS**: `ProcessForge_${{ github.ref_name || inputs.tag || 'v0.1.0' }}_aarch64.dmg`
-            - **Linux**: `ProcessForge_${{ github.ref_name || inputs.tag || 'v0.1.0' }}_amd64.AppImage`
-            - **Zero Raw Keys**: Built-in DPAPI keychain and local-first physics solver.
+            - **Windows One-Click Installer**: `ProcessForge-Setup-x64.exe` (1-Click installer with desktop shortcut & start menu registration)
+            - **Windows Portable Bundle**: `process-forge-windows-portable-x64.zip`
+            - **Web Studio Distribution**: `process-forge-web-dist.tar.gz`
+            - **Zero Raw Keys**: Strict Model Context Protocol (MCP) and OAuth 2.0 PKCE.
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
 
   publish-standalone-packages:
-    name: Package Portable Desktop Bundles
-    runs-on: ubuntu-latest
+    name: Package Windows One-Click Installer & Portable Bundles
+    runs-on: windows-latest
     permissions:
       contents: write
     steps:
@@ -103,21 +103,8 @@ jobs:
       - name: Build All Packages & Web App
         run: pnpm run build
 
-      - name: Generate Portable Release Archives
-        run: |
-          mkdir -p release-dist
-          # Package web distribution
-          tar -czf release-dist/process-forge-web-dist.tar.gz -C apps/web/dist .
-          # Package windows portable bundle
-          mkdir -p release-dist/process-forge-windows-portable
-          cp -r apps/web/dist release-dist/process-forge-windows-portable/app
-          cp apps/desktop/README.md release-dist/process-forge-windows-portable/
-          cat << 'EOF' > release-dist/process-forge-windows-portable/Start-ProcessForge.bat
-          @echo off
-          echo Starting ProcessForge Industrial Studio...
-          start "" "app\index.html"
-          EOF
-          (cd release-dist && zip -r process-forge-windows-portable-x64.zip process-forge-windows-portable)
+      - name: Generate One-Click Installer and Portable Archives
+        run: node apps/desktop/scripts/package-release-bundles.cjs
 
       - name: Upload Standalone Release Assets
         uses: softprops/action-gh-release@v2
@@ -129,5 +116,6 @@ jobs:
           draft: false
           prerelease: false
           files: |
+            release-dist/ProcessForge-Setup-x64.exe
             release-dist/process-forge-windows-portable-x64.zip
             release-dist/process-forge-web-dist.tar.gz
