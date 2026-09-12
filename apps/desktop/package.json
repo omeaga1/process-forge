@@ -1,0 +1,16 @@
+{
+  "name": "@process-forge/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tauri v2 native desktop application shell for ProcessForge with OS DPAPI keychain integration",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "echo \"Run 'cargo tauri dev' inside apps/desktop to launch desktop dev\"",
+    "build": "echo \"Desktop bundle config verified\"",
+    "typecheck": "echo \"Desktop shell typecheck clean\"",
+    "lint": "echo \"Desktop shell lint clean\""
+  },
+  "dependencies": {
+    "@process-forge/web": "workspace:*"
+  }
+}

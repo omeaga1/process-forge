@@ -4,6 +4,7 @@
   "private": true,
   "description": "Osaka Jade design system tokens, Tailwind preset, and canvas color definitions for ProcessForge",
   "license": "Apache-2.0",
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {

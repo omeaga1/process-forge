@@ -23,6 +23,7 @@ Historical log of foundational engineering decisions, their context, and consequ
 * [**ADR-0003: Osaka Jade Default Theme**](adr/0003-osaka-jade-theme.md) — Adopting a deep mineral slate and luminous jade aesthetic.
 * [**ADR-0004: Anti-Laziness Protocol & Scaffold Manifest**](adr/0004-anti-laziness-registry.md) — Zero-tolerance AST enforcement for placeholders and temporary scaffolding.
 * [**ADR-0005: Zero Raw API Keys, ForgeHub & Agent-Driven Packages**](adr/0005-zero-raw-keys-and-agent-driven-packages.md) — OAuth authentication, self-contained community plugins, and sub-agent capability recommendations.
+* [**ADR-0006: Model Context Protocol (MCP) Server Architecture**](adr/0006-model-context-protocol-mcp.md) — Connecting Claude Desktop, Gemini CLI, and ChatGPT as domain software engineers.
 
 ---
 
@@ -38,9 +39,13 @@ Authoritative contracts, schemas, and API documentation:
 
 ---
 
-## 📦 Package Guides
-Each workspace package includes an in-depth README for localized development:
+## 📦 Package & Application Guides
+Each workspace package and app includes an in-depth README for localized development:
 * [`@process-forge/protocol`](../packages/protocol/README.md) — Data contracts, physical units, and validation.
 * [`@process-forge/simulation-core`](../packages/simulation-core/README.md) — High-speed discrete-event and continuous simulation engine.
 * [`@process-forge/theme`](../packages/theme/README.md) — Osaka Jade palette, CSS variables, and Tailwind preset.
+* [`@process-forge/canvas-ui`](../packages/canvas-ui/README.md) — Interactive React Flow canvas, Master dock, and Sub-Agent pop-out studio.
+* [`@process-forge/mcp-server`](../packages/mcp-server/README.md) — Model Context Protocol server for Claude, Gemini, and Cursor.
+* [`@process-forge/web`](../apps/web) — Modern browser-based digital twin studio.
+* [`@process-forge/desktop`](../apps/desktop/README.md) — Tauri v2 desktop shell with OS keychain integration.
 * [`@process-forge/scaffold-registry`](../packages/scaffold-registry/README.md) — Anti-laziness manifest, AST scanner, and CLI.

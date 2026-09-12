@@ -9,6 +9,7 @@ export interface SimEvent {
     | 'REACTOR_DISCHARGE_COMPLETE'
     | 'FILLER_CYCLE_START'
     | 'FILLER_CYCLE_COMPLETE'
+    | 'CONVEYOR_TRANSFER_COMPLETE'
     | 'LABELER_CYCLE_COMPLETE'
     | 'PALLETIZER_CYCLE_COMPLETE';
   payload?: Record<string, unknown>;

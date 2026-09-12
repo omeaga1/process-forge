@@ -1,19 +1,19 @@
 {
-  "name": "@process-forge/canvas-ui",
+  "name": "@process-forge/web",
   "version": "0.1.0",
   "private": true,
-  "description": "Osaka Jade React Flow process canvas, Master Orchestrator dock, and Unit-Op pop-out studio for ProcessForge",
+  "description": "ProcessForge interactive web studio for industrial process simulation and agent orchestration",
   "license": "Apache-2.0",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
-    "test": "node --test dist/__tests__/**/*.test.js",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "echo \"Canvas UI lint clean\""
+    "lint": "echo \"Web app lint clean\""
   },
   "dependencies": {
+    "@process-forge/canvas-ui": "workspace:*",
     "@process-forge/protocol": "workspace:*",
     "@process-forge/simulation-core": "workspace:*",
     "@process-forge/theme": "workspace:*",
@@ -27,6 +27,8 @@
     "@types/node": "^22.13.9",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
-    "typescript": "^5.8.2"
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0"
   }
 }

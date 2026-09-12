@@ -46,6 +46,9 @@ export class SimulationEngine {
         const cfg = node.config as { capacityGallons?: number; initialLevelGallons?: number };
         maxBuffer = cfg.capacityGallons ?? 1000;
         initialFluid = cfg.initialLevelGallons ?? 500;
+      } else if (node.kind === 'CONVEYOR') {
+        const cfg = node.config as { maxItemCapacity?: number };
+        maxBuffer = cfg.maxItemCapacity ?? 48;
       }
 
       this.nodes.set(node.id, {
@@ -207,6 +210,40 @@ export class SimulationEngine {
         break;
       }
 
+      case 'CONVEYOR_TRANSFER_COMPLETE': {
+        if (runtime.bufferCans > 0) {
+          const downstream = this.findDownstreamRuntime(runtime.node.id);
+          if (downstream) {
+            if (downstream.bufferCans < downstream.maxBuffer) {
+              runtime.bufferCans--;
+              runtime.unitsProduced++;
+              downstream.bufferCans++;
+              this.unblockUpstreamIfWaiting(runtime.node.id);
+
+              if (downstream.state === 'STARVED' || downstream.state === 'IDLE') {
+                this.triggerDownstreamMachine(downstream);
+              }
+            } else {
+              this.setNodeState(runtime, 'BLOCKED');
+            }
+          }
+
+          if (runtime.bufferCans > 0 && runtime.state !== 'BLOCKED') {
+            this.setNodeState(runtime, 'BUSY');
+            const cfg = runtime.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
+            const speed = cfg.speedMetersPerSecond ?? 0.5;
+            const length = cfg.lengthMeters ?? 10;
+            const transitTimePerItem = Math.max(0.1, (length / speed) / Math.max(1, runtime.maxBuffer));
+            this.scheduleEvent(transitTimePerItem, runtime.node.id, 'CONVEYOR_TRANSFER_COMPLETE');
+          } else if (runtime.bufferCans === 0) {
+            this.setNodeState(runtime, 'IDLE');
+          }
+        } else {
+          this.setNodeState(runtime, 'IDLE');
+        }
+        break;
+      }
+
       case 'LABELER_CYCLE_COMPLETE': {
         const cfg = runtime.node.config as {
           maxSpeedUnitsPerMinute?: number;
@@ -282,7 +319,16 @@ export class SimulationEngine {
   }
 
   private triggerDownstreamMachine(downstream: InternalNodeRuntime): void {
-    if (downstream.node.kind === 'LABELER' && downstream.bufferCans > 0) {
+    if (downstream.node.kind === 'CONVEYOR' && downstream.bufferCans > 0) {
+      if (downstream.state !== 'BUSY') {
+        this.setNodeState(downstream, 'BUSY');
+        const cfg = downstream.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
+        const speed = cfg.speedMetersPerSecond ?? 0.5;
+        const length = cfg.lengthMeters ?? 10;
+        const transitTimePerItem = Math.max(0.1, (length / speed) / Math.max(1, downstream.maxBuffer));
+        this.scheduleEvent(transitTimePerItem, downstream.node.id, 'CONVEYOR_TRANSFER_COMPLETE');
+      }
+    } else if (downstream.node.kind === 'LABELER' && downstream.bufferCans > 0) {
       this.setNodeState(downstream, 'BUSY');
       const cfg = downstream.node.config as { maxSpeedUnitsPerMinute?: number };
       const speed = cfg.maxSpeedUnitsPerMinute ?? 40;
@@ -318,6 +364,16 @@ export class SimulationEngine {
             const cycleTime =
               (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2);
             this.scheduleEvent(cycleTime, upstream.node.id, 'FILLER_CYCLE_COMPLETE');
+          } else if (upstream.node.kind === 'CONVEYOR') {
+            const cfg = upstream.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
+            const speed = cfg.speedMetersPerSecond ?? 0.5;
+            const length = cfg.lengthMeters ?? 10;
+            const transitTimePerItem = Math.max(0.1, (length / speed) / Math.max(1, upstream.maxBuffer));
+            this.scheduleEvent(transitTimePerItem, upstream.node.id, 'CONVEYOR_TRANSFER_COMPLETE');
+          } else if (upstream.node.kind === 'LABELER') {
+            const cfg = upstream.node.config as { maxSpeedUnitsPerMinute?: number };
+            const speed = cfg.maxSpeedUnitsPerMinute ?? 40;
+            this.scheduleEvent(60 / speed, upstream.node.id, 'LABELER_CYCLE_COMPLETE');
           }
         }
       }
