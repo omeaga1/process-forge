@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { OsakaJadePalette } from '@process-forge/theme';
 import type { ProcessGraph, BottleneckAnalysis } from '@process-forge/protocol';
 import type { ChatMessage, PlantTelemetryState } from '../../types.js';
+import {
+  getAiConfig,
+  PROVIDER_METADATA,
+  type AiModelConfig
+} from '../../ai/aiModelManager.js';
+import { dispatchMasterOrchestratorMessage } from '../../ai/aiDispatch.js';
+import { AiModelModal } from '../modals/AiModelModal.js';
+import { Cpu, Zap, Loader2 } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
@@ -25,6 +33,14 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   onBroadcastContext
 }) => {
   const [inputText, setInputText] = useState('');
+  const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
+  const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  useEffect(() => {
+    setAiConfig(getAiConfig());
+  }, []);
+
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
       id: 'master-init',
@@ -32,6 +48,8 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       senderTitle: 'Lead Orchestration Engineer (Master Agent)',
       text: `Process simulation initialized for "${graph.name}". I am monitoring whole-plant mass balance and line bottlenecks across all ${graph.nodes.length} unit operations.`,
       timestamp: '14:26',
+      modelBadge: PROVIDER_METADATA[getAiConfig().provider]?.badgeName || 'Offline Solver',
+      isOffline: getAiConfig().provider === 'offline',
       suggestedPrompts: [
         'Where are the bottlenecks in this line?',
         'Audit mass and volumetric conservation',
@@ -40,9 +58,13 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
     }
   ]);
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string) => {
     const text = textToSend || inputText;
-    if (!text.trim()) return;
+    if (!text.trim() || isProcessing) return;
+
+    if (text.toLowerCase().includes('broadcast')) {
+      onBroadcastContext();
+    }
 
     const userMsg: ChatMessage = {
       id: `usr-${Date.now()}`,
@@ -54,36 +76,42 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
 
     setChatHistory((prev) => [...prev, userMsg]);
     if (!textToSend) setInputText('');
+    setIsProcessing(true);
 
-    setTimeout(() => {
-      let reply = '';
-      if (text.toLowerCase().includes('bottleneck')) {
-        const bnId = bottlenecks.bottleneckNodeId;
-        const bnNode = graph.nodes.find((n) => n.id === bnId);
-        reply = bnNode
-          ? `Analysis complete: The primary line bottleneck is "${bnNode.name}". It is capping plant throughput at ${Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin)} units/min. Upstream filler is experiencing backpressure buffer stalls.`
-          : 'No severe bottlenecks detected. All unit operations are operating within balanced margins.';
-      } else if (text.toLowerCase().includes('audit') || text.toLowerCase().includes('conservation')) {
-        reply =
-          'Mass Balance Audit: Upstream batch reactor yields 50 gpm latex paint. Surge tank ST-200 smooths discharge to 45 gpm. At 1.0 gal/can, required discrete rate is 45 cans/min. The mass balance is conserved with zero mathematical drift.';
-      } else if (text.toLowerCase().includes('broadcast')) {
-        onBroadcastContext();
-        reply =
-          'I have broadcasted boundary conditions (inlet flow, fluid temperature, viscosity) to all active Unit-Op Sub-Agents. Their internal cycle calculators have re-synchronized.';
-      } else {
-        reply = `Systems check: ${graph.nodes.length} units online. Total packaged output is ${telemetry.totalPackaged} units at ${Math.round(telemetry.averageRatePerMin)} units/min.`;
-      }
+    try {
+      const bnNode = bottlenecks.bottleneckNodeId
+        ? graph.nodes.find((n) => n.id === bottlenecks.bottleneckNodeId)
+        : undefined;
+
+      const res = await dispatchMasterOrchestratorMessage(
+        text,
+        {
+          graphName: graph.name,
+          nodeCount: graph.nodes.length,
+          totalPackaged: telemetry.totalPackaged,
+          averageRatePerMin: telemetry.averageRatePerMin,
+          bottleneckNodeName: bnNode?.name,
+          maxThroughput: bottlenecks.maximumSystemThroughputUnitsPerMin
+        },
+        aiConfig
+      );
 
       const agentMsg: ChatMessage = {
         id: `mst-${Date.now() + 1}`,
         sender: 'master_orchestrator',
         senderTitle: 'Lead Orchestration Engineer (Master Agent)',
-        text: reply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        text: res.text,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        modelBadge: res.senderBadge,
+        isOffline: res.isOfflineSolver
       };
 
       setChatHistory((prev) => [...prev, agentMsg]);
-    }, 500);
+    } catch (err: any) {
+      console.error('Master orchestrator dispatch error:', err);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -110,8 +138,31 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div>
-            <div style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase' }}>
-              Master Orchestrator
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase' }}>
+                Master Orchestrator
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsAiModalOpen(true)}
+                style={{
+                  fontSize: 9,
+                  fontWeight: 600,
+                  padding: '1px 6px',
+                  borderRadius: 10,
+                  backgroundColor: aiConfig.provider === 'offline' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(16, 185, 129, 0.15)',
+                  color: aiConfig.provider === 'offline' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow,
+                  border: `1px solid ${aiConfig.provider === 'offline' ? OsakaJadePalette.border.default : OsakaJadePalette.jade.glow}`,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  cursor: 'pointer'
+                }}
+                title="Configure AI Model / Provider"
+              >
+                {aiConfig.provider === 'offline' ? <Zap size={10} /> : <Cpu size={10} />}
+                <span>{PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'Offline'}</span>
+              </button>
             </div>
             <div style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
               Plant Systems Console
@@ -214,6 +265,44 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           gap: 10
         }}
       >
+        {/* Offline Notification Banner */}
+        {aiConfig.provider === 'offline' && (
+          <div
+            style={{
+              padding: '8px 10px',
+              borderRadius: 6,
+              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              fontSize: 10,
+              color: OsakaJadePalette.text.secondary,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 6
+            }}
+          >
+            <span>
+              <strong style={{ color: OsakaJadePalette.text.primary }}>Offline Solver: </strong>
+              Mass-balance ODE math is solving locally (Zero keys).
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsAiModalOpen(true)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: OsakaJadePalette.jade.glow,
+                fontWeight: 700,
+                fontSize: 10,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Connect AI
+            </button>
+          </div>
+        )}
+
         {chatHistory.map((msg) => {
           const isUser = msg.sender === 'user';
           return (
@@ -230,8 +319,22 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                 lineHeight: '1.4'
               }}
             >
-              <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, marginBottom: 4, fontWeight: 600 }}>
-                {msg.senderTitle} • {msg.timestamp}
+              <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, marginBottom: 4, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>{msg.senderTitle}</span>
+                <span
+                  style={{
+                    padding: '1px 5px',
+                    borderRadius: 3,
+                    fontSize: 8,
+                    fontWeight: 700,
+                    backgroundColor: msg.isOffline ? 'rgba(255,255,255,0.06)' : 'rgba(16,185,129,0.15)',
+                    color: msg.isOffline ? OsakaJadePalette.text.muted : OsakaJadePalette.jade.glow,
+                    border: `1px solid ${msg.isOffline ? OsakaJadePalette.border.default : OsakaJadePalette.jade[600]}`
+                  }}
+                >
+                  {msg.modelBadge || (isUser ? 'Operator' : 'Offline Solver')}
+                </span>
+                <span>• {msg.timestamp}</span>
               </div>
               <div>{msg.text}</div>
 
@@ -260,6 +363,30 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             </div>
           );
         })}
+
+        {isProcessing && (
+          <div
+            style={{
+              alignSelf: 'flex-start',
+              padding: '6px 10px',
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.background.surfaceElevated,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 11,
+              color: OsakaJadePalette.text.secondary
+            }}
+          >
+            <Loader2 size={12} className="animate-spin" color={OsakaJadePalette.jade.glow} />
+            <span>
+              {aiConfig.provider === 'offline'
+                ? 'Auditing kinematics & conservation...'
+                : `Consulting ${PROVIDER_METADATA[aiConfig.provider]?.badgeName}...`}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Chat Input Bar */}
@@ -274,10 +401,11 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       >
         <input
           type="text"
-          placeholder="Ask Lead Orchestration Engineer..."
+          placeholder={isProcessing ? 'Processing...' : 'Ask Lead Orchestration Engineer...'}
           value={inputText}
+          disabled={isProcessing}
           onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+          onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
           style={{
             flex: 1,
             backgroundColor: OsakaJadePalette.background.surfaceElevated,
@@ -286,25 +414,34 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             padding: '8px 10px',
             color: OsakaJadePalette.text.primary,
             fontSize: 12,
-            outline: 'none'
+            outline: 'none',
+            opacity: isProcessing ? 0.6 : 1
           }}
         />
         <button
           onClick={() => handleSendMessage()}
+          disabled={isProcessing || !inputText.trim()}
           style={{
-            backgroundColor: OsakaJadePalette.jade[500],
-            color: OsakaJadePalette.text.inverse,
+            backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
+            color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
             border: 'none',
             borderRadius: 6,
             padding: '8px 12px',
             fontWeight: 700,
             fontSize: 11,
-            cursor: 'pointer'
+            cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer'
           }}
         >
           Send
         </button>
       </div>
+
+      {/* AI Model & Provider Modal */}
+      <AiModelModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        onConfigChanged={(cfg) => setAiConfig(cfg)}
+      />
     </div>
   );
 };

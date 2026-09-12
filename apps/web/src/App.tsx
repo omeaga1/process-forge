@@ -1,5 +1,11 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { ProcessCanvas, SHERWIN_WILLIAMS_PAINT_LINE } from '@process-forge/canvas-ui';
+import {
+  ProcessCanvas,
+  SHERWIN_WILLIAMS_PAINT_LINE,
+  AiModelModal,
+  getAiConfig,
+  type AiModelConfig
+} from '@process-forge/canvas-ui';
 import {
   createSimulationProject,
   type SimulationProject
@@ -19,6 +25,8 @@ import {
 export const App: React.FC = () => {
   const [templateKey, setTemplateKey] = useState<string>('sherwin-williams-paint-line');
   const [isMcpModalOpen, setIsMcpModalOpen] = useState<boolean>(false);
+  const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
+  const [aiConfig, setAiConfig] = useState<AiModelConfig>(() => getAiConfig());
   const [isGuestModalOpen, setIsGuestModalOpen] = useState<boolean>(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState<boolean>(false);
 
@@ -96,8 +104,10 @@ export const App: React.FC = () => {
       <HeaderBar
         currentTemplate={templateKey}
         isGuestMode={project.isGuestProject}
+        activeAiProvider={aiConfig.provider}
         onSelectTemplate={handleSelectTemplate}
         onOpenMcpModal={() => setIsMcpModalOpen(true)}
+        onOpenAiModal={() => setIsAiModalOpen(true)}
         onOpenForgeHub={() => {}}
         onOpenSaveModal={() => setIsSaveModalOpen(true)}
         onOpenGuestModal={() => setIsGuestModalOpen(true)}
@@ -114,6 +124,12 @@ export const App: React.FC = () => {
 
       {/* Modals */}
       <McpModal isOpen={isMcpModalOpen} onClose={() => setIsMcpModalOpen(false)} />
+
+      <AiModelModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        onConfigChanged={(cfg) => setAiConfig(cfg)}
+      />
 
       <GuestAcknowledgementModal
         isOpen={isGuestModalOpen}

@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import {
   Layers,
   Cpu,
+  Zap,
   ShoppingBag,
   ShieldCheck,
   ChevronDown,
@@ -14,8 +15,10 @@ import { OsakaJadePalette } from '@process-forge/theme';
 interface HeaderBarProps {
   currentTemplate: string;
   isGuestMode: boolean;
+  activeAiProvider?: string;
   onSelectTemplate: (templateKey: string) => void;
   onOpenMcpModal: () => void;
+  onOpenAiModal?: () => void;
   onOpenForgeHub: () => void;
   onOpenSaveModal: () => void;
   onOpenGuestModal: () => void;
@@ -25,8 +28,10 @@ interface HeaderBarProps {
 export const HeaderBar: React.FC<HeaderBarProps> = ({
   currentTemplate,
   isGuestMode,
+  activeAiProvider = 'offline',
   onSelectTemplate,
   onOpenMcpModal,
+  onOpenAiModal,
   onOpenForgeHub,
   onOpenSaveModal,
   onOpenGuestModal,
@@ -219,6 +224,28 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         >
           <Save size={14} />
           Save Simulation
+        </button>
+
+        {/* AI Model Connection Button */}
+        <button
+          onClick={onOpenAiModal}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            backgroundColor: activeAiProvider === 'offline' ? 'rgba(255, 255, 255, 0.04)' : 'rgba(16, 185, 129, 0.15)',
+            border: `1px solid ${activeAiProvider === 'offline' ? OsakaJadePalette.border.default : OsakaJadePalette.jade.glow}`,
+            borderRadius: 6,
+            padding: '6px 12px',
+            color: activeAiProvider === 'offline' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+          title="Configure AI Model / Key (Gemini, Claude, OpenAI, Local MCP)"
+        >
+          {activeAiProvider === 'offline' ? <Zap size={14} /> : <Cpu size={14} color={OsakaJadePalette.jade.glow} />}
+          <span>AI Model: {activeAiProvider === 'offline' ? 'Offline Solver' : activeAiProvider.toUpperCase()}</span>
         </button>
 
         {/* MCP Server Setup */}

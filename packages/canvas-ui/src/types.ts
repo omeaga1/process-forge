@@ -16,6 +16,8 @@ export interface ChatMessage {
   suggestedPrompts?: string[];
   proposedDiff?: Record<string, unknown>;
   cadDrawing?: EquipmentCadDrawing;
+  modelBadge?: string;
+  isOffline?: boolean;
 }
 
 export interface CanvasNodeData extends Record<string, unknown> {

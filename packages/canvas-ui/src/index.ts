@@ -8,3 +8,6 @@ export * from './components/marketplace/ForgeHubModal.js';
 export * from './components/animations/EquipmentAnimations.js';
 export * from './components/studio/UnitOpDressingTab.js';
 export * from './components/ProcessCanvas.js';
+export * from './ai/aiModelManager.js';
+export * from './ai/aiDispatch.js';
+export * from './components/modals/AiModelModal.js';
