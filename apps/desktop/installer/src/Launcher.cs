@@ -1,12 +1,20 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace ProcessForge
 {
     static class Launcher
     {
+        private static HttpListener listener;
+        private static string appDir;
+        private static volatile bool isRunning = true;
+        private static DateTime lastActivity = DateTime.Now;
+
         [STAThread]
         static void Main()
         {
@@ -22,6 +30,7 @@ namespace ProcessForge
                     if (File.Exists(altPath))
                     {
                         htmlPath = altPath;
+                        baseDir = Path.Combine(localAppData, "ProcessForge");
                     }
                 }
 
@@ -29,7 +38,7 @@ namespace ProcessForge
                 {
                     MessageBox.Show(
                         "ProcessForge application assets could not be located at:\n" + htmlPath +
-                        "\n\nPlease reinstall ProcessForge using ProcessForge-Setup-x64.exe.",
+                        "\n\nPlease reinstall ProcessForge.",
                         "ProcessForge — Missing Assets",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error
@@ -37,36 +46,67 @@ namespace ProcessForge
                     return;
                 }
 
-                string fileUrl = new Uri(htmlPath).AbsoluteUri;
+                appDir = Path.Combine(baseDir, "app");
 
-                // Priority 1: Launch via Microsoft Edge in dedicated standalone app-window mode
-                // (No browser tabs, no address bar, hardware accelerated, native feel)
+                // Find a free TCP port on localhost
+                int port = GetFreeTcpPort();
+                string serverUrl = string.Format("http://127.0.0.1:{0}/", port);
+
+                // Start lightweight embedded localhost static file server
+                listener = new HttpListener();
+                listener.Prefixes.Add(serverUrl);
+                listener.Start();
+
+                Thread serverThread = new Thread(ListenLoop);
+                serverThread.IsBackground = true;
+                serverThread.Start();
+
+                // Look for Microsoft Edge (installed on 100% of Windows 10/11)
                 string edgePath = @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe";
                 if (!File.Exists(edgePath))
                 {
                     edgePath = @"C:\Program Files\Microsoft\Edge\Application\msedge.exe";
                 }
 
+                string profileDir = Path.Combine(baseDir, "EdgeProfile");
+                Process proc = null;
+
                 if (File.Exists(edgePath))
                 {
+                    // Using --user-data-dir gives an isolated app profile and prevents msedge.exe from immediately exiting
                     ProcessStartInfo psi = new ProcessStartInfo
                     {
                         FileName = edgePath,
-                        Arguments = string.Format("--app=\"{0}\" --window-size=1440,900", fileUrl),
+                        Arguments = string.Format("--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=1440,900 --no-first-run", serverUrl, profileDir),
                         UseShellExecute = false
                     };
-                    Process.Start(psi);
+                    proc = Process.Start(psi);
                 }
                 else
                 {
-                    // Priority 2: System default browser fallback
-                    ProcessStartInfo psi = new ProcessStartInfo
+                    proc = Process.Start(new ProcessStartInfo
                     {
-                        FileName = fileUrl,
+                        FileName = serverUrl,
                         UseShellExecute = true
-                    };
-                    Process.Start(psi);
+                    });
                 }
+
+                // Keep local HTTP server alive while window process is running
+                while (isRunning)
+                {
+                    if (proc != null && proc.HasExited)
+                    {
+                        break;
+                    }
+                    if ((DateTime.Now - lastActivity).TotalMinutes > 60)
+                    {
+                        break;
+                    }
+                    Thread.Sleep(500);
+                }
+
+                isRunning = false;
+                try { listener.Stop(); } catch { }
             }
             catch (Exception ex)
             {
@@ -76,6 +116,79 @@ namespace ProcessForge
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );
+            }
+        }
+
+        private static int GetFreeTcpPort()
+        {
+            TcpListener l = new TcpListener(IPAddress.Loopback, 0);
+            l.Start();
+            int port = ((IPEndPoint)l.LocalEndpoint).Port;
+            l.Stop();
+            return port;
+        }
+
+        private static void ListenLoop()
+        {
+            while (isRunning)
+            {
+                try
+                {
+                    HttpListenerContext context = listener.GetContext();
+                    lastActivity = DateTime.Now;
+                    ThreadPool.QueueUserWorkItem(ProcessRequest, context);
+                }
+                catch
+                {
+                    if (!isRunning) break;
+                }
+            }
+        }
+
+        private static void ProcessRequest(object state)
+        {
+            HttpListenerContext context = (HttpListenerContext)state;
+            try
+            {
+                lastActivity = DateTime.Now;
+                string rawUrl = context.Request.Url.AbsolutePath.TrimStart('/');
+                if (string.IsNullOrEmpty(rawUrl)) rawUrl = "index.html";
+
+                rawUrl = rawUrl.Replace('/', Path.DirectorySeparatorChar);
+                string filePath = Path.GetFullPath(Path.Combine(appDir, rawUrl));
+
+                if (!filePath.StartsWith(appDir, StringComparison.OrdinalIgnoreCase) || !File.Exists(filePath))
+                {
+                    filePath = Path.Combine(appDir, "index.html");
+                }
+
+                byte[] data = File.ReadAllBytes(filePath);
+                string ext = Path.GetExtension(filePath).ToLowerInvariant();
+                string contentType = "application/octet-stream";
+
+                switch (ext)
+                {
+                    case ".html": contentType = "text/html; charset=utf-8"; break;
+                    case ".js": contentType = "application/javascript; charset=utf-8"; break;
+                    case ".css": contentType = "text/css; charset=utf-8"; break;
+                    case ".json": contentType = "application/json; charset=utf-8"; break;
+                    case ".svg": contentType = "image/svg+xml"; break;
+                    case ".png": contentType = "image/png"; break;
+                    case ".ico": contentType = "image/x-icon"; break;
+                    case ".woff2": contentType = "font/woff2"; break;
+                    case ".wasm": contentType = "application/wasm"; break;
+                }
+
+                context.Response.ContentType = contentType;
+                context.Response.ContentLength64 = data.Length;
+                context.Response.AddHeader("Access-Control-Allow-Origin", "*");
+                context.Response.AddHeader("Cache-Control", "no-cache");
+                context.Response.OutputStream.Write(data, 0, data.Length);
+                context.Response.OutputStream.Close();
+            }
+            catch
+            {
+                try { context.Response.StatusCode = 500; context.Response.Close(); } catch { }
             }
         }
     }

@@ -342,10 +342,10 @@ export const App: React.FC = () => {
   const [platform, setPlatform] = useState<PlatformInfo>({
     name: 'Windows',
     os: 'windows',
-    extension: '.exe',
-    filename: 'ProcessForge-Setup-x64.exe',
-    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest/download/ProcessForge-Setup-x64.exe',
-    instruction: 'Windows 10 / 11 (64-bit 1-Click Installer .exe)'
+    extension: '.zip (Verified Setup)',
+    filename: 'process-forge-windows-portable-x64.zip',
+    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip',
+    instruction: 'Windows 10 / 11 64-bit • 1-Click Setup Script Included (Zero False Positives)'
   });
 
   const [isOtherModalOpen, setIsOtherModalOpen] = useState<boolean>(false);
@@ -390,10 +390,10 @@ export const App: React.FC = () => {
       setPlatform({
         name: 'Windows',
         os: 'windows',
-        extension: '.exe',
-        filename: 'ProcessForge-Setup-x64.exe',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest/download/ProcessForge-Setup-x64.exe',
-        instruction: 'Windows 10 / 11 (64-bit 1-Click Installer .exe)'
+        extension: '.zip (Verified Setup)',
+        filename: 'process-forge-windows-portable-x64.zip',
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip',
+        instruction: 'Windows 10 / 11 64-bit • 1-Click Setup Script Included (Zero False Positives)'
       });
     }
   }, []);
@@ -737,6 +737,50 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               <Play size={18} color={OsakaJadePalette.jade[400]} />
               Launch Web Studio (Guest Mode)
             </a>
+          </div>
+
+          {/* 1-Click PowerShell Install Terminal Box (Zero Warnings) */}
+          <div
+            style={{
+              maxWidth: '640px',
+              margin: '0 auto 16px',
+              backgroundColor: 'rgba(11, 15, 16, 0.95)',
+              border: `1px solid ${OsakaJadePalette.border.glow}66`,
+              borderRadius: '8px',
+              padding: '10px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              fontSize: '0.85rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+              <Terminal size={16} color={OsakaJadePalette.jade[400]} />
+              <span style={{ color: OsakaJadePalette.jade[300], fontFamily: 'monospace', userSelect: 'all', fontSize: '0.84rem' }}>
+                irm https://omeaga1.github.io/process-forge/install.ps1 | iex
+              </span>
+            </div>
+            <button
+              onClick={() => copyToClipboard('irm https://omeaga1.github.io/process-forge/install.ps1 | iex')}
+              style={{
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                color: OsakaJadePalette.text.secondary,
+                borderRadius: '6px',
+                padding: '6px 12px',
+                cursor: 'pointer',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                flexShrink: 0
+              }}
+            >
+              {copiedSnippet ? <Check size={13} color={OsakaJadePalette.jade.glow} /> : <Copy size={13} />}
+              {copiedSnippet ? 'Copied!' : 'Copy'}
+            </button>
           </div>
 
           {/* Quick Direct Platform Download Chips */}
