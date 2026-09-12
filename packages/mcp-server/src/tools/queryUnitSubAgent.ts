@@ -59,7 +59,7 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
         meanTimeToRepairMinutes: 12
       };
 
-      softwareEngineerResponse = `[Unit-Op Software Forge for ${unitName}]: Synthesized equipment configuration for ${containerVol}-gal fluid filling.
+      softwareEngineerResponse = `[Unit-Op Software Forge for ${unitName}]: Synthesized equipment configuration for ${containerVol}-gal viscous fluid filling (${viscosity} cP latex).
 1. Configured ${nozzleCount} active filling nozzles and calibrated default stroke dwell to ${recommendedConfig.fillTimePerCycleSeconds}s.
 2. Synthesized dynamic UI parameters below. You can adjust nozzle count and dimensions directly on the flowsheet canvas.`;
 
