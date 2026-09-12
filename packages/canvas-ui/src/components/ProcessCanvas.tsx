@@ -21,6 +21,8 @@ import { AnimatedStreamEdge } from './edges/AnimatedStreamEdge.js';
 import { MasterOrchestratorDock } from './dock/MasterOrchestratorDock.js';
 import { UnitOpPopOutStudio } from './studio/UnitOpPopOutStudio.js';
 import { ForgeHubModal } from './marketplace/ForgeHubModal.js';
+import { MobileFieldView } from './mobile/MobileFieldView.js';
+import { useMobileViewport } from '../hooks/useMobileViewport.js';
 import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates/sherwinWilliamsPaintLine.js';
 import type { CanvasNodeData, CanvasEdgeData, PlantTelemetryState } from '../types.js';
 
@@ -32,7 +34,26 @@ const edgeTypes = {
   animatedStreamEdge: AnimatedStreamEdge
 };
 
-export const ProcessCanvas: React.FC = () => {
+export interface ProcessCanvasProps {
+  initialViewMode?: 'field' | 'canvas' | 'auto';
+  onViewModeChange?: (mode: 'field' | 'canvas') => void;
+}
+
+export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
+  initialViewMode = 'auto',
+  onViewModeChange
+}) => {
+  const { isMobile, viewMode } = useMobileViewport();
+  const [userModeOverride, setUserModeOverride] = useState<'field' | 'canvas' | null>(
+    initialViewMode !== 'auto' ? initialViewMode : null
+  );
+
+  const activeMode = userModeOverride ?? (initialViewMode !== 'auto' ? initialViewMode : viewMode);
+
+  useEffect(() => {
+    onViewModeChange?.(activeMode);
+  }, [activeMode, onViewModeChange]);
+
   const [graph, setGraph] = useState<ProcessGraph>(SHERWIN_WILLIAMS_PAINT_LINE);
   const [isRunning, setIsRunning] = useState(false);
   const [isForgeHubOpen, setIsForgeHubOpen] = useState(false);
@@ -197,14 +218,32 @@ export const ProcessCanvas: React.FC = () => {
     return graph.nodes.find((n) => n.id === popOutNodeId) || null;
   }, [graph.nodes, popOutNodeId]);
 
+  if (activeMode === 'field') {
+    return (
+      <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+        <MobileFieldView
+          graph={graph}
+          telemetry={telemetry}
+          isRunning={isRunning}
+          onToggleSimulation={handleToggleSimulation}
+          onResetSimulation={handleResetSimulation}
+          onSwitchToCanvas={() => setUserModeOverride('canvas')}
+          onUpdateNodeConfig={handleUpdateNodeConfig}
+          onUpdateNodeDressing={handleUpdateNodeDressing}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
         display: 'flex',
         width: '100vw',
-        height: '100vh',
+        height: '100%',
         backgroundColor: OsakaJadePalette.background.canvas,
-        overflow: 'hidden'
+        overflow: 'hidden',
+        position: 'relative'
       }}
     >
       {/* Center Interactive Flow Canvas */}
@@ -262,6 +301,34 @@ export const ProcessCanvas: React.FC = () => {
         onClose={() => setIsForgeHubOpen(false)}
         onInsertNode={handleInsertNodeFromForgeHub}
       />
+
+      {/* Floating Toggle Button for Mobile Users to Return to Field View */}
+      {isMobile && (
+        <button
+          onClick={() => setUserModeOverride('field')}
+          style={{
+            position: 'absolute',
+            bottom: 20,
+            left: 20,
+            zIndex: 100,
+            padding: '10px 16px',
+            borderRadius: 24,
+            backgroundColor: OsakaJadePalette.jade[500],
+            color: OsakaJadePalette.text.inverse,
+            border: `1px solid ${OsakaJadePalette.jade.glow}`,
+            fontSize: 12,
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: `0 4px 20px rgba(0, 0, 0, 0.6), 0 0 12px ${OsakaJadePalette.jade.glow}66`,
+            cursor: 'pointer'
+          }}
+        >
+          <span>📱</span>
+          <span>Switch to Field View</span>
+        </button>
+      )}
     </div>
   );
 };

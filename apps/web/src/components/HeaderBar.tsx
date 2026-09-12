@@ -11,6 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { OsakaJadePalette } from '@process-forge/theme';
+import { useMobileViewport } from '@process-forge/canvas-ui';
 
 interface HeaderBarProps {
   currentTemplate: string;
@@ -38,6 +39,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onImportFile
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { isMobile } = useMobileViewport();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -46,6 +48,137 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
       e.target.value = ''; // reset so same file can be reopened
     }
   };
+
+  if (isMobile) {
+    return (
+      <header
+        style={{
+          height: 48,
+          backgroundColor: OsakaJadePalette.background.surface,
+          borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 12px',
+          zIndex: 100,
+          position: 'relative'
+        }}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,.pfg,.pfg.json"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
+
+        {/* Brand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.jade[500],
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: OsakaJadePalette.background.base,
+              boxShadow: `0 0 8px ${OsakaJadePalette.jade.glow}`
+            }}
+          >
+            <Layers size={16} strokeWidth={2.5} />
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '-0.02em', color: OsakaJadePalette.text.primary }}>
+            ProcessForge
+          </span>
+        </div>
+
+        {/* Mobile Quick Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {isGuestMode && (
+            <button
+              onClick={onOpenGuestModal}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '4px 6px',
+                borderRadius: 8,
+                backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                fontSize: 10,
+                color: OsakaJadePalette.border.glowAmber,
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+              title="Guest Mode Active"
+            >
+              <AlertCircle size={12} />
+              GUEST
+            </button>
+          )}
+
+          <button
+            onClick={onOpenSaveModal}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              borderRadius: 6,
+              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              border: `1px solid ${OsakaJadePalette.jade[600]}`,
+              color: OsakaJadePalette.text.accent,
+              cursor: 'pointer'
+            }}
+            title="Save Project (.pfg)"
+          >
+            <Save size={15} />
+          </button>
+
+          <button
+            onClick={onOpenAiModal}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              borderRadius: 6,
+              backgroundColor: activeAiProvider === 'offline' ? 'rgba(255, 255, 255, 0.04)' : 'rgba(16, 185, 129, 0.15)',
+              border: `1px solid ${activeAiProvider === 'offline' ? OsakaJadePalette.border.default : OsakaJadePalette.jade.glow}`,
+              color: activeAiProvider === 'offline' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow,
+              cursor: 'pointer'
+            }}
+            title={`AI Provider: ${activeAiProvider.toUpperCase()}`}
+          >
+            <Cpu size={15} />
+          </button>
+
+          <button
+            onClick={onOpenMcpModal}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              borderRadius: 6,
+              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              color: OsakaJadePalette.text.primary,
+              cursor: 'pointer'
+            }}
+            title="MCP Server Configuration"
+          >
+            <Zap size={15} color={OsakaJadePalette.jade[500]} />
+          </button>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header

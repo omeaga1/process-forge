@@ -11,3 +11,6 @@ export * from './components/ProcessCanvas.js';
 export * from './ai/aiModelManager.js';
 export * from './ai/aiDispatch.js';
 export * from './components/modals/AiModelModal.js';
+export * from './components/mobile/MobileFieldView.js';
+export * from './components/mobile/MobileUnitOpSheet.js';
+export * from './hooks/useMobileViewport.js';
