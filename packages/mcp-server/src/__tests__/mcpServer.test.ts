@@ -112,7 +112,34 @@ describe('ProcessForge MCP Server Tools', () => {
     assert.ok(res.equipmentDrawing.nozzles.some((n) => n.role === 'relief'));
   });
 
-  it('initializes MCP server instance with tool capabilities', () => {
+  it('omits nozzle coordinates when includeNozzles is false in forge_equipment_drawing', () => {
+    const res = executeForgeEquipmentDrawing({
+      description: 'Horizontal shell and tube heat exchanger',
+      machineType: 'HEAT_EXCHANGER',
+      unitName: 'E-200 Cooler',
+      includeNozzles: false
+    });
+
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.suggestedDressing.nozzles.length, 0);
+    assert.ok(res.svgMarkup.includes('<svg'));
+    assert.ok(res.suggestedDressing.customSvgShell.length > 0);
+  });
+
+  it('synthesizes twin-fluid atomizer drawing via forge_equipment_drawing', () => {
+    const res = executeForgeEquipmentDrawing({
+      description: 'Twin-fluid spray scrubber atomizer nozzle with air and water feeds',
+      machineType: 'SPRAY_CHAMBER',
+      unitName: 'SP-10 Atomizer'
+    });
+
+    assert.strictEqual(res.success, true);
+    assert.strictEqual(res.drawing.category, 'Utilities');
+    assert.ok(res.drawing.internals.hasSprayHeader);
+    assert.ok(res.suggestedDressing.nozzles.length >= 3);
+  });
+
+  it('initializes MCP server instance and verifies forge_equipment_drawing is registered', () => {
     const server = createProcessForgeMcpServer();
     assert.ok(server);
   });
