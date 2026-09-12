@@ -342,10 +342,10 @@ export const App: React.FC = () => {
   const [platform, setPlatform] = useState<PlatformInfo>({
     name: 'Windows',
     os: 'windows',
-    extension: '.msi',
-    filename: 'ProcessForge_0.1.0_x64_en-US.msi',
-    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest',
-    instruction: 'Windows 10 / 11 (64-bit MSI Installer)'
+    extension: '.zip / .msi',
+    filename: 'process-forge-windows-portable-x64.zip',
+    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.0/process-forge-windows-portable-x64.zip',
+    instruction: 'Windows 10 / 11 (64-bit Portable x64 & MSI)'
   });
 
   const [isOtherModalOpen, setIsOtherModalOpen] = useState<boolean>(false);
@@ -373,7 +373,7 @@ export const App: React.FC = () => {
         os: 'macos',
         extension: '.dmg',
         filename: 'ProcessForge_0.1.0_universal.dmg',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest',
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.0',
         instruction: 'macOS 12+ (Apple Silicon & Intel DMG)'
       });
     } else if (platformStr.includes('linux') || userAgent.includes('linux')) {
@@ -382,7 +382,7 @@ export const App: React.FC = () => {
         os: 'linux',
         extension: '.AppImage',
         filename: 'ProcessForge_0.1.0_amd64.AppImage',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest',
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.0',
         instruction: 'Linux x86_64 AppImage (Ubuntu / Debian / Fedora / Arch)'
       });
     } else {
@@ -390,10 +390,10 @@ export const App: React.FC = () => {
       setPlatform({
         name: 'Windows',
         os: 'windows',
-        extension: '.msi',
-        filename: 'ProcessForge_0.1.0_x64_en-US.msi',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest',
-        instruction: 'Windows 10 / 11 (64-bit MSI & EXE)'
+        extension: '.zip / .msi',
+        filename: 'process-forge-windows-portable-x64.zip',
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.0/process-forge-windows-portable-x64.zip',
+        instruction: 'Windows 10 / 11 (64-bit Portable x64 & MSI)'
       });
     }
   }, []);
@@ -730,7 +730,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
           >
             <span style={{ fontSize: '0.78rem', color: OsakaJadePalette.text.muted }}>Direct Native Downloads:</span>
             <a
-              href="https://github.com/omeaga1/process-forge/releases/latest"
+              href="https://github.com/omeaga1/process-forge/releases/download/v0.1.0/process-forge-windows-portable-x64.zip"
               target="_blank"
               rel="noreferrer"
               style={{
@@ -748,10 +748,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 boxShadow: `0 0 10px ${OsakaJadePalette.jade.glow}22`
               }}
             >
-              <Download size={13} color={OsakaJadePalette.jade[400]} /> Windows (.msi / .exe)
+              <Download size={13} color={OsakaJadePalette.jade[400]} /> Windows (.zip Portable)
             </a>
             <a
-              href="https://github.com/omeaga1/process-forge/releases/latest"
+              href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.0"
               target="_blank"
               rel="noreferrer"
               style={{
@@ -768,10 +768,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 textDecoration: 'none'
               }}
             >
-              <Download size={13} /> macOS (.dmg)
+              <Download size={13} /> Windows MSI & Native Installers
             </a>
             <a
-              href="https://github.com/omeaga1/process-forge/releases/latest"
+              href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.0"
               target="_blank"
               rel="noreferrer"
               style={{
@@ -788,7 +788,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 textDecoration: 'none'
               }}
             >
-              <Download size={13} /> Linux (.AppImage)
+              <Download size={13} /> macOS (.dmg) & Linux
             </a>
           </div>
 
@@ -2143,9 +2143,9 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
-              {/* Windows MSI */}
+              {/* Windows Portable */}
               <a
-                href="https://github.com/omeaga1/process-forge/releases/latest"
+                href="https://github.com/omeaga1/process-forge/releases/download/v0.1.0/process-forge-windows-portable-x64.zip"
                 target="_blank"
                 rel="noreferrer"
                 style={{
@@ -2155,21 +2155,21 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                   padding: '12px 16px',
                   borderRadius: '6px',
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
+                  border: `1px solid ${OsakaJadePalette.jade[600]}`,
                   color: OsakaJadePalette.text.primary,
                   textDecoration: 'none'
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Windows (64-bit MSI)</div>
-                  <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.muted }}>ProcessForge_x64_en-US.msi</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: OsakaJadePalette.jade[300] }}>Windows Portable (.zip — Zero Install)</div>
+                  <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.muted }}>process-forge-windows-portable-x64.zip (Instant run)</div>
                 </div>
                 <Download size={16} color={OsakaJadePalette.jade[400]} />
               </a>
 
-              {/* Windows Standalone EXE */}
+              {/* Windows MSI */}
               <a
-                href="https://github.com/omeaga1/process-forge/releases/latest"
+                href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.0"
                 target="_blank"
                 rel="noreferrer"
                 style={{
@@ -2185,15 +2185,15 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Windows Standalone Executable</div>
-                  <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.muted }}>ProcessForge_x64.exe</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Windows Native Installer (.msi / .exe)</div>
+                  <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.muted }}>GitHub Release v0.1.0 Tauri v2 Bundle</div>
                 </div>
                 <Download size={16} color={OsakaJadePalette.jade[400]} />
               </a>
 
               {/* macOS DMG */}
               <a
-                href="https://github.com/omeaga1/process-forge/releases/latest"
+                href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.0"
                 target="_blank"
                 rel="noreferrer"
                 style={{
@@ -2215,9 +2215,9 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 <Download size={16} color={OsakaJadePalette.jade[400]} />
               </a>
 
-              {/* Linux AppImage */}
+              {/* Linux AppImage & DEB */}
               <a
-                href="https://github.com/omeaga1/process-forge/releases/latest"
+                href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.0"
                 target="_blank"
                 rel="noreferrer"
                 style={{
@@ -2233,32 +2233,8 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Linux AppImage (x86_64)</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Linux AppImage & Debian (.deb)</div>
                   <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.muted }}>Ubuntu, Debian, Fedora, Arch</div>
-                </div>
-                <Download size={16} color={OsakaJadePalette.jade[400]} />
-              </a>
-
-              {/* Linux DEB */}
-              <a
-                href="https://github.com/omeaga1/process-forge/releases/latest"
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  borderRadius: '6px',
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: OsakaJadePalette.text.primary,
-                  textDecoration: 'none'
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>Debian / Ubuntu (.deb)</div>
-                  <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.muted }}>Native dpkg installer</div>
                 </div>
                 <Download size={16} color={OsakaJadePalette.jade[400]} />
               </a>
