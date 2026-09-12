@@ -198,9 +198,9 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
     tag: 'RX-101',
     name: 'Mixer / Reactor 01',
     category: 'Continuous',
-    subAgentName: 'Agent RheoBot',
-    subAgentRole: 'Continuous Rheology & Reaction Kinetics',
-    statusBadge: 'Active (Viscosity Tuning)',
+    subAgentName: 'Unit-Op Engine: CSTR',
+    subAgentRole: 'Synthesized Reactor Equipment',
+    statusBadge: 'Placed & Connected',
     statusType: 'tuning',
     metrics: [
       { label: 'Viscosity', value: '1,200 cP' },
@@ -214,7 +214,7 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
       { tag: 'N4', size: '1" NPS', rating: 'ASME 300# RTJ', service: 'Jacket Condensate' }
     ],
     internals: 'Rushton Turbine (6-Blade) • Full ASME Steam Heating Jacket • 4 Wall Baffles',
-    agentLog: 'Calibrated Rushton turbine to 180 RPM. Shear rate maintains uniform pigment suspension without thermal polymer degradation. Mass balance Δm = 0.000 kg/s.',
+    agentLog: 'Synthesized 316L vessel shell with 4 ASME B16.5 flanged nozzles and internal 6-blade Rushton impeller. Placed on flowsheet canvas with active port contracts.',
     formula: 'dC_A/dt = (C_Ain - C_A)/τ - k·C_A²  |  μ = μ₀·exp(E_a/RT)'
   },
   {
@@ -222,9 +222,9 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
     tag: 'P-101',
     name: 'Slurry Transfer Pump 01',
     category: 'Continuous',
-    subAgentName: 'Agent HydraPump',
-    subAgentRole: 'Centrifugal Hydraulics & NPSH Supervisor',
-    statusBadge: 'Nominal (NPSH Margin 2.8m)',
+    subAgentName: 'Unit-Op Engine: Centrifugal Pump',
+    subAgentRole: 'Synthesized Hydraulic Unit',
+    statusBadge: 'Placed & Connected',
     statusType: 'healthy',
     metrics: [
       { label: 'Flow Rate', value: '45.2 L/min' },
@@ -236,7 +236,7 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
       { tag: 'Discharge', size: '2" NPS', rating: 'ASME 150# RF', service: 'Header to Surge Tank' }
     ],
     internals: 'Semi-Open Impeller for High-Solids Slurry • Mechanical Seal Flush Plan 11',
-    agentLog: 'Monitoring suction head. Available NPSH = 4.6 m vs required 1.8 m. Cavitation probability: 0.0%. Dynamic VFD adjusted to buffer inflow demand.',
+    agentLog: 'Synthesized centrifugal pump body with 3" suction and 2" discharge ASME 150# flanges. Stream connected to downstream surge tank.',
     formula: 'H = H_shutoff - k_loss·Q²  |  NPSH_avail = (P_suction - P_vap)/(ρ·g)'
   },
   {
@@ -244,9 +244,9 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
     tag: 'TK-102',
     name: 'Surge / Buffer Tank 01',
     category: 'Surge',
-    subAgentName: 'Agent BufferMaster',
-    subAgentRole: 'Continuous-to-Discrete Decoupling',
-    statusBadge: 'Damped (Dynamic Level 74%)',
+    subAgentName: 'Unit-Op Engine: Buffer Vessel',
+    subAgentRole: 'Synthesized Surge Equipment',
+    statusBadge: 'Placed & Connected',
     statusType: 'healthy',
     metrics: [
       { label: 'Vessel Volume', value: '2,500 L' },
@@ -259,7 +259,7 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
       { tag: 'N3', size: '1.5" NPS', rating: 'Atmospheric Vent', service: 'HEPA Sterile Breather' }
     ],
     internals: 'Vortex Breaker Plate on Bottom Nozzle • Guided Wave Radar Level Sensor',
-    agentLog: 'Buffer dampening active: Absorbs up to 14.8 minutes of packaging downtime before requiring upstream reactor throttling. Feed control valve steady at 68%.',
+    agentLog: 'Synthesized 2,500L atmospheric buffer vessel with bottom vortex breaker and HEPA breather nozzle. Placed between continuous and discrete lines.',
     formula: 'dh/dt = (Q_in - Q_out) / A_tank  |  P_hydrostatic = ρ·g·h'
   },
   {
@@ -267,9 +267,9 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
     tag: 'FL-201',
     name: 'Rotary Filler 01',
     category: 'Discrete',
-    subAgentName: 'Agent FillOptima',
-    subAgentRole: 'Discrete Gravimetric Indexing',
-    statusBadge: 'Bottleneck (91% Backpressure)',
+    subAgentName: 'Unit-Op Engine: Rotary Filler',
+    subAgentRole: 'Synthesized Packaging Equipment',
+    statusBadge: 'Placed & Connected',
     statusType: 'alert',
     metrics: [
       { label: 'Production Rate', value: '180 cans/min' },
@@ -281,7 +281,7 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
       { tag: 'Nozzles 1-6', size: '0.75" OD', rating: 'Diving Cutoff', service: 'Anti-Drip Fill Heads' }
     ],
     internals: '6-Station Servo Rotary Carousel • Diving Nozzles with Bottom-Up Fill Profile',
-    agentLog: 'Identified downstream accumulation queue at Vacuum Capper. Backpressure exceeds 90%. Recommended accelerating capper conveyor by 8% or staggering infeed.',
+    agentLog: 'Generated 6-station rotary indexing filler CAD geometry with 2" sanitary Tri-Clamp infeed and 6 diving nozzles. Connected to can conveyor.',
     formula: 'T_cycle = t_index + t_tare + t_fill + t_cutoff  |  λ_Poisson = 3.0 cans/s'
   },
   {
@@ -289,9 +289,9 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
     tag: 'CP-202',
     name: 'Vacuum Capper 01',
     category: 'Discrete',
-    subAgentName: 'Agent TorqueGuard',
-    subAgentRole: 'Hermetic Crimp & Vacuum Verification',
-    statusBadge: 'Nominal (99.85% Integrity)',
+    subAgentName: 'Unit-Op Engine: Vacuum Capper',
+    subAgentRole: 'Synthesized Capping Equipment',
+    statusBadge: 'Placed & Connected',
     statusType: 'healthy',
     metrics: [
       { label: 'Applied Torque', value: '3.2 N·m' },
@@ -303,7 +303,7 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
       { tag: 'N2 Flush', size: '0.5" Swagelok', rating: 'Double-Ferrule', service: 'Inert Headspace Blanketing' }
     ],
     internals: 'Magnetic Clutch Chuck Head • Piezoelectric Strain Gauge Torque Transducer',
-    agentLog: 'Real-time torque verified against ASTM D3198. Mean torque 3.21 N·m (σ = 0.04). 0 crimp rejects in past 1,000 cycles. Synchronized with starwheel outfeed.',
+    agentLog: 'Synthesized vacuum chuck capper with vacuum evacuation port and nitrogen purge connection. Placed downstream of rotary filler.',
     formula: 'τ_seal = μ_thread·F_crimp·r_mean  |  P_residual = P_atm - ΔP_vac'
   },
   {
@@ -311,9 +311,9 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
     tag: 'PL-301',
     name: 'Robot Palletizer 01',
     category: 'Discrete',
-    subAgentName: 'Agent StackPlanner',
-    subAgentRole: 'End-of-Line Discrete Pallet Logistics',
-    statusBadge: 'Active (Tier 3/5 Interlock)',
+    subAgentName: 'Unit-Op Engine: Palletizer',
+    subAgentRole: 'Synthesized Robotic Cell',
+    statusBadge: 'Placed & Connected',
     statusType: 'healthy',
     metrics: [
       { label: 'Cycle Time', value: '4.8 s / pail' },
@@ -324,7 +324,7 @@ const FLOWSHEET_UNITS: FlowsheetUnitOp[] = [
       { tag: 'Pneumatics', size: '0.5" BSPP', rating: '100 PSI Dry Air', service: 'Vacuum Venturi Gripper' }
     ],
     internals: '3-Axis Articulated Arm • Multi-Zone Vacuum Sponge Tooling • Slip-Sheet Feeder',
-    agentLog: 'Pallet stack stability index: 98.4%. Interlocking tier pattern active. Auto-dispensing corrugate slip-sheet at tier 4 completion. Outfeed conveyor clear.',
+    agentLog: 'Synthesized 3-axis articulated robot palletizer with vacuum gripper tooling and outfeed pallet conveyor. Ready for stream connection.',
     formula: 'COG_stack = Σ(m_i·z_i)/Σ(m_i)  |  Throughput = 750 pails/hr'
   }
 ];
@@ -627,7 +627,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             }}
           >
             <Sparkles size={14} color={OsakaJadePalette.jade[400]} />
-            The AI Software Engineer for Physical Process Simulation
+            The Software Engine That Generates Your Unit-Ops & Environment
           </div>
 
           <h1
@@ -641,7 +641,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               margin: '0 auto 24px'
             }}
           >
-            Design, Simulate, and Optimize{' '}
+            Design, Simulate, and Refine{' '}
             <span
               style={{
                 background: `linear-gradient(135deg, ${OsakaJadePalette.jade[300]} 0%, ${OsakaJadePalette.jade[500]} 100%)`,
@@ -649,9 +649,8 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 WebkitTextFillColor: 'transparent'
               }}
             >
-              Industrial Twins
-            </span>{' '}
-            with Autonomous Agents
+              Industrial Flowsheets
+            </span>
           </h1>
 
           <p
@@ -664,9 +663,9 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               fontWeight: 400
             }}
           >
-            Process engineers shouldn't have to write Python glue code or struggle with brittle legacy software.
-            ProcessForge combines continuous and discrete-event simulation with an AI agent in every machine,
-            backed by local Model Context Protocol (MCP) orchestration.
+            ProcessForge uses AI as the software creator to synthesize custom unit operations,
+            parametric ASME CAD equipment, and simulation environments. You place the machines on the flowsheet,
+            connect the piping and conveyors, and refine your process with deterministic continuous and discrete simulation.
           </p>
 
           {/* Download & Launch Call to Actions */}
@@ -1414,7 +1413,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                   </div>
                 </div>
 
-                {/* Column 3: Sub-Agent Reasoning & Optimization Log */}
+                {/* Column 3: Unit-Op Software Definition & CAD Spec */}
                 <div
                   style={{
                     backgroundColor: OsakaJadePalette.background.surfaceElevated,
@@ -1424,14 +1423,14 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                   }}
                 >
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: OsakaJadePalette.jade[400], marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Cpu size={13} /> SUB-AGENT AUTONOMOUS REASONING
+                    <Cpu size={13} /> UNIT-OP SOFTWARE SPECIFICATION
                   </div>
                   <p style={{ fontSize: '0.78rem', color: OsakaJadePalette.text.secondary, lineHeight: 1.5, margin: 0, marginBottom: '10px' }}>
                     "{selectedUnit.agentLog}"
                   </p>
                   <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
                     <button
-                      onClick={() => alert(`Sub-Agent ${selectedUnit.subAgentName}: Recalibrated mass conservation PID loop for ${selectedUnit.name}.`)}
+                      onClick={() => alert(`Synthesized vector CAD geometry for ${selectedUnit.name}. Ready to place and connect on flowsheet.`)}
                       style={{
                         padding: '4px 8px',
                         borderRadius: '4px',
@@ -1443,10 +1442,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                         fontWeight: 600
                       }}
                     >
-                      Trigger Re-Tuning
+                      Synthesize Custom CAD
                     </button>
                     <button
-                      onClick={() => alert(`Sub-Agent ${selectedUnit.subAgentName}: Exported ASME B16.5 mechanical CAD specification.`)}
+                      onClick={() => alert(`Exported ASME B16.5 mechanical CAD specification for ${selectedUnit.name}.`)}
                       style={{
                         padding: '4px 8px',
                         borderRadius: '4px',
@@ -1464,7 +1463,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               </div>
             </div>
 
-            {/* Master Orchestrator Real-Time Banner */}
+            {/* Flowsheet Environment Status Banner */}
             <div
               style={{
                 marginTop: '16px',
@@ -1481,10 +1480,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Sparkles size={16} color={OsakaJadePalette.jade[400]} />
                 <span style={{ fontSize: '0.82rem', color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
-                  Master Orchestrator:
+                  Flowsheet Environment:
                 </span>
                 <span style={{ fontSize: '0.82rem', color: OsakaJadePalette.text.secondary }}>
-                  Continuous-to-discrete coupling balanced. TK-102 buffer level absorbs downstream canning delays while RX-101 operates at steady-state 180 RPM.
+                  6 Unit Operations placed and connected. All streams routed per ASME / ISA-5.1 standards. AI ready to generate new unit-ops.
                 </span>
               </div>
               <span
@@ -1497,7 +1496,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                   backgroundColor: OsakaJadePalette.jade.muted
                 }}
               >
-                MCP Multi-Agent Mesh Active
+                Flowsheet Active
               </span>
             </div>
           </div>
@@ -1519,7 +1518,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             Engineered for Chemical & Mechanical Systems
           </h2>
           <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '1.05rem', maxWidth: '680px', margin: '0 auto' }}>
-            Not an LLM chatbot wrapper. ProcessForge is a high-performance simulation engine where autonomous agents function as software and process engineers.
+            You design and refine the process. AI acts as the software creator generating the environment, unit operations, and CAD geometries for you to place, connect, and refine.
           </p>
         </div>
 
@@ -1587,10 +1586,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               <Bot size={24} />
             </div>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '10px' }}>
-              Autonomous Machine Sub-Agents
+              AI-Generated Unit Operations & Environment
             </h3>
             <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
-              Every unit operation has its own embedded sub-agent pop-out studio. Sub-agents analyze mass and energy balances, calibrate PID loops, detect upstream bottlenecks, and coordinate with the plant-wide Master Orchestrator.
+              Need a specialized reactor, column, or custom filler? ProcessForge uses AI as a software engineer to synthesize complete unit-op definitions, vector CAD equipment drawings, and nozzle schedules that you place on the canvas, connect, and refine.
             </p>
           </div>
 
@@ -1654,7 +1653,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               Native Stdio Model Context Protocol (MCP)
             </h3>
             <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.92rem', lineHeight: 1.6 }}>
-              Full stdio MCP server support. Connect Claude Desktop, Gemini CLI, Cursor, or local LLMs to query simulation telemetry, evaluate unit operations, and autogenerate industrial twins via natural language without vendor lock-in.
+              Full stdio MCP server support. Connect Claude Desktop, Gemini CLI, Cursor, or local LLMs to generate custom unit operations, synthesize ASME CAD equipment drawings, and scaffold flowsheet environments via natural language without vendor lock-in.
             </p>
           </div>
 
@@ -1750,13 +1749,13 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 marginBottom: '16px'
               }}
             >
-              <Wrench size={14} /> Sub-Agent Pop-Out Studio
+              <Wrench size={14} /> Unit-Op Studio: AI as Software Creator
             </div>
             <h2 style={{ fontSize: '2.1rem', fontWeight: 800, marginBottom: '12px' }}>
               Vector CAD Drawing Synthesis & Mechanical Dressing
             </h2>
             <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '1rem', maxWidth: '680px', margin: '0 auto' }}>
-              Every machine on the flowsheet can be opened into a dedicated engineering studio. Sub-agents synthesize vector equipment drawings, calculate ASME nozzle schedules, and tune physical parameters in real time.
+              Every machine on the flowsheet can be opened into a dedicated engineering studio. The AI acts as your software engineer to synthesize vector equipment drawings, generate ASME nozzle schedules, and create custom unit-ops for you to place and connect.
             </p>
           </div>
 
@@ -1811,7 +1810,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Bot size={18} color={OsakaJadePalette.jade[400]} />
                   <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>
-                    Sub-Agent Conversation ({cadStudioTab.toUpperCase()})
+                    Unit-Op Software Synthesis ({cadStudioTab.toUpperCase()})
                   </span>
                 </div>
                 <span style={{ fontSize: '0.7rem', color: OsakaJadePalette.jade[400], fontFamily: "'JetBrains Mono', monospace" }}>
@@ -1833,9 +1832,9 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                   }}
                 >
                   <div style={{ fontSize: '0.7rem', color: OsakaJadePalette.text.muted, marginBottom: '2px' }}>Process Engineer</div>
-                  {cadStudioTab === 'rx101' && 'Add an ASME 3-inch 150# RF infeed nozzle at top perimeter, full steam jacket at 150 PSI, and fit a Rushton impeller for high shear dispersion.'}
-                  {cadStudioTab === 'tk102' && 'Equip this surge vessel with an atmospheric HEPA breather vent (N3), 2-inch bottom drain nozzle, and internal vortex breaker plate.'}
-                  {cadStudioTab === 'fl201' && 'Synthesize CAD drawing for a 6-station rotary indexing carousel with 0.75-inch anti-drip diving cutoff nozzles and sanitary Tri-Clamp infeed.'}
+                  {cadStudioTab === 'rx101' && 'Synthesize an ASME 3-inch 150# RF jacketed reactor with a 6-blade Rushton turbine and wall baffles.'}
+                  {cadStudioTab === 'tk102' && 'Create a surge vessel unit-op with a 1.5-inch HEPA breather, 2-inch drain, and bottom vortex breaker.'}
+                  {cadStudioTab === 'fl201' && 'Generate a 6-station rotary indexing filler with sanitary Tri-Clamp infeed and 0.75-inch diving nozzles.'}
                 </div>
 
                 {/* Sub-Agent Response */}
@@ -1850,24 +1849,21 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                   }}
                 >
                   <div style={{ fontSize: '0.7rem', color: OsakaJadePalette.jade[400], fontWeight: 600, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Bot size={12} /> Autonomous Sub-Agent
+                    <Bot size={12} /> Unit-Op Software Generator
                   </div>
                   {cadStudioTab === 'rx101' && (
                     <>
-                      Validated ASME B16.5 flange schedule: N1 (3" NPS 150# RF, bolt circle 6.00"), N3/N4 jacket flanges (1" 300# RTJ).
-                      Configured 6-blade Rushton turbine. Synthesized parametric SVG CAD drawing and updated dynamic viscosity kinetics model.
+                      Synthesized Unit-Op "Continuous CSTR (RX-101)". Generated 1:1 vector CAD shell, placed 4 ASME B16.5 flanged nozzles (N1-N4), configured internal Rushton agitator geometry, and scaffolded port contracts. Ready to place on canvas and connect.
                     </>
                   )}
                   {cadStudioTab === 'tk102' && (
                     <>
-                      ASME Section VIII Div 1 rules verified for atmospheric buffer vessel. Placed 2" 150# RF inlet/outlet nozzles and 1.5" HEPA vent.
-                      Hydrostatic head equation updated: P = ρ·g·h. Vortex breaker anti-cavitation baffle integrated.
+                      Synthesized Unit-Op "Surge Vessel (TK-102)". Generated vertical vessel CAD drawing with 2" 150# RF inlet/drain nozzles, 1.5" atmospheric vent, and anti-cavitation baffle. Ready to place on canvas and connect.
                     </>
                   )}
                   {cadStudioTab === 'fl201' && (
                     <>
-                      Indexed starwheel kinematic profile generated for 6 pocket stations. Applied sanitary Tri-Clamp connection (3A Sanitary Standard 63-04).
-                      Diving nozzle stroke distance set to 45 mm with anti-drip pneumatic cutoff.
+                      Synthesized Unit-Op "Rotary Filler (FL-201)". Generated 6-station indexing carousel CAD drawing, 2" Tri-Clamp sanitary infeed, and 6 diving nozzles. Ready to place on canvas and connect.
                     </>
                   )}
                 </div>
@@ -2068,7 +2064,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             Plug ProcessForge into Claude Desktop & Gemini CLI
           </h2>
           <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.98rem', marginBottom: '32px', maxWidth: '640px', margin: '0 auto 32px' }}>
-            Give your favorite AI coding assistant direct, programmatic control over process simulations, unit operation parameters, and digital twin exports.
+            Give your AI coding assistant direct programmatic control to synthesize unit operations, place ASME nozzle dressing, and scaffold complete simulation environments.
           </p>
 
           <div
@@ -2184,7 +2180,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               PROCESS<span style={{ color: OsakaJadePalette.jade[400] }}>FORGE</span>
             </div>
             <div style={{ fontSize: '0.8rem', color: OsakaJadePalette.text.muted }}>
-              Next-generation hybrid process simulation with hierarchical agent orchestration.
+              Next-generation process simulation. The software forge for custom unit operations and industrial flowsheets.
             </div>
           </div>
 

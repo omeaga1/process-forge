@@ -56,13 +56,13 @@ export async function dispatchUnitOpMessage(
   const conn = getAiConnection();
   const mode = config.provider || conn.mode;
 
-  // 1. Offline Mode: Honest notification that AI Sub-Agents require connection
+  // 1. Offline Mode: Honest notification that AI requires connection
   if (mode === 'offline') {
     return {
-      text: `AI Sub-Agent for "${ctx.node.name}" is offline. You have 100% offline access to all created and plugin-installed unit operations, nozzle dressing, and local simulation ODEs. Connect via Model Context Protocol (MCP) or sign in with OAuth to chat with AI sub-agents or generate new CAD equipment.`,
+      text: `Unit-Op Forge for "${ctx.node.name}" is in local offline mode. You have 100% offline access to all created and plugin-installed unit operations, nozzle dressing, and local simulation. Connect via Model Context Protocol (MCP) or sign in with OAuth to synthesize new CAD equipment or generate custom unit operations.`,
       senderBadge: 'Offline (Local Only)',
       isOfflineSolver: true,
-      errorNotice: 'AI Sub-Agent offline. Connect via MCP or OAuth.'
+      errorNotice: 'Unit-Op Forge offline. Connect via MCP or OAuth to synthesize new equipment.'
     };
   }
 
@@ -116,12 +116,12 @@ export async function dispatchUnitOpMessage(
   if (mode === 'mcp') {
     const server = conn.mcp.serverName || 'process-forge-mcp';
     const text = cadDrawing
-      ? `[MCP Tool: forge_equipment_drawing] Successfully generated ASME/ISA-5.1 vector CAD geometry for "${ctx.node.name}". Generated ${cadDrawing.nozzles.length} perimeter nozzles, calibrated viewBox to "${cadDrawing.viewBox}", and applied custom SVG shell directly to the flowsheet canvas.`
-      : `[MCP Agent: ${server}] Inspected unit operation "${ctx.node.name}" (${ctx.node.kind}). Operating envelope is balanced with respect to upstream feed and downstream receiving capacity.`;
+      ? `[MCP Tool: forge_equipment_drawing] Successfully synthesized ASME/ISA-5.1 vector CAD geometry for "${ctx.node.name}". Generated ${cadDrawing.nozzles.length} perimeter nozzles, calibrated viewBox to "${cadDrawing.viewBox}", and applied custom SVG shell to the unit operation.`
+      : `[MCP Forge: ${server}] Ready to synthesize custom equipment CAD, nozzles, or unit operation definitions for "${ctx.node.name}". What specifications shall I build?`;
 
     return {
       text,
-      senderBadge: 'MCP Agent',
+      senderBadge: 'MCP Forge',
       isOfflineSolver: false,
       cadDrawing,
       newDressing
@@ -133,8 +133,8 @@ export async function dispatchUnitOpMessage(
     const org = conn.oauth.organization || 'Enterprise Engineering';
     const user = conn.oauth.userName || 'Process Engineer';
     const text = cadDrawing
-      ? `[Enterprise AI • ${org}] Authenticated as ${user}. Synthesized production-ready vector CAD equipment for "${ctx.node.name}" with ${cadDrawing.nozzles.length} nozzles per ASME B16.5 standards under corporate ZDR governance.`
-      : `[Enterprise AI • ${org}] Authenticated as ${user}. Verified simulation parameters and mass balance constraints for "${ctx.node.name}".`;
+      ? `[Enterprise AI • ${org}] Authenticated as ${user}. Synthesized production-ready vector CAD equipment for "${ctx.node.name}" with ${cadDrawing.nozzles.length} nozzles per ASME B16.5 standards.`
+      : `[Enterprise AI • ${org}] Authenticated as ${user}. Ready to synthesize equipment CAD, nozzles, or port schemas for "${ctx.node.name}".`;
 
     return {
       text,
@@ -146,14 +146,14 @@ export async function dispatchUnitOpMessage(
   }
 
   return {
-    text: `AI Sub-Agent is offline. Connect via MCP or OAuth.`,
+    text: `Unit-Op Forge is offline. Connect via MCP or OAuth.`,
     senderBadge: 'Offline',
     isOfflineSolver: true
   };
 }
 
 /**
- * Dispatch message for Master Orchestration Engineer
+ * Dispatch message for Environment & Unit-Op Forge
  */
 export async function dispatchMasterOrchestratorMessage(
   _message: string,
@@ -166,25 +166,20 @@ export async function dispatchMasterOrchestratorMessage(
 
   if (mode === 'offline') {
     return {
-      text: `Master Orchestrator is offline. In offline mode, plant mass balance and continuous ODE calculations run locally in the WASM engine. Connect via MCP or OAuth to consult the autonomous orchestration agent.`,
+      text: `Environment Forge is in local offline mode. Flowsheet simulation physics and ODE calculations execute locally in the engine. Connect via MCP or OAuth to synthesize new unit operations and scaffold flowsheet environments.`,
       senderBadge: 'Offline (Local Only)',
       isOfflineSolver: true,
-      errorNotice: 'Orchestrator offline. Connect via MCP or OAuth.'
+      errorNotice: 'Forge offline. Connect via MCP or OAuth to generate unit ops.'
     };
   }
 
   if (mode === 'mcp') {
-    const text = ctx.bottleneckNodeName
-      ? `[MCP Orchestrator] Analysis of "${ctx.graphName}": Bottleneck isolated at "${ctx.bottleneckNodeName}". Line throughput capped at ${Math.round(
-          ctx.maxThroughput || 35
-        )} units/min. Recommended action: Increase buffer queue capacity or add parallel indexing dwell.`
-      : `[MCP Orchestrator] Line "${ctx.graphName}" operating normally across ${ctx.nodeCount} machines. Throughput is steady at ~${Math.round(
-          ctx.averageRatePerMin
-        )} units/min. Total finished goods: ${ctx.totalPackaged}.`;
+    const server = conn.mcp.serverName || 'process-forge-mcp';
+    const text = `[MCP Forge: ${server}] Environment ready for "${ctx.graphName}" (${ctx.nodeCount} unit operations). Ask me to create a new unit operation, synthesize CAD geometry, or scaffold an equipment environment for you to place and connect on the flowsheet.`;
 
     return {
       text,
-      senderBadge: 'MCP Agent',
+      senderBadge: 'MCP Forge',
       isOfflineSolver: false
     };
   }
@@ -192,9 +187,7 @@ export async function dispatchMasterOrchestratorMessage(
   if (mode === 'oauth') {
     const org = conn.oauth.organization || 'Enterprise Systems';
     return {
-      text: `[Enterprise Orchestrator • ${org}] Plant-wide audit for "${ctx.graphName}" complete. ${ctx.nodeCount} machines online, throughput ~${Math.round(
-        ctx.averageRatePerMin
-      )} units/min. Mass balance is strictly conserved across all stream boundaries with zero mathematical drift.`,
+      text: `[Enterprise Forge • ${org}] Environment ready for "${ctx.graphName}" (${ctx.nodeCount} unit operations). Ready to synthesize new equipment, ASME nozzle schedules, or scaffold flowsheet environments for you to place and connect.`,
       senderBadge: 'OAuth Enterprise',
       isOfflineSolver: false
     };

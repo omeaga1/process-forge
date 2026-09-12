@@ -43,17 +43,18 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
 
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
-      id: 'master-init',
+      id: 'forge-init',
       sender: 'master_orchestrator',
-      senderTitle: 'Lead Orchestration Engineer (Master Agent)',
-      text: `Process simulation initialized for "${graph.name}". I am monitoring whole-plant mass balance and line bottlenecks across all ${graph.nodes.length} unit operations.`,
+      senderTitle: 'Unit-Op Software Engineer',
+      text: `Environment Forge initialized for "${graph.name}". I synthesize custom unit operations, equipment CAD drawings, and nozzle schedules that you can place, connect, and refine on the flowsheet canvas.`,
       timestamp: '14:26',
       modelBadge: PROVIDER_METADATA[getAiConfig().provider]?.badgeName || 'Offline (Local)',
       isOffline: getAiConfig().provider === 'offline',
       suggestedPrompts: [
-        'Where are the bottlenecks in this line?',
-        'Audit mass and volumetric conservation',
-        'Broadcast boundary context to sub-agents'
+        'Synthesize a jacketed batch reactor with top agitator',
+        'Generate a rotary canning filler with 8 diving nozzles',
+        'Create a 3-phase horizontal separator with weir',
+        'Synthesize ASME flanged nozzle schedule'
       ]
     }
   ]);
@@ -99,7 +100,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       const agentMsg: ChatMessage = {
         id: `mst-${Date.now() + 1}`,
         sender: 'master_orchestrator',
-        senderTitle: 'Lead Orchestration Engineer (Master Agent)',
+        senderTitle: 'Unit-Op Software Engineer',
         text: res.text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         modelBadge: res.senderBadge,
@@ -140,7 +141,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase' }}>
-                Master Orchestrator
+                Environment & Unit-Op Forge
               </span>
               <button
                 type="button"
@@ -165,7 +166,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               </button>
             </div>
             <div style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-              Plant Systems Console
+              Software Engineer Studio
             </div>
           </div>
 
@@ -288,7 +289,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           >
             <div>
               <strong style={{ color: OsakaJadePalette.text.primary }}>Offline Mode: </strong>
-              Local simulation physics running. Connect MCP or OAuth to consult Master Agent.
+              Local simulation physics running. Connect MCP or OAuth to synthesize new unit-ops and environments.
             </div>
             <button
               type="button"

@@ -210,7 +210,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
               cursor: 'pointer'
             }}
           >
-            <Bot size={14} /> Sub-Agent
+            <Bot size={14} /> CAD Spec
           </button>
         </div>
 
@@ -497,7 +497,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
             </>
           )}
 
-          {/* TAB 3: SUB-AGENT TELEMETRY & REASONING */}
+          {/* TAB 3: UNIT-OP SOFTWARE DEFINITION & CAD SPEC */}
           {activeTab === 'AGENT' && (
             <>
               <div
@@ -514,15 +514,15 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                 <Bot size={20} color={OsakaJadePalette.jade.glow} />
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                    {node.assignedSubAgentId ?? `Agent ${node.name.split(' ')[0]}`}
+                    Unit-Op Software Definition
                   </div>
                   <div style={{ fontSize: 10, color: OsakaJadePalette.jade[300] }}>
-                    Supervisory Unit Controller
+                    Generated Equipment & Port Schedule
                   </div>
                 </div>
               </div>
 
-              {/* Live Sub-Agent Reasoning Card */}
+              {/* Unit-Op Software Specification Card */}
               <div
                 style={{
                   padding: 12,
@@ -534,8 +534,8 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                   color: OsakaJadePalette.text.secondary
                 }}
               >
-                <strong style={{ color: OsakaJadePalette.text.primary }}>Telemetry Status: </strong>
-                Agitator setpoint: {rpmValue} RPM. Fluid shear within operating limits. Mass balance verified (residual: 0.00 kg/s).
+                <strong style={{ color: OsakaJadePalette.text.primary }}>Equipment Status: </strong>
+                Agitator setpoint: {rpmValue} RPM. Vessel geometry: {dressing?.customSvgShell ? 'Custom Vector CAD' : 'Standard ASME'}. Nozzle ports placed and ready for canvas stream connection.
               </div>
 
               {/* Zero-Key Architecture Compliance Notice */}

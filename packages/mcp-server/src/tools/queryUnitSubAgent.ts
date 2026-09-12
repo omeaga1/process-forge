@@ -59,11 +59,9 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
         meanTimeToRepairMinutes: 12
       };
 
-      softwareEngineerResponse = `[Unit-Op Engineer for ${unitName}]: Analyzing physical transfer equations for ${containerVol}-gal fluid filling at ${viscosity} cP. 
-1. Given upstream supply rate of ${upstreamRate} GPM, ideal line rate is ${calculatedPpm} containers/min.
-2. For fluid viscosity ${viscosity} cP (non-Newtonian shear-thinning latex), nozzle diving depth should be set to 85% of container height to prevent bottom splashing.
-3. Cycle stroke time adjusted to ${recommendedConfig.fillTimePerCycleSeconds}s to accommodate viscous laminar flow.
-4. Synthesized dynamic UI parameters below. You can adjust nozzle count and damping ratio directly.`;
+      softwareEngineerResponse = `[Unit-Op Software Forge for ${unitName}]: Synthesized equipment configuration for ${containerVol}-gal fluid filling.
+1. Configured ${nozzleCount} active filling nozzles and calibrated default stroke dwell to ${recommendedConfig.fillTimePerCycleSeconds}s.
+2. Synthesized dynamic UI parameters below. You can adjust nozzle count and dimensions directly on the flowsheet canvas.`;
 
       generativeUiSchema = {
         widgetType: 'ROTARY_FILLER_INSPECTOR',
@@ -132,7 +130,7 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
         rejectChuteEnabled: true
       };
 
-      softwareEngineerResponse = `[Unit-Op Engineer for ${unitName}]: High-speed optical rotary labeler configured. Note: if upstream conveyor delivers >${maxSpeed} units/min, LB-500 will act as the primary plant constraint and induce upstream conveyor queue accumulation. Recommending upgrading rotary servo drive or adding parallel labeling head.`;
+      softwareEngineerResponse = `[Unit-Op Software Forge for ${unitName}]: Synthesized high-speed rotary labeler unit-op definition. Configured max rated speed at ${maxSpeed} units/min with vision rejection chute enabled. Ready for placement and refinement on the flowsheet.`;
 
       generativeUiSchema = {
         widgetType: 'LABELER_INSPECTOR',
@@ -170,7 +168,7 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
     }
 
     default: {
-      softwareEngineerResponse = `[Unit-Op Engineer for ${unitName}]: Configured general unit operation (${machineType}). Evaluated inquiry "${inquiry}". Parameters synchronized with physical mass balance contracts.`;
+      softwareEngineerResponse = `[Unit-Op Software Forge for ${unitName}]: Synthesized general unit operation definition (${machineType}) for inquiry "${inquiry}". Port boundaries and baseline parameters generated for flowsheet placement.`;
       generativeUiSchema = {
         widgetType: 'BOTTLENECK_ALERT_PANEL',
         nodeId: subAgentId,
@@ -215,7 +213,7 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
       kind: machineType,
       machineName: unitName
     });
-    softwareEngineerResponse += `\n\n[CAD Drafting Sub-Agent]: Synthesized ISA-5.1 vector CAD drawing for ${unitName} based on 8-step Drawing-with-Thought reasoning. Shell & details generated with ${equipmentDrawing.nozzles.length} perimeter nozzles.`;
+    softwareEngineerResponse += `\n\n[Equipment CAD Engine]: Synthesized vector CAD equipment drawing for ${unitName}. Shell & details generated with ${equipmentDrawing.nozzles.length} perimeter nozzles ready for flowsheet placement.`;
   }
 
   return {

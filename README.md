@@ -1,7 +1,7 @@
 # ProcessForge
 
 > **Next-Generation Industrial Process Simulation Platform**  
-> Continuous-Discrete Hybrid Simulation • Hierarchical Multi-Agent Orchestration • Enterprise Trust & Zero-Knowledge Security
+> Continuous-Discrete Hybrid Simulation • AI Equipment & Environment Forge • Enterprise Trust & Zero-Knowledge Security
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Target Repo](https://img.shields.io/badge/GitHub-omeaga1%2Fprocess--forge-181717.svg?logo=github)](https://github.com/omeaga1/process-forge)
@@ -17,7 +17,7 @@
 Unlike legacy chemical-only simulators that are computationally impenetrable or weekend AI wrappers that compromise enterprise trust, ProcessForge decouples **probabilistic generative AI** from **deterministic simulation physics**:
 
 1. **Deterministic Core Engine:** Discrete-Event Simulation (DES) combined with Continuous Flow mass/volumetric balances, capable of executing at >10,000x real-time speed.
-2. **Hierarchical Agent Layer (CopilotKit + CoAgents):** A **Master Orchestrator** maintains plant-wide flow conservation, while dynamically spawned **Unit-Op Sub-Agents** configure specific machines, build dynamic generative UI parameter drawers, and diagnose bottlenecks.
+2. **AI as the Software Entity & Environment Creator:** AI generates custom unit operations, parametric ASME CAD equipment geometries, and simulation environments. The user places, connects, and refines them on the flowsheet canvas—freeing engineers from writing glue code without relying on AI to guess or analyze deterministic physics.
 3. **Enterprise Trust & Credential Isolation:** Eliminates the "Vercel + Supabase wrapper" stigma through native OS credential vaults (DPAPI/Keychain) in our desktop client, Enterprise Zero-Data-Retention (ZDR) gateways, and full self-hostable on-premises deployment capabilities.
 
 ---
@@ -57,37 +57,40 @@ process-forge/
 
 ---
 
-## 4. Multi-Agent Hierarchy & CopilotKit Mechanics
+## 4. Software Architecture & Flowsheet Authoring
 
 ```
                   ┌────────────────────────────────────────────────┐
                   │          Interactive Canvas UI (React)         │
-                  │    CopilotKit Chat • Dynamic Property Drawers  │
+                  │    Process Flowsheet • Stream Connections      │
                   └───────────────────────┬────────────────────────┘
+                                          │
+                     User Places, Connects, and Refines
                                           │
                                           ▼
                   ┌────────────────────────────────────────────────┐
-                  │       Master Orchestrator Agent (Plant Lead)    │
-                  │  Global Mass/Energy Balance • Stream Continuity │
+                  │        Environment & Unit-Op Forge (AI)        │
+                  │ Synthesizes CAD Geometries • Nozzles • Port UI │
                   └───────────┬──────────────────────┬─────────────┘
                               │                      │
                  ┌────────────┴──────────┐ ┌─────────┴───────────┐
                  ▼                       ▼ ▼                     ▼
         ┌──────────────────┐   ┌──────────────────┐    ┌──────────────────┐
         │ Batch Reactor    │   │ 10-Nozzle Filler │    │ Automated        │
-        │ Sub-Agent        │   │ Sub-Agent        │    │ Labeler Sub-Agent│
+        │ Unit-Op (ASME)   │   │ Unit-Op (Tri-Cl) │    │ Labeler Unit-Op  │
         └────────┬─────────┘   └────────┬─────────┘    └────────┬─────────┘
                  │                      │                       │
                  └──────────────────────┼───────────────────────┘
                                         ▼
                   ┌────────────────────────────────────────────────┐
                   │   Deterministic Simulation Engine (Rust/Wasm)   │
-                  │ Event Queue • Rate Balance • Bottleneck Solver │
+                  │ Event Queue • Rate Balance • Physical Solver   │
                   └────────────────────────────────────────────────┘
 ```
 
-- **Generative UI (`useCopilotAction`):** Unit-Op sub-agents dynamically render custom sliders, nozzle matrices, and validation alerts inside the property drawer.
-- **Physical Validation Gates:** Before committing a configuration to the active simulation graph, agents must pass contract validation rules defined in `@process-forge/protocol`.
+- **User-Centric Flowsheet Authoring:** The human engineer designs the process line by placing, connecting, and refining unit operations and streams.
+- **AI as Equipment Software Creator:** Rather than using AI to guess or analyze physics, AI serves as the software entity that authors custom unit operations, synthesizes ASME B16.5 CAD drawings, and configures port schedules.
+- **Physical Validation Gates:** Before committing a configuration to the active simulation graph, nodes must pass contract validation rules defined in `@process-forge/protocol`.
 
 ---
 

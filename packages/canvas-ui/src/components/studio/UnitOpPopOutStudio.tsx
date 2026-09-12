@@ -55,16 +55,16 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
     {
       id: 'msg-init',
       sender: 'agent',
-      senderTitle: `UnitOpSubAgent [${node.name.split(' ')[0]}]`,
-      text: `Hello! I am your dedicated machine software engineer for "${node.name}". I handle the mathematical state machine, dynamic cycle calculations, and port boundary contracts. How can we optimize this unit?`,
+      senderTitle: `UnitOpForge [${node.name.split(' ')[0]}]`,
+      text: `Unit-Op Software Engineer ready for "${node.name}". I synthesize equipment CAD geometry, place nozzles, and configure port contracts for your flowsheet. What equipment modifications or CAD details shall we generate?`,
       timestamp: '14:26',
       modelBadge: PROVIDER_METADATA[getAiConfig().provider]?.badgeName || 'Offline Solver',
       isOffline: getAiConfig().provider === 'offline',
       suggestedPrompts: [
-        'Draw a jacketed CSTR with Rushton turbine and relief vent',
-        'Draw a distillation tower with 6 sieve trays and reflux',
-        'Recalculate cycle time for 5-gallon pails',
-        'Add an automated optical reject chute'
+        'Synthesize jacketed vessel with Rushton turbine and relief nozzle',
+        'Add 3-inch 150# RF inlet and outlet flanged nozzles',
+        'Generate distillation column with 6 sieve trays and reflux nozzle',
+        'Configure sanitary Tri-Clamp connections for food/pharma'
       ]
     }
   ]);
@@ -102,7 +102,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       const agentMsg: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         sender: 'agent',
-        senderTitle: `UnitOpSubAgent [${node.name.split(' ')[0]}]`,
+        senderTitle: `UnitOpForge [${node.name.split(' ')[0]}]`,
         text: res.text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         cadDrawing: res.cadDrawing,
