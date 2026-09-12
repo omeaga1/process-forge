@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { OsakaJadePalette } from '@process-forge/theme';
 import type { ProcessNode } from '@process-forge/protocol';
+import { X } from 'lucide-react';
 
 interface ForgeHubPluginItem {
   id: string;
@@ -195,7 +196,7 @@ export const ForgeHubModal: React.FC<ForgeHubModalProps> = ({ isOpen, onClose, o
               Community Registry (Obsidian Model)
             </div>
             <div style={{ fontSize: 18, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
-              🏪 ForgeHub Unit-Op & Agent Marketplace
+              ForgeHub Marketplace
             </div>
           </div>
 
@@ -209,10 +210,13 @@ export const ForgeHubModal: React.FC<ForgeHubModalProps> = ({ isOpen, onClose, o
               width: 32,
               height: 32,
               borderRadius: '50%',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
           >
-            ✕
+            <X size={16} />
           </button>
         </div>
 
@@ -308,7 +312,7 @@ export const ForgeHubModal: React.FC<ForgeHubModalProps> = ({ isOpen, onClose, o
                 </div>
 
                 <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted, marginBottom: 6 }}>
-                  By {plugin.author} • ★ {plugin.rating} ({plugin.downloadCount} installs)
+                  Author: {plugin.author} • Rating: {plugin.rating} / 5.0 ({plugin.downloadCount} installs)
                 </div>
 
                 <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, lineHeight: '1.4' }}>

@@ -11,6 +11,7 @@ import {
   type OnEdgesChange
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { Layers } from 'lucide-react';
 
 import { OsakaJadePalette } from '@process-forge/theme';
 import { validateProcessGraph, type ProcessGraph, type ProcessNode } from '@process-forge/protocol';
@@ -325,8 +326,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             cursor: 'pointer'
           }}
         >
-          <span>📱</span>
-          <span>Switch to Field View</span>
+          <Layers size={14} />
+          <span>Field View</span>
         </button>
       )}
     </div>

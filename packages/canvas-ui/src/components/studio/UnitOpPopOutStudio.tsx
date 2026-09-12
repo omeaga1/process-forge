@@ -14,7 +14,7 @@ import {
 } from '../../ai/aiModelManager.js';
 import { dispatchUnitOpMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Cpu, Zap, Loader2 } from 'lucide-react';
+import { Cpu, Zap, Loader2, X, Check, Upload } from 'lucide-react';
 
 interface UnitOpPopOutStudioProps {
   node: ProcessNode | null;
@@ -220,7 +220,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             justifyContent: 'center'
           }}
         >
-          ✕
+          <X size={14} color={OsakaJadePalette.text.secondary} />
         </button>
       </div>
 
@@ -475,10 +475,14 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                             padding: '6px 10px',
                             fontSize: 11,
                             fontWeight: 700,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4
                           }}
                         >
-                          ✓ Apply Equipment Dressing
+                          <Check size={12} />
+                          <span>Apply Equipment Dressing</span>
                         </button>
                       </div>
                     </div>
@@ -503,7 +507,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                             cursor: 'pointer'
                           }}
                         >
-                          ⚡ {p}
+                          {p}
                         </button>
                       ))}
                     </div>
@@ -712,10 +716,14 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             padding: '8px 16px',
             fontSize: 12,
             fontWeight: 700,
-            cursor: 'pointer'
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6
           }}
         >
-          🚀 Publish to ForgeHub
+          <Upload size={14} />
+          <span>Publish to ForgeHub</span>
         </button>
       </div>
 

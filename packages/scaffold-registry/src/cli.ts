@@ -16,7 +16,7 @@ function runCli(): void {
     console.log(`[Anti-Laziness Guard] Active registered scaffolds: ${result.registeredScaffolds}`);
 
     if (result.violations.length > 0) {
-      console.error(`\n❌ Found ${result.violations.length} anti-laziness policy violation(s):`);
+      console.error(`\n[FAIL] Found ${result.violations.length} anti-laziness policy violation(s):`);
       for (const v of result.violations) {
         console.error(`  • [${v.rule}] ${v.file}:${v.line}`);
         console.error(`    Snippet: "${v.snippet}"`);
@@ -24,12 +24,12 @@ function runCli(): void {
       }
       process.exit(1);
     } else {
-      console.log(`\n✅ Anti-Laziness Guard passed! Zero untracked placeholders found.`);
+      console.log(`\n[PASS] Anti-Laziness Guard passed: zero untracked placeholders found.`);
       process.exit(0);
     }
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    console.error(`\n❌ Verification error: ${errorMsg}`);
+    console.error(`\n[ERROR] Verification failed: ${errorMsg}`);
     process.exit(1);
   }
 }

@@ -103,7 +103,7 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
               fontFamily: 'monospace'
             }}
           >
-            {isBlocked ? '⚠ BLOCKED' : labelText}
+            {isBlocked ? 'BLOCKED' : labelText}
           </div>
         </EdgeLabelRenderer>
       )}

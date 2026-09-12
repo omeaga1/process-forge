@@ -309,9 +309,9 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                   style={{ width: '100%', accentColor: OsakaJadePalette.jade[500], cursor: 'pointer' }}
                 />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: OsakaJadePalette.text.muted }}>
-                  <span>60 RPM (Laminar)</span>
-                  <span>180 RPM (Optimal)</span>
-                  <span>300 RPM (Turbulent)</span>
+                  <span>60 RPM</span>
+                  <span>180 RPM</span>
+                  <span>300 RPM</span>
                 </div>
               </div>
 
@@ -517,7 +517,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                     {node.assignedSubAgentId ?? `Agent ${node.name.split(' ')[0]}`}
                   </div>
                   <div style={{ fontSize: 10, color: OsakaJadePalette.jade[300] }}>
-                    Physical Supervisor & Dynamic ODE Balancer
+                    Supervisory Unit Controller
                   </div>
                 </div>
               </div>
@@ -534,8 +534,8 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                   color: OsakaJadePalette.text.secondary
                 }}
               >
-                <strong style={{ color: OsakaJadePalette.text.primary }}>Agent Decision Log: </strong>
-                Calibrated impeller to {rpmValue} RPM. Fluid shear preserves pigment dispersion without thermal degradation. Mass balance Δm = 0.000 kg/s verified.
+                <strong style={{ color: OsakaJadePalette.text.primary }}>Telemetry Status: </strong>
+                Agitator setpoint: {rpmValue} RPM. Fluid shear within operating limits. Mass balance verified (residual: 0.00 kg/s).
               </div>
 
               {/* Zero-Key Architecture Compliance Notice */}
@@ -556,10 +556,10 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
                     <ShieldCheck size={14} color={OsakaJadePalette.jade.glow} />
-                    <span>Zero Raw API Keys Policy</span>
+                    <span>Zero Raw Keys Policy</span>
                   </div>
                   <span>
-                    Sub-agent chat connects securely via Model Context Protocol (MCP) or enterprise OAuth 2.0 PKCE. Local physics and dressing run offline.
+                    Model inference routed via local MCP or OAuth 2.0 PKCE. Local process physics and mechanical dressing execute offline.
                   </span>
                 </div>
               ) : (

@@ -9,7 +9,7 @@ import {
 } from '../../ai/aiModelManager.js';
 import { dispatchMasterOrchestratorMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Cpu, Zap, Loader2 } from 'lucide-react';
+import { Cpu, Zap, Loader2, ShoppingBag } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
@@ -179,10 +179,14 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               padding: '6px 10px',
               fontSize: 11,
               fontWeight: 700,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5
             }}
           >
-            🏪 ForgeHub
+            <ShoppingBag size={13} />
+            <span>ForgeHub</span>
           </button>
         </div>
 
@@ -356,7 +360,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                         cursor: 'pointer'
                       }}
                     >
-                      ⚡ {p}
+                      {p}
                     </button>
                   ))}
                 </div>

@@ -78,7 +78,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                 }}
               />
               <span style={{ fontSize: 11, fontWeight: 700, color: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.secondary, textTransform: 'uppercase' }}>
-                {isRunning ? 'Line Simulating' : 'Line Paused'}
+                {isRunning ? 'Running' : 'Paused'}
               </span>
               <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>•</span>
               <span style={{ fontSize: 11, fontFamily: 'monospace', color: OsakaJadePalette.text.secondary }}>
@@ -93,7 +93,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
           <div style={{ display: 'flex', gap: 6 }}>
             <button
               onClick={onSwitchToCanvas}
-              title="Switch to Desktop Full Canvas View"
+              title="Switch to Desktop Canvas"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -114,7 +114,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
 
             <button
               onClick={onResetSimulation}
-              title="Reset Simulation State"
+              title="Reset Simulation"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -170,9 +170,9 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
               border: `1px solid ${OsakaJadePalette.border.subtle}`
             }}
           >
-            <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Line Throughput</div>
+            <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Throughput</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.jade.glow }}>
-              {isRunning ? `${telemetry.averageRatePerMin || 42} cpm` : '0 cpm'}
+              {isRunning ? `${telemetry.averageRatePerMin || 35} CPM` : '0 CPM'}
             </div>
           </div>
 
@@ -184,9 +184,9 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
               border: `1px solid ${OsakaJadePalette.border.subtle}`
             }}
           >
-            <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Packaged Units</div>
+            <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Packaged</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-              {telemetry.totalPackaged} cans
+              {telemetry.totalPackaged} Units
             </div>
           </div>
 
@@ -198,7 +198,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
               border: `1px solid ${OsakaJadePalette.border.subtle}`
             }}
           >
-            <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Active Machines</div>
+            <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Equipment</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
               {graph.nodes.length} Units
             </div>
@@ -221,9 +221,9 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
         >
           <AlertTriangle size={16} color={OsakaJadePalette.border.glowAmber} style={{ flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <strong style={{ color: OsakaJadePalette.text.primary }}>Line Bottleneck Alert: </strong>
+            <strong style={{ color: OsakaJadePalette.text.primary }}>Chokepoint Alarm: </strong>
             <span style={{ color: OsakaJadePalette.text.secondary }}>
-              High-Speed Labeler (Accumulation buffer at 92% capacity)
+              Labeler LB-500 accumulation at 92% buffer capacity
             </span>
           </div>
         </div>
@@ -242,7 +242,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
         }}
       >
         <div style={{ fontSize: 11, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', paddingLeft: 4 }}>
-          Equipment Stream ({graph.nodes.length} Machines)
+          Equipment Stream ({graph.nodes.length} Units)
         </div>
 
         {graph.nodes.map((node, index) => {
