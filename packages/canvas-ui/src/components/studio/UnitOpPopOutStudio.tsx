@@ -131,7 +131,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         position: 'fixed',
         top: 0,
         right: 0,
-        width: 580,
+        width: 'min(580px, 100vw)',
+        maxWidth: '100vw',
         height: '100vh',
         backgroundColor: OsakaJadePalette.background.surfaceElevated,
         borderLeft: `1px solid ${OsakaJadePalette.border.strong}`,
@@ -453,14 +454,14 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                               generatedBySubAgent: true,
                               nozzles: msg.cadDrawing!.nozzles,
                               internals: {
-                                agitatorType: msg.cadDrawing!.internals.agitatorType ?? node.dressing?.internals.agitatorType ?? 'none',
-                                hasJacket: msg.cadDrawing!.internals.hasJacket ?? node.dressing?.internals.hasJacket ?? false,
-                                jacketType: msg.cadDrawing!.internals.jacketType ?? node.dressing?.internals.jacketType ?? 'none',
-                                baffleCount: msg.cadDrawing!.internals.baffleCount ?? node.dressing?.internals.baffleCount ?? 0,
-                                packingType: msg.cadDrawing!.internals.packingType ?? node.dressing?.internals.packingType ?? 'none',
-                                hasDemister: msg.cadDrawing!.internals.hasDemister ?? node.dressing?.internals.hasDemister ?? false,
-                                hasSprayHeader: msg.cadDrawing!.internals.hasSprayHeader ?? node.dressing?.internals.hasSprayHeader ?? false,
-                                trayCount: msg.cadDrawing!.internals.trayCount ?? node.dressing?.internals.trayCount
+                                agitatorType: msg.cadDrawing!.internals.agitatorType ?? node.dressing?.internals?.agitatorType ?? 'none',
+                                hasJacket: msg.cadDrawing!.internals.hasJacket ?? node.dressing?.internals?.hasJacket ?? false,
+                                jacketType: msg.cadDrawing!.internals.jacketType ?? node.dressing?.internals?.jacketType ?? 'none',
+                                baffleCount: msg.cadDrawing!.internals.baffleCount ?? node.dressing?.internals?.baffleCount ?? 0,
+                                packingType: msg.cadDrawing!.internals.packingType ?? node.dressing?.internals?.packingType ?? 'none',
+                                hasDemister: msg.cadDrawing!.internals.hasDemister ?? node.dressing?.internals?.hasDemister ?? false,
+                                hasSprayHeader: msg.cadDrawing!.internals.hasSprayHeader ?? node.dressing?.internals?.hasSprayHeader ?? false,
+                                trayCount: msg.cadDrawing!.internals.trayCount ?? node.dressing?.internals?.trayCount
                               }
                             };
                             onUpdateDressing?.(node.id, newDressing);

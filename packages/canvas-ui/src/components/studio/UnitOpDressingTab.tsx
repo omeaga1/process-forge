@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { OsakaJadePalette } from '@process-forge/theme';
 import {
   type ProcessNode,
@@ -16,8 +16,19 @@ interface UnitOpDressingTabProps {
 }
 
 export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUpdateDressing }) => {
-  const initialDressing: UnitOpDressing = node.dressing || {
-    nozzles: [
+  const defaultInternals = {
+    agitatorType: node.kind === 'BATCH_REACTOR' ? ('pitched_blade' as const) : ('none' as const),
+    hasJacket: node.kind === 'BATCH_REACTOR',
+    jacketType: 'steam' as const,
+    baffleCount: 4,
+    packingType: 'none' as const,
+    hasDemister: false,
+    hasSprayHeader: false
+  };
+
+  const initialDressing: UnitOpDressing = {
+    ...node.dressing,
+    nozzles: node.dressing?.nozzles || [
       {
         id: 'N1',
         name: 'Primary Infeed',
@@ -40,13 +51,8 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
       }
     ],
     internals: {
-      agitatorType: node.kind === 'BATCH_REACTOR' ? 'pitched_blade' : 'none',
-      hasJacket: node.kind === 'BATCH_REACTOR',
-      jacketType: 'steam',
-      baffleCount: 4,
-      packingType: 'none',
-      hasDemister: false,
-      hasSprayHeader: false
+      ...defaultInternals,
+      ...(node.dressing?.internals || {})
     }
   };
 
@@ -57,6 +63,19 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [aiPrompt, setAiPrompt] = useState<string>('');
   const [isForging, setIsForging] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (node.dressing) {
+      setDressing({
+        ...node.dressing,
+        nozzles: node.dressing.nozzles || [],
+        internals: {
+          ...defaultInternals,
+          ...(node.dressing.internals || {})
+        }
+      });
+    }
+  }, [node.id, node.dressing]);
 
   const handleForgeDrawing = (promptToUse?: string) => {
     const text = promptToUse || aiPrompt;

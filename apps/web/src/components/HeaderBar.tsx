@@ -274,7 +274,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               boxShadow: `0 0 6px ${OsakaJadePalette.jade[500]}`
             }}
           />
-          WASM CORE ACTIVE
+          SIMULATION CORE ACTIVE
         </div>
       </div>
 

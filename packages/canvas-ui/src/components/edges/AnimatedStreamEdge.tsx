@@ -77,7 +77,7 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
         markerEnd={`url(#arrow-${id})`}
         style={{
           animation: isBlocked
-            ? 'pfPulse 1.5s ease-in-out infinite alternate'
+            ? 'pf-fade 1.5s ease-in-out infinite'
             : isFluid
               ? 'pf-flow 0.9s linear infinite'
               : 'pf-flow 0.6s linear infinite'

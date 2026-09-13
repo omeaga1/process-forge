@@ -30,22 +30,33 @@ fn get_system_telemetry() -> Result<SystemTelemetry, String> {
     })
 }
 
+fn namespaced_service(service: &str) -> String {
+    if service.starts_with("com.processforge.app:") {
+        service.to_string()
+    } else {
+        format!("com.processforge.app:{}", service)
+    }
+}
+
 #[tauri::command]
 fn save_secure_token(service: String, account: String, secret: String) -> Result<(), String> {
-    let entry = Entry::new(&service, &account).map_err(|e| e.to_string())?;
+    let ns_service = namespaced_service(&service);
+    let entry = Entry::new(&ns_service, &account).map_err(|e| e.to_string())?;
     entry.set_password(&secret).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
 fn get_secure_token(service: String, account: String) -> Result<String, String> {
-    let entry = Entry::new(&service, &account).map_err(|e| e.to_string())?;
+    let ns_service = namespaced_service(&service);
+    let entry = Entry::new(&ns_service, &account).map_err(|e| e.to_string())?;
     entry.get_password().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn delete_secure_token(service: String, account: String) -> Result<(), String> {
-    let entry = Entry::new(&service, &account).map_err(|e| e.to_string())?;
+    let ns_service = namespaced_service(&service);
+    let entry = Entry::new(&ns_service, &account).map_err(|e| e.to_string())?;
     entry.delete_password().map_err(|e| e.to_string())
 }
 

@@ -29,7 +29,7 @@ const TUTORIAL_CSS = `
     to { opacity: 1; transform: translateY(0); }
   }
   @keyframes pf-stream-flow {
-    0% { stroke-dashoffset: 32; }
+    0% { stroke-dashoffset: 36; }
     100% { stroke-dashoffset: 0; }
   }
 `;
@@ -110,14 +110,14 @@ export const App: React.FC = () => {
         name: 'macOS',
         os: 'macos',
         extension: '.dmg',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.0'
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.1'
       });
     } else if (platformStr.includes('linux') || userAgent.includes('linux')) {
       setPlatform({
         name: 'Linux',
         os: 'linux',
         extension: '.AppImage',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.0'
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.1'
       });
     }
   }, []);
@@ -207,7 +207,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 border: `1px solid ${OsakaJadePalette.jade[700]}`
               }}
             >
-              v0.1.0-alpha
+              v0.1.1
             </span>
           </div>
         </div>
@@ -383,6 +383,43 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               Launch Web Studio
               <ArrowRight size={16} color={OsakaJadePalette.jade[400]} />
             </a>
+          </div>
+
+          {/* Quick Install PowerShell One-Liner */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              borderRadius: '6px',
+              padding: '6px 14px',
+              marginBottom: '20px',
+              fontSize: '0.8rem',
+              fontFamily: 'monospace'
+            }}
+          >
+            <Terminal size={14} color={OsakaJadePalette.jade[400]} />
+            <span style={{ color: OsakaJadePalette.text.secondary }}>
+              irm https://omeaga1.github.io/process-forge/install.ps1 | iex
+            </span>
+            <button
+              onClick={() => copyToClipboard('irm https://omeaga1.github.io/process-forge/install.ps1 | iex')}
+              title="Copy PowerShell install command"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: OsakaJadePalette.jade[400],
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px',
+                marginLeft: '4px'
+              }}
+            >
+              {copiedSnippet ? <Check size={14} /> : <Copy size={14} />}
+            </button>
           </div>
 
           {/* Download Chips */}
@@ -563,7 +600,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 justifyContent: 'center',
                 gap: '12px',
                 position: 'relative',
-                zIndex: 1
+                zIndex: 1,
+                overflowX: 'auto',
+                maxWidth: '100%',
+                paddingBottom: '8px'
               }}
             >
               {currentTutorial.equipment.map((eq, i) => (
@@ -1031,8 +1071,8 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               {[
                 { label: 'Windows Setup (.exe)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge-Setup-x64.exe', sub: 'Windows 10/11 64-bit' },
                 { label: 'Windows Portable (.zip)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip', sub: 'Zero install, extract and run' },
-                { label: 'macOS Universal (.dmg)', url: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.0', sub: 'Apple Silicon & Intel' },
-                { label: 'Linux (.AppImage / .deb)', url: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.0', sub: 'Ubuntu, Debian, Fedora, Arch' }
+                { label: 'macOS Universal (.dmg)', url: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.1', sub: 'Apple Silicon & Intel' },
+                { label: 'Linux (.AppImage / .deb)', url: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.1', sub: 'Ubuntu, Debian, Fedora, Arch' }
               ].map((item) => (
                 <a
                   key={item.label}

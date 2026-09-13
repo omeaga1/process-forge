@@ -2,13 +2,16 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   ProcessCanvas,
   SHERWIN_WILLIAMS_PAINT_LINE,
+  BEVERAGE_BOTTLING_LINE,
+  BLANK_LINE,
   AiModelModal,
   getAiConfig,
   type AiModelConfig
 } from '@process-forge/canvas-ui';
 import {
   createSimulationProject,
-  type SimulationProject
+  type SimulationProject,
+  type ProcessGraph
 } from '@process-forge/protocol';
 import { HeaderBar } from './components/HeaderBar.js';
 import { McpModal } from './components/McpModal.js';
@@ -60,6 +63,36 @@ export const App: React.FC = () => {
 
   const handleSelectTemplate = useCallback((key: string) => {
     setTemplateKey(key);
+    let targetGraph = SHERWIN_WILLIAMS_PAINT_LINE;
+    let targetName = 'Sherwin-Williams Paint Canning Line';
+    let targetDesc = 'Industrial paint blending, filling, labeling, and palletizing line';
+    if (key === 'beverage-bottling-line') {
+      targetGraph = BEVERAGE_BOTTLING_LINE;
+      targetName = 'High-Speed Beverage Bottling Line';
+      targetDesc = 'High-speed carbonated beverage bottling and packaging line';
+    } else if (key === 'blank') {
+      targetGraph = BLANK_LINE;
+      targetName = 'Custom Process Flow';
+      targetDesc = 'Custom industrial process line';
+    }
+    const updated = createSimulationProject(targetName, targetGraph, {
+      description: targetDesc,
+      isGuest: project.isGuestProject
+    });
+    setProject(updated);
+    saveLocalProject(updated);
+  }, [project.isGuestProject]);
+
+  const handleGraphChange = useCallback((updatedGraph: ProcessGraph) => {
+    setProject((prev) => {
+      const updated: SimulationProject = {
+        ...prev,
+        graph: updatedGraph,
+        updatedAt: new Date().toISOString()
+      };
+      saveLocalProject(updated);
+      return updated;
+    });
   }, []);
 
   const handleSaveLocal = useCallback((name: string, description: string) => {
@@ -119,7 +152,7 @@ export const App: React.FC = () => {
 
       {/* Main Interactive Studio Canvas */}
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <ProcessCanvas />
+        <ProcessCanvas graph={project.graph} onGraphChange={handleGraphChange} />
       </div>
 
       {/* Modals */}

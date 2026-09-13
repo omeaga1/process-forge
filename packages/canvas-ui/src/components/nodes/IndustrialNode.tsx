@@ -26,6 +26,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
       title="Double-click to open Unit-Op Studio"
       style={{
         width: 260,
+        position: 'relative',
         backgroundColor: OsakaJadePalette.background.surface,
         borderRadius: 10,
         border: selected

@@ -22,10 +22,10 @@ export type FluidProperties = z.infer<typeof FluidPropertiesSchema>;
  */
 export const UnitConverters = {
   gallonsPerMinToLitersPerMin(gpm: number): number {
-    return gpm * 3.78541;
+    return gpm * 3.785411784;
   },
   litersPerMinToGallonsPerMin(lpm: number): number {
-    return lpm / 3.78541;
+    return lpm / 3.785411784;
   },
   /**
    * Calculates discrete container throughput from fluid feed rate and container volume.

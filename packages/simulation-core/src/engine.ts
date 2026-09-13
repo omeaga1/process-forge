@@ -29,6 +29,7 @@ export class SimulationEngine {
   private nodes = new Map<string, InternalNodeRuntime>();
   private telemetry: NodeTelemetrySnapshot[] = [];
   private eventCounter = 0;
+  private lastTelemetrySnapshotMinute = -1;
 
   constructor(private readonly graph: ProcessGraph) {
     this.initializeNodes();
@@ -147,9 +148,11 @@ export class SimulationEngine {
       this.currentTimeSeconds = event.timeSeconds;
       this.handleEvent(event);
 
-      // Record periodic telemetry snapshot every 60 simulation seconds
-      if (Math.floor(this.currentTimeSeconds) % 60 === 0) {
+      // Record periodic telemetry snapshot once per simulation minute
+      const currentMinute = Math.floor(this.currentTimeSeconds / 60);
+      if (currentMinute > this.lastTelemetrySnapshotMinute) {
         this.recordTelemetrySnapshot();
+        this.lastTelemetrySnapshotMinute = currentMinute;
       }
     }
 
@@ -197,7 +200,8 @@ export class SimulationEngine {
               this.triggerDownstreamMachine(downstream);
             }
           } else {
-            // Downstream buffer full: machine is blocked
+            // Downstream buffer full: machine is blocked, buffer held items
+            runtime.bufferCans += produced;
             this.setNodeState(runtime, 'BLOCKED');
           }
         }
@@ -357,13 +361,29 @@ export class SimulationEngine {
         if (upstream && upstream.state === 'BLOCKED') {
           this.setNodeState(upstream, 'BUSY');
           if (upstream.node.kind === 'ROTARY_FILLER') {
-            const cfg = upstream.node.config as {
-              fillTimePerCycleSeconds?: number;
-              indexTimePerCycleSeconds?: number;
-            };
-            const cycleTime =
-              (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2);
-            this.scheduleEvent(cycleTime, upstream.node.id, 'FILLER_CYCLE_COMPLETE');
+            const downstream = this.findDownstreamRuntime(upstream.node.id);
+            if (downstream && upstream.bufferCans > 0) {
+              const transferCount = Math.min(upstream.bufferCans, downstream.maxBuffer - downstream.bufferCans);
+              if (transferCount > 0) {
+                upstream.bufferCans -= transferCount;
+                downstream.bufferCans += transferCount;
+                if (downstream.state === 'STARVED' || downstream.state === 'IDLE') {
+                  this.triggerDownstreamMachine(downstream);
+                }
+              }
+            }
+            if (upstream.bufferCans === 0) {
+              this.setNodeState(upstream, 'BUSY');
+              const cfg = upstream.node.config as {
+                fillTimePerCycleSeconds?: number;
+                indexTimePerCycleSeconds?: number;
+              };
+              const cycleTime =
+                (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2);
+              this.scheduleEvent(cycleTime, upstream.node.id, 'FILLER_CYCLE_COMPLETE');
+            } else {
+              this.setNodeState(upstream, 'BLOCKED');
+            }
           } else if (upstream.node.kind === 'CONVEYOR') {
             const cfg = upstream.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
             const speed = cfg.speedMetersPerSecond ?? 0.5;

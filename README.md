@@ -36,7 +36,8 @@ process-forge/
 │   ├── protocol/              # @process-forge/protocol: Shared schemas, units, and contracts
 │   ├── simulation-core/       # @process-forge/simulation-core: Discrete-event & continuous engine
 │   ├── canvas-ui/             # @process-forge/canvas-ui: React Flow canvas & generative inspectors
-│   ├── agent-orchestrator/    # @process-forge/agent-orchestrator: LangGraph + CopilotKit agents
+│   ├── mcp-server/            # @process-forge/mcp-server: Model Context Protocol server (6 tools)
+│   ├── theme/                 # @process-forge/theme: Osaka Jade design tokens & themes
 │   └── scaffold-registry/     # @process-forge/scaffold-registry: Anti-laziness enforcement & CLI
 ├── tooling/
 │   ├── typescript-config/     # Strict shared TSConfig
@@ -83,7 +84,7 @@ process-forge/
                  └──────────────────────┼───────────────────────┘
                                         ▼
                   ┌────────────────────────────────────────────────┐
-                  │   Deterministic Simulation Engine (Rust/Wasm)   │
+                  │  Deterministic Simulation Engine (TypeScript)  │
                   │ Event Queue • Rate Balance • Physical Solver   │
                   └────────────────────────────────────────────────┘
 ```

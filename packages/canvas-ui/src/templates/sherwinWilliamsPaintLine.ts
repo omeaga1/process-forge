@@ -301,3 +301,265 @@ export const SHERWIN_WILLIAMS_PAINT_LINE: ProcessGraph = {
     }
   ]
 };
+
+export const BEVERAGE_BOTTLING_LINE: ProcessGraph = {
+  id: 'beverage-bottling-twin-01',
+  name: 'High-Speed Beverage Bottling & Carbonation Line',
+  version: '1.0.0',
+  metadata: {
+    facility: 'Apex Beverage Bottling Facility',
+    productLine: 'Sparkling Mineral Water 500ml',
+    containerType: '500ml PET Bottle'
+  },
+  nodes: [
+    {
+      id: 'carbonator-100',
+      name: 'Carbo-Cooler Blending Matrix',
+      kind: 'BATCH_REACTOR',
+      position: { x: 50, y: 150 },
+      inputs: [],
+      outputs: [
+        {
+          id: 'out-carbonated',
+          name: 'Carbonated Beverage Flow',
+          type: 'FLUID_OUTPUT',
+          flowDimension: 'CONTINUOUS_VOLUME'
+        }
+      ],
+      config: {
+        batchVolumeGallons: 2000,
+        fillDurationMinutes: 15,
+        reactionDurationMinutes: 30,
+        dischargeRateGpm: 80,
+        fluid: {
+          name: 'Chilled Carbonated Water (3.8 vol CO2)',
+          densityGPerCm3: 1.01,
+          viscosityCentipoise: 1.1,
+          temperatureCelsius: 4
+        }
+      },
+      assignedSubAgentId: 'subagent-carbonator-100',
+      dressing: {
+        nozzles: [
+          { id: 'N1', name: 'Treated Water Inlet', role: 'inlet', x: 20, y: 15, position: 'top', sizeInches: 4, ratingPsi: 150 },
+          { id: 'N2', name: 'CO2 Gas Injection Header', role: 'utility', x: 50, y: 10, position: 'top', sizeInches: 2, ratingPsi: 300 },
+          { id: 'N3', name: 'Syrup Dosing Inlet', role: 'inlet', x: 80, y: 20, position: 'top', sizeInches: 2, ratingPsi: 150 },
+          { id: 'N4', name: 'Product Outfeed', role: 'outlet', x: 50, y: 95, position: 'bottom', sizeInches: 3, ratingPsi: 150 }
+        ],
+        internals: {
+          agitatorType: 'propeller',
+          agitatorRpm: 240,
+          hasJacket: true,
+          jacketType: 'glycol',
+          jacketPressurePsi: 90,
+          baffleCount: 4,
+          packingType: 'structured',
+          hasDemister: true,
+          hasSprayHeader: true
+        },
+        notes: 'Deaeration and isobaric carbonation system with glycol-chilled falling film plate'
+      }
+    },
+    {
+      id: 'filler-capper-200',
+      name: 'Isobaric Rotary Filler & Capper',
+      kind: 'ROTARY_FILLER',
+      position: { x: 400, y: 150 },
+      inputs: [
+        {
+          id: 'in-fluid',
+          name: 'Beverage Supply',
+          type: 'FLUID_INPUT',
+          flowDimension: 'CONTINUOUS_VOLUME'
+        }
+      ],
+      outputs: [
+        {
+          id: 'out-bottles',
+          name: 'Capped Bottles',
+          type: 'DISCRETE_OUTPUT',
+          flowDimension: 'DISCRETE_CONTAINER'
+        }
+      ],
+      config: {
+        fillHeadCount: 48,
+        containerVolumeGallons: 0.264,
+        fillSpeedUnitsPerMinute: 300,
+        fillToleranceMl: 1.5,
+        nozzleType: 'ELECTROPNEUMATIC_COUNTERPRESSURE',
+        rejectRatePercent: 0.2
+      },
+      assignedSubAgentId: 'subagent-filler-200',
+      dressing: {
+        nozzles: [
+          { id: 'N1', name: 'Isobaric Fluid Manifold', role: 'inlet', x: 10, y: 50, position: 'left', sizeInches: 3, ratingPsi: 150 },
+          { id: 'N2', name: 'Counterpressure Return Vent', role: 'vent', x: 50, y: 10, position: 'top', sizeInches: 2, ratingPsi: 150 },
+          { id: 'N3', name: 'CIP Sanitation Infeed', role: 'utility', x: 90, y: 30, position: 'right', sizeInches: 2, ratingPsi: 150 }
+        ],
+        internals: {
+          agitatorType: 'none',
+          agitatorRpm: 0,
+          hasJacket: false,
+          jacketType: 'none',
+          jacketPressurePsi: 0,
+          baffleCount: 0,
+          packingType: 'none',
+          hasDemister: false,
+          hasSprayHeader: true
+        },
+        notes: 'Monobloc 48-valve isobaric filler with pick-and-place rotary crown/screw capper'
+      }
+    },
+    {
+      id: 'accumulation-300',
+      name: 'Dynamic Spiral Accumulation Table',
+      kind: 'CONVEYOR',
+      position: { x: 750, y: 150 },
+      inputs: [
+        {
+          id: 'in-bottles',
+          name: 'Filled Bottles Infeed',
+          type: 'DISCRETE_INPUT',
+          flowDimension: 'DISCRETE_CONTAINER'
+        }
+      ],
+      outputs: [
+        {
+          id: 'out-bottles',
+          name: 'Buffered Bottles Outfeed',
+          type: 'DISCRETE_OUTPUT',
+          flowDimension: 'DISCRETE_CONTAINER'
+        }
+      ],
+      config: {
+        lengthMeters: 24,
+        speedMetersPerMinute: 35,
+        maxBufferCapacityUnits: 180,
+        sensorCheckIntervalMs: 100,
+        jamProbabilityPercent: 0.05
+      },
+      assignedSubAgentId: 'subagent-accumulation-300',
+      dressing: {
+        nozzles: [],
+        internals: {
+          agitatorType: 'none',
+          agitatorRpm: 0,
+          hasJacket: false,
+          jacketType: 'none',
+          jacketPressurePsi: 0,
+          baffleCount: 0,
+          packingType: 'none',
+          hasDemister: false,
+          hasSprayHeader: false
+        },
+        notes: 'Low-backpressure dynamic bi-directional accumulation table'
+      }
+    },
+    {
+      id: 'labeler-400',
+      name: 'Rotary Roll-Fed Sleeve Labeler',
+      kind: 'LABELER',
+      position: { x: 1100, y: 150 },
+      inputs: [
+        {
+          id: 'in-bottles',
+          name: 'Unlabeled Bottles',
+          type: 'DISCRETE_INPUT',
+          flowDimension: 'DISCRETE_CONTAINER'
+        }
+      ],
+      outputs: [
+        {
+          id: 'out-labeled',
+          name: 'Labeled Bottles',
+          type: 'DISCRETE_OUTPUT',
+          flowDimension: 'DISCRETE_CONTAINER'
+        }
+      ],
+      config: {
+        applicationRateUnitsPerMinute: 280,
+        labelRollCapacityUnits: 5000,
+        glueTemperatureCelsius: 140,
+        opticalVisionCheckEnabled: true,
+        misalignmentToleranceMm: 0.8
+      },
+      assignedSubAgentId: 'subagent-labeler-400',
+      dressing: {
+        nozzles: [],
+        internals: {
+          agitatorType: 'none',
+          agitatorRpm: 0,
+          hasJacket: false,
+          jacketType: 'none',
+          jacketPressurePsi: 0,
+          baffleCount: 0,
+          packingType: 'none',
+          hasDemister: false,
+          hasSprayHeader: false
+        },
+        notes: 'Rotary carousel hot-melt OPP wrap-around labeling unit with high-speed Cognex vision verification'
+      }
+    }
+  ],
+  edges: [
+    {
+      id: 'e-carb-filler',
+      sourceNodeId: 'carbonator-100',
+      sourcePortId: 'out-carbonated',
+      targetNodeId: 'filler-capper-200',
+      targetPortId: 'in-fluid',
+      stream: {
+        type: 'CONTINUOUS_FLUID',
+        designFlowRateGpm: 80,
+        operatingPressurePsi: 65,
+        pipeDiameterInches: 3.0,
+        fluid: {
+          name: 'Chilled Carbonated Water',
+          densityGPerCm3: 1.01,
+          viscosityCentipoise: 1.1,
+          temperatureCelsius: 4
+        }
+      }
+    },
+    {
+      id: 'e-filler-accum',
+      sourceNodeId: 'filler-capper-200',
+      sourcePortId: 'out-bottles',
+      targetNodeId: 'accumulation-300',
+      targetPortId: 'in-bottles',
+      stream: {
+        type: 'DISCRETE_CONTAINER_STREAM',
+        targetPiecesPerMinute: 300,
+        containerVolumeGallons: 0.264,
+        containerType: 'BOTTLE_1_LITER'
+      }
+    },
+    {
+      id: 'e-accum-labeler',
+      sourceNodeId: 'accumulation-300',
+      sourcePortId: 'out-bottles',
+      targetNodeId: 'labeler-400',
+      targetPortId: 'in-bottles',
+      stream: {
+        type: 'DISCRETE_CONTAINER_STREAM',
+        targetPiecesPerMinute: 280,
+        containerVolumeGallons: 0.264,
+        containerType: 'BOTTLE_1_LITER'
+      }
+    }
+  ]
+};
+
+export const BLANK_LINE: ProcessGraph = {
+  id: 'blank-canvas-01',
+  name: 'Custom Process Flow',
+  version: '1.0.0',
+  metadata: {
+    facility: 'Custom Facility',
+    productLine: 'New Process Line',
+    containerType: 'Custom'
+  },
+  nodes: [],
+  edges: []
+};
+

@@ -22,12 +22,13 @@ We implement `@process-forge/mcp-server` adhering to Anthropic's open **Model Co
 - All simulation calculus runs in Node.js/Wasm on the user's workstation.
 - External AI clients query tools locally; proprietary manufacturing parameters never egress to external databases.
 
-### 2. Five Core Engineering Tools
+### 2. Six Core Engineering Tools
 1. `simulate_process_line`: Runs high-precision discrete-event and continuous mass balance simulations, returning cycle times, throughput, and machine bottleneck metrics.
 2. `diagnose_bottlenecks`: Audits process graph topology, detects continuous/discrete port mismatches, and pinpoints backpressure accumulation.
 3. `query_unit_subagent`: Serves as the machine-level specialist software engineer, synthesizing dynamic Generative UI controls, physical parameters, and MTBF/MTTR failure distributions.
 4. `package_unit_op`: Packages validated Unit-Ops and Sub-Agents into Obsidian-style `.pfu` community bundles for ForgeHub.
-5. `list_digital_twin_templates`: Lists pre-configured digital twins (e.g. Sherwin-Williams paint canning line, beverage bottling line).
+5. `forge_equipment_drawing`: Synthesizes parametric 2D CAD engineering drawings with ASME nozzle schedules, internals, and animated SVG components using Drawing-with-Thought.
+6. `list_digital_twin_templates`: Lists pre-configured digital twins (e.g. Sherwin-Williams paint canning line, beverage bottling line).
 
 ### 3. Cross-Platform Compatibility
 - Standard configuration snippets are provided for **Claude Desktop** (`claude_desktop_config.json`), **Gemini CLI** (`gemini mcp add`), and **Cursor**.
