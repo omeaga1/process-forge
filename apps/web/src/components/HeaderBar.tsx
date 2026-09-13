@@ -18,7 +18,6 @@ interface HeaderBarProps {
   isGuestMode: boolean;
   activeAiProvider?: string;
   onSelectTemplate: (templateKey: string) => void;
-  onOpenMcpModal: () => void;
   onOpenAiModal?: () => void;
   onOpenForgeHub: () => void;
   onOpenSaveModal: () => void;
@@ -31,7 +30,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   isGuestMode,
   activeAiProvider = 'offline',
   onSelectTemplate,
-  onOpenMcpModal,
   onOpenAiModal,
   onOpenForgeHub,
   onOpenSaveModal,
@@ -152,28 +150,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               color: activeAiProvider === 'offline' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow,
               cursor: 'pointer'
             }}
-            title={`AI Provider: ${activeAiProvider.toUpperCase()}`}
+            title={`AI & MCP Engine: ${activeAiProvider.toUpperCase()}`}
           >
             <Cpu size={15} />
-          </button>
-
-          <button
-            onClick={onOpenMcpModal}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 32,
-              height: 32,
-              borderRadius: 6,
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              color: OsakaJadePalette.text.primary,
-              cursor: 'pointer'
-            }}
-            title="MCP Server Configuration"
-          >
-            <Zap size={15} color={OsakaJadePalette.jade[500]} />
           </button>
         </div>
       </header>
@@ -359,7 +338,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           Save Simulation
         </button>
 
-        {/* AI Connection Button (Zero-Key MCP & OAuth) */}
+        {/* AI & MCP Connection Button (Zero Raw Keys) */}
         <button
           onClick={onOpenAiModal}
           style={{
@@ -375,38 +354,17 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             fontWeight: 600,
             cursor: 'pointer'
           }}
-          title="Manage AI Connection (MCP or OAuth 2.0 PKCE - Zero Raw Keys)"
+          title="Manage AI & MCP Connection (MCP Stdio Server or OAuth 2.0 PKCE - Zero Raw Keys)"
         >
           {activeAiProvider === 'offline' ? <Zap size={14} /> : <Cpu size={14} color={OsakaJadePalette.jade.glow} />}
           <span>
-            AI Connection:{' '}
+            AI & MCP:{' '}
             {activeAiProvider === 'offline'
               ? 'OFFLINE (LOCAL)'
               : activeAiProvider === 'mcp'
-              ? 'MCP CONNECTED'
-              : 'OAUTH SIGNED IN'}
+              ? 'MCP FORGE ACTIVE'
+              : 'OAUTH ENTERPRISE'}
           </span>
-        </button>
-
-        {/* MCP Server Setup */}
-        <button
-          onClick={onOpenMcpModal}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            backgroundColor: 'rgba(255, 255, 255, 0.04)',
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            borderRadius: 6,
-            padding: '6px 12px',
-            color: OsakaJadePalette.text.primary,
-            fontSize: 12,
-            cursor: 'pointer'
-          }}
-          title="Connect Claude Desktop / Gemini CLI via MCP"
-        >
-          <Cpu size={14} color={OsakaJadePalette.jade[500]} />
-          MCP Server
         </button>
 
         {/* ForgeHub Marketplace */}

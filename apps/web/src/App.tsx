@@ -14,7 +14,6 @@ import {
   type ProcessGraph
 } from '@process-forge/protocol';
 import { HeaderBar } from './components/HeaderBar.js';
-import { McpModal } from './components/McpModal.js';
 import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModal.js';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
@@ -27,7 +26,6 @@ import {
 
 export const App: React.FC = () => {
   const [templateKey, setTemplateKey] = useState<string>('sherwin-williams-paint-line');
-  const [isMcpModalOpen, setIsMcpModalOpen] = useState<boolean>(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(() => getAiConfig());
   const [isGuestModalOpen, setIsGuestModalOpen] = useState<boolean>(false);
@@ -139,7 +137,6 @@ export const App: React.FC = () => {
         isGuestMode={project.isGuestProject}
         activeAiProvider={aiConfig.provider}
         onSelectTemplate={handleSelectTemplate}
-        onOpenMcpModal={() => setIsMcpModalOpen(true)}
         onOpenAiModal={() => setIsAiModalOpen(true)}
         onOpenForgeHub={() => {}}
         onOpenSaveModal={() => setIsSaveModalOpen(true)}
@@ -156,8 +153,6 @@ export const App: React.FC = () => {
       </div>
 
       {/* Modals */}
-      <McpModal isOpen={isMcpModalOpen} onClose={() => setIsMcpModalOpen(false)} />
-
       <AiModelModal
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}

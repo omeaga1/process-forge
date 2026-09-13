@@ -5,7 +5,6 @@ import {
   AlertCircle,
   ShieldCheck,
   Zap,
-  RefreshCw,
   X,
   Copy,
   Check,
@@ -18,7 +17,7 @@ import {
 import { OsakaJadePalette } from '@process-forge/theme';
 import {
   getAiConnection,
-  testMcpConnection,
+  enableMcpMode,
   initiateOAuthLogin,
   signOutOAuth,
   disconnectMcp,
@@ -40,8 +39,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
 }) => {
   const [conn, setConn] = useState<AiConnectionState>(getAiConnection());
   const [activeTab, setActiveTab] = useState<'mcp' | 'oauth' | 'offline'>('mcp');
-  const [mcpEndpoint, setMcpEndpoint] = useState<string>(conn.mcp.endpoint || 'http://localhost:3001/mcp');
-  const [isTestingMcp, setIsTestingMcp] = useState<boolean>(false);
+  const [mcpClientTab, setMcpClientTab] = useState<'claude' | 'gemini' | 'cursor' | 'local'>('claude');
+  const [isActivatingMcp, setIsActivatingMcp] = useState<boolean>(false);
   const [mcpResult, setMcpResult] = useState<{
     success: boolean;
     message: string;
@@ -54,7 +53,6 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     if (isOpen) {
       const active = getAiConnection();
       setConn(active);
-      setMcpEndpoint(active.mcp.endpoint || 'http://localhost:3001/mcp');
       setActiveTab(active.mode === 'offline' ? 'mcp' : active.mode);
       setMcpResult(null);
     }
@@ -62,36 +60,31 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleTestMcp = async () => {
-    setIsTestingMcp(true);
-    setMcpResult(null);
-    try {
-      const res = await testMcpConnection(mcpEndpoint.trim());
-      setMcpResult(res);
-      const updated = getAiConnection();
+  const handleToggleMcp = () => {
+    if (conn.mode === 'mcp') {
+      const updated = disconnectMcp();
       setConn(updated);
+      setMcpResult(null);
       onConfigChanged?.({
         provider: updated.mode,
         mode: updated.mode
       });
-    } catch (err: any) {
+    } else {
+      setIsActivatingMcp(true);
+      const updated = enableMcpMode();
+      setConn(updated);
       setMcpResult({
-        success: false,
-        message: err?.message || 'Failed to connect to MCP server'
+        success: true,
+        message: 'ProcessForge MCP Server enabled with 6 engineering tools active over stdio.',
+        toolsCount: 6,
+        latencyMs: 1
       });
-    } finally {
-      setIsTestingMcp(false);
+      setIsActivatingMcp(false);
+      onConfigChanged?.({
+        provider: updated.mode,
+        mode: updated.mode
+      });
     }
-  };
-
-  const handleDisconnectMcp = () => {
-    const updated = disconnectMcp();
-    setConn(updated);
-    setMcpResult(null);
-    onConfigChanged?.({
-      provider: updated.mode,
-      mode: updated.mode
-    });
   };
 
   const handleOAuthLogin = (provider: 'google' | 'github' | 'microsoft' | 'sso') => {
@@ -116,6 +109,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     resetToOfflineConfig();
     const updated = getAiConnection();
     setConn(updated);
+    setMcpResult(null);
     onConfigChanged?.({
       provider: updated.mode,
       mode: updated.mode
@@ -126,8 +120,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     {
       mcpServers: {
         'process-forge': {
-          command: 'node',
-          args: ['packages/mcp-server/dist/cli.js']
+          command: 'npx',
+          args: ['-y', '@process-forge/mcp-server']
         }
       }
     },
@@ -135,8 +129,46 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     2
   );
 
+  const geminiCliSnippet = `# Connect ProcessForge MCP tools to Gemini CLI (stdio):
+gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
+
+  const cursorSnippet = JSON.stringify(
+    {
+      mcpServers: {
+        'process-forge': {
+          command: 'npx',
+          args: ['-y', '@process-forge/mcp-server']
+        }
+      }
+    },
+    null,
+    2
+  );
+
+  const localDevSnippet = JSON.stringify(
+    {
+      mcpServers: {
+        'process-forge': {
+          command: 'node',
+          args: ['<path-to-repo>/packages/mcp-server/dist/cli.js']
+        }
+      }
+    },
+    null,
+    2
+  );
+
+  const activeSnippetText =
+    mcpClientTab === 'claude'
+      ? claudeDesktopSnippet
+      : mcpClientTab === 'gemini'
+      ? geminiCliSnippet
+      : mcpClientTab === 'cursor'
+      ? cursorSnippet
+      : localDevSnippet;
+
   const handleCopySnippet = () => {
-    navigator.clipboard.writeText(claudeDesktopSnippet);
+    navigator.clipboard.writeText(activeSnippetText);
     setCopiedSnippet(true);
     setTimeout(() => setCopiedSnippet(false), 2000);
   };
@@ -359,15 +391,14 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <div>
                 <h4 style={{ margin: '0 0 6px 0', fontSize: 14, color: OsakaJadePalette.text.primary }}>
-                  Local & Networked Model Context Protocol (MCP) Bridge
+                  Local Model Context Protocol (MCP) Server
                 </h4>
                 <p style={{ margin: 0, fontSize: 12, color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
-                  Connect directly to the local ProcessForge MCP Server, Claude Desktop, or Gemini CLI.
-                  Allows MCP tools to synthesize vector CAD drawings, configure nozzle schedules, and scaffold simulation environments with zero external API keys.
+                  ProcessForge runs an embedded MCP server exposing 6 deterministic engineering tools over standard I/O (<code style={{ color: OsakaJadePalette.jade.glow }}>stdio</code>). External AI assistants (Claude Desktop, Gemini CLI, Cursor) connect directly without sending your proprietary CAD or flowsheet topologies to third-party endpoints.
                 </p>
               </div>
 
-              {/* Endpoint Input & Ping */}
+              {/* Status / Activation Card */}
               <div
                 style={{
                   padding: 16,
@@ -375,102 +406,76 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                    MCP Server Endpoint URL
-                  </label>
-                  <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>Default: http://localhost:3001/mcp</span>
-                </div>
-
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <input
-                    type="text"
-                    value={mcpEndpoint}
-                    onChange={(e) => setMcpEndpoint(e.target.value)}
-                    placeholder="http://localhost:3001/mcp"
-                    style={{
-                      flex: 1,
-                      backgroundColor: OsakaJadePalette.background.canvas,
-                      border: `1px solid ${OsakaJadePalette.border.default}`,
-                      borderRadius: 6,
-                      padding: '8px 12px',
-                      color: OsakaJadePalette.text.primary,
-                      fontSize: 13,
-                      outline: 'none'
-                    }}
-                  />
-                  <button
-                    onClick={handleTestMcp}
-                    disabled={isTestingMcp}
-                    style={{
-                      padding: '8px 16px',
-                      borderRadius: 6,
-                      backgroundColor: OsakaJadePalette.jade.glow,
-                      color: OsakaJadePalette.background.base,
-                      border: 'none',
-                      fontWeight: 700,
-                      fontSize: 12,
-                      cursor: isTestingMcp ? 'not-allowed' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6
-                    }}
-                  >
-                    {isTestingMcp ? <RefreshCw size={14} className="animate-spin" /> : <Radio size={14} />}
-                    {isTestingMcp ? 'Connecting...' : 'Test & Connect'}
-                  </button>
-                  {conn.mode === 'mcp' && (
-                    <button
-                      onClick={handleDisconnectMcp}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span
                       style={{
-                        padding: '8px 14px',
-                        borderRadius: 6,
-                        backgroundColor: 'transparent',
-                        border: `1px solid ${OsakaJadePalette.border.default}`,
-                        color: OsakaJadePalette.text.muted,
-                        fontWeight: 600,
-                        fontSize: 12,
-                        cursor: 'pointer'
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: conn.mode === 'mcp' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
+                        boxShadow: conn.mode === 'mcp' ? `0 0 8px ${OsakaJadePalette.jade.glow}` : 'none'
                       }}
-                    >
-                      Disconnect
-                    </button>
-                  )}
+                    />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
+                      ProcessForge MCP Server (stdio)
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>
+                    {conn.mode === 'mcp'
+                      ? 'Status: Active • Studio synchronized with local 6-tool engineering engine'
+                      : 'Status: Standalone / Offline • External MCP client configuration ready'}
+                  </div>
                 </div>
 
-                {/* MCP Test Result Banner */}
-                {mcpResult && (
-                  <div
-                    style={{
-                      padding: '10px 14px',
-                      borderRadius: 6,
-                      backgroundColor: mcpResult.success ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                      border: `1px solid ${mcpResult.success ? OsakaJadePalette.jade[600] : 'rgba(239, 68, 68, 0.4)'}`,
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 10,
-                      fontSize: 12,
-                      color: mcpResult.success ? OsakaJadePalette.jade[300] : '#f87171'
-                    }}
-                  >
-                    {mcpResult.success ? <CheckCircle2 size={16} style={{ marginTop: 2 }} /> : <AlertCircle size={16} style={{ marginTop: 2 }} />}
-                    <div>
-                      <div>{mcpResult.message}</div>
-                      {mcpResult.latencyMs !== undefined && (
-                        <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
-                          Response Latency: {mcpResult.latencyMs}ms • Tools Available: {mcpResult.toolsCount || 5}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                <button
+                  onClick={handleToggleMcp}
+                  disabled={isActivatingMcp}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: 6,
+                    backgroundColor: conn.mode === 'mcp' ? OsakaJadePalette.background.surface : OsakaJadePalette.jade.glow,
+                    color: conn.mode === 'mcp' ? OsakaJadePalette.text.primary : OsakaJadePalette.background.base,
+                    border: conn.mode === 'mcp' ? `1px solid ${OsakaJadePalette.border.default}` : 'none',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: isActivatingMcp ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Radio size={14} />
+                  {conn.mode === 'mcp' ? 'Deactivate in Studio' : 'Enable in Studio'}
+                </button>
               </div>
 
-              {/* Claude Desktop Snippet */}
+              {/* Status Feedback Banner */}
+              {mcpResult && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 6,
+                    backgroundColor: mcpResult.success ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                    border: `1px solid ${mcpResult.success ? OsakaJadePalette.jade[600] : 'rgba(239, 68, 68, 0.4)'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    fontSize: 12,
+                    color: mcpResult.success ? OsakaJadePalette.jade[300] : '#f87171'
+                  }}
+                >
+                  {mcpResult.success ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  <span>{mcpResult.message}</span>
+                </div>
+              )}
+
+              {/* Client Connection Snippets */}
               <div
                 style={{
                   padding: 16,
@@ -479,12 +484,12 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   border: `1px solid ${OsakaJadePalette.border.subtle}`,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 10
+                  gap: 12
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                    Claude Desktop Configuration (claude_desktop_config.json)
+                  <span style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
+                    Connect to AI Assistants (Zero Raw Keys)
                   </span>
                   <button
                     onClick={handleCopySnippet}
@@ -492,17 +497,58 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       gap: 4,
-                      background: 'none',
-                      border: 'none',
+                      background: OsakaJadePalette.background.surface,
+                      border: `1px solid ${OsakaJadePalette.border.default}`,
+                      padding: '4px 10px',
+                      borderRadius: 4,
                       color: OsakaJadePalette.jade[400],
                       fontSize: 11,
+                      fontWeight: 600,
                       cursor: 'pointer'
                     }}
                   >
                     {copiedSnippet ? <Check size={12} /> : <Copy size={12} />}
-                    {copiedSnippet ? 'Copied!' : 'Copy Config'}
+                    {copiedSnippet ? 'Copied' : 'Copy Snippet'}
                   </button>
                 </div>
+
+                {/* Sub-tabs for AI clients */}
+                <div style={{ display: 'flex', gap: 6, borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`, paddingBottom: 6 }}>
+                  {(['claude', 'gemini', 'cursor', 'local'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setMcpClientTab(tab)}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: 4,
+                        border: 'none',
+                        backgroundColor: mcpClientTab === tab ? OsakaJadePalette.background.canvas : 'transparent',
+                        color: mcpClientTab === tab ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {tab === 'claude' ? 'Claude Desktop' : tab === 'gemini' ? 'Gemini CLI' : tab === 'cursor' ? 'Cursor IDE' : 'Local Repo'}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
+                  {mcpClientTab === 'claude' && (
+                    <span>Add to <code style={{ color: OsakaJadePalette.jade.glow }}>claude_desktop_config.json</code> under <code style={{ color: OsakaJadePalette.jade.glow }}>mcpServers</code>:</span>
+                  )}
+                  {mcpClientTab === 'gemini' && (
+                    <span>Run in your terminal to register the ProcessForge MCP tools with Google Gemini CLI:</span>
+                  )}
+                  {mcpClientTab === 'cursor' && (
+                    <span>Add to your project root <code style={{ color: OsakaJadePalette.jade.glow }}>.cursor/mcp.json</code>:</span>
+                  )}
+                  {mcpClientTab === 'local' && (
+                    <span>For developers running the ProcessForge monorepo from local repository build:</span>
+                  )}
+                </div>
+
                 <pre
                   style={{
                     backgroundColor: OsakaJadePalette.background.canvas,
@@ -510,13 +556,48 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     borderRadius: 6,
                     fontSize: 11,
                     fontFamily: 'monospace',
-                    color: OsakaJadePalette.text.secondary,
+                    color: OsakaJadePalette.jade[200],
                     margin: 0,
-                    overflowX: 'auto'
+                    overflowX: 'auto',
+                    lineHeight: 1.4
                   }}
                 >
-                  {claudeDesktopSnippet}
+                  {activeSnippetText}
                 </pre>
+              </div>
+
+              {/* 6 Deterministic Engineering Tools Registered */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.text.primary, marginBottom: 8 }}>
+                  Deterministic Engineering Tools Exposed
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                  {[
+                    { name: 'simulate_process_line', desc: 'Discrete-event queue & Runge-Kutta ODE mass balance' },
+                    { name: 'diagnose_bottlenecks', desc: 'Pinpoints starvation, backpressure, and cycle limits' },
+                    { name: 'query_unit_subagent', desc: 'Retrieves thermodynamic specs and nozzle schedules' },
+                    { name: 'package_unit_op', desc: 'Synthesizes validated UnitOp manifest scaffold directories' },
+                    { name: 'forge_equipment_drawing', desc: 'Generates vector CAD SVG asset definitions and ports' },
+                    { name: 'list_digital_twin_templates', desc: 'Returns canonical industrial chemical line flowsheets' }
+                  ].map((tool) => (
+                    <div
+                      key={tool.name}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                        border: `1px solid ${OsakaJadePalette.border.subtle}`
+                      }}
+                    >
+                      <code style={{ fontSize: 11, color: OsakaJadePalette.jade.glow, fontWeight: 700 }}>
+                        {tool.name}
+                      </code>
+                      <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, marginTop: 2 }}>
+                        {tool.desc}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

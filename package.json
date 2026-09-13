@@ -13,6 +13,7 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "verify:scaffolds": "node ./packages/scaffold-registry/dist/cli.js check",
+    "mcp:start": "pnpm --filter @process-forge/mcp-server start",
     "clean": "turbo run clean"
   },
   "devDependencies": {
