@@ -135,9 +135,6 @@ export const App: React.FC = () => {
         isOpen={isGuestModalOpen}
         onClose={() => setIsGuestModalOpen(false)}
         onExportFile={() => downloadProjectFile(project)}
-        onOpenAuth={() => {
-          alert('OAuth PKCE Login: Redirecting to Google / Microsoft SSO in production.');
-        }}
       />
 
       <SaveProjectModal
@@ -146,9 +143,6 @@ export const App: React.FC = () => {
         onClose={() => setIsSaveModalOpen(false)}
         onSaveLocal={handleSaveLocal}
         onDownloadFile={handleDownloadFile}
-        onOpenAuth={() => {
-          alert('OAuth PKCE Login: Redirecting to Google / Microsoft SSO in production.');
-        }}
       />
     </div>
   );

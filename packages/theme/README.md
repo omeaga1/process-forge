@@ -4,7 +4,7 @@ Official **"Osaka Jade"** design system tokens, Tailwind CSS preset, and canvas 
 
 ---
 
-## 🚀 Quick Usage
+## Quick Usage
 
 ### In React / TypeScript Canvas Components
 ```typescript
@@ -40,5 +40,5 @@ Or inject programmatically using `generateOsakaJadeCssVariables()`.
 
 ---
 
-## 📄 Documentation
+## Documentation
 For color science and full visual hierarchy, see [docs/architecture/05-osaka-jade-design.md](../../docs/architecture/05-osaka-jade-design.md).

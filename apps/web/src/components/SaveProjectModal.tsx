@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Download, Cloud, X, Check } from 'lucide-react';
+import { Save, Download, X, Check } from 'lucide-react';
 import { OsakaJadePalette } from '@process-forge/theme';
 import type { SimulationProject } from '@process-forge/protocol';
 
@@ -9,7 +9,6 @@ interface SaveProjectModalProps {
   onClose: () => void;
   onSaveLocal: (name: string, description: string) => void;
   onDownloadFile: (name: string, description: string) => void;
-  onOpenAuth: () => void;
 }
 
 export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
@@ -17,8 +16,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
   project,
   onClose,
   onSaveLocal,
-  onDownloadFile,
-  onOpenAuth
+  onDownloadFile
 }) => {
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || '');
@@ -92,10 +90,10 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                Save Simulation Digital Twin
+                Save Simulation Flowsheet
               </h3>
               <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-                Preserve topology, machine configs, and sub-agent chats
+                Preserve topology, equipment parameters, and stream connections
               </span>
             </div>
           </div>
@@ -206,7 +204,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
               </button>
             </div>
 
-            {/* Cloud Sync */}
+            {/* Browser Local Storage Cache */}
             <div
               style={{
                 display: 'flex',
@@ -215,58 +213,39 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                 padding: 14,
                 backgroundColor: OsakaJadePalette.background.canvas,
                 border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                borderRadius: 8,
-                opacity: project.isGuestProject ? 0.85 : 1.0
+                borderRadius: 8
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Cloud size={20} color={OsakaJadePalette.border.glowAmber} />
+                <Save size={20} color={OsakaJadePalette.jade[400]} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                    Cloud Database Sync
+                    Browser Local Storage Cache
                   </div>
                   <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
-                    {project.isGuestProject
-                      ? 'Requires a free account to sync across devices.'
-                      : 'Sync changes to your cloud team workspace.'}
+                    Persists this project in your local browser cache for immediate reloading.
                   </div>
                 </div>
               </div>
-              {project.isGuestProject ? (
-                <button
-                  onClick={() => {
-                    onOpenAuth();
-                    onClose();
-                  }}
-                  style={{
-                    padding: '7px 14px',
-                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                    border: `1px solid ${OsakaJadePalette.border.glowAmber}`,
-                    borderRadius: 6,
-                    color: OsakaJadePalette.border.glowAmber,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Sign In to Sync
-                </button>
-              ) : (
-                <button
-                  onClick={handleSaveLocal}
-                  style={{
-                    padding: '7px 14px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                    border: `1px solid ${OsakaJadePalette.border.default}`,
-                    borderRadius: 6,
-                    color: OsakaJadePalette.text.primary,
-                    fontSize: 12,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Sync Now
-                </button>
-              )}
+              <button
+                onClick={handleSaveLocal}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 14px',
+                  backgroundColor: isSavedLocally ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                  border: `1px solid ${isSavedLocally ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
+                  borderRadius: 6,
+                  color: isSavedLocally ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.primary,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                {isSavedLocally && <Check size={14} color={OsakaJadePalette.jade[400]} />}
+                {isSavedLocally ? 'Saved to Cache' : 'Save to Cache'}
+              </button>
             </div>
           </div>
         </div>

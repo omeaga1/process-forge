@@ -21,7 +21,7 @@ const COMMUNITY_PLUGINS: ForgeHubPluginItem[] = [
     author: 'OEM-Serac Systems',
     category: 'PACKAGING',
     description:
-      'High-speed rotary liquid filler with bottom-up dwell cams to eliminate latex paint foaming. Includes dedicated Serac OEM Sub-Agent with automated viscosity compensation.',
+      'High-speed rotary liquid filler with bottom-up dwell cams to eliminate latex paint foaming. Includes dedicated Serac OEM port contracts and nozzle dressing.',
     rating: 4.9,
     downloadCount: 1420,
     nodeTemplate: {
@@ -100,7 +100,7 @@ const COMMUNITY_PLUGINS: ForgeHubPluginItem[] = [
     author: 'PackSys Global',
     category: 'PACKAGING',
     description:
-      'End-of-line case packing cell. Groups 24 one-gallon cans into corrugated trays with hot-melt glue sealing. Built-in jam detection sub-agent.',
+      'End-of-line case packing cell. Groups 24 one-gallon cans into corrugated trays with hot-melt glue sealing and queue telemetry.',
     rating: 4.95,
     downloadCount: 2150,
     nodeTemplate: {

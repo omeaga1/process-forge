@@ -189,7 +189,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Sparkles size={16} color={OsakaJadePalette.jade[400]} />
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-              Sub-Agent CAD Drawing Studio
+              Unit-Op CAD Drawing Studio
             </span>
             <span
               style={{
@@ -241,7 +241,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleForgeDrawing();
             }}
-            placeholder="Describe equipment geometry for Sub-Agent to draw (e.g. 'Fractionation tower with 6 trays' or 'Jacketed CSTR with relief vent')..."
+            placeholder="Describe equipment geometry to synthesize (e.g. 'Fractionation tower with 6 trays' or 'Jacketed CSTR with relief vent')..."
             style={{
               flex: 1,
               backgroundColor: OsakaJadePalette.background.surface,

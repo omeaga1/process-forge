@@ -4,7 +4,7 @@ Authoritative domain entities, physical unit conversions, topological graph vali
 
 ---
 
-## 📦 Installation
+## Installation
 ```bash
 # Internal workspace dependency
 pnpm add @process-forge/protocol --filter <your-package>
@@ -12,7 +12,7 @@ pnpm add @process-forge/protocol --filter <your-package>
 
 ---
 
-## 🚀 Quick Usage
+## Quick Usage
 
 ### Physical Unit Conversions
 ```typescript
@@ -41,5 +41,5 @@ if (!result.valid) {
 
 ---
 
-## 📄 Documentation
+## Documentation
 For detailed schema specifications, see [docs/reference/protocol-schemas.md](../../docs/reference/protocol-schemas.md).

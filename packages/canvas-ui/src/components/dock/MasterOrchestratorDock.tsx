@@ -9,7 +9,7 @@ import {
 } from '../../ai/aiModelManager.js';
 import { dispatchMasterOrchestratorMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Cpu, Zap, Loader2, ShoppingBag } from 'lucide-react';
+import { Cpu, Zap, Loader2, ShoppingBag, Play, Pause, RotateCcw } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
@@ -204,10 +204,15 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               padding: '8px 0',
               fontWeight: 700,
               fontSize: 12,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6
             }}
           >
-            {isRunning ? '⏸ Pause Simulation' : '▶ Run Simulation'}
+            {isRunning ? <Pause size={14} /> : <Play size={14} />}
+            <span>{isRunning ? 'Pause Simulation' : 'Run Simulation'}</span>
           </button>
 
           <button
@@ -220,10 +225,14 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               padding: '8px 12px',
               fontSize: 12,
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5
             }}
           >
-            ⏮ Reset
+            <RotateCcw size={13} />
+            <span>Reset</span>
           </button>
         </div>
       </div>
@@ -421,7 +430,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               color: OsakaJadePalette.text.muted
             }}
           >
-            <span>Orchestrator offline. Connect MCP or OAuth.</span>
+            <span>Environment Forge offline. Connect MCP or OAuth.</span>
             <button
               type="button"
               onClick={() => setIsAiModalOpen(true)}

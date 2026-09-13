@@ -4,12 +4,12 @@ The anti-laziness enforcement system, scaffold manifest validation engine, and s
 
 ---
 
-## 🎯 Purpose
+## Purpose
 Prevents codebases from decaying with unhandled `TODO`s, forgotten stubs, or lazy placeholder mocks. Any interim scaffolding must be formally registered in `scaffold-manifest.json` with an explicit **Removal Condition**.
 
 ---
 
-## 🚀 Quick Usage
+## Quick Usage
 
 ### Wrapping a Phased Scaffold
 ```typescript
@@ -32,5 +32,5 @@ pnpm run verify:scaffolds
 
 ---
 
-## 📄 Documentation
+## Documentation
 For the anti-laziness architectural standard, see [docs/adr/0004-anti-laziness-registry.md](../../docs/adr/0004-anti-laziness-registry.md).

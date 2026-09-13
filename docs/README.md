@@ -4,7 +4,7 @@ Welcome to the **ProcessForge** documentation. This knowledge base is structured
 
 ---
 
-## 🧭 Documentation Map
+## Documentation Map
 
 ### 1. Architecture & Mental Models (Explanation)
 Understand the foundational engineering design and trade-offs behind ProcessForge:
@@ -41,7 +41,7 @@ Authoritative contracts, schemas, and API documentation:
 
 ---
 
-## 📦 Package & Application Guides
+## Package & Application Guides
 Each workspace package and app includes an in-depth README for localized development:
 * [`@process-forge/protocol`](../packages/protocol/README.md) — Data contracts, physical units, and validation.
 * [`@process-forge/simulation-core`](../packages/simulation-core/README.md) — High-speed discrete-event and continuous simulation engine.

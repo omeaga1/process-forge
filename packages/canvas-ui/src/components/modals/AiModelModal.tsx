@@ -363,7 +363,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 </h4>
                 <p style={{ margin: 0, fontSize: 12, color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
                   Connect directly to the local ProcessForge MCP Server, Claude Desktop, or Gemini CLI.
-                  Allows sub-agents to invoke physics simulations, bottleneck diagnostics, and ASME/ISA-5.1 CAD drawing tools with zero external API keys.
+                  Allows MCP tools to synthesize vector CAD drawings, configure nozzle schedules, and scaffold simulation environments with zero external API keys.
                 </p>
               </div>
 
@@ -699,7 +699,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <AlertCircle size={16} color={OsakaJadePalette.border.glowAmber} />
-                  <span>AI Sub-Agent chat & automated vector CAD synthesis are paused until connected via MCP or OAuth.</span>
+                  <span>Vector CAD synthesis and custom unit-op generation are paused until connected via MCP or OAuth.</span>
                 </div>
               </div>
 

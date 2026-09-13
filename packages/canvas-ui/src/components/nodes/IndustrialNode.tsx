@@ -23,7 +23,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   return (
     <div
       onDoubleClick={handleDoubleClick}
-      title="Double-click to open Unit-Op Sub-Agent Studio"
+      title="Double-click to open Unit-Op Studio"
       style={{
         width: 260,
         backgroundColor: OsakaJadePalette.background.surface,
@@ -230,10 +230,10 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               backgroundColor: OsakaJadePalette.jade.glow
             }}
           />
-          Sub-Agent Ready
+          Forge Ready
         </span>
         <span style={{ fontStyle: 'italic', fontSize: 9, color: OsakaJadePalette.text.secondary }}>
-          Double-click to chat
+          Double-click to open studio
         </span>
       </div>
     </div>

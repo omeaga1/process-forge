@@ -1,6 +1,6 @@
 # ProcessForge
 
-> **Next-Generation Industrial Process Simulation Platform**  
+> **Industrial Process Simulation Platform**  
 > Continuous-Discrete Hybrid Simulation • AI Equipment & Environment Forge • Enterprise Trust & Zero-Knowledge Security
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
