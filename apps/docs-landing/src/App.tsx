@@ -90,8 +90,8 @@ export const App: React.FC = () => {
   const [platform, setPlatform] = useState<PlatformInfo>({
     name: 'Windows',
     os: 'windows',
-    extension: '.exe',
-    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge-Setup-x64.exe'
+    extension: '.zip (Portable)',
+    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip'
   });
 
   const [isOtherModalOpen, setIsOtherModalOpen] = useState<boolean>(false);
@@ -1069,8 +1069,8 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
-                { label: 'Windows Setup (.exe)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge-Setup-x64.exe', sub: 'Windows 10/11 64-bit' },
-                { label: 'Windows Portable (.zip)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip', sub: 'Zero install, extract and run' },
+                { label: 'Windows Portable (.zip)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip', sub: 'Recommended — Extract and run, zero false positives' },
+                { label: 'Windows Setup (.exe)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge-Setup-x64.exe', sub: '1-Click installer (Unsigned open-source release)' },
                 { label: 'macOS Universal (.dmg)', url: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.1', sub: 'Apple Silicon & Intel' },
                 { label: 'Linux (.AppImage / .deb)', url: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.1', sub: 'Ubuntu, Debian, Fedora, Arch' }
               ].map((item) => (
@@ -1098,6 +1098,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                   <Download size={14} color={OsakaJadePalette.jade[400]} />
                 </a>
               ))}
+            </div>
+
+            <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.muted, marginTop: '14px', lineHeight: 1.4, padding: '8px 10px', borderRadius: '6px', backgroundColor: OsakaJadePalette.background.surfaceElevated, border: `1px solid ${OsakaJadePalette.border.subtle}` }}>
+              ProcessForge is open-source and not yet signed with a commercial EV certificate. If Windows SmartScreen or Defender displays an "unrecognized app" or heuristic warning on the standalone <code style={{ color: OsakaJadePalette.jade.glow }}>.exe</code> installer, use the <strong style={{ color: OsakaJadePalette.text.primary }}>Portable .zip</strong> or select "More info &gt; Run anyway".
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
