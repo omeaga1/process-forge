@@ -3,6 +3,7 @@
 
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
+use tauri_plugin_process::ProcessExt;
 use tauri_plugin_updater::UpdaterExt;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -134,6 +135,7 @@ async fn install_and_restart_update(app: tauri::AppHandle) -> Result<String, Str
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             get_system_telemetry,
             save_secure_token,

@@ -49,7 +49,25 @@ if (fs.existsSync(iconSrc)) {
   fs.copyFileSync(iconSrc, path.join(PORTABLE_DIR, 'icon.ico'));
 }
 
-const batContent = `@echo off\r\necho Starting ProcessForge Industrial Studio...\r\nstart "" "app\\index.html"\r\n`;
+// Copy or compile native launcher
+const launcherExeSrc = path.join(REPO_ROOT, 'apps/desktop/launcher/ProcessForge.exe');
+const launcherCsSrc = path.join(REPO_ROOT, 'apps/desktop/launcher/ProcessForgeLauncher.cs');
+const cscPath = 'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe';
+
+if (process.platform === 'win32' && fs.existsSync(cscPath) && fs.existsSync(launcherCsSrc)) {
+  try {
+    console.log('Compiling native Windows launcher ProcessForge.exe with csc.exe...');
+    execSync(`"${cscPath}" /target:winexe /optimize+ /win32icon:"${iconSrc}" /out:"${path.join(PORTABLE_DIR, 'ProcessForge.exe')}" "${launcherCsSrc}"`, { stdio: 'ignore' });
+  } catch (err) {
+    if (fs.existsSync(launcherExeSrc)) {
+      fs.copyFileSync(launcherExeSrc, path.join(PORTABLE_DIR, 'ProcessForge.exe'));
+    }
+  }
+} else if (fs.existsSync(launcherExeSrc)) {
+  fs.copyFileSync(launcherExeSrc, path.join(PORTABLE_DIR, 'ProcessForge.exe'));
+}
+
+const batContent = `@echo off\r\necho Starting ProcessForge Industrial Studio...\r\nif exist "%~dp0ProcessForge.exe" (\r\n  start "" "%~dp0ProcessForge.exe"\r\n) else (\r\n  start "" "app\\index.html"\r\n)\r\n`;
 fs.writeFileSync(path.join(PORTABLE_DIR, 'Start-ProcessForge.bat'), batContent);
 
 const installCmdContent = `@echo off
@@ -66,18 +84,19 @@ if not exist "%TARGET%\\app" mkdir "%TARGET%\\app"
 
 xcopy /E /I /Y "%~dp0app" "%TARGET%\\app" > nul
 if exist "%~dp0icon.ico" copy /Y "%~dp0icon.ico" "%TARGET%\\" > nul
+if exist "%~dp0ProcessForge.exe" copy /Y "%~dp0ProcessForge.exe" "%TARGET%\\" > nul
 if exist "%~dp0Start-ProcessForge.bat" copy /Y "%~dp0Start-ProcessForge.bat" "%TARGET%\\" > nul
 
 echo Setting up Desktop shortcut...
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\\ProcessForge.lnk'); $s.TargetPath = '%TARGET%\\Start-ProcessForge.bat'; $s.IconLocation = '%TARGET%\\icon.ico,0'; $s.Description = 'ProcessForge Industrial Twin Studio'; $s.Save()"
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\\ProcessForge.lnk'); $s.TargetPath = '%TARGET%\\ProcessForge.exe'; $s.WorkingDirectory = '%TARGET%'; $s.IconLocation = '%TARGET%\\icon.ico,0'; $s.Description = 'ProcessForge Industrial Twin Studio'; $s.Save()"
 
 echo Setting up Start Menu shortcut...
-powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('StartMenu') + '\\Programs\\ProcessForge.lnk'); $s.TargetPath = '%TARGET%\\Start-ProcessForge.bat'; $s.IconLocation = '%TARGET%\\icon.ico,0'; $s.Description = 'ProcessForge Industrial Twin Studio'; $s.Save()"
+powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath('StartMenu') + '\\Programs\\ProcessForge.lnk'); $s.TargetPath = '%TARGET%\\ProcessForge.exe'; $s.WorkingDirectory = '%TARGET%'; $s.IconLocation = '%TARGET%\\icon.ico,0'; $s.Description = 'ProcessForge Industrial Twin Studio'; $s.Save()"
 
 echo ========================================================
 echo   Installation Complete! Launching ProcessForge...
 echo ========================================================
-start "" "%TARGET%\\Start-ProcessForge.bat"
+start "" "%TARGET%\\ProcessForge.exe"
 timeout /t 2 > nul
 exit
 `;

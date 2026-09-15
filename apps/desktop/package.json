@@ -5,12 +5,16 @@
   "description": "Tauri v2 native desktop application shell for ProcessForge with OS DPAPI keychain integration",
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "cargo tauri dev",
+    "dev": "tauri dev",
+    "tauri": "tauri",
     "build": "node -e \"try { require('child_process').execSync('cargo tauri build', {stdio: 'inherit'}); } catch(e) { console.log('Tauri desktop binary build skipped (Rust/Cargo toolchain not detected in current environment).'); }\"",
     "typecheck": "echo \"Desktop shell typecheck clean\"",
     "lint": "echo \"Desktop shell lint clean\""
   },
   "dependencies": {
     "@process-forge/web": "workspace:*"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
   }
 }

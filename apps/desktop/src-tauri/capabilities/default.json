@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default permissions for ProcessForge native desktop application",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:default",
+    "process:default",
+    "updater:default"
+  ]
+}
