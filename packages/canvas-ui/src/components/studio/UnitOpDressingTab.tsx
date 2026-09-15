@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 import {
   type ProcessNode,
   type UnitOpDressing,
@@ -16,6 +16,8 @@ interface UnitOpDressingTabProps {
 }
 
 export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUpdateDressing }) => {
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
   const defaultInternals = {
     agitatorType: node.kind === 'BATCH_REACTOR' ? ('pitched_blade' as const) : ('none' as const),
     hasJacket: node.kind === 'BATCH_REACTOR',
@@ -327,153 +329,151 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
         </div>
       </div>
 
-      {/* Main Two-Column CAD Dressing Studio */}
-      <div style={{ display: 'flex', gap: '20px', flex: 1, minHeight: '480px' }}>
-        {/* Left Column: Live Animated SVG Preview with Interactive Nozzle Pins */}
-        <div
-        style={{
-          flex: '1 1 45%',
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: OsakaJadePalette.background.surfaceElevated,
-          borderRadius: '10px',
-          border: `1px solid ${OsakaJadePalette.border.default}`,
-          overflow: 'hidden'
-        }}
-      >
+      {/* CAD Dressing Studio Sections - Vertically stacked for clean drawer layout */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+        {/* Card 1: Live Animated SVG Preview with Interactive Nozzle Pins */}
         <div
           style={{
-            padding: '12px 16px',
-            backgroundColor: OsakaJadePalette.background.surface,
-            borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
+            width: '100%',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
+            flexDirection: 'column',
+            backgroundColor: OsakaJadePalette.background.surfaceElevated,
+            borderRadius: '10px',
+            border: `1px solid ${OsakaJadePalette.border.default}`,
+            overflow: 'hidden'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Eye size={16} color={OsakaJadePalette.jade[400]} />
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-              Dressed Unit Preview ({node.name})
+          <div
+            style={{
+              padding: '12px 16px',
+              backgroundColor: OsakaJadePalette.background.surface,
+              borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Eye size={16} color={OsakaJadePalette.jade[400]} />
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: OsakaJadePalette.text.primary }}>
+                Dressed Unit Preview ({node.name})
+              </span>
+            </div>
+            <span
+              style={{
+                fontSize: '0.7rem',
+                color: OsakaJadePalette.jade[300],
+                padding: '2px 8px',
+                borderRadius: '4px',
+                backgroundColor: OsakaJadePalette.jade.muted,
+                border: `1px solid ${OsakaJadePalette.jade[700]}`
+              }}
+            >
+              {dressing.nozzles.length} Nozzles Attached
             </span>
           </div>
-          <span
+
+          {/* Viewport Canvas with Nozzle Markers */}
+          <div
             style={{
-              fontSize: '0.7rem',
-              color: OsakaJadePalette.jade[300],
-              padding: '2px 8px',
-              borderRadius: '4px',
-              backgroundColor: OsakaJadePalette.jade.muted,
-              border: `1px solid ${OsakaJadePalette.jade[700]}`
-            }}
-          >
-            {dressing.nozzles.length} Nozzles Attached
-          </span>
-        </div>
-
-        {/* Viewport Canvas with Nozzle Markers */}
-        <div
-          style={{
-            flex: 1,
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '30px',
-            backgroundColor: OsakaJadePalette.background.canvas,
-            minHeight: '280px'
-          }}
-        >
-          {/* Machine Animated Illustration */}
-          <div style={{ width: '220px', height: '220px', position: 'relative' }}>
-            <UnitAnim kind={node.kind} dressing={dressing} isRunning={true} />
-
-            {/* Render Nozzle Pins around perimeter */}
-            {dressing.nozzles.map((nozzle) => {
-              const isSelected = nozzle.id === selectedNozzleId;
-              return (
-                <div
-                  key={nozzle.id}
-                  onClick={() => setSelectedNozzleId(nozzle.id)}
-                  style={{
-                    position: 'absolute',
-                    left: `${nozzle.x}%`,
-                    top: `${nozzle.y}%`,
-                    transform: 'translate(-50%, -50%)',
-                    cursor: 'pointer',
-                    zIndex: 20
-                  }}
-                  title={`${nozzle.name} [${nozzle.sizeInches}" / ${nozzle.ratingPsi}#]`}
-                >
-                  <div
-                    style={{
-                      padding: '3px 6px',
-                      borderRadius: '4px',
-                      fontSize: '0.65rem',
-                      fontWeight: 700,
-                      backgroundColor: isSelected ? OsakaJadePalette.jade[500] : OsakaJadePalette.background.surface,
-                      color: isSelected ? OsakaJadePalette.text.inverse : OsakaJadePalette.text.primary,
-                      border: `1px solid ${isSelected ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
-                      boxShadow: isSelected ? `0 0 10px ${OsakaJadePalette.jade.glow}` : 'none',
-                      whiteSpace: 'nowrap',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                  >
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: nozzle.role === 'inlet' ? '#38bdf8' : nozzle.role === 'outlet' ? '#10b981' : '#f59e0b' }} />
-                    {nozzle.id}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Quick Dressing Summary Banner */}
-        <div
-          style={{
-            padding: '12px 16px',
-            backgroundColor: OsakaJadePalette.background.surface,
-            borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
-            fontSize: '0.78rem',
-            color: OsakaJadePalette.text.secondary,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}
-        >
-          <div>
-            Agitator: <strong style={{ color: OsakaJadePalette.text.primary }}>{dressing.internals.agitatorType}</strong> • Jacket:{' '}
-            <strong style={{ color: OsakaJadePalette.text.primary }}>{dressing.internals.hasJacket ? dressing.internals.jacketType : 'None'}</strong>
-          </div>
-          <button
-            onClick={handleSaveExplicit}
-            style={{
-              display: 'inline-flex',
+              position: 'relative',
+              display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '4px 10px',
-              borderRadius: '4px',
-              backgroundColor: OsakaJadePalette.jade[500],
-              color: OsakaJadePalette.text.inverse,
-              border: 'none',
-              fontWeight: 700,
-              fontSize: '0.75rem',
-              cursor: 'pointer'
+              justifyContent: 'center',
+              padding: '24px',
+              backgroundColor: OsakaJadePalette.background.canvas,
+              minHeight: '260px'
             }}
           >
-            {saveSuccess ? <Check size={12} /> : <Sparkles size={12} />}
-            {saveSuccess ? 'Saved!' : 'Apply Dressing'}
-          </button>
-        </div>
-      </div>
+            {/* Machine Animated Illustration */}
+            <div style={{ width: '220px', height: '220px', position: 'relative' }}>
+              <UnitAnim kind={node.kind} dressing={dressing} isRunning={true} />
 
-      {/* Right Column: Nozzle & Vessel Internals Editor Controls */}
-      <div style={{ flex: '1 1 55%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {/* Section 1: Vessel Internals & Jacket Dressing */}
+              {/* Render Nozzle Pins around perimeter */}
+              {dressing.nozzles.map((nozzle) => {
+                const isSelected = nozzle.id === selectedNozzleId;
+                return (
+                  <div
+                    key={nozzle.id}
+                    onClick={() => setSelectedNozzleId(nozzle.id)}
+                    style={{
+                      position: 'absolute',
+                      left: `${nozzle.x}%`,
+                      top: `${nozzle.y}%`,
+                      transform: 'translate(-50%, -50%)',
+                      cursor: 'pointer',
+                      zIndex: 20
+                    }}
+                    title={`${nozzle.name} [${nozzle.sizeInches}" / ${nozzle.ratingPsi}#]`}
+                  >
+                    <div
+                      style={{
+                        padding: '3px 6px',
+                        borderRadius: '4px',
+                        fontSize: '0.65rem',
+                        fontWeight: 700,
+                        backgroundColor: isSelected ? OsakaJadePalette.jade[500] : OsakaJadePalette.background.surface,
+                        color: isSelected ? OsakaJadePalette.text.inverse : OsakaJadePalette.text.primary,
+                        border: `1px solid ${isSelected ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
+                        boxShadow: isSelected ? `0 0 10px ${OsakaJadePalette.jade.glow}` : 'none',
+                        whiteSpace: 'nowrap',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: nozzle.role === 'inlet' ? '#38bdf8' : nozzle.role === 'outlet' ? '#10b981' : '#f59e0b' }} />
+                      {nozzle.id}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Quick Dressing Summary Banner */}
+          <div
+            style={{
+              padding: '12px 16px',
+              backgroundColor: OsakaJadePalette.background.surface,
+              borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
+              fontSize: '0.78rem',
+              color: OsakaJadePalette.text.secondary,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}
+          >
+            <div>
+              Agitator: <strong style={{ color: OsakaJadePalette.text.primary }}>{dressing.internals.agitatorType}</strong> • Jacket:{' '}
+              <strong style={{ color: OsakaJadePalette.text.primary }}>{dressing.internals.hasJacket ? dressing.internals.jacketType : 'None'}</strong>
+            </div>
+            <button
+              onClick={handleSaveExplicit}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                backgroundColor: OsakaJadePalette.jade[500],
+                color: OsakaJadePalette.text.inverse,
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.75rem',
+                cursor: 'pointer'
+              }}
+            >
+              {saveSuccess ? <Check size={12} /> : <Sparkles size={12} />}
+              {saveSuccess ? 'Saved!' : 'Apply Dressing'}
+            </button>
+          </div>
+        </div>
+
+        {/* Card 2: Vessel Internals & Jacket Dressing */}
         <div
           style={{
+            width: '100%',
             padding: '16px',
             borderRadius: '8px',
             backgroundColor: OsakaJadePalette.background.surface,
@@ -487,7 +487,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
             {/* Agitator Selection */}
             <div>
               <label style={{ display: 'block', fontSize: '0.75rem', color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
@@ -608,11 +608,11 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
             gap: '12px'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
             <span style={{ fontWeight: 700, fontSize: '0.9rem', color: OsakaJadePalette.text.primary }}>
               Nozzle Ports & Flanges
             </span>
-            <div style={{ display: 'flex', gap: '6px' }}>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
               <button
                 onClick={() => handleAddNozzle('inlet')}
                 style={{
@@ -741,13 +741,13 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
             <div
               style={{
                 marginTop: '8px',
-                padding: '12px',
+                padding: '14px',
                 borderRadius: '6px',
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
                 border: `1px solid ${OsakaJadePalette.border.subtle}`,
                 display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '10px'
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '12px'
               }}
             >
               <div>
@@ -880,7 +880,6 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
         </div>
       </div>
     </div>
-  </div>
   );
 };
 

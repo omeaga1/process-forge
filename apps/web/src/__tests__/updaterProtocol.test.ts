@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import type { UpdateInfo } from '../components/UpdateNotificationBanner.js';
+import type { UpdateInfo, UpdaterStatus } from '../components/UpdateNotificationBanner.js';
 
 describe('Desktop Auto-Updater Protocol & Asset Resolution', () => {
   it('correctly evaluates when an update is available', () => {
@@ -30,6 +30,23 @@ describe('Desktop Auto-Updater Protocol & Asset Resolution', () => {
     assert.strictEqual(updatePayload.current_version, updatePayload.latest_version);
   });
 
+  it('supports updater lifecycle state transitions', () => {
+    const validStatuses: UpdaterStatus[] = [
+      'idle',
+      'checking',
+      'available',
+      'up-to-date',
+      'installing',
+      'restarting',
+      'error'
+    ];
+
+    assert.strictEqual(validStatuses.length, 7);
+    assert.ok(validStatuses.includes('checking'));
+    assert.ok(validStatuses.includes('installing'));
+    assert.ok(validStatuses.includes('restarting'));
+  });
+
   it('constructs standard GitHub release asset links for desktop platforms', () => {
     const repoBase = 'https://github.com/omeaga1/process-forge/releases/latest/download';
     const winMsi = `${repoBase}/ProcessForge_0.1.0_x64_en-US.msi`;
@@ -43,3 +60,4 @@ describe('Desktop Auto-Updater Protocol & Asset Resolution', () => {
     assert.ok(linuxAppImage.endsWith('.AppImage'));
   });
 });
+

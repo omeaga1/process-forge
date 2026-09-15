@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 import type { ProcessGraph, ProcessNode } from '@process-forge/protocol';
 import type { PlantTelemetryState } from '../../types.js';
 import {
@@ -33,6 +33,8 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
   onUpdateNodeConfig,
   onUpdateNodeDressing
 }) => {
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
   const [selectedNode, setSelectedNode] = useState<ProcessNode | null>(null);
 
   const formatTime = (seconds: number) => {

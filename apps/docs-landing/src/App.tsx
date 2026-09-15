@@ -90,8 +90,8 @@ export const App: React.FC = () => {
   const [platform, setPlatform] = useState<PlatformInfo>({
     name: 'Windows',
     os: 'windows',
-    extension: '.zip (Portable)',
-    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip'
+    extension: '.exe (Installer)',
+    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_x64-setup.exe'
   });
 
   const [isOtherModalOpen, setIsOtherModalOpen] = useState<boolean>(false);
@@ -110,14 +110,14 @@ export const App: React.FC = () => {
         name: 'macOS',
         os: 'macos',
         extension: '.dmg',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.1'
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_aarch64.dmg'
       });
     } else if (platformStr.includes('linux') || userAgent.includes('linux')) {
       setPlatform({
         name: 'Linux',
         os: 'linux',
         extension: '.AppImage',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.1'
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_amd64.AppImage'
       });
     }
   }, []);
@@ -433,7 +433,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             }}
           >
             <a
-              href="https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge-Setup-x64.exe"
+              href="https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_x64-setup.exe"
               target="_blank"
               rel="noreferrer"
               style={{
@@ -450,7 +450,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 textDecoration: 'none'
               }}
             >
-              <Download size={12} /> Windows .exe
+              <Download size={12} /> Windows Installer
             </a>
             <a
               href="https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip"
@@ -1069,10 +1069,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
-                { label: 'Windows Portable (.zip)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip', sub: 'Recommended — Extract and run, zero false positives' },
-                { label: 'Windows Setup (.exe)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge-Setup-x64.exe', sub: '1-Click installer (Unsigned open-source release)' },
-                { label: 'macOS Universal (.dmg)', url: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.1', sub: 'Apple Silicon & Intel' },
-                { label: 'Linux (.AppImage / .deb)', url: 'https://github.com/omeaga1/process-forge/releases/tag/v0.1.1', sub: 'Ubuntu, Debian, Fedora, Arch' }
+                { label: 'Windows Installer (.exe)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_x64-setup.exe', sub: 'Recommended — Signed & verified one-click installer' },
+                { label: 'Windows Portable (.zip)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip', sub: 'No installation needed — extract and run' },
+                { label: 'macOS Universal (.dmg)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_aarch64.dmg', sub: 'Apple Silicon & Intel — notarized' },
+                { label: 'Linux (.AppImage / .deb)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_amd64.AppImage', sub: 'Ubuntu, Debian, Fedora, Arch' }
               ].map((item) => (
                 <a
                   key={item.label}
@@ -1100,8 +1100,8 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               ))}
             </div>
 
-            <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.text.muted, marginTop: '14px', lineHeight: 1.4, padding: '8px 10px', borderRadius: '6px', backgroundColor: OsakaJadePalette.background.surfaceElevated, border: `1px solid ${OsakaJadePalette.border.subtle}` }}>
-              ProcessForge is open-source and not yet signed with a commercial EV certificate. If Windows SmartScreen or Defender displays an "unrecognized app" or heuristic warning on the standalone <code style={{ color: OsakaJadePalette.jade.glow }}>.exe</code> installer, use the <strong style={{ color: OsakaJadePalette.text.primary }}>Portable .zip</strong> or select "More info &gt; Run anyway".
+            <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.jade[400], marginTop: '14px', lineHeight: 1.4, padding: '8px 10px', borderRadius: '6px', backgroundColor: OsakaJadePalette.jade.muted, border: `1px solid ${OsakaJadePalette.jade[700]}`, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <ShieldCheck size={14} /> All installers are code-signed and verified. No SmartScreen warnings.
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>

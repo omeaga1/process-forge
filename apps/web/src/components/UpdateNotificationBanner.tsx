@@ -1,6 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Download, RefreshCw, X, Sparkles, ExternalLink } from 'lucide-react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Download,
+  RefreshCw,
+  X,
+  Sparkles,
+  ExternalLink,
+  CheckCircle2,
+  AlertTriangle,
+  RotateCcw
+} from 'lucide-react';
+import { useTheme } from '@process-forge/canvas-ui';
 
 export interface UpdateInfo {
   current_version: string;
@@ -10,61 +19,165 @@ export interface UpdateInfo {
   release_url: string;
 }
 
-export const UpdateNotificationBanner: React.FC = () => {
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+export type UpdaterStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'up-to-date'
+  | 'installing'
+  | 'restarting'
+  | 'error';
+
+export interface UpdateBannerProps {
+  status?: UpdaterStatus;
+  updateInfo?: UpdateInfo | null;
+  statusMessage?: string | null;
+  onDismiss?: () => void;
+  onCheckForUpdates?: () => Promise<void>;
+  onRestartAndApply?: () => Promise<void>;
+  onHardReload?: () => void;
+}
+
+export function isTauriEnvironment(): boolean {
+  return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+}
+
+export async function invokeTauriCommand<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const invoke =
+    (window as any).__TAURI_INTERNALS__?.invoke ||
+    (window as any).__TAURI__?.invoke ||
+    (window as any).__TAURI_INVOKE__;
+
+  if (typeof invoke !== 'function') {
+    throw new Error('Tauri IPC invoke interface not available');
+  }
+  return invoke(cmd, args);
+}
+
+export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
+  status: controlledStatus,
+  updateInfo: controlledUpdateInfo,
+  statusMessage: controlledMessage,
+  onDismiss: controlledDismiss,
+  onCheckForUpdates,
+  onRestartAndApply,
+  onHardReload
+}) => {
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
+
+  const [internalStatus, setInternalStatus] = useState<UpdaterStatus>('idle');
+  const [internalUpdateInfo, setInternalUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [internalMessage, setInternalMessage] = useState<string | null>(null);
   const [isDismissed, setIsDismissed] = useState<boolean>(false);
-  const [isUpdating, setIsUpdating] = useState<boolean>(false);
 
+  const status = controlledStatus ?? internalStatus;
+  const updateInfo = controlledUpdateInfo ?? internalUpdateInfo;
+  const statusMessage = controlledMessage ?? internalMessage;
+
+  // Auto-check for updates once on mount in desktop environment if not externally controlled
   useEffect(() => {
-    // Check if running inside Tauri desktop environment
-    const isTauri = typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
-    
-    if (isTauri) {
-      const invoke = (window as any).__TAURI_INTERNALS__?.invoke || (window as any).__TAURI__?.invoke;
-      if (typeof invoke === 'function') {
-        invoke('check_for_updates')
-          .then((res: UpdateInfo) => {
-            if (res && res.should_update) {
-              setUpdateInfo(res);
-            }
-          })
-          .catch((err: any) => {
-            console.debug('ProcessForge Desktop update check:', err);
-          });
+    if (isTauriEnvironment() && controlledStatus === undefined) {
+      invokeTauriCommand<UpdateInfo>('check_for_updates')
+        .then((res) => {
+          if (res && res.should_update) {
+            setInternalUpdateInfo(res);
+            setInternalStatus('available');
+          }
+        })
+        .catch((err) => {
+          console.debug('Background update check:', err);
+        });
+    }
+  }, [controlledStatus]);
+
+  // Restart & Apply update
+  const handleApplyUpdate = useCallback(async () => {
+    if (onRestartAndApply) {
+      await onRestartAndApply();
+      return;
+    }
+
+    setInternalStatus('installing');
+    setInternalMessage('Downloading and preparing application update...');
+
+    if (isTauriEnvironment()) {
+      try {
+        setInternalStatus('restarting');
+        setInternalMessage('Installing update and restarting ProcessForge...');
+        await invokeTauriCommand('install_and_restart_update');
+      } catch (err: any) {
+        setInternalStatus('error');
+        setInternalMessage(err?.message || 'Failed to install update automatically.');
       }
+    } else {
+      // In browser web mode: open latest release download & perform reload
+      if (updateInfo?.release_url) {
+        window.open(updateInfo.release_url, '_blank');
+      }
+      setTimeout(() => {
+        window.location.reload();
+      }, 1200);
     }
-  }, []);
+  }, [onRestartAndApply, updateInfo]);
 
-  const handleUpdate = () => {
-    setIsUpdating(true);
-    if (updateInfo?.release_url) {
-      window.open(updateInfo.release_url, '_blank');
+  // Force Hard Reload & Clear Cache
+  const handleHardReload = useCallback(() => {
+    if (onHardReload) {
+      onHardReload();
+      return;
     }
-    setTimeout(() => {
-      setIsUpdating(false);
+    try {
+      if (typeof window !== 'undefined') {
+        if ('caches' in window) {
+          caches.keys().then((names) => {
+            names.forEach((name) => caches.delete(name));
+          });
+        }
+        window.location.reload();
+      }
+    } catch {
+      window.location.reload();
+    }
+  }, [onHardReload]);
+
+  const handleDismiss = useCallback(() => {
+    if (controlledDismiss) {
+      controlledDismiss();
+    } else {
       setIsDismissed(true);
-    }, 2000);
-  };
+      setInternalStatus('idle');
+    }
+  }, [controlledDismiss]);
 
-  if (!updateInfo || !updateInfo.should_update || isDismissed) {
+  // Don't render when idle or dismissed
+  if (status === 'idle' || isDismissed) {
     return null;
   }
 
   return (
     <aside
-      aria-label="Application Update"
+      aria-label="Application Update Status"
       style={{
         position: 'fixed',
-        top: 54,
+        top: 58,
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 9000,
         width: 'calc(100% - 32px)',
-        maxWidth: 760,
+        maxWidth: 780,
         backgroundColor: OsakaJadePalette.background.surfaceElevated,
-        border: `1px solid ${OsakaJadePalette.jade.glow}`,
+        border: `1px solid ${
+          status === 'error'
+            ? 'rgba(239, 68, 68, 0.6)'
+            : status === 'available'
+            ? OsakaJadePalette.jade.glow
+            : OsakaJadePalette.border.default
+        }`,
         borderRadius: 8,
-        boxShadow: `0 8px 30px rgba(0,0,0,0.6), 0 0 16px ${OsakaJadePalette.jade.glow}33`,
+        boxShadow: `0 8px 32px rgba(0,0,0,0.65), 0 0 16px ${
+          status === 'available' ? `${OsakaJadePalette.jade.glow}33` : 'transparent'
+        }`,
         padding: '10px 16px',
         display: 'flex',
         alignItems: 'center',
@@ -73,101 +186,192 @@ export const UpdateNotificationBanner: React.FC = () => {
         animation: 'slideDown 0.3s ease-out'
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden' }}>
+      {/* Left: Icon and Status Details */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, overflow: 'hidden', minWidth: 0 }}>
         <div
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: 6,
-            backgroundColor: `${OsakaJadePalette.jade.muted}`,
+            width: 34,
+            height: 34,
+            borderRadius: 8,
+            backgroundColor:
+              status === 'error'
+                ? 'rgba(239, 68, 68, 0.15)'
+                : status === 'up-to-date'
+                ? 'rgba(16, 185, 129, 0.15)'
+                : `${OsakaJadePalette.jade.muted}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            color: OsakaJadePalette.jade[300]
+            color:
+              status === 'error'
+                ? '#f87171'
+                : status === 'up-to-date'
+                ? OsakaJadePalette.text.accent
+                : OsakaJadePalette.jade[300]
           }}
         >
-          <Sparkles size={16} />
+          {status === 'checking' && <RefreshCw size={17} className="animate-spin" />}
+          {status === 'installing' && <Download size={17} className="animate-bounce" />}
+          {status === 'restarting' && <RotateCcw size={17} className="animate-spin" />}
+          {status === 'available' && <Sparkles size={17} />}
+          {status === 'up-to-date' && <CheckCircle2 size={17} />}
+          {status === 'error' && <AlertTriangle size={17} />}
         </div>
+
         <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-              Update Available: v{updateInfo.latest_version}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span
               style={{
-                fontSize: '0.7rem',
-                padding: '1px 6px',
-                borderRadius: 4,
-                backgroundColor: OsakaJadePalette.background.surface,
-                color: OsakaJadePalette.text.secondary,
-                border: `1px solid ${OsakaJadePalette.border.default}`
+                fontSize: '0.86rem',
+                fontWeight: 700,
+                color: OsakaJadePalette.text.primary,
+                whiteSpace: 'nowrap'
               }}
             >
-              current: v{updateInfo.current_version}
+              {status === 'checking' && 'Checking for updates...'}
+              {status === 'installing' && 'Downloading & Installing Update...'}
+              {status === 'restarting' && 'Restarting ProcessForge...'}
+              {status === 'available' && `Update Available: v${updateInfo?.latest_version || 'Latest'}`}
+              {status === 'up-to-date' && 'You are running the latest version'}
+              {status === 'error' && 'Update Check Notice'}
             </span>
+
+            {updateInfo?.current_version && (
+              <span
+                style={{
+                  fontSize: '0.7rem',
+                  padding: '1px 6px',
+                  borderRadius: 4,
+                  backgroundColor: OsakaJadePalette.background.surface,
+                  color: OsakaJadePalette.text.secondary,
+                  border: `1px solid ${OsakaJadePalette.border.default}`,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                current: v{updateInfo.current_version}
+              </span>
+            )}
           </div>
+
           <div
             style={{
               fontSize: '0.78rem',
               color: OsakaJadePalette.text.secondary,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              textOverflow: 'ellipsis',
+              marginTop: 2
             }}
           >
-            {updateInfo.release_notes || 'New stability improvements and simulation optimizations are ready.'}
+            {statusMessage ||
+              updateInfo?.release_notes ||
+              (status === 'up-to-date'
+                ? 'Your ProcessForge client is completely up to date with official releases.'
+                : status === 'checking'
+                ? 'Connecting to release servers...'
+                : 'New performance improvements and simulation features are ready.')}
           </div>
         </div>
       </div>
 
+      {/* Right: Actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <button
-          onClick={handleUpdate}
-          disabled={isUpdating}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 14px',
-            borderRadius: 6,
-            backgroundColor: OsakaJadePalette.jade[500],
-            color: OsakaJadePalette.text.inverse,
-            border: 'none',
-            fontSize: '0.8rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: `0 0 10px ${OsakaJadePalette.jade.glow}44`
-          }}
-        >
-          {isUpdating ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
-          {isUpdating ? 'Opening Releases...' : 'Update Now'}
-        </button>
+        {status === 'available' && (
+          <button
+            onClick={handleApplyUpdate}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 14px',
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.jade[500],
+              color: OsakaJadePalette.text.inverse,
+              border: 'none',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: `0 0 10px ${OsakaJadePalette.jade.glow}44`
+            }}
+            title="Download, install, and restart ProcessForge"
+          >
+            <RotateCcw size={13} />
+            <span>Restart & Apply Update</span>
+          </button>
+        )}
 
-        <a
-          href={updateInfo.release_url}
-          target="_blank"
-          rel="noreferrer"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '6px 10px',
-            borderRadius: 6,
-            backgroundColor: OsakaJadePalette.background.surface,
-            color: OsakaJadePalette.text.secondary,
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            fontSize: '0.8rem',
-            textDecoration: 'none',
-            cursor: 'pointer'
-          }}
-        >
-          <ExternalLink size={12} />
-          Notes
-        </a>
+        {(status === 'up-to-date' || status === 'error') && (
+          <button
+            onClick={handleHardReload}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 6,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              color: OsakaJadePalette.text.primary,
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+            title="Hard reload application and refresh cached scripts"
+          >
+            <RotateCcw size={12} />
+            <span>Hard Reload</span>
+          </button>
+        )}
+
+        {status === 'error' && onCheckForUpdates && (
+          <button
+            onClick={() => onCheckForUpdates()}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.jade[500],
+              color: OsakaJadePalette.text.inverse,
+              border: 'none',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            <RefreshCw size={12} />
+            <span>Retry Check</span>
+          </button>
+        )}
+
+        {updateInfo?.release_url && status === 'available' && (
+          <a
+            href={updateInfo.release_url}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '6px 10px',
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.background.surface,
+              color: OsakaJadePalette.text.secondary,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              fontSize: '0.8rem',
+              textDecoration: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            <ExternalLink size={12} />
+            <span>Notes</span>
+          </a>
+        )}
 
         <button
-          onClick={() => setIsDismissed(true)}
+          onClick={handleDismiss}
           style={{
             background: 'none',
             border: 'none',
@@ -178,7 +382,7 @@ export const UpdateNotificationBanner: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'center'
           }}
-          title="Dismiss"
+          title="Dismiss notification"
         >
           <X size={16} />
         </button>
@@ -186,3 +390,4 @@ export const UpdateNotificationBanner: React.FC = () => {
     </aside>
   );
 };
+

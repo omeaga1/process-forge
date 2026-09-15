@@ -14,7 +14,7 @@ import {
   Radio,
   ExternalLink
 } from 'lucide-react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 import {
   getAiConnection,
   enableMcpMode,
@@ -37,6 +37,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
   onClose,
   onConfigChanged
 }) => {
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
   const [conn, setConn] = useState<AiConnectionState>(getAiConnection());
   const [activeTab, setActiveTab] = useState<'mcp' | 'oauth' | 'offline'>('mcp');
   const [mcpClientTab, setMcpClientTab] = useState<'claude' | 'gemini' | 'cursor' | 'local'>('claude');

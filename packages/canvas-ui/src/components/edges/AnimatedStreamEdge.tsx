@@ -1,6 +1,6 @@
 import React from 'react';
 import { getBezierPath, EdgeLabelRenderer, type EdgeProps } from '@xyflow/react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasEdgeData } from '../../types.js';
 
 export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
@@ -13,6 +13,8 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   targetPosition,
   data
 }) => {
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
   const edgeData = data as unknown as CanvasEdgeData | undefined;
   const isBlocked = edgeData?.isBackpressureBlocked ?? false;
   const stream = edgeData?.processEdge.stream;

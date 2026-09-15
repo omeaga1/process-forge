@@ -92,4 +92,63 @@ describe('Canvas UI - Mobile Pocket Twin & Field View', () => {
     assert.strictEqual(getStatusText('rotary-filler-300', 'labeler-500', true), 'Backpressure');
     assert.strictEqual(getStatusText('reactor-101', 'labeler-500', true), 'Nominal');
   });
+
+  it('correctly classifies mobile, tablet, and compact viewport boundaries', () => {
+    const classifyViewport = (width: number, breakpoint = 768) => {
+      return {
+        isMobile: width < breakpoint,
+        isTablet: width < 1024,
+        isCompact: width < 1200
+      };
+    };
+
+    const phone = classifyViewport(480);
+    assert.strictEqual(phone.isMobile, true);
+    assert.strictEqual(phone.isTablet, true);
+    assert.strictEqual(phone.isCompact, true);
+
+    const tablet = classifyViewport(820);
+    assert.strictEqual(tablet.isMobile, false);
+    assert.strictEqual(tablet.isTablet, true);
+    assert.strictEqual(tablet.isCompact, true);
+
+    const laptop = classifyViewport(1100);
+    assert.strictEqual(laptop.isMobile, false);
+    assert.strictEqual(laptop.isTablet, false);
+    assert.strictEqual(laptop.isCompact, true);
+
+    const monitor = classifyViewport(1440);
+    assert.strictEqual(monitor.isMobile, false);
+    assert.strictEqual(monitor.isTablet, false);
+    assert.strictEqual(monitor.isCompact, false);
+  });
+
+  it('verifies view mode recovers to canvas when viewport expands above mobile threshold', () => {
+    let viewMode: 'field' | 'canvas' = 'field';
+
+    const handleResize = (newWidth: number, breakpoint = 768) => {
+      const isMobile = newWidth < breakpoint;
+      if (!isMobile) {
+        viewMode = 'canvas';
+      }
+      return { isMobile, viewMode };
+    };
+
+    assert.strictEqual(viewMode, 'field');
+
+    const res = handleResize(1280);
+    assert.strictEqual(res.isMobile, false);
+    assert.strictEqual(res.viewMode, 'canvas');
+    assert.strictEqual(viewMode, 'canvas');
+  });
+
+  it('determines appropriate initial dock collapse state based on window width', () => {
+    const shouldAutoCollapseDock = (width: number) => width < 960;
+
+    assert.strictEqual(shouldAutoCollapseDock(800), true);
+    assert.strictEqual(shouldAutoCollapseDock(959), true);
+    assert.strictEqual(shouldAutoCollapseDock(960), false);
+    assert.strictEqual(shouldAutoCollapseDock(1440), false);
+  });
 });
+

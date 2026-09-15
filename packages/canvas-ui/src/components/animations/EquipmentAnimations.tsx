@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { OsakaJadePalette } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 import type { NodeKind, UnitOpDressing } from '@process-forge/protocol';
 
 export const EQUIPMENT_ANIM_CSS = `
@@ -380,6 +381,8 @@ export interface UnitAnimProps {
 }
 
 export const UnitAnim: React.FC<UnitAnimProps> = ({ kind, dressing, isRunning = true, colorAccent }) => {
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
   useEffect(() => {
     injectEquipmentCSS();
   }, []);

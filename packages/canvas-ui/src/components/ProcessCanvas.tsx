@@ -15,7 +15,6 @@ import {
 import '@xyflow/react/dist/style.css';
 import { Layers } from 'lucide-react';
 
-import { OsakaJadePalette } from '@process-forge/theme';
 import { validateProcessGraph, type ProcessGraph, type ProcessNode, type ProcessEdge } from '@process-forge/protocol';
 import { SimulationEngine } from '@process-forge/simulation-core';
 
@@ -23,9 +22,11 @@ import { IndustrialNode } from './nodes/IndustrialNode.js';
 import { AnimatedStreamEdge } from './edges/AnimatedStreamEdge.js';
 import { MasterOrchestratorDock } from './dock/MasterOrchestratorDock.js';
 import { UnitOpPopOutStudio } from './studio/UnitOpPopOutStudio.js';
-import { ForgeHubModal } from './marketplace/ForgeHubModal.js';
+import { CommunityUnitOpLibraryModal } from './marketplace/CommunityUnitOpLibraryModal.js';
+import { CommunityLibraryService } from '../marketplace/communityLibraryClient.js';
 import { MobileFieldView } from './mobile/MobileFieldView.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
+import { useTheme } from '../hooks/useTheme.js';
 import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates/sherwinWilliamsPaintLine.js';
 import type { CanvasNodeData, CanvasEdgeData, PlantTelemetryState } from '../types.js';
 
@@ -42,15 +43,29 @@ export interface ProcessCanvasProps {
   onViewModeChange?: (mode: 'field' | 'canvas') => void;
   graph?: ProcessGraph;
   onGraphChange?: (updatedGraph: ProcessGraph) => void;
+  isDockCollapsed?: boolean;
+  onToggleDockCollapse?: () => void;
 }
 
 export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   initialViewMode = 'auto',
   onViewModeChange,
   graph: externalGraph,
-  onGraphChange
+  onGraphChange,
+  isDockCollapsed: externalIsDockCollapsed,
+  onToggleDockCollapse: externalOnToggleDockCollapse
 }) => {
+  const { palette, canvasTokens } = useTheme();
+  const OsakaJadePalette = palette;
   const { isMobile, viewMode } = useMobileViewport();
+  const [internalDockCollapsed, setInternalDockCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 960;
+  });
+
+  const isDockCollapsed = externalIsDockCollapsed ?? internalDockCollapsed;
+  const handleToggleDock = externalOnToggleDockCollapse ?? (() => setInternalDockCollapsed((prev) => !prev));
+
   const [userModeOverride, setUserModeOverride] = useState<'field' | 'canvas' | null>(
     initialViewMode !== 'auto' ? initialViewMode : null
   );
@@ -388,20 +403,21 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       }}
     >
       {/* Center Interactive Flow Canvas */}
-      <div style={{ flex: 1, position: 'relative', height: '100%' }}>
+      <div style={{ flex: 1, position: 'relative', height: '100%', minWidth: 0, minHeight: 0 }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeClick={(_event, n) => setPopOutNodeId(n.id)}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
           minZoom={0.2}
           maxZoom={2.0}
         >
-          <Background color={OsakaJadePalette.border.subtle} gap={20} size={1} />
+          <Background color={canvasTokens.gridLineColor} gap={20} size={1} />
           <Controls
             style={{
               backgroundColor: OsakaJadePalette.background.surface,
@@ -419,6 +435,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         bottlenecks={telemetry.bottlenecks}
         telemetry={telemetry}
         isRunning={isRunning}
+        isCollapsed={isDockCollapsed}
+        onToggleCollapse={handleToggleDock}
         onToggleSimulation={handleToggleSimulation}
         onResetSimulation={handleResetSimulation}
         onOpenForgeHub={() => setIsForgeHubOpen(true)}
@@ -432,20 +450,25 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         onClose={() => setPopOutNodeId(null)}
         onUpdateConfig={handleUpdateNodeConfig}
         onUpdateDressing={handleUpdateNodeDressing}
-        onPublishToForgeHub={(n) => {
-          alert(`Package generated for "${n.name}". Bundle .pfu submitted to ForgeHub registry.`);
+        onPublishToForgeHub={async (n) => {
+          const res = await CommunityLibraryService.publishUnitOp(n, {
+            name: n.name,
+            category: n.kind === 'BATCH_REACTOR' ? 'FLUID_PROCESSING' : 'PACKAGING',
+            description: `Community-engineered Unit-Op: ${n.name}`
+          });
+          alert(res.message);
         }}
       />
 
-      {/* In-App ForgeHub Community Marketplace Modal */}
-      <ForgeHubModal
+      {/* In-App Community UnitOp Library Modal */}
+      <CommunityUnitOpLibraryModal
         isOpen={isForgeHubOpen}
         onClose={() => setIsForgeHubOpen(false)}
         onInsertNode={handleInsertNodeFromForgeHub}
       />
 
-      {/* Floating Toggle Button for Mobile Users to Return to Field View */}
-      {isMobile && (
+      {/* Floating Toggle Button for Touch / Mobile Users to Return to Field View */}
+      {isMobile && typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches && (
         <button
           onClick={() => setUserModeOverride('field')}
           style={{

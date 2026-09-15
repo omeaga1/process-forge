@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 import {
   type ProcessNode,
   type UnitOpDressing
@@ -14,7 +14,7 @@ import {
 } from '../../ai/aiModelManager.js';
 import { dispatchUnitOpMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Cpu, Zap, Loader2, X, Check, Upload } from 'lucide-react';
+import { Cpu, Zap, Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, Network } from 'lucide-react';
 
 interface UnitOpPopOutStudioProps {
   node: ProcessNode | null;
@@ -37,8 +37,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   upstreamContext = 'Reactor B-101 (45 gal/min Latex)',
   downstreamContext = 'Conveyor CV-400 (48 cans/min capacity)'
 }) => {
-  if (!isOpen || !node) return null;
-
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
   const [activeTab, setActiveTab] = useState<'CHAT' | 'PARAMETERS' | 'DRESSING' | 'SYSTEM_CONTEXT'>('CHAT');
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
@@ -51,12 +51,12 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
     }
   }, [isOpen]);
 
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>(() => [
     {
       id: 'msg-init',
       sender: 'agent',
-      senderTitle: `UnitOpForge [${node.name.split(' ')[0]}]`,
-      text: `Unit-Op Software Engineer ready for "${node.name}". I synthesize equipment CAD geometry, place nozzles, and configure port contracts for your flowsheet. What equipment modifications or CAD details shall we generate?`,
+      senderTitle: `UnitOpForge [${node?.name?.split(' ')[0] || 'Unit'}]`,
+      text: `Unit-Op Software Engineer ready for "${node?.name || 'Unit'}". I synthesize equipment CAD geometry, place nozzles, and configure port contracts for your flowsheet. What equipment modifications or CAD details shall we generate?`,
       timestamp: '14:26',
       modelBadge: PROVIDER_METADATA[getAiConfig().provider]?.badgeName || 'Offline Solver',
       isOffline: getAiConfig().provider === 'offline',
@@ -68,6 +68,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       ]
     }
   ]);
+
+  if (!isOpen || !node) return null;
 
   const config = node.config as Record<string, unknown>;
 
@@ -128,20 +130,21 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   return (
     <div
       style={{
-        position: 'fixed',
+        position: 'absolute',
         top: 0,
         right: 0,
-        width: 'min(580px, 100vw)',
-        maxWidth: '100vw',
-        height: '100vh',
+        bottom: 0,
+        width: 'min(620px, 100%)',
+        maxWidth: '100%',
         backgroundColor: OsakaJadePalette.background.surfaceElevated,
-        borderLeft: `1px solid ${OsakaJadePalette.border.strong}`,
-        boxShadow: '-8px 0 24px rgba(0,0,0,0.6)',
+        borderLeft: `1px solid ${OsakaJadePalette.border.default}`,
+        boxShadow: '-8px 0 28px rgba(0,0,0,0.4)',
         display: 'flex',
         flexDirection: 'column',
-        zIndex: 1000,
+        zIndex: 40,
         color: OsakaJadePalette.text.primary,
-        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        overflow: 'hidden'
       }}
     >
       {/* Pop-Out Header with Live Animated Unit Preview */}
@@ -152,28 +155,30 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          backgroundColor: OsakaJadePalette.background.surface
+          backgroundColor: OsakaJadePalette.background.surface,
+          flexShrink: 0
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div
             style={{
-              width: 42,
-              height: 42,
+              width: 44,
+              height: 44,
               borderRadius: 8,
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
               border: `1px solid ${OsakaJadePalette.jade.glow}44`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              flexShrink: 0
             }}
           >
             <UnitAnim kind={node.kind} dressing={node.dressing} isRunning={true} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase' }}>
+              <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Unit-Op Studio
               </span>
               <button
@@ -199,7 +204,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                 <span style={{ color: OsakaJadePalette.text.muted, fontSize: 9 }}>[Change]</span>
               </button>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
               {node.name}
             </div>
           </div>
@@ -211,17 +216,18 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             background: 'none',
             border: `1px solid ${OsakaJadePalette.border.default}`,
             color: OsakaJadePalette.text.secondary,
-            fontSize: 14,
-            width: 28,
-            height: 28,
+            width: 30,
+            height: 30,
             borderRadius: '50%',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            transition: 'background 0.15s ease'
           }}
+          title="Close Studio"
         >
-          <X size={14} color={OsakaJadePalette.text.secondary} />
+          <X size={15} color={OsakaJadePalette.text.secondary} />
         </button>
       </div>
 
@@ -230,75 +236,100 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         style={{
           display: 'flex',
           borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
-          backgroundColor: OsakaJadePalette.background.surface
+          backgroundColor: OsakaJadePalette.background.surface,
+          flexShrink: 0
         }}
       >
         <button
           onClick={() => setActiveTab('CHAT')}
           style={{
             flex: 1,
-            padding: '10px 0',
+            padding: '10px 6px',
             backgroundColor: activeTab === 'CHAT' ? OsakaJadePalette.background.surfaceElevated : 'transparent',
             border: 'none',
-            borderBottom: activeTab === 'CHAT' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
+            borderBottom: activeTab === 'CHAT' ? `2px solid ${OsakaJadePalette.jade.glow}` : '2px solid transparent',
             color: activeTab === 'CHAT' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
             fontWeight: 600,
-            fontSize: 11,
-            cursor: 'pointer'
+            fontSize: 12,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 5,
+            whiteSpace: 'nowrap'
           }}
         >
-          Unit-Op Forge
+          <MessageSquare size={13} />
+          <span>Forge</span>
         </button>
 
         <button
           onClick={() => setActiveTab('DRESSING')}
           style={{
             flex: 1,
-            padding: '10px 0',
+            padding: '10px 6px',
             backgroundColor: activeTab === 'DRESSING' ? OsakaJadePalette.background.surfaceElevated : 'transparent',
             border: 'none',
-            borderBottom: activeTab === 'DRESSING' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
+            borderBottom: activeTab === 'DRESSING' ? `2px solid ${OsakaJadePalette.jade.glow}` : '2px solid transparent',
             color: activeTab === 'DRESSING' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
             fontWeight: 600,
-            fontSize: 11,
-            cursor: 'pointer'
+            fontSize: 12,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 5,
+            whiteSpace: 'nowrap'
           }}
         >
-          Dressing & Nozzles
+          <Palette size={13} />
+          <span>Dressing & Nozzles</span>
         </button>
 
         <button
           onClick={() => setActiveTab('PARAMETERS')}
           style={{
             flex: 1,
-            padding: '10px 0',
+            padding: '10px 6px',
             backgroundColor: activeTab === 'PARAMETERS' ? OsakaJadePalette.background.surfaceElevated : 'transparent',
             border: 'none',
-            borderBottom: activeTab === 'PARAMETERS' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
+            borderBottom: activeTab === 'PARAMETERS' ? `2px solid ${OsakaJadePalette.jade.glow}` : '2px solid transparent',
             color: activeTab === 'PARAMETERS' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
             fontWeight: 600,
-            fontSize: 11,
-            cursor: 'pointer'
+            fontSize: 12,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 5,
+            whiteSpace: 'nowrap'
           }}
         >
-          Controls
+          <Sliders size={13} />
+          <span>Controls</span>
         </button>
 
         <button
           onClick={() => setActiveTab('SYSTEM_CONTEXT')}
           style={{
             flex: 1,
-            padding: '10px 0',
+            padding: '10px 6px',
             backgroundColor: activeTab === 'SYSTEM_CONTEXT' ? OsakaJadePalette.background.surfaceElevated : 'transparent',
             border: 'none',
-            borderBottom: activeTab === 'SYSTEM_CONTEXT' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
+            borderBottom: activeTab === 'SYSTEM_CONTEXT' ? `2px solid ${OsakaJadePalette.jade.glow}` : '2px solid transparent',
             color: activeTab === 'SYSTEM_CONTEXT' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
             fontWeight: 600,
-            fontSize: 11,
-            cursor: 'pointer'
+            fontSize: 12,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 5,
+            whiteSpace: 'nowrap'
           }}
         >
-          Context
+          <Network size={13} />
+          <span>Context</span>
         </button>
       </div>
 
@@ -553,78 +584,48 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
               alignItems: 'center'
             }}
           >
-            {aiConfig.provider === 'offline' ? (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '8px 14px',
-                  borderRadius: 6,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  fontSize: 12,
-                  color: OsakaJadePalette.text.muted
-                }}
-              >
-                <span>Unit-Op Forge is in offline mode. Connect via MCP or OAuth to synthesize equipment.</span>
-                <button
-                  type="button"
-                  onClick={() => setIsAiModalOpen(true)}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: 5,
-                    backgroundColor: OsakaJadePalette.jade.glow,
-                    color: OsakaJadePalette.background.base,
-                    border: 'none',
-                    fontWeight: 700,
-                    fontSize: 11,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Connect AI
-                </button>
-              </div>
-            ) : (
-              <>
-                <input
-                  type="text"
-                  placeholder={isProcessing ? 'Processing...' : `Synthesize equipment details for ${node.name.split(' ')[0]}...`}
-                  value={inputText}
-                  disabled={isProcessing}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
-                  style={{
-                    flex: 1,
-                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                    border: `1px solid ${OsakaJadePalette.border.default}`,
-                    borderRadius: 6,
-                    padding: '8px 12px',
-                    color: OsakaJadePalette.text.primary,
-                    fontSize: 13,
-                    outline: 'none',
-                    opacity: isProcessing ? 0.6 : 1
-                  }}
-                />
-                <button
-                  onClick={() => handleSendMessage()}
-                  disabled={isProcessing || !inputText.trim()}
-                  style={{
-                    backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
-                    color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: '8px 14px',
-                    fontWeight: 700,
-                    fontSize: 12,
-                    cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  Send
-                </button>
-              </>
-            )}
+            <input
+              type="text"
+              placeholder={
+                isProcessing
+                  ? 'Processing...'
+                  : aiConfig.provider === 'offline'
+                    ? `Describe CAD modification or physics parameter for ${node.name.split(' ')[0]}...`
+                    : `Synthesize equipment details for ${node.name.split(' ')[0]}...`
+              }
+              value={inputText}
+              disabled={isProcessing}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
+              style={{
+                flex: 1,
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                borderRadius: 6,
+                padding: '8px 12px',
+                color: OsakaJadePalette.text.primary,
+                fontSize: 13,
+                outline: 'none',
+                opacity: isProcessing ? 0.6 : 1
+              }}
+            />
+            <button
+              onClick={() => handleSendMessage()}
+              disabled={isProcessing || !inputText.trim()}
+              style={{
+                backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
+                color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
+                border: 'none',
+                borderRadius: 6,
+                padding: '8px 16px',
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Send
+            </button>
           </div>
         </div>
       )}
@@ -641,18 +642,60 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
 
       {/* Tab 3: Generative Parameter Controls */}
       {activeTab === 'PARAMETERS' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-            These controls parameterize the unit&apos;s mechanical specifications, port contracts, and operating cycle.
+            Configure mechanical design tolerances, processing rates, and operational parameters for this Unit-Op:
           </div>
 
           {Object.entries(config).map(([key, val]) => {
             if (typeof val === 'number') {
+              const humanized = key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
               return (
-                <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
-                    <span style={{ color: OsakaJadePalette.text.primary, fontWeight: 600 }}>{key}</span>
-                    <span style={{ color: OsakaJadePalette.jade.glow, fontFamily: 'monospace' }}>{val}</span>
+                <div
+                  key={key}
+                  style={{
+                    backgroundColor: OsakaJadePalette.background.surface,
+                    border: `1px solid ${OsakaJadePalette.border.default}`,
+                    borderRadius: 8,
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ color: OsakaJadePalette.text.primary, fontWeight: 600, fontSize: 13 }}>
+                        {humanized}
+                      </div>
+                      <div style={{ color: OsakaJadePalette.text.muted, fontSize: 10, fontFamily: 'monospace' }}>
+                        {key}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="number"
+                        min={1}
+                        max={Math.max(100, val * 2)}
+                        value={val}
+                        onChange={(e) => {
+                          const newNum = parseFloat(e.target.value) || 0;
+                          onUpdateConfig(node.id, { ...config, [key]: newNum });
+                        }}
+                        style={{
+                          width: 75,
+                          padding: '4px 6px',
+                          borderRadius: 4,
+                          backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                          border: `1px solid ${OsakaJadePalette.border.subtle}`,
+                          color: OsakaJadePalette.jade.glow,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          fontFamily: 'monospace',
+                          textAlign: 'right'
+                        }}
+                      />
+                    </div>
                   </div>
                   <input
                     type="range"
@@ -663,7 +706,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                       const newNum = parseFloat(e.target.value);
                       onUpdateConfig(node.id, { ...config, [key]: newNum });
                     }}
-                    style={{ accentColor: OsakaJadePalette.jade[500] }}
+                    style={{ accentColor: OsakaJadePalette.jade[500], width: '100%' }}
                   />
                 </div>
               );
@@ -673,7 +716,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         </div>
       )}
 
-      {/* Tab 3: Upstream/Downstream Boundary Context */}
+      {/* Tab 4: Upstream/Downstream Boundary Context */}
       {activeTab === 'SYSTEM_CONTEXT' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
@@ -724,7 +767,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           }}
         >
           <Upload size={14} />
-          <span>Publish to ForgeHub</span>
+          <span>Publish to Community Library</span>
         </button>
       </div>
 

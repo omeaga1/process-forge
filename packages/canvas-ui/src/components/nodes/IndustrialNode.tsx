@@ -1,17 +1,19 @@
 import React from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { OsakaJadePalette, MachineStateVisuals } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
 import { UnitAnim } from '../animations/EquipmentAnimations.js';
 
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
+  const { palette, machineVisuals } = useTheme();
+  const OsakaJadePalette = palette;
   const nodeData = data as unknown as CanvasNodeData;
   const { processNode, state, unitsProduced, bufferLevel, instantaneousRate, onOpenPopOutStudio } =
     nodeData;
 
-  const visualState = MachineStateVisuals[state] ?? MachineStateVisuals['IDLE']!;
+  const visualState = machineVisuals[state] ?? machineVisuals['IDLE']!;
 
-  const handleDoubleClick = (e: React.MouseEvent) => {
+  const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onOpenPopOutStudio) {
       onOpenPopOutStudio(id);
@@ -22,8 +24,9 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
   return (
     <div
-      onDoubleClick={handleDoubleClick}
-      title="Double-click to open Unit-Op Studio"
+      onClick={handleClick}
+      onDoubleClick={handleClick}
+      title="Click to open Unit-Op Studio"
       style={{
         width: 260,
         position: 'relative',
@@ -234,7 +237,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           Forge Ready
         </span>
         <span style={{ fontStyle: 'italic', fontSize: 9, color: OsakaJadePalette.text.secondary }}>
-          Double-click to open studio
+          Click to open studio
         </span>
       </div>
     </div>

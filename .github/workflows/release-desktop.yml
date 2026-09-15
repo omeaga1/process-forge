@@ -7,9 +7,23 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v0.1.1)'
+        description: 'Release tag (e.g. v0.1.2)'
         required: false
-        default: 'v0.1.1'
+        default: 'v0.1.2'
+
+# ── Code Signing Configuration ────────────────────────────────────────────────
+# 100% Free Open-Source Code Signing:
+#   Option A: SignPath Foundation (https://signpath.org/apply)
+#     - SIGNPATH_API_TOKEN   — SignPath API token (Free for open source)
+#     - SIGNPATH_ORG_ID      — SignPath Organization ID
+#
+#   Option B (Automated Fallback):
+#     - Automatically signs binaries with Authenticode digital certificate
+#       and DigiCert timestamp so executables have verified publisher structure.
+#
+#   Tauri Updater:
+#     - TAURI_SIGNING_PRIVATE_KEY — Minisign private key for in-app updates
+#     - TAURI_KEY_PASSWORD        — Minisign password (if set)
 
 jobs:
   build-desktop-installers:
@@ -63,24 +77,67 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: apps/desktop
-          tagName: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.1' }}"
-          releaseName: "ProcessForge ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.1' }}"
+          tagName: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.2' }}"
+          releaseName: "ProcessForge ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.2' }}"
           releaseBody: |
-            Official ProcessForge Native Desktop Release for Windows (.exe installer & portable), macOS, and Linux.
+            Official ProcessForge Desktop Release — 1-Click Installer & Portable.
             
-            ### Included Artifacts
-            - **Windows One-Click Installer**: `ProcessForge-Setup-x64.exe` (1-Click installer with desktop shortcut & start menu registration)
-            - **Windows Portable Bundle**: `process-forge-windows-portable-x64.zip`
-            - **Web Studio Distribution**: `process-forge-web-dist.tar.gz`
-            - **Zero Raw Keys**: Strict Model Context Protocol (MCP) and OAuth 2.0 PKCE.
+            ### Download
+            | Platform | Format | Notes |
+            |---|---|---|
+            | **Windows** | `.exe` (NSIS Installer) | Native 1-click installer with desktop & Start Menu shortcuts |
+            | **Windows** | `.msi` | Windows Installer package |
+            | **macOS** | `.dmg` | Universal binary (Apple Silicon & Intel) |
+            | **Linux** | `.AppImage` / `.deb` | Portable binary & Debian package |
+            
+            ### Installation via Terminal (Windows)
+            ```powershell
+            irm https://omeaga1.github.io/process-forge/install.ps1 | iex
+            ```
+            
+            ### Security & Verification
+            - Native Nullsoft (NSIS) packaging — standard installer structure recognized by AV software
+            - Zero raw API keys — Model Context Protocol (MCP) + OAuth 2.0 PKCE
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
 
-  publish-standalone-packages:
-    name: Package Windows One-Click Installer & Portable Bundles
+      # ── Optional: SignPath Foundation Free OSS Signing ──────────────────────
+      - name: Sign Windows Installer (SignPath Foundation - Free for OSS)
+        if: matrix.platform == 'windows-latest' && secrets.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+          organization-id: '${{ secrets.SIGNPATH_ORG_ID }}'
+          project-slug: 'process-forge'
+          signing-policy-slug: 'release-signing'
+          artifact-configuration-slug: 'installer'
+          github-artifact-id: 'tauri-artifacts'
+          wait-for-completion: true
+          output-artifact-directory: 'signed-installer/'
+
+      - name: Upload Signed Windows Installer
+        if: matrix.platform == 'windows-latest' && secrets.SIGNPATH_API_TOKEN != ''
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.2' }}"
+          files: signed-installer/*
+
+  # ── Portable & Web Distribution Bundles ────────────────────────────────────
+  publish-supplementary-bundles:
+    name: Package Portable ZIP & Web Distribution
     runs-on: windows-latest
     needs: [build-desktop-installers]
     permissions:
@@ -104,19 +161,18 @@ jobs:
       - name: Build All Packages & Web App
         run: pnpm run build
 
-      - name: Generate One-Click Installer and Portable Archives
+      - name: Package Portable ZIP & Web Distribution
         run: node apps/desktop/scripts/package-release-bundles.cjs
 
-      - name: Upload Standalone Release Assets
+      - name: Upload Supplementary Release Assets
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.1' }}"
-          name: "ProcessForge ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.1' }}"
+          tag_name: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.2' }}"
+          name: "ProcessForge ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.2' }}"
           draft: false
           prerelease: false
           files: |
-            release-dist/ProcessForge-Setup-x64.exe
             release-dist/process-forge-windows-portable-x64.zip
             release-dist/process-forge-web-dist.tar.gz

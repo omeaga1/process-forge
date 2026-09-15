@@ -5,18 +5,22 @@ import {
   BEVERAGE_BOTTLING_LINE,
   BLANK_LINE,
   AiModelModal,
+  CommunityUnitOpLibraryModal,
   getAiConfig,
-  type AiModelConfig
+  type AiModelConfig,
+  ThemeProvider
 } from '@process-forge/canvas-ui';
 import {
   createSimulationProject,
   type SimulationProject,
-  type ProcessGraph
+  type ProcessGraph,
+  type ProcessNode
 } from '@process-forge/protocol';
 import { HeaderBar } from './components/HeaderBar.js';
 import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModal.js';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
+import { useAppUpdater } from './hooks/useAppUpdater.js';
 import {
   saveLocalProject,
   loadCurrentLocalProject,
@@ -25,11 +29,13 @@ import {
 } from './storage/localStorageAdapter.js';
 
 export const App: React.FC = () => {
+  const updater = useAppUpdater();
   const [templateKey, setTemplateKey] = useState<string>('sherwin-williams-paint-line');
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(() => getAiConfig());
   const [isGuestModalOpen, setIsGuestModalOpen] = useState<boolean>(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState<boolean>(false);
+  const [isCommunityLibraryOpen, setIsCommunityLibraryOpen] = useState<boolean>(false);
 
   // Initialize or restore active project
   const [project, setProject] = useState<SimulationProject>(() => {
@@ -58,6 +64,23 @@ export const App: React.FC = () => {
   useEffect(() => {
     saveLocalProject(project);
   }, [project]);
+
+  const [isDockCollapsed, setIsDockCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 960;
+  });
+
+  // Hotkey support: Alt+D or Ctrl+B toggles the Software Engineer dock
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.altKey && (e.key === 'd' || e.key === 'D')) || (e.ctrlKey && (e.key === 'b' || e.key === 'B'))) {
+        e.preventDefault();
+        setIsDockCollapsed((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleSelectTemplate = useCallback((key: string) => {
     setTemplateKey(key);
@@ -129,27 +152,61 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  const handleInsertCommunityNode = useCallback((newNode: ProcessNode) => {
+    setProject((prev) => {
+      const updated: SimulationProject = {
+        ...prev,
+        graph: {
+          ...prev.graph,
+          nodes: [...prev.graph.nodes, newNode]
+        },
+        updatedAt: new Date().toISOString()
+      };
+      saveLocalProject(updated);
+      return updated;
+    });
+  }, []);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      {/* Top Application Navigation */}
+    <ThemeProvider>
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', maxWidth: '100vw', maxHeight: '100vh', overflow: 'hidden' }}>
+        {/* Top Application Navigation */}
       <HeaderBar
         currentTemplate={templateKey}
         isGuestMode={project.isGuestProject}
         activeAiProvider={aiConfig.provider}
         onSelectTemplate={handleSelectTemplate}
         onOpenAiModal={() => setIsAiModalOpen(true)}
-        onOpenForgeHub={() => {}}
+        onOpenForgeHub={() => setIsCommunityLibraryOpen(true)}
         onOpenSaveModal={() => setIsSaveModalOpen(true)}
         onOpenGuestModal={() => setIsGuestModalOpen(true)}
         onImportFile={handleImportFile}
+        isDockCollapsed={isDockCollapsed}
+        onToggleDockCollapse={() => setIsDockCollapsed((prev) => !prev)}
+        onCheckForUpdates={() => updater.checkForUpdates(true)}
+        isCheckingUpdates={updater.isChecking}
+        hasUpdateAvailable={updater.hasUpdate}
       />
 
-      {/* Desktop In-App Auto Update Banner */}
-      <UpdateNotificationBanner />
+      {/* Desktop & Web In-App Auto Update Banner */}
+      <UpdateNotificationBanner
+        status={updater.status}
+        updateInfo={updater.updateInfo}
+        statusMessage={updater.statusMessage}
+        onDismiss={updater.dismissNotification}
+        onCheckForUpdates={() => updater.checkForUpdates(true)}
+        onRestartAndApply={updater.restartAndApplyUpdate}
+        onHardReload={updater.hardReloadApp}
+      />
 
       {/* Main Interactive Studio Canvas */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <ProcessCanvas graph={project.graph} onGraphChange={handleGraphChange} />
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minWidth: 0, minHeight: 0 }}>
+        <ProcessCanvas
+          graph={project.graph}
+          onGraphChange={handleGraphChange}
+          isDockCollapsed={isDockCollapsed}
+          onToggleDockCollapse={() => setIsDockCollapsed((prev) => !prev)}
+        />
       </div>
 
       {/* Modals */}
@@ -172,7 +229,14 @@ export const App: React.FC = () => {
         onSaveLocal={handleSaveLocal}
         onDownloadFile={handleDownloadFile}
       />
-    </div>
+
+        <CommunityUnitOpLibraryModal
+          isOpen={isCommunityLibraryOpen}
+          onClose={() => setIsCommunityLibraryOpen(false)}
+          onInsertNode={handleInsertCommunityNode}
+        />
+      </div>
+    </ThemeProvider>
   );
 };
 

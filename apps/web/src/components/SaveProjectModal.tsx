@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Save, Download, X, Check } from 'lucide-react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import { useTheme } from '@process-forge/canvas-ui';
 import type { SimulationProject } from '@process-forge/protocol';
 
 interface SaveProjectModalProps {
@@ -18,6 +18,9 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
   onSaveLocal,
   onDownloadFile
 }) => {
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
+
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || '');
   const [isSavedLocally, setIsSavedLocally] = useState(false);
@@ -53,6 +56,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
         style={{
           width: 560,
           maxWidth: '100%',
+          maxHeight: 'min(90vh, calc(100vh - 40px))',
           backgroundColor: OsakaJadePalette.background.surface,
           border: `1px solid ${OsakaJadePalette.border.default}`,
           borderRadius: 12,
@@ -112,7 +116,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 6 }}>
               Project / Line Name

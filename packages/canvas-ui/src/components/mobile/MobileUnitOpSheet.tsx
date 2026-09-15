@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 import type { ProcessNode, NozzleDressing } from '@process-forge/protocol';
 import {
   X,
@@ -25,6 +25,8 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
   onUpdateConfig,
   onUpdateDressing
 }) => {
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
   const [activeTab, setActiveTab] = useState<'TELEMETRY' | 'DRESSING' | 'AGENT'>('TELEMETRY');
   const [rpmValue, setRpmValue] = useState<number>(180);
   const [tempTarget, setTempTarget] = useState<number>(24.5);

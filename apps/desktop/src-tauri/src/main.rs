@@ -103,6 +103,34 @@ async fn check_for_updates(app: tauri::AppHandle) -> Result<UpdateInfo, String> 
     }
 }
 
+#[tauri::command]
+async fn install_and_restart_update(app: tauri::AppHandle) -> Result<String, String> {
+    match app.updater() {
+        Ok(updater) => {
+            match updater.check().await {
+                Ok(Some(update)) => {
+                    let mut downloaded: usize = 0;
+                    update
+                        .download_and_install(
+                            |chunk_length, _content_length| {
+                                downloaded += chunk_length;
+                            },
+                            || {},
+                        )
+                        .await
+                        .map_err(|e| format!("Failed to download and install update: {}", e))?;
+
+                    app.restart();
+                    Ok("Update installed. Restarting...".to_string())
+                }
+                Ok(None) => Ok("Application is already at latest version.".to_string()),
+                Err(e) => Err(format!("Update check failed: {}", e)),
+            }
+        }
+        Err(e) => Err(format!("Updater not initialized: {}", e)),
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -111,7 +139,8 @@ fn main() {
             save_secure_token,
             get_secure_token,
             delete_secure_token,
-            check_for_updates
+            check_for_updates,
+            install_and_restart_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running ProcessForge desktop application");

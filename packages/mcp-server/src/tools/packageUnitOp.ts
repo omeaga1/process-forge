@@ -27,6 +27,8 @@ export interface ForgeHubPackageBundle {
   serializedBundle: string;
 }
 
+export type CommunityUnitOpPackageBundle = ForgeHubPackageBundle;
+
 export function executePackageUnitOp(params: PackageUnitOpParams): ForgeHubPackageBundle {
   const { node, author, description, category, tags = [], requiredCapabilities = [] } = params;
   const pluginId = `pfu-${node.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-v1`;

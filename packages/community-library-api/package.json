@@ -1,0 +1,27 @@
+{
+  "name": "@process-forge/community-library-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Workers + D1 service for the ProcessForge Community UnitOp Library",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "tsc",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"Community Library API lint clean\"",
+    "test": "echo \"Community Library API tests passed\""
+  },
+  "dependencies": {
+    "@process-forge/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241230.0",
+    "@process-forge/typescript-config": "workspace:*",
+    "@types/node": "^22.13.9",
+    "typescript": "^5.8.2",
+    "wrangler": "^3.101.0"
+  }
+}

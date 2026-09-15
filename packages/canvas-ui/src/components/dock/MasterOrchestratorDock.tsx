@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 import type { ProcessGraph, BottleneckAnalysis } from '@process-forge/protocol';
 import type { ChatMessage, PlantTelemetryState } from '../../types.js';
 import {
@@ -9,7 +9,7 @@ import {
 } from '../../ai/aiModelManager.js';
 import { dispatchMasterOrchestratorMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Cpu, Zap, Loader2, ShoppingBag, Play, Pause, RotateCcw } from 'lucide-react';
+import { Cpu, Zap, Loader2, Play, Pause, RotateCcw, ChevronRight, ChevronLeft, Layers } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
@@ -20,6 +20,8 @@ interface MasterOrchestratorDockProps {
   onResetSimulation: () => void;
   onOpenForgeHub: () => void;
   onBroadcastContext: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
@@ -30,8 +32,12 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   onToggleSimulation,
   onResetSimulation,
   onOpenForgeHub,
-  onBroadcastContext
+  onBroadcastContext,
+  isCollapsed = false,
+  onToggleCollapse
 }) => {
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
@@ -115,6 +121,67 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
     }
   };
 
+  if (isCollapsed) {
+    return (
+      <div
+        style={{
+          width: 42,
+          height: '100%',
+          backgroundColor: OsakaJadePalette.background.surface,
+          borderLeft: `1px solid ${OsakaJadePalette.border.default}`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '12px 0',
+          gap: 16,
+          flexShrink: 0,
+          zIndex: 10,
+          cursor: 'pointer',
+          userSelect: 'none'
+        }}
+        onClick={onToggleCollapse}
+        title="Click to expand Software Engineer Studio (Alt+D)"
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleCollapse?.();
+          }}
+          style={{
+            backgroundColor: 'transparent',
+            border: `1px solid ${OsakaJadePalette.border.default}`,
+            borderRadius: 6,
+            padding: '6px',
+            color: OsakaJadePalette.jade.glow,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+          title="Expand Studio Dock"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <div
+          style={{
+            writingMode: 'vertical-rl',
+            transform: 'rotate(180deg)',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            color: OsakaJadePalette.text.secondary,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8
+          }}
+        >
+          <Cpu size={13} color={OsakaJadePalette.jade.glow} />
+          <span>ENGINEER STUDIO</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -126,7 +193,8 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         flexDirection: 'column',
         fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         color: OsakaJadePalette.text.primary,
-        zIndex: 10
+        zIndex: 10,
+        flexShrink: 0
       }}
     >
       {/* Header with Title & Playback Controls */}
@@ -170,25 +238,47 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={onOpenForgeHub}
-            style={{
-              backgroundColor: OsakaJadePalette.jade.muted,
-              color: OsakaJadePalette.jade.glow,
-              border: `1px solid ${OsakaJadePalette.jade[600]}`,
-              borderRadius: 6,
-              padding: '6px 10px',
-              fontSize: 11,
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5
-            }}
-          >
-            <ShoppingBag size={13} />
-            <span>ForgeHub</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button
+              onClick={onOpenForgeHub}
+              style={{
+                backgroundColor: OsakaJadePalette.jade.muted,
+                color: OsakaJadePalette.jade.glow,
+                border: `1px solid ${OsakaJadePalette.jade[600]}`,
+                borderRadius: 6,
+                padding: '6px 10px',
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+            >
+              <Layers size={13} />
+              <span>Community UnitOps</span>
+            </button>
+
+            {onToggleCollapse && (
+              <button
+                onClick={onToggleCollapse}
+                title="Collapse Studio Dock"
+                style={{
+                  backgroundColor: 'transparent',
+                  border: `1px solid ${OsakaJadePalette.border.default}`,
+                  borderRadius: 6,
+                  padding: '6px',
+                  color: OsakaJadePalette.text.secondary,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <ChevronRight size={14} />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Simulation Playback Bar */}

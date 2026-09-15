@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShieldAlert, Download, ArrowRight, X } from 'lucide-react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import { useTheme } from '@process-forge/canvas-ui';
 
 interface GuestAcknowledgementModalProps {
   isOpen: boolean;
@@ -13,6 +13,9 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
   onClose,
   onExportFile
 }) => {
+  const { palette } = useTheme();
+  const OsakaJadePalette = palette;
+
   if (!isOpen) return null;
 
   return (
@@ -33,6 +36,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
         style={{
           width: 580,
           maxWidth: '100%',
+          maxHeight: 'min(90vh, calc(100vh - 40px))',
           backgroundColor: OsakaJadePalette.background.surface,
           border: `1px solid ${OsakaJadePalette.border.default}`,
           borderRadius: 12,
@@ -92,7 +96,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
         </div>
 
         {/* Body */}
-        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: OsakaJadePalette.text.primary }}>
             Welcome to ProcessForge. You have access to the flowsheet canvas, the local deterministic simulation engine, and unit operation tools.
           </p>

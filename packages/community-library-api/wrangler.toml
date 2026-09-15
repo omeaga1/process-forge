@@ -1,0 +1,14 @@
+name = "process-forge-community-library"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Cloudflare D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "process-forge-community-unitops"
+database_id = "process-forge-community-unitops-db"
+migrations_dir = "migrations"
+
+[vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGIN = "*"

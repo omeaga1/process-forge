@@ -1,28 +1,127 @@
-:root {
-  --pf-canvas-bg: #0c1214;
-  --pf-surface: #141c1f;
-  --pf-surface-elevated: #1a2529;
-  --pf-border: #233338;
-  --pf-jade: #10b981;
-  --pf-jade-hover: #059669;
-  --pf-text-primary: #f8fafc;
-  --pf-text-secondary: #94a3b8;
-  --pf-text-muted: #64748b;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+:root,
+:root[data-theme="dark"],
+[data-theme="dark"],
+.theme-dark,
+.theme-osaka-jade {
   color-scheme: dark;
+  --pf-canvas-bg: #11221c;
+  --pf-bg-base: #111c18;
+  --pf-bg-canvas: #11221c;
+  --pf-surface: #16241f;
+  --pf-bg-surface: #16241f;
+  --pf-surface-elevated: #1d2f28;
+  --pf-bg-surface-elevated: #1d2f28;
+  --pf-surface-hover: #243a32;
+  --pf-bg-surface-hover: #243a32;
+  --pf-bg-surface-active: #2d473e;
+  --pf-bg-surface-muted: #141f1b;
+  --pf-bg-selected: #364538;
+  --pf-fg-selected: #deb266;
+  --pf-border: #253c33;
+  --pf-border-subtle: #1c2d26;
+  --pf-border-default: #253c33;
+  --pf-border-strong: #304e42;
+  --pf-border-glow: #71cead;
+  --pf-border-glow-amber: #e5c736;
+  --pf-border-glow-rose: #ff5345;
+  --pf-border-division: #243c32;
+  --pf-jade: #549e6a;
+  --pf-jade-400: #71cead;
+  --pf-jade-500: #549e6a;
+  --pf-jade-600: #509475;
+  --pf-jade-hover: #509475;
+  --pf-jade-glow: #2dd5b7;
+  --pf-jade-muted: #1e362d;
+  --pf-text-primary: #f6f5dd;
+  --pf-text-secondary: #c1c497;
+  --pf-text-muted: #53685b;
+  --pf-text-inverse: #111c18;
+  --pf-text-accent: #71cead;
+  --pf-text-gold: #deb266;
+  --pf-status-busy: #549e6a;
+  --pf-status-starved: #8cd3cb;
+  --pf-status-blocked: #e5c736;
+  --pf-status-failed: #ff5345;
+  --pf-status-idle: #53685b;
+  --pf-stream-fluid: #2dd5b7;
+  --pf-stream-discrete: #8cd3cb;
+  --pf-stream-blocked: #e5c736;
+  --pf-scrollbar-track: #111c18;
+  --pf-scrollbar-thumb: #253c33;
+  --pf-scrollbar-hover: #549e6a;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+:root[data-theme="light"],
+[data-theme="light"],
+.theme-light {
+  color-scheme: light;
+  --pf-canvas-bg: #f2f0e4;
+  --pf-bg-base: #f8f7f0;
+  --pf-bg-canvas: #f2f0e4;
+  --pf-surface: #ffffff;
+  --pf-bg-surface: #ffffff;
+  --pf-surface-elevated: #ebe9dc;
+  --pf-bg-surface-elevated: #ebe9dc;
+  --pf-surface-hover: #e3e0d0;
+  --pf-bg-surface-hover: #e3e0d0;
+  --pf-bg-surface-active: #d6d3c0;
+  --pf-bg-surface-muted: #ece9db;
+  --pf-bg-selected: #e2dfcd;
+  --pf-fg-selected: #b47818;
+  --pf-border: #cfccba;
+  --pf-border-subtle: #e5e2cf;
+  --pf-border-default: #cfccba;
+  --pf-border-strong: #a8a491;
+  --pf-border-glow: #1e7e58;
+  --pf-border-glow-amber: #d97706;
+  --pf-border-glow-rose: #dc2626;
+  --pf-border-division: #629c89;
+  --pf-jade: #239468;
+  --pf-jade-400: #1e7e58;
+  --pf-jade-500: #239468;
+  --pf-jade-600: #1b7a54;
+  --pf-jade-hover: #1b7a54;
+  --pf-jade-glow: #10b981;
+  --pf-jade-muted: #dcf5ea;
+  --pf-text-primary: #1e2922;
+  --pf-text-secondary: #45574c;
+  --pf-text-muted: #7a8c80;
+  --pf-text-inverse: #f8f7f0;
+  --pf-text-accent: #1e7e58;
+  --pf-text-gold: #b47818;
+  --pf-status-busy: #1b7a54;
+  --pf-status-starved: #0284c7;
+  --pf-status-blocked: #d97706;
+  --pf-status-failed: #dc2626;
+  --pf-status-idle: #64748b;
+  --pf-stream-fluid: #0d9488;
+  --pf-stream-discrete: #0284c7;
+  --pf-stream-blocked: #d97706;
+  --pf-scrollbar-track: #f8f7f0;
+  --pf-scrollbar-thumb: #cfccba;
+  --pf-scrollbar-hover: #239468;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
+html, body, #root {
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+}
+
+body {
   background-color: var(--pf-canvas-bg);
   color: var(--pf-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 code, pre, kbd {
@@ -35,12 +134,12 @@ code, pre, kbd {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0c1214;
+  background: var(--pf-scrollbar-track);
 }
 ::-webkit-scrollbar-thumb {
-  background: #233338;
+  background: var(--pf-scrollbar-thumb);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #10b981;
+  background: var(--pf-scrollbar-hover);
 }

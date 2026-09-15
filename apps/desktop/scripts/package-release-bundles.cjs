@@ -1,3 +1,14 @@
+/**
+ * Package Release Bundles: Portable ZIP & Web Distribution
+ *
+ * Produces supplementary release artifacts that complement the primary
+ * Tauri NSIS/MSI/DMG/AppImage installers built by tauri-action in CI.
+ *
+ * Outputs:
+ *   - release-dist/process-forge-windows-portable-x64.zip  (portable, no install needed)
+ *   - release-dist/process-forge-web-dist.tar.gz            (web studio distribution)
+ */
+
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
@@ -19,12 +30,9 @@ function copyDirRecursive(src, dest) {
   }
 }
 
-// 1. If Windows, compile the native one-click installer (.exe)
-if (process.platform === 'win32') {
-  execSync(`node "${path.join(__dirname, 'build-windows-installer.cjs')}"`, { stdio: 'inherit' });
-}
+// ── 1. Build Portable Windows Folder ──────────────────────────────────────────
+console.log('Building portable Windows distribution...');
 
-// 2. Build portable Windows folder
 if (fs.existsSync(PORTABLE_DIR)) {
   fs.rmSync(PORTABLE_DIR, { recursive: true, force: true });
 }
@@ -75,7 +83,8 @@ exit
 `;
 fs.writeFileSync(path.join(PORTABLE_DIR, 'Install-ProcessForge.cmd'), installCmdContent);
 
-// Zip portable bundle
+// ── 2. Zip Portable Bundle ────────────────────────────────────────────────────
+console.log('Compressing portable ZIP...');
 const portableZip = path.join(RELEASE_DIST, 'process-forge-windows-portable-x64.zip');
 if (fs.existsSync(portableZip)) fs.unlinkSync(portableZip);
 
@@ -85,11 +94,14 @@ if (process.platform === 'win32') {
   execSync(`(cd "${RELEASE_DIST}" && zip -r process-forge-windows-portable-x64.zip process-forge-windows-portable)`, { stdio: 'inherit' });
 }
 
-// Web distribution tarball
+// ── 3. Web Distribution Tarball ───────────────────────────────────────────────
+console.log('Packaging web distribution tarball...');
 const webTar = path.join(RELEASE_DIST, 'process-forge-web-dist.tar.gz');
 execSync(`tar -czf "${webTar}" -C "${WEB_DIST}" .`, { stdio: 'inherit' });
 
-console.log('=== All release bundles packaged successfully ===');
+// ── Summary ───────────────────────────────────────────────────────────────────
+console.log('');
+console.log('=== Release bundles packaged successfully ===');
 fs.readdirSync(RELEASE_DIST).forEach((f) => {
   const stats = fs.statSync(path.join(RELEASE_DIST, f));
   if (!stats.isDirectory()) {

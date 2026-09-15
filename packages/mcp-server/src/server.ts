@@ -113,7 +113,7 @@ export function createProcessForgeMcpServer(): Server {
         {
           name: 'package_unit_op',
           description:
-            'Packages a validated Unit-Op and its Sub-Agent into an Obsidian-style .pfu plugin bundle ready for distribution on ForgeHub or local import.',
+            'Packages a validated Unit-Op and its Sub-Agent into an Obsidian-style .pfu plugin bundle ready for distribution on the Community UnitOp Library or local import.',
           inputSchema: {
             type: 'object',
             properties: {

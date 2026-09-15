@@ -16,8 +16,22 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function() {
+        try {
+          var stored = localStorage.getItem('pf-theme');
+          var theme = stored === 'light' || stored === 'dark'
+            ? stored
+            : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+          document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.style.colorScheme = theme;
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', theme === 'light' ? '#f8f7f0' : '#0c1214');
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body style="margin: 0; padding: 0; background-color: #0c1214; color: #f8fafc; font-family: 'Inter', sans-serif; overflow: hidden;">
+  <body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; overflow: hidden;">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
