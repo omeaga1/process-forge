@@ -42,6 +42,9 @@ jobs:
             args: ''
 
     runs-on: ${{ matrix.platform }}
+    env:
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      SIGNPATH_ORG_ID: ${{ secrets.SIGNPATH_ORG_ID }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -114,7 +117,7 @@ jobs:
 
       # ── Optional: SignPath Foundation Free OSS Signing ──────────────────────
       - name: Sign Windows Installer (SignPath Foundation - Free for OSS)
-        if: matrix.platform == 'windows-latest' && secrets.SIGNPATH_API_TOKEN != ''
+        if: matrix.platform == 'windows-latest' && env.SIGNPATH_API_TOKEN != ''
         uses: signpath/github-action-submit-signing-request@v1
         with:
           api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
@@ -127,7 +130,7 @@ jobs:
           output-artifact-directory: 'signed-installer/'
 
       - name: Upload Signed Windows Installer
-        if: matrix.platform == 'windows-latest' && secrets.SIGNPATH_API_TOKEN != ''
+        if: matrix.platform == 'windows-latest' && env.SIGNPATH_API_TOKEN != ''
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
