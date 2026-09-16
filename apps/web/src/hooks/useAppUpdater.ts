@@ -122,6 +122,32 @@ export function useAppUpdater(): UseAppUpdaterReturn {
         setStatusMessage(err?.message || 'Failed to install update automatically.');
       }
     } else {
+      const isDesktopLauncher = typeof window !== 'undefined' &&
+        (window.location.port === '42421' || window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost');
+
+      if (isDesktopLauncher) {
+        try {
+          setStatus('installing');
+          setStatusMessage('Pulling latest release update from repository...');
+          const resp = await fetch('/api/pull-update', { method: 'POST' });
+          if (resp.ok) {
+            setStatus('restarting');
+            setStatusMessage('Update applied successfully. Refreshing application...');
+            setTimeout(() => {
+              window.location.reload();
+            }, 1200);
+            return;
+          } else {
+            const errData = await resp.json().catch(() => ({}));
+            setStatus('error');
+            setStatusMessage(errData.message || 'Launcher update pull failed. Run Update-ProcessForge.cmd if offline.');
+            return;
+          }
+        } catch (err: any) {
+          console.debug('Launcher pull-update fallback:', err);
+        }
+      }
+
       if (updateInfo?.release_url) {
         window.open(updateInfo.release_url, '_blank');
       }

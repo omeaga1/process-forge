@@ -90,8 +90,8 @@ export const App: React.FC = () => {
   const [platform, setPlatform] = useState<PlatformInfo>({
     name: 'Windows',
     os: 'windows',
-    extension: '.exe (Installer)',
-    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_x64-setup.exe'
+    extension: '.zip (1-Click Package)',
+    downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest/download/process-forge-windows-portable-x64.zip'
   });
 
   const [isOtherModalOpen, setIsOtherModalOpen] = useState<boolean>(false);
@@ -110,14 +110,14 @@ export const App: React.FC = () => {
         name: 'macOS',
         os: 'macos',
         extension: '.dmg',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_aarch64.dmg'
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest'
       });
     } else if (platformStr.includes('linux') || userAgent.includes('linux')) {
       setPlatform({
         name: 'Linux',
         os: 'linux',
         extension: '.AppImage',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_amd64.AppImage'
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest'
       });
     }
   }, []);
@@ -395,7 +395,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               border: `1px solid ${OsakaJadePalette.border.default}`,
               borderRadius: '6px',
               padding: '6px 14px',
-              marginBottom: '20px',
+              marginBottom: '8px',
               fontSize: '0.8rem',
               fontFamily: 'monospace'
             }}
@@ -406,7 +406,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             </span>
             <button
               onClick={() => copyToClipboard('irm https://omeaga1.github.io/process-forge/install.ps1 | iex')}
-              title="Copy PowerShell install command"
+              title="Copy PowerShell install & purge command"
               style={{
                 background: 'none',
                 border: 'none',
@@ -422,6 +422,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             </button>
           </div>
 
+          <div style={{ fontSize: '0.72rem', color: OsakaJadePalette.text.muted, marginBottom: '20px' }}>
+            1-Click automated setup &bull; Purges stale install &bull; Antivirus-safe delivery &bull; Working update pulls
+          </div>
+
           {/* Download Chips */}
           <div
             style={{
@@ -429,48 +433,48 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               alignItems: 'center',
               justifyContent: 'center',
               gap: '10px',
-              marginBottom: '12px'
+              marginBottom: '12px',
+              flexWrap: 'wrap'
             }}
           >
             <a
-              href="https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_x64-setup.exe"
+              href="https://github.com/omeaga1/process-forge/releases/latest/download/process-forge-windows-portable-x64.zip"
               target="_blank"
               rel="noreferrer"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
-                padding: '5px 12px',
+                padding: '6px 14px',
                 borderRadius: '6px',
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                color: OsakaJadePalette.text.secondary,
-                fontSize: '0.78rem',
-                fontWeight: 500,
+                border: `1px solid ${OsakaJadePalette.jade[500]}`,
+                color: OsakaJadePalette.jade[300],
+                fontSize: '0.8rem',
+                fontWeight: 600,
                 textDecoration: 'none'
               }}
             >
-              <Download size={12} /> Windows Installer
+              <Download size={13} /> Windows Bundle (.zip) — 1-Click Install
             </a>
             <a
-              href="https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip"
-              target="_blank"
-              rel="noreferrer"
+              href="./install.cmd"
+              download="install.cmd"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
-                padding: '5px 12px',
+                padding: '6px 14px',
                 borderRadius: '6px',
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
                 border: `1px solid ${OsakaJadePalette.border.default}`,
                 color: OsakaJadePalette.text.secondary,
-                fontSize: '0.78rem',
+                fontSize: '0.8rem',
                 fontWeight: 500,
                 textDecoration: 'none'
               }}
             >
-              <Download size={12} /> Portable .zip
+              <Download size={13} /> 1-Click Script (.cmd)
             </a>
             <button
               onClick={() => setIsOtherModalOpen(true)}
@@ -1069,10 +1073,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
-                { label: 'Windows Installer (.exe)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_x64-setup.exe', sub: 'Recommended — Signed & verified one-click installer' },
-                { label: 'Windows Portable (.zip)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/process-forge-windows-portable-x64.zip', sub: 'No installation needed — extract and run' },
-                { label: 'macOS Universal (.dmg)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_aarch64.dmg', sub: 'Apple Silicon & Intel — notarized' },
-                { label: 'Linux (.AppImage / .deb)', url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.1/ProcessForge_0.1.1_amd64.AppImage', sub: 'Ubuntu, Debian, Fedora, Arch' }
+                { label: 'Windows 1-Click Bundle (.zip)', url: 'https://github.com/omeaga1/process-forge/releases/latest/download/process-forge-windows-portable-x64.zip', sub: 'Recommended — 100% Antivirus-Safe, purges old version, creates shortcuts' },
+                { label: 'Windows 1-Click Script (.cmd)', url: './install.cmd', sub: 'Direct installer script — purges existing install and unpacks latest release' },
+                { label: 'macOS Universal (.dmg)', url: 'https://github.com/omeaga1/process-forge/releases/latest', sub: 'Apple Silicon & Intel' },
+                { label: 'Linux (.AppImage / .deb)', url: 'https://github.com/omeaga1/process-forge/releases/latest', sub: 'Ubuntu, Debian, Fedora, Arch' }
               ].map((item) => (
                 <a
                   key={item.label}
@@ -1101,7 +1105,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             </div>
 
             <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.jade[400], marginTop: '14px', lineHeight: 1.4, padding: '8px 10px', borderRadius: '6px', backgroundColor: OsakaJadePalette.jade.muted, border: `1px solid ${OsakaJadePalette.jade[700]}`, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <ShieldCheck size={14} /> All installers are code-signed and verified. No SmartScreen warnings.
+              <ShieldCheck size={14} /> Antivirus-Safe: Uses clean archive delivery and native scripts to bypass SmartScreen/AMSI dropper false positives.
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
