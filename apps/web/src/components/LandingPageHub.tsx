@@ -18,7 +18,10 @@ import {
   Lock,
   KeyRound,
   Terminal,
-  Sliders
+  Sliders,
+  Download,
+  Check,
+  Copy
 } from 'lucide-react';
 import {
   useTheme,
@@ -79,6 +82,13 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
   const [agentInput, setAgentInput] = useState<string>('');
   const [isAgentThinking, setIsAgentThinking] = useState<boolean>(false);
   const [agentConversation, setAgentConversation] = useState<ChatMessage[]>([]);
+  const [copiedSnippet, setCopiedSnippet] = useState<boolean>(false);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedSnippet(true);
+    setTimeout(() => setCopiedSnippet(false), 2000);
+  };
 
   // Fetch Cloud Projects
   useEffect(() => {
@@ -231,6 +241,33 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
 
         {/* Right Nav Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Download Windows Desktop App */}
+          <a
+            href="/process-forge-windows-portable-x64.zip"
+            download="process-forge-windows-portable-x64.zip"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 12px',
+              borderRadius: 4,
+              backgroundColor: OsakaJadePalette.jade[600],
+              border: `1px solid ${OsakaJadePalette.jade[400]}`,
+              color: '#ffffff',
+              fontSize: 11,
+              fontWeight: 700,
+              fontFamily: '"JetBrains Mono", monospace',
+              textDecoration: 'none',
+              cursor: 'pointer',
+              boxShadow: `0 0 10px ${OsakaJadePalette.jade.glow}44`,
+              transition: 'all 0.12s ease'
+            }}
+            title="Download ProcessForge for Windows (1-Click Package)"
+          >
+            <Download size={13} strokeWidth={2.5} />
+            <span>DOWNLOAD FOR WINDOWS</span>
+          </a>
+
           {/* AI Model Status */}
           <button
             onClick={onOpenAiModal}
@@ -388,6 +425,37 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
 
         {/* Primary Action Buttons */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+          {/* Primary Action: Download for Windows */}
+          <a
+            href="/process-forge-windows-portable-x64.zip"
+            download="process-forge-windows-portable-x64.zip"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '11px 22px',
+              borderRadius: 4,
+              backgroundColor: OsakaJadePalette.jade[600],
+              border: `1px solid ${OsakaJadePalette.jade[400]}`,
+              color: '#ffffff',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: theme === 'dark'
+                ? `inset 0 1px 0 rgba(255,255,255,0.25), 0 3px 16px ${OsakaJadePalette.jade.glow}55`
+                : '0 2px 6px rgba(0,0,0,0.15)',
+              fontFamily: '"JetBrains Mono", monospace',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              textDecoration: 'none',
+              transition: 'all 0.12s ease'
+            }}
+            title="Download ProcessForge for Windows (1-Click Package)"
+          >
+            <Download size={16} strokeWidth={2.5} />
+            <span>Download for Windows</span>
+          </a>
+
           {/* Primary Action: Open Studio */}
           <button
             onClick={onOpenStudio}
@@ -538,6 +606,102 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             <Cloud size={14} />
             <span>Cloud Projects ({cloudProjects.length})</span>
           </button>
+        </div>
+
+        {/* Quick Install Bar & PowerShell One-Liner */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            flexWrap: 'wrap',
+            marginTop: 4,
+            paddingTop: 14,
+            borderTop: `1px solid ${OsakaJadePalette.border.subtle}`
+          }}
+        >
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              borderRadius: 6,
+              padding: '6px 12px',
+              fontSize: '0.8rem',
+              fontFamily: 'monospace'
+            }}
+          >
+            <Terminal size={14} color={OsakaJadePalette.jade[400]} />
+            <span style={{ color: OsakaJadePalette.text.secondary }}>
+              irm https://process-forge.pages.dev/install.ps1 | iex
+            </span>
+            <button
+              onClick={() => copyToClipboard('irm https://process-forge.pages.dev/install.ps1 | iex')}
+              title="Copy PowerShell 1-Click Install Command"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: OsakaJadePalette.jade[400],
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px',
+                marginLeft: '4px'
+              }}
+            >
+              {copiedSnippet ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </div>
+
+          <a
+            href="/install.cmd"
+            download="install.cmd"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              color: OsakaJadePalette.text.secondary,
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+              fontFamily: '"JetBrains Mono", monospace'
+            }}
+            title="Download 1-Click Install Script (.cmd)"
+          >
+            <Download size={12} />
+            <span>1-Click Script (.cmd)</span>
+          </a>
+
+          <a
+            href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.1"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              color: OsakaJadePalette.text.muted,
+              fontSize: '0.78rem',
+              textDecoration: 'none'
+            }}
+          >
+            <span>All Releases (.exe, macOS, Linux)</span>
+            <ExternalLink size={12} />
+          </a>
+
+          <span style={{ fontSize: '0.72rem', color: OsakaJadePalette.text.muted }}>
+            1-Click automated setup &bull; Antivirus-safe &bull; Offline native desktop support &bull; Zero login required
+          </span>
         </div>
       </section>
 
