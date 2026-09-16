@@ -5,7 +5,7 @@ import type { CanvasNodeData } from '../../types.js';
 import { UnitAnim } from '../animations/EquipmentAnimations.js';
 
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
-  const { palette, machineVisuals } = useTheme();
+  const { palette, machineVisuals, elevation, font, size, weight, space, radius: r, motion } = useTheme();
   const OsakaJadePalette = palette;
   const nodeData = data as unknown as CanvasNodeData;
   const { processNode, state, unitsProduced, bufferLevel, instantaneousRate, onOpenPopOutStudio } =
@@ -31,22 +31,22 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         width: 260,
         position: 'relative',
         backgroundColor: OsakaJadePalette.background.surface,
-        borderRadius: 10,
+        borderRadius: r.lg,
         border: selected
           ? `2px solid ${OsakaJadePalette.border.glow}`
           : isBlocked
             ? `2px solid ${OsakaJadePalette.status.blocked}`
             : `1px solid ${OsakaJadePalette.border.default}`,
         boxShadow: isBlocked
-          ? '0 0 16px rgba(245, 158, 11, 0.5)'
+          ? elevation.glowWarning
           : selected
-            ? '0 0 18px rgba(45, 212, 191, 0.45)'
-            : '0 4px 12px rgba(0, 0, 0, 0.4)',
+            ? elevation.glow
+            : elevation.low,
         color: OsakaJadePalette.text.primary,
-        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        padding: '12px 14px',
+        fontFamily: font.sans,
+        padding: `${space[3]}px`,
         cursor: 'pointer',
-        transition: 'all 0.2s ease',
+        transition: `all ${motion.normal}`,
         userSelect: 'none'
       }}
     >
@@ -99,14 +99,14 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
       })}
 
       {/* Node Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: space[2] }}>
         <span
           style={{
-            fontSize: 10,
+            fontSize: size['2xs'],
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
             color: OsakaJadePalette.jade[400],
-            fontWeight: 700
+            fontWeight: weight.bold
           }}
         >
           {processNode.kind.replace(/_/g, ' ')}
@@ -115,10 +115,10 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         {/* State Status Badge */}
         <span
           style={{
-            fontSize: 10,
-            fontWeight: 600,
-            padding: '2px 7px',
-            borderRadius: 12,
+            fontSize: size['2xs'],
+            fontWeight: weight.semibold,
+            padding: `${space[0.5]}px ${space[1.5]}px`,
+            borderRadius: r.full,
             backgroundColor: visualState.badgeBg,
             color: visualState.badgeText,
             border: `1px solid ${visualState.badgeText}40`
@@ -131,10 +131,10 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
       {/* Machine Title */}
       <div
         style={{
-          fontSize: 13,
-          fontWeight: 600,
+          fontSize: size.base,
+          fontWeight: weight.semibold,
           color: OsakaJadePalette.text.primary,
-          marginBottom: 8,
+          marginBottom: space[2],
           lineHeight: '1.3'
         }}
       >
@@ -146,8 +146,8 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         style={{
           width: '100%',
           height: 90,
-          marginBottom: 8,
-          borderRadius: 6,
+          marginBottom: space[2],
+          borderRadius: r.md,
           backgroundColor: OsakaJadePalette.background.canvas,
           border: `1px solid ${OsakaJadePalette.border.subtle}`,
           display: 'flex',
@@ -170,14 +170,14 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           <div
             style={{
               position: 'absolute',
-              bottom: 4,
-              right: 6,
-              fontSize: 8,
-              fontWeight: 700,
+              bottom: space[1],
+              right: space[1.5],
+              fontSize: size['2xs'],
+              fontWeight: weight.bold,
               color: OsakaJadePalette.jade[300],
               backgroundColor: `${OsakaJadePalette.background.surfaceElevated}cc`,
-              padding: '1px 5px',
-              borderRadius: 3,
+              padding: `1px ${space[1]}px`,
+              borderRadius: r.sm,
               border: `1px solid ${OsakaJadePalette.border.subtle}`
             }}
           >
@@ -191,24 +191,25 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: 6,
+          gap: space[1.5],
           backgroundColor: OsakaJadePalette.background.surfaceElevated,
-          padding: '8px 10px',
-          borderRadius: 6,
-          fontSize: 11,
+          padding: `${space[2]}px ${space[2.5]}px`,
+          borderRadius: r.md,
+          fontSize: size.xs,
+          fontFamily: font.mono,
           border: `1px solid ${OsakaJadePalette.border.subtle}`
         }}
       >
         <div>
-          <div style={{ color: OsakaJadePalette.text.muted, fontSize: 9 }}>RATE</div>
-          <div style={{ fontWeight: 600, color: OsakaJadePalette.text.primary }}>
+          <div style={{ color: OsakaJadePalette.text.muted, fontSize: size['2xs'] }}>RATE</div>
+          <div style={{ fontWeight: weight.semibold, color: OsakaJadePalette.text.primary }}>
             {instantaneousRate > 0 ? `${Math.round(instantaneousRate)}/min` : '0/min'}
           </div>
         </div>
 
         <div>
-          <div style={{ color: OsakaJadePalette.text.muted, fontSize: 9 }}>BUFFER / PACKED</div>
-          <div style={{ fontWeight: 600, color: OsakaJadePalette.text.primary }}>
+          <div style={{ color: OsakaJadePalette.text.muted, fontSize: size['2xs'] }}>BUFFER / PACKED</div>
+          <div style={{ fontWeight: weight.semibold, color: OsakaJadePalette.text.primary }}>
             {bufferLevel > 0 ? `${bufferLevel} in queue` : `${unitsProduced} units`}
           </div>
         </div>
@@ -220,23 +221,23 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginTop: 8,
-          fontSize: 10,
+          marginTop: space[2],
+          fontSize: size['2xs'],
           color: OsakaJadePalette.text.muted
         }}
       >
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: space[1] }}>
           <span
             style={{
               width: 6,
               height: 6,
-              borderRadius: '50%',
+              borderRadius: r.full,
               backgroundColor: OsakaJadePalette.jade.glow
             }}
           />
           Forge Ready
         </span>
-        <span style={{ fontStyle: 'italic', fontSize: 9, color: OsakaJadePalette.text.secondary }}>
+        <span style={{ fontStyle: 'italic', fontSize: size['2xs'], color: OsakaJadePalette.text.secondary }}>
           Click to open studio
         </span>
       </div>

@@ -15,7 +15,11 @@ export const EQUIPMENT_ANIM_CSS = `
   @keyframes pf-spin   { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
   @keyframes pf-col-v  { 0%{cy:80px;opacity:.8;r:3px} 100%{cy:10px;opacity:0;r:5px} }
   @keyframes pf-fade   { 0%,100%{opacity:.3} 50%{opacity:1} }
-  @keyframes pf-glow-pulse { 0%,100%{filter:drop-shadow(0 0 2px #10b981)} 50%{filter:drop-shadow(0 0 8px #2dd4bf)} }
+  @keyframes pf-glow-pulse { 0%,100%{filter:drop-shadow(0 0 2px ${OsakaJadePalette.jade.glow})} 50%{filter:drop-shadow(0 0 8px ${OsakaJadePalette.streams.continuousFluid})} }
+  @keyframes pf-conveyor-travel { 0% { transform: translateX(0); } 100% { transform: translateX(36px); } }
+  @keyframes pf-sensor-blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; filter: drop-shadow(0 0 4px ${OsakaJadePalette.jade.glow}); } }
+  @keyframes pf-gantry-move { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(24px, 0); } 50% { transform: translate(24px, 12px); } 75% { transform: translate(24px, 0); } 90% { transform: translate(0, 0); } }
+  @keyframes pf-needle-dive { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
 `;
 
 export function injectEquipmentCSS(): void {
@@ -25,6 +29,11 @@ export function injectEquipmentCSS(): void {
   s.id = 'pf-equipment-anim-css';
   s.textContent = EQUIPMENT_ANIM_CSS;
   document.head.appendChild(s);
+}
+
+// Auto-inject immediately on module load in browser
+if (typeof document !== 'undefined') {
+  injectEquipmentCSS();
 }
 
 // ── SepAnim: Flash Drum & Separator ───────────────────────────────────────────
@@ -128,7 +137,13 @@ export const ReactorAnim: React.FC<{
 
       {/* Rotating Agitator Impeller */}
       {agitatorType !== 'none' && (
-        <g style={{ transformOrigin: '80px 100px', animation: isRunning ? 'pf-stir 1.5s linear infinite' : 'none' }}>
+        <g
+          style={{
+            transformBox: 'fill-box',
+            transformOrigin: '50% 50%',
+            animation: isRunning ? 'pf-stir 1.5s linear infinite' : 'none'
+          }}
+        >
           <line x1="48" y1="100" x2="112" y2="100" stroke={stroke} strokeWidth="4" strokeLinecap="round" />
           {agitatorType === 'rushton' ? (
             <>
@@ -261,7 +276,13 @@ export const PumpAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
       <path d="M 55 29 L 95 29 L 95 45 L 80 45" fill={bg} stroke={stroke} strokeWidth="2" strokeLinejoin="round" />
 
       {/* Spinning Impeller Blades */}
-      <g style={{ transformOrigin: '55px 65px', animation: isRunning ? 'pf-spin 1s linear infinite' : 'none' }}>
+      <g
+        style={{
+          transformBox: 'fill-box',
+          transformOrigin: '50% 50%',
+          animation: isRunning ? 'pf-spin 1s linear infinite' : 'none'
+        }}
+      >
         <circle cx="55" cy="65" r="7" fill={stroke} />
         <path d="M 55 58 Q 50 48 45 42" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" />
         <path d="M 62 65 Q 72 60 78 55" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" />
@@ -372,6 +393,231 @@ export const CustomEquipmentAnim: React.FC<{
   );
 };
 
+// ── FillerAnim: Rotary Canning & Bottling Turret ─────────────────────────────
+export const FillerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
+  stroke = OsakaJadePalette.jade[400],
+  bg = 'rgba(16, 185, 129, 0.08)',
+  isRunning = true
+}) => {
+  return (
+    <svg viewBox="0 0 160 140" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
+      {/* Outer Enclosure Frame */}
+      <rect x="25" y="15" width="110" height="110" rx="8" fill={bg} stroke={stroke} strokeWidth="1.5" />
+      {/* Top Supply Bowl / Manifold */}
+      <rect x="40" y="22" width="80" height="24" rx="4" fill="rgba(16, 185, 129, 0.2)" stroke={stroke} strokeWidth="1.5" />
+      <text x="80" y="38" textAnchor="middle" fontSize="9" fill={stroke} fontWeight="bold">
+        FILLER BOWL
+      </text>
+      {/* Rotary Turret Carousel */}
+      <circle cx="80" cy="85" r="32" fill="none" stroke={stroke} strokeWidth="1.5" strokeDasharray="5,3" />
+      <g
+        style={{
+          transformBox: 'fill-box',
+          transformOrigin: '50% 50%',
+          animation: isRunning ? 'pf-spin 3s linear infinite' : 'none'
+        }}
+      >
+        {[0, 60, 120, 180, 240, 300].map((ang, i) => {
+          const rad = (ang * Math.PI) / 180;
+          const x = 80 + 24 * Math.cos(rad);
+          const y = 85 + 24 * Math.sin(rad);
+          return (
+            <g key={i}>
+              <circle cx={x} cy={y} r="6" fill={OsakaJadePalette.jade[500]} stroke={stroke} strokeWidth="1" />
+              <circle cx={x} cy={y} r="2.5" fill="#ffffff" />
+            </g>
+          );
+        })}
+      </g>
+      {/* Diving Nozzle Heads */}
+      <g style={{ animation: isRunning ? 'pf-needle-dive 1.5s ease-in-out infinite' : 'none' }}>
+        <line x1="70" y1="46" x2="70" y2="60" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+        <line x1="90" y1="46" x2="90" y2="60" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+        {isRunning && (
+          <>
+            <line x1="70" y1="60" x2="70" y2="70" stroke={OsakaJadePalette.jade.glow} strokeWidth="1.5" strokeDasharray="2,2" />
+            <line x1="90" y1="60" x2="90" y2="70" stroke={OsakaJadePalette.jade.glow} strokeWidth="1.5" strokeDasharray="2,2" />
+          </>
+        )}
+      </g>
+      {/* Pilot LED */}
+      <circle
+        cx="33"
+        cy="23"
+        r="3"
+        fill={isRunning ? OsakaJadePalette.status.busy : OsakaJadePalette.jade.glow}
+        style={{ animation: 'pf-sensor-blink 1.2s infinite' }}
+      />
+    </svg>
+  );
+};
+
+// ── ConveyorAnim: Powered Roller Belt Conveyor ──────────────────────────────
+export const ConveyorAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
+  stroke = OsakaJadePalette.jade[400],
+  bg = 'rgba(16, 185, 129, 0.08)',
+  isRunning = true
+}) => {
+  return (
+    <svg viewBox="0 0 160 120" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
+      {/* Conveyor Bed & Frame */}
+      <rect x="15" y="55" width="130" height="22" rx="4" fill={bg} stroke={stroke} strokeWidth="1.5" />
+      {/* Legs */}
+      <line x1="30" y1="77" x2="30" y2="105" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+      <line x1="130" y1="77" x2="130" y2="105" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+      <line x1="22" y1="105" x2="38" y2="105" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+      <line x1="122" y1="105" x2="138" y2="105" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+
+      {/* Rollers */}
+      {[25, 50, 75, 100, 125, 135].map((x, i) => (
+        <circle key={i} cx={x} cy={66} r="5" fill="none" stroke={stroke} strokeWidth="1.2" opacity="0.6" />
+      ))}
+
+      {/* Moving Cans on Belt */}
+      <g style={{ overflow: 'hidden' }}>
+        <g style={{ animation: isRunning ? 'pf-conveyor-travel 1.8s linear infinite' : 'none' }}>
+          {[-15, 20, 55, 90, 125].map((x, i) => (
+            <g key={i} transform={`translate(${x}, 35)`}>
+              <rect x="0" y="0" width="16" height="20" rx="3" fill={OsakaJadePalette.jade[500]} stroke={stroke} strokeWidth="1" />
+              <line x1="2" y1="6" x2="14" y2="6" stroke="#ffffff" strokeWidth="1" opacity="0.7" />
+              <line x1="2" y1="14" x2="14" y2="14" stroke="#ffffff" strokeWidth="1" opacity="0.7" />
+            </g>
+          ))}
+        </g>
+      </g>
+
+      {/* Guide Rails */}
+      <line x1="15" y1="52" x2="145" y2="52" stroke={stroke} strokeWidth="1.5" opacity="0.8" />
+      <line x1="15" y1="36" x2="145" y2="36" stroke={stroke} strokeWidth="1" strokeDasharray="6,3" opacity="0.4" />
+
+      {/* Power Status LED */}
+      <circle
+        cx="140"
+        cy="66"
+        r="3"
+        fill={isRunning ? OsakaJadePalette.status.busy : OsakaJadePalette.jade.glow}
+        style={{ animation: 'pf-sensor-blink 1.2s infinite' }}
+      />
+    </svg>
+  );
+};
+
+// ── LabelerAnim: High-Speed Rotary Can/Bottle Labeler ─────────────────────────
+export const LabelerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
+  stroke = OsakaJadePalette.jade[400],
+  bg = 'rgba(16, 185, 129, 0.08)',
+  isRunning = true
+}) => {
+  return (
+    <svg viewBox="0 0 160 130" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
+      {/* Machine Cabinet Base */}
+      <rect x="25" y="65" width="110" height="50" rx="6" fill={bg} stroke={stroke} strokeWidth="1.5" />
+
+      {/* Unwind Reel & Takeup Reel */}
+      <g
+        style={{
+          transformBox: 'fill-box',
+          transformOrigin: '50% 50%',
+          animation: isRunning ? 'pf-spin 3s linear infinite' : 'none'
+        }}
+      >
+        <circle cx="50" cy="38" r="16" fill="none" stroke={stroke} strokeWidth="1.5" />
+        <circle cx="50" cy="38" r="6" fill={stroke} />
+        <line x1="50" y1="22" x2="50" y2="54" stroke={stroke} strokeWidth="1" />
+        <line x1="34" y1="38" x2="66" y2="38" stroke={stroke} strokeWidth="1" />
+      </g>
+      <g
+        style={{
+          transformBox: 'fill-box',
+          transformOrigin: '50% 50%',
+          animation: isRunning ? 'pf-spin 2.5s linear infinite' : 'none'
+        }}
+      >
+        <circle cx="95" cy="38" r="12" fill="none" stroke={stroke} strokeWidth="1.5" />
+        <circle cx="95" cy="38" r="5" fill={stroke} />
+      </g>
+
+      {/* Label Web Threading Path */}
+      <path d="M 64 38 L 80 52 L 80 72 L 95 48" fill="none" stroke={OsakaJadePalette.jade.glow} strokeWidth="1.5" strokeDasharray="3,2" />
+
+      {/* In-Line Cans Traveling Through Applicator */}
+      <rect x="30" y="70" width="18" height="24" rx="3" fill="rgba(16, 185, 129, 0.2)" stroke={stroke} strokeWidth="1" />
+      {/* Can being labeled */}
+      <g transform="translate(71, 70)">
+        <rect x="0" y="0" width="18" height="24" rx="3" fill={OsakaJadePalette.jade[500]} stroke={stroke} strokeWidth="1" />
+        <rect x="2" y="5" width="14" height="14" rx="1" fill="#ffffff" opacity="0.85" />
+        <line x1="4" y1="10" x2="14" y2="10" stroke={stroke} strokeWidth="1" />
+        <line x1="4" y1="14" x2="12" y2="14" stroke={stroke} strokeWidth="1" />
+      </g>
+      <rect x="112" y="70" width="18" height="24" rx="3" fill={OsakaJadePalette.jade[600]} stroke={stroke} strokeWidth="1" />
+
+      {/* Optical Photo-Eye Sensor */}
+      <rect x="73" y="56" width="14" height="8" rx="2" fill={stroke} />
+      <line x1="80" y1="64" x2="80" y2="70" stroke={OsakaJadePalette.status.failed} strokeWidth="1.5" strokeDasharray="2,1" />
+      <circle
+        cx="77"
+        cy="60"
+        r="2"
+        fill={isRunning ? OsakaJadePalette.status.busy : OsakaJadePalette.status.blocked}
+        style={{ animation: isRunning ? 'pf-sensor-blink 0.6s infinite' : 'none' }}
+      />
+      <text x="80" y="108" textAnchor="middle" fontSize="9" fill={stroke} fontWeight="bold">
+        ROTARY LABELER
+      </text>
+    </svg>
+  );
+};
+
+// ── PalletizerAnim: Robotic Cartesian Case Palletizer ────────────────────────
+export const PalletizerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
+  stroke = OsakaJadePalette.jade[400],
+  bg = 'rgba(16, 185, 129, 0.08)',
+  isRunning = true
+}) => {
+  return (
+    <svg viewBox="0 0 160 140" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
+      {/* Heavy Gantry Structural Frame */}
+      <rect x="20" y="15" width="120" height="110" fill={bg} stroke={stroke} strokeWidth="2" />
+      <line x1="20" y1="30" x2="140" y2="30" stroke={stroke} strokeWidth="2" />
+
+      {/* Wooden Pallet Base */}
+      <rect x="65" y="112" width="60" height="8" rx="1" fill="#78350f" stroke="#92400e" strokeWidth="1" />
+      <line x1="72" y1="112" x2="72" y2="120" stroke="#451a03" strokeWidth="1.5" />
+      <line x1="95" y1="112" x2="95" y2="120" stroke="#451a03" strokeWidth="1.5" />
+      <line x1="118" y1="112" x2="118" y2="120" stroke="#451a03" strokeWidth="1.5" />
+
+      {/* Stacked Box Layers on Pallet */}
+      <rect x="68" y="96" width="24" height="15" rx="2" fill={OsakaJadePalette.jade[600]} stroke={stroke} strokeWidth="1" />
+      <rect x="94" y="96" width="24" height="15" rx="2" fill={OsakaJadePalette.jade[600]} stroke={stroke} strokeWidth="1" />
+      <rect x="80" y="80" width="24" height="15" rx="2" fill={OsakaJadePalette.jade[500]} stroke={stroke} strokeWidth="1" />
+
+      {/* Robotic Cartesian Gantry Carriage & Gripper Head */}
+      <g style={{ animation: isRunning ? 'pf-gantry-move 3s ease-in-out infinite' : 'none' }}>
+        {/* Horizontal Trolley */}
+        <rect x="42" y="24" width="26" height="12" rx="2" fill={OsakaJadePalette.background.surfaceElevated} stroke={stroke} strokeWidth="1.5" />
+        {/* Telescoping Mast */}
+        <line x1="55" y1="36" x2="55" y2="58" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
+        {/* Vacuum Gripper / Clamping Head */}
+        <rect x="45" y="58" width="20" height="6" rx="1" fill={stroke} />
+        {/* Box in transit */}
+        <rect x="46" y="64" width="18" height="13" rx="2" fill={OsakaJadePalette.jade[400]} stroke={stroke} strokeWidth="1" />
+      </g>
+
+      {/* Safety Beacon */}
+      <circle
+        cx="130"
+        cy="22"
+        r="3.5"
+        fill={isRunning ? OsakaJadePalette.status.busy : OsakaJadePalette.status.blocked}
+        style={{ animation: isRunning ? 'pf-sensor-blink 1s infinite' : 'none' }}
+      />
+      <text x="50" y="118" textAnchor="middle" fontSize="8" fill={stroke} fontWeight="bold">
+        PALLET
+      </text>
+    </svg>
+  );
+};
+
 // ── UnitAnim: Master Dispatcher ───────────────────────────────────────────────
 export interface UnitAnimProps {
   kind: NodeKind | string;
@@ -449,27 +695,22 @@ export const UnitAnim: React.FC<UnitAnimProps> = ({ kind, dressing, isRunning = 
       );
 
     case 'ROTARY_FILLER':
-      return (
-        <svg viewBox="0 0 140 140" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
-          {/* Rotary Carousel */}
-          <circle cx="70" cy="70" r="45" fill="rgba(16, 185, 129, 0.08)" stroke={stroke} strokeWidth="2" />
-          <g style={{ transformOrigin: '70px 70px', animation: isRunning ? 'pf-spin 3s linear infinite' : 'none' }}>
-            {[0, 45, 90, 135, 180, 225, 270, 315].map((ang, i) => {
-              const rad = (ang * Math.PI) / 180;
-              const x = 70 + 35 * Math.cos(rad);
-              const y = 70 + 35 * Math.sin(rad);
-              return <circle key={i} cx={x} cy={y} r="5" fill={OsakaJadePalette.jade[500]} stroke={stroke} strokeWidth="1" />;
-            })}
-            <line x1="70" y1="35" x2="70" y2="105" stroke={stroke} strokeWidth="1.5" />
-            <line x1="35" y1="70" x2="105" y2="70" stroke={stroke} strokeWidth="1.5" />
-          </g>
-          <circle cx="70" cy="70" r="10" fill={OsakaJadePalette.background.surfaceElevated} stroke={stroke} strokeWidth="1.5" />
-        </svg>
-      );
+    case 'rotary_filler':
+    case 'filler':
+      return <FillerAnim stroke={stroke} isRunning={isRunning} />;
+
+    case 'CONVEYOR':
+    case 'conveyor':
+      return <ConveyorAnim stroke={stroke} isRunning={isRunning} />;
 
     case 'LABELER':
-    case 'CONVEYOR':
+    case 'labeler':
+      return <LabelerAnim stroke={stroke} isRunning={isRunning} />;
+
     case 'PALLETIZER':
+    case 'palletizer':
+      return <PalletizerAnim stroke={stroke} isRunning={isRunning} />;
+
     default:
       return <TankAnim stroke={stroke} isRunning={isRunning} levelPercent={60} />;
   }

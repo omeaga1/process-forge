@@ -13,7 +13,7 @@ import {
   type Connection
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Layers } from 'lucide-react';
+import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus } from 'lucide-react';
 
 import { validateProcessGraph, type ProcessGraph, type ProcessNode, type ProcessEdge } from '@process-forge/protocol';
 import { SimulationEngine } from '@process-forge/simulation-core';
@@ -24,6 +24,8 @@ import { MasterOrchestratorDock } from './dock/MasterOrchestratorDock.js';
 import { UnitOpPopOutStudio } from './studio/UnitOpPopOutStudio.js';
 import { CommunityUnitOpLibraryModal } from './marketplace/CommunityUnitOpLibraryModal.js';
 import { CommunityLibraryService } from '../marketplace/communityLibraryClient.js';
+import { EquipmentPaletteModal } from './palette/EquipmentPaletteModal.js';
+import { createDefaultProcessNode } from '../utils/nodeFactory.js';
 import { MobileFieldView } from './mobile/MobileFieldView.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
 import { useTheme } from '../hooks/useTheme.js';
@@ -79,7 +81,24 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const [graph, setGraph] = useState<ProcessGraph>(externalGraph || SHERWIN_WILLIAMS_PAINT_LINE);
   const [isRunning, setIsRunning] = useState(false);
   const [isForgeHubOpen, setIsForgeHubOpen] = useState(false);
+  const [isEquipmentPaletteOpen, setIsEquipmentPaletteOpen] = useState(false);
   const [popOutNodeId, setPopOutNodeId] = useState<string | null>(null);
+
+  const handleAddNode = useCallback(
+    (newNode: ProcessNode) => {
+      setGraph((prev) => {
+        const nextGraph = {
+          ...prev,
+          nodes: [...prev.nodes, newNode]
+        };
+        onGraphChange?.(nextGraph);
+        return nextGraph;
+      });
+      // Immediately select and open the Unit-Op Pop-Out Studio Drawer!
+      setPopOutNodeId(newNode.id);
+    },
+    [onGraphChange]
+  );
 
   // Sync external graph changes (from project import, template switcher, etc.)
   useEffect(() => {
@@ -147,17 +166,11 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           position,
           data: {
             processNode: pNode,
-            state: isRunning
-              ? pNode.id === 'rotary-filler-300'
-                ? 'BLOCKED'
-                : pNode.id === 'labeler-500'
-                  ? 'BUSY'
-                  : 'IDLE'
-              : 'IDLE',
-            unitsProduced: pNode.id === 'rotary-filler-300' ? telemetry.totalPackaged + 40 : telemetry.totalPackaged,
+            state: isRunning ? 'BUSY' : 'IDLE',
+            unitsProduced: pNode.id === 'palletizer-600' ? telemetry.totalPackaged : telemetry.totalPackaged + 40,
             unitsScrapped: 0,
-            bufferLevel: pNode.id === 'conveyor-400' ? 38 : 0,
-            instantaneousRate: pNode.id === 'labeler-500' ? 35 : 45,
+            bufferLevel: pNode.id === 'conveyor-400' ? (isRunning ? 38 : 0) : 0,
+            instantaneousRate: isRunning ? (pNode.id === 'labeler-500' ? 35 : 45) : 0,
             activeSubAgentId: pNode.assignedSubAgentId || `subagent-${pNode.id}`,
             subAgentChatHistory: [],
             onOpenPopOutStudio: (id: string) => setPopOutNodeId(id)
@@ -192,14 +205,10 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           ...n,
           data: {
             ...n.data,
-            state: isRunning
-              ? pNode.id === 'rotary-filler-300'
-                ? 'BLOCKED'
-                : pNode.id === 'labeler-500'
-                  ? 'BUSY'
-                  : 'IDLE'
-              : 'IDLE',
-            unitsProduced: pNode.id === 'rotary-filler-300' ? telemetry.totalPackaged + 40 : telemetry.totalPackaged
+            state: isRunning ? 'BUSY' : 'IDLE',
+            unitsProduced: pNode.id === 'palletizer-600' ? telemetry.totalPackaged : telemetry.totalPackaged + 40,
+            bufferLevel: pNode.id === 'conveyor-400' ? (isRunning ? 38 : 0) : 0,
+            instantaneousRate: isRunning ? (pNode.id === 'labeler-500' ? 35 : 45) : 0
           }
         };
       })
@@ -277,21 +286,37 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     [onGraphChange]
   );
 
+  const [simSpeed, setSimSpeed] = useState<number>(1);
+
+  // Keyboard shortcut: Spacebar to toggle simulation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (e.code === 'Space' && activeTag !== 'input' && activeTag !== 'textarea') {
+        e.preventDefault();
+        handleToggleSimulation();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isRunning, graph]);
+
   // Simulation execution loop
   useEffect(() => {
     if (isRunning) {
+      const intervalMs = Math.max(200, Math.round(1000 / simSpeed));
       animTimerRef.current = setInterval(() => {
         setTelemetry((prev) => {
           const added = Math.floor(Math.random() * 3) + 2;
-          const newTotal = prev.totalPackaged + added;
+          const newTotal = prev.totalPackaged + added * simSpeed;
           return {
             ...prev,
-            simulatedTimeSeconds: prev.simulatedTimeSeconds + 5,
+            simulatedTimeSeconds: prev.simulatedTimeSeconds + 5 * simSpeed,
             totalPackaged: newTotal,
-            averageRatePerMin: 35
+            averageRatePerMin: Math.min(120, 35 * simSpeed)
           };
         });
-      }, 1000);
+      }, intervalMs);
     } else {
       if (animTimerRef.current) {
         clearInterval(animTimerRef.current);
@@ -300,7 +325,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     return () => {
       if (animTimerRef.current) clearInterval(animTimerRef.current);
     };
-  }, [isRunning]);
+  }, [isRunning, simSpeed]);
 
   const handleToggleSimulation = () => {
     if (!isRunning) {
@@ -404,6 +429,329 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     >
       {/* Center Interactive Flow Canvas */}
       <div style={{ flex: 1, position: 'relative', height: '100%', minWidth: 0, minHeight: 0 }}>
+        {/* Floating Top Simulation Transport & Telemetry Bar */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 14,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '6px 14px',
+            borderRadius: 30,
+            backgroundColor: `${OsakaJadePalette.background.surfaceElevated}ee`,
+            backdropFilter: 'blur(12px)',
+            border: `1px solid ${isRunning ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
+            boxShadow: isRunning
+              ? `0 0 20px ${OsakaJadePalette.jade.glow}33, 0 8px 24px rgba(0,0,0,0.5)`
+              : '0 8px 20px rgba(0,0,0,0.4)',
+            transition: 'all 0.2s ease',
+            pointerEvents: 'auto',
+            maxWidth: '90vw'
+          }}
+        >
+          {/* Play / Pause Action Button */}
+          <button
+            onClick={handleToggleSimulation}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 14px',
+              borderRadius: 20,
+              backgroundColor: isRunning ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[500],
+              color: OsakaJadePalette.text.inverse,
+              border: 'none',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              boxShadow: isRunning ? 'none' : `0 0 12px ${OsakaJadePalette.jade.glow}55`,
+              transition: 'all 0.2s ease'
+            }}
+            title="Press Spacebar to toggle simulation"
+          >
+            {isRunning ? <Pause size={14} /> : <Play size={14} />}
+            <span>{isRunning ? 'Pause Simulation' : 'Run Simulation'}</span>
+          </button>
+
+          {/* Add UnitOp Action Button */}
+          <button
+            onClick={() => setIsEquipmentPaletteOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 20,
+              backgroundColor: OsakaJadePalette.background.surface,
+              color: OsakaJadePalette.jade.glow,
+              border: `1px solid ${OsakaJadePalette.jade[600]}`,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: `0 0 8px ${OsakaJadePalette.jade.glow}20`
+            }}
+            title="Open Equipment Palette to add Pumps, Tanks, Reactors, Fillers, etc."
+          >
+            <Plus size={14} />
+            <span>Add UnitOp</span>
+          </button>
+
+          {/* Reset Action Button */}
+          <button
+            onClick={handleResetSimulation}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 30,
+              height: 30,
+              borderRadius: '50%',
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              color: OsakaJadePalette.text.secondary,
+              cursor: 'pointer'
+            }}
+            title="Reset Simulation Time and Counters"
+          >
+            <RotateCcw size={13} />
+          </button>
+
+          <div style={{ width: 1, height: 18, backgroundColor: OsakaJadePalette.border.default }} />
+
+          {/* Speed Multiplier Pill */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              backgroundColor: OsakaJadePalette.background.surface,
+              padding: '2px 4px',
+              borderRadius: 16,
+              border: `1px solid ${OsakaJadePalette.border.subtle}`
+            }}
+          >
+            {[1, 2, 5].map((speed) => (
+              <button
+                key={speed}
+                onClick={() => setSimSpeed(speed)}
+                style={{
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  border: 'none',
+                  backgroundColor: simSpeed === speed ? OsakaJadePalette.jade.muted : 'transparent',
+                  color: simSpeed === speed ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
+                  cursor: 'pointer'
+                }}
+              >
+                {speed}x
+              </button>
+            ))}
+          </div>
+
+          <div style={{ width: 1, height: 18, backgroundColor: OsakaJadePalette.border.default }} />
+
+          {/* Real-time Status Badge & Telemetry */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 600 }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                color: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted
+              }}
+            >
+              <span
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: '50%',
+                  backgroundColor: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
+                  boxShadow: isRunning ? `0 0 6px ${OsakaJadePalette.jade.glow}` : 'none'
+                }}
+              />
+              {isRunning ? 'RUNNING' : 'STANDBY'}
+            </span>
+
+            <span style={{ color: OsakaJadePalette.text.secondary }}>•</span>
+
+            <span style={{ color: OsakaJadePalette.text.primary, fontFamily: 'monospace' }}>
+              {telemetry.averageRatePerMin || 35} CPM
+            </span>
+
+            <span style={{ color: OsakaJadePalette.text.secondary }}>•</span>
+
+            <span style={{ color: OsakaJadePalette.text.primary, fontFamily: 'monospace' }}>
+              {telemetry.totalPackaged} units
+            </span>
+
+            {telemetry.activeBottleneck && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  color: OsakaJadePalette.status.blocked,
+                  padding: '2px 8px',
+                  borderRadius: 12,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  border: '1px solid rgba(245, 158, 11, 0.3)'
+                }}
+              >
+                <AlertTriangle size={11} />
+                Bottleneck: {telemetry.activeBottleneck.replace(/-/g, ' ')}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Empty Canvas Call-to-Action for Blank Flowsheets */}
+        {nodes.length === 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 5,
+              width: 440,
+              maxWidth: 'calc(100% - 32px)',
+              backgroundColor: `${OsakaJadePalette.background.surfaceElevated}f2`,
+              backdropFilter: 'blur(16px)',
+              border: `1px solid ${OsakaJadePalette.border.glow}`,
+              borderRadius: 14,
+              padding: 24,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 12
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                border: `1px solid ${OsakaJadePalette.jade[600]}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: OsakaJadePalette.jade.glow
+              }}
+            >
+              <Layers size={22} />
+            </div>
+
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
+                Flowsheet Canvas Blank
+              </div>
+              <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, marginTop: 4, lineHeight: 1.4 }}>
+                Add your first unit operation to initialize the model. Clicking any placed unit opens its dedicated Unit-Op Sub-Agent.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 8, marginTop: 6 }}>
+              <button
+                onClick={() => handleAddNode(createDefaultProcessNode('PUMP', { flowRateGpm: 100 }))}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 12px',
+                  borderRadius: 8,
+                  backgroundColor: OsakaJadePalette.background.surface,
+                  border: `1px solid ${OsakaJadePalette.jade[600]}`,
+                  color: OsakaJadePalette.text.primary,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Plus size={14} color={OsakaJadePalette.jade.glow} />
+                  <span>Centrifugal Pump (100 GPM)</span>
+                </span>
+                <span style={{ fontSize: 11, color: OsakaJadePalette.jade.glow, fontWeight: 700 }}>+ Add</span>
+              </button>
+
+              <button
+                onClick={() => handleAddNode(createDefaultProcessNode('SURGE_TANK'))}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 12px',
+                  borderRadius: 8,
+                  backgroundColor: OsakaJadePalette.background.surface,
+                  border: `1px solid ${OsakaJadePalette.border.default}`,
+                  color: OsakaJadePalette.text.primary,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Plus size={14} color={OsakaJadePalette.jade.glow} />
+                  <span>Surge / Storage Tank (1,000 Gal)</span>
+                </span>
+                <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>+ Add</span>
+              </button>
+
+              <button
+                onClick={() => handleAddNode(createDefaultProcessNode('BATCH_REACTOR'))}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 12px',
+                  borderRadius: 8,
+                  backgroundColor: OsakaJadePalette.background.surface,
+                  border: `1px solid ${OsakaJadePalette.border.default}`,
+                  color: OsakaJadePalette.text.primary,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Plus size={14} color={OsakaJadePalette.jade.glow} />
+                  <span>Jacketed Batch Reactor (800 Gal)</span>
+                </span>
+                <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>+ Add</span>
+              </button>
+
+              <button
+                onClick={() => setIsEquipmentPaletteOpen(true)}
+                style={{
+                  marginTop: 4,
+                  padding: '7px 10px',
+                  borderRadius: 6,
+                  backgroundColor: 'transparent',
+                  border: `1px dashed ${OsakaJadePalette.border.default}`,
+                  color: OsakaJadePalette.text.secondary,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Browse All Industrial Equipment (Palette) →
+              </button>
+            </div>
+          </div>
+        )}
+
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -441,6 +789,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         onResetSimulation={handleResetSimulation}
         onOpenForgeHub={() => setIsForgeHubOpen(true)}
         onBroadcastContext={() => {}}
+        onAddNode={handleAddNode}
+        onOpenPopOutStudio={(nodeId) => setPopOutNodeId(nodeId)}
       />
 
       {/* Double-Click Unit-Op Pop-Out Studio Drawer */}
@@ -465,6 +815,13 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         isOpen={isForgeHubOpen}
         onClose={() => setIsForgeHubOpen(false)}
         onInsertNode={handleInsertNodeFromForgeHub}
+      />
+
+      {/* Industrial Equipment Palette Modal */}
+      <EquipmentPaletteModal
+        isOpen={isEquipmentPaletteOpen}
+        onClose={() => setIsEquipmentPaletteOpen(false)}
+        onInsertNode={handleAddNode}
       />
 
       {/* Floating Toggle Button for Touch / Mobile Users to Return to Field View */}

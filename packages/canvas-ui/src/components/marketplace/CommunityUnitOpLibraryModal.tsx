@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../hooks/useTheme.js';
+import { ProcessForgeEmblem } from '../brand/ProcessForgeLogo.js';
 import type { ProcessNode } from '@process-forge/protocol';
 import {
   X,
@@ -12,7 +13,6 @@ import {
   WifiOff,
   UserCheck,
   LogIn,
-  Layers,
   Check
 } from 'lucide-react';
 import {
@@ -32,7 +32,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
   onClose,
   onInsertNode
 }) => {
-  const { palette } = useTheme();
+  const { palette, elevation, font, size, weight, space, radius: r, motion } = useTheme();
   const OsakaJadePalette = palette;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -136,46 +136,46 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
             borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                border: `1px solid ${OsakaJadePalette.jade[600]}`,
+                width: 40,
+                height: 40,
+                borderRadius: r.md,
+                backgroundColor: `${OsakaJadePalette.jade[500]}1a`,
+                border: `1px solid ${OsakaJadePalette.jade[500]}44`,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                color: OsakaJadePalette.jade[400]
+                justifyContent: 'center'
               }}
             >
-              <Layers size={20} />
+              <ProcessForgeEmblem size={26} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                  Community UnitOp Library
+                <h3 style={{ margin: 0, fontSize: size.lg, fontWeight: weight.bold, color: OsakaJadePalette.text.primary, letterSpacing: '-0.02em' }}>
+                  ProcessForge Hub
                 </h3>
                 <span
                   style={{
-                    fontSize: 11,
+                    fontSize: size['2xs'],
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
-                    padding: '2px 8px',
-                    borderRadius: 12,
-                    backgroundColor: isLiveApi ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                    gap: space[1],
+                    padding: `2px ${space[2]}px`,
+                    borderRadius: r.full,
+                    backgroundColor: isLiveApi ? `${OsakaJadePalette.jade.glow}26` : 'rgba(255, 255, 255, 0.06)',
                     color: isLiveApi ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.secondary,
-                    border: `1px solid ${isLiveApi ? OsakaJadePalette.jade[600] : OsakaJadePalette.border.default}`
+                    border: `1px solid ${isLiveApi ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
+                    fontFamily: font.mono
                   }}
                 >
                   {isLiveApi ? <Cloud size={11} /> : <WifiOff size={11} />}
-                  {isLiveApi ? 'Cloudflare Live Sync' : 'Offline Verified Cache'}
+                  {isLiveApi ? 'Cloud Registry Live' : 'Local Verified Cache'}
                 </span>
               </div>
-              <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-                Browse, test, and 1-click import community-engineered Unit-Ops, or push your own .pfu plugins
+              <span style={{ fontSize: size.xs, color: OsakaJadePalette.text.secondary }}>
+                Industrial Unit-Op marketplace • Validated physics models, ASME ratings, and sub-agent contracts
               </span>
             </div>
           </div>
@@ -470,11 +470,11 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: OsakaJadePalette.text.muted }}>
                     <span>Author: <strong style={{ color: OsakaJadePalette.text.primary }}>{plugin.author}</strong></span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#f59e0b' }}>
-                      <Star size={12} fill="#f59e0b" />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: space[0.5] || 3, color: OsakaJadePalette.text.gold }}>
+                      <Star size={12} fill={OsakaJadePalette.text.gold} />
                       {plugin.rating.toFixed(1)}
                     </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: space[1] }}>
                       <Download size={12} />
                       {plugin.downloadCount.toLocaleString()} pulls
                     </span>
@@ -488,17 +488,18 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
-                    padding: '8px 16px',
-                    borderRadius: 6,
-                    backgroundColor: insertedId === plugin.id ? 'rgba(16, 185, 129, 0.2)' : OsakaJadePalette.jade[500],
+                    gap: space[1.5],
+                    padding: `${space[2]}px ${space[4]}px`,
+                    borderRadius: r.md,
+                    backgroundColor: insertedId === plugin.id ? `${OsakaJadePalette.jade.glow}33` : OsakaJadePalette.jade[500],
                     border: insertedId === plugin.id ? `1px solid ${OsakaJadePalette.jade[500]}` : 'none',
-                    color: insertedId === plugin.id ? OsakaJadePalette.jade[300] : '#0c1214',
-                    fontSize: 13,
-                    fontWeight: 700,
+                    color: insertedId === plugin.id ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.inverse,
+                    fontSize: size.base,
+                    fontWeight: weight.bold,
                     cursor: insertedId === plugin.id ? 'default' : 'pointer',
                     flexShrink: 0,
-                    boxShadow: insertedId === plugin.id ? 'none' : '0 2px 10px rgba(16, 185, 129, 0.25)'
+                    boxShadow: insertedId === plugin.id ? 'none' : elevation.glow,
+                    transition: `all ${motion.fast}`
                   }}
                 >
                   {insertedId === plugin.id ? <Check size={15} /> : <Plus size={15} />}

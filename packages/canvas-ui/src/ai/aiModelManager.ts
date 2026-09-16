@@ -5,9 +5,19 @@
  * In Offline mode, users have full access to their created and installed Unit-Ops.
  */
 
-export type AiConnectionMode = 'offline' | 'mcp' | 'oauth';
+export type AiConnectionMode = 'gemini' | 'claude' | 'openai' | 'ollama' | 'mcp' | 'oauth' | 'offline';
 // Backwards compatibility alias for components expecting AiProvider
 export type AiProvider = AiConnectionMode;
+
+export {
+  type LlmProvider,
+  type LlmCredentials,
+  type ConnectionTestResult,
+  DEFAULT_PROVIDER_MODELS,
+  testLlmConnection,
+  callLlmModel,
+  maskApiKey
+} from './llmClient.js';
 
 export interface McpConnectionConfig {
   endpoint: string;
@@ -44,7 +54,7 @@ export interface AiModelConfig {
   modelId?: string;
   temperature?: number;
   customEndpoint?: string;
-  apiKey?: string; // Always undefined in Zero-Key architecture
+  apiKey?: string;
 }
 
 export const DEFAULT_MCP_CONFIG: McpConnectionConfig = {
@@ -82,25 +92,49 @@ export const CONNECTION_METADATA: Record<
     isOnline: boolean;
   }
 > = {
+  gemini: {
+    name: 'Google Gemini',
+    badgeName: 'Gemini 3.6',
+    description: 'Direct browser connection using your Google AI Studio subscription / API key.',
+    isOnline: true
+  },
+  claude: {
+    name: 'Anthropic Claude',
+    badgeName: 'Claude 3.7',
+    description: 'Direct browser connection using your Anthropic Console subscription / API key.',
+    isOnline: true
+  },
+  openai: {
+    name: 'OpenAI',
+    badgeName: 'GPT-4o',
+    description: 'Direct browser connection using your OpenAI Platform subscription / API key.',
+    isOnline: true
+  },
+  ollama: {
+    name: 'Local Ollama',
+    badgeName: 'Ollama Local',
+    description: 'Free, local offline model running on your local machine / GPU.',
+    isOnline: true
+  },
   offline: {
-    name: 'Offline (Local Unit-Ops Only)',
-    badgeName: 'Offline (Local)',
+    name: 'No Model Connected',
+    badgeName: 'No Model',
     description:
-      'Run physics simulations and view all user-created or plugin-installed Unit-Ops. AI sub-agent chat and CAD generation require an active MCP or OAuth connection.',
+      'Connect your Gemini, Claude, or OpenAI subscription key in Settings to activate live AI engineering agents.',
     isOnline: false
   },
   mcp: {
     name: 'Model Context Protocol (MCP)',
     badgeName: 'MCP Connected',
     description:
-      'Directly connected to local ProcessForge MCP Server, Claude Desktop, or local MCP agent bridge with zero API keys.',
+      'Directly connected to local ProcessForge MCP Server, Claude Desktop, or local MCP agent bridge.',
     isOnline: true
   },
   oauth: {
     name: 'OAuth 2.0 PKCE Enterprise',
     badgeName: 'OAuth Signed In',
     description:
-      'Enterprise SSO or cloud identity session (Google, Microsoft, GitHub) with zero raw keys. Quotas managed via organization subscription.',
+      'Enterprise SSO or cloud identity session (Google, Microsoft, GitHub) with zero raw keys.',
     isOnline: true
   }
 };
@@ -109,6 +143,143 @@ export const CONNECTION_METADATA: Record<
 export const PROVIDER_METADATA = CONNECTION_METADATA;
 
 const STORAGE_KEY = 'pf_ai_connection_state';
+const STORAGE_KEY_LLM_CREDS = 'pf_ai_credentials';
+
+import type { LlmCredentials } from './llmClient.js';
+
+export function getLlmCredentials(): LlmCredentials {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return { provider: 'gemini', modelId: 'gemini-3.6-flash' };
+  }
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY_LLM_CREDS);
+    if (raw) {
+      const parsed = JSON.parse(raw) as LlmCredentials;
+      if (
+        parsed.provider === 'gemini' &&
+        (!parsed.modelId ||
+          parsed.modelId === 'gemini-2.0-flash' ||
+          parsed.modelId === 'gemini-1.5-flash' ||
+          parsed.modelId === 'gemini-1.5-pro')
+      ) {
+        parsed.modelId = 'gemini-3.6-flash';
+      }
+      return parsed;
+    }
+  } catch (e) {}
+  return { provider: 'gemini', modelId: 'gemini-3.6-flash' };
+}
+
+export function saveLlmCredentials(creds: Partial<LlmCredentials>): LlmCredentials {
+  const current = getLlmCredentials();
+  const updated: LlmCredentials = { ...current, ...creds };
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY_LLM_CREDS, JSON.stringify(updated));
+    } catch (e) {}
+  }
+
+  // If in desktop Tauri environment, securely store in OS Keyring (Windows DPAPI / macOS Keychain)
+  if (updated.geminiApiKey) {
+    saveTauriSecureToken('gemini', 'api_key', updated.geminiApiKey);
+  }
+  if (updated.openaiApiKey) {
+    saveTauriSecureToken('openai', 'api_key', updated.openaiApiKey);
+  }
+
+  // Automatically switch connection mode to the authenticated provider
+  if (hasValidCredentials(updated)) {
+    try {
+      const conn = getAiConnection();
+      conn.mode = updated.provider;
+      conn.provider = updated.provider;
+      saveAiConnection(conn);
+    } catch {}
+  }
+
+  return updated;
+}
+
+export function hasValidCredentials(creds?: LlmCredentials | null): boolean {
+  if (!creds) return false;
+  switch (creds.provider) {
+    case 'gemini':
+      return Boolean(creds.geminiApiKey?.trim());
+    case 'claude':
+      return Boolean(creds.claudeApiKey?.trim());
+    case 'openai':
+      return Boolean(creds.openaiApiKey?.trim());
+    case 'ollama':
+      return Boolean(creds.ollamaEndpoint?.trim() || true);
+    default:
+      return false;
+  }
+}
+
+export interface AgentChatLockStatus {
+  unlocked: boolean;
+  activeProvider: string;
+  reason?: string;
+}
+
+/**
+ * Validates whether the agent chat is unlocked for interaction.
+ * Prevents chatting with agents until credentials (API key or active MCP) are verified.
+ */
+export function isAgentChatUnlocked(
+  state?: AiConnectionState,
+  creds?: LlmCredentials
+): AgentChatLockStatus {
+  const activeState = state || getAiConnection();
+  const activeCreds = creds || getLlmCredentials();
+
+  // 1. Model Context Protocol (MCP) Mode - Zero-Key Architecture
+  if (activeState.mode === 'mcp' && activeState.mcp.status === 'connected') {
+    return {
+      unlocked: true,
+      activeProvider: 'mcp'
+    };
+  }
+
+  // 2. OAuth Enterprise Session
+  if (activeState.mode === 'oauth' && activeState.oauth.status === 'authenticated') {
+    return {
+      unlocked: true,
+      activeProvider: 'oauth'
+    };
+  }
+
+  // 3. Direct LLM Provider with valid API Key
+  if (hasValidCredentials(activeCreds)) {
+    return {
+      unlocked: true,
+      activeProvider: activeCreds.provider
+    };
+  }
+
+  return {
+    unlocked: false,
+    activeProvider: 'none',
+    reason: 'Agent locked: No API key or active MCP connection detected. Add credentials to begin chatting.'
+  };
+}
+
+/**
+ * 1-Click Complete Purge: Deletes all stored keys from localStorage and OS Keyring
+ */
+export async function purgeAllCredentials(): Promise<void> {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY_LLM_CREDS);
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {}
+  }
+  await deleteTauriSecureToken('gemini', 'api_key');
+  await deleteTauriSecureToken('claude', 'api_key');
+  await deleteTauriSecureToken('openai', 'api_key');
+  await deleteTauriSecureToken('oauth', 'token');
+  resetToOfflineConfig();
+}
 
 async function saveTauriSecureToken(service: string, account: string, secret: string): Promise<void> {
   if (typeof window !== 'undefined' && (window as any).__TAURI__?.core?.invoke) {
@@ -207,7 +378,16 @@ export function saveAiConnection(state: AiConnectionState): void {
  * Backwards compatibility helper for getAiConfig()
  */
 export function getAiConfig(): AiModelConfig {
+  const creds = getLlmCredentials();
   const conn = getAiConnection();
+  if (hasValidCredentials(creds) && conn.mode !== 'mcp' && conn.mode !== 'oauth') {
+    return {
+      provider: creds.provider,
+      mode: creds.provider,
+      modelId: creds.modelId,
+      temperature: 0.2
+    };
+  }
   return {
     provider: conn.mode,
     mode: conn.mode,
@@ -248,11 +428,11 @@ export function enableMcpMode(): AiConnectionState {
   conn.provider = 'mcp';
   conn.mcp = {
     endpoint: 'stdio://process-forge-mcp',
-    status: 'connected',
+    status: 'disconnected',
     serverName: 'process-forge-mcp',
-    toolsCount: 6,
-    lastPingMs: 1,
-    errorNotice: undefined
+    toolsCount: 0,
+    lastPingMs: undefined,
+    errorNotice: 'MCP server disconnected. Click Test Connection.'
   };
   saveAiConnection(conn);
   return conn;

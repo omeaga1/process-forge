@@ -4,12 +4,24 @@ import {
   type ThemePalette,
   type CanvasVisualTheme,
   type MachineStateVisualConfig,
+  type ElevationTokens,
   getOsakaJadePalette,
   getCanvasTokens,
   getMachineStateVisuals,
+  getElevation,
   OsakaJadeDarkPalette,
   OsakaJadeDarkCanvasTokens,
-  MachineStateVisualsDark
+  MachineStateVisualsDark,
+  elevationDark,
+  fontFamily,
+  fontSize,
+  fontWeight,
+  lineHeight,
+  letterSpacing,
+  spacing,
+  radius,
+  motion,
+  zIndex,
 } from '@process-forge/theme';
 
 export interface ThemeContextValue {
@@ -17,6 +29,16 @@ export interface ThemeContextValue {
   palette: ThemePalette;
   canvasTokens: CanvasVisualTheme;
   machineVisuals: Record<string, MachineStateVisualConfig>;
+  elevation: ElevationTokens;
+  font: typeof fontFamily;
+  size: typeof fontSize;
+  weight: typeof fontWeight;
+  leading: typeof lineHeight;
+  tracking: typeof letterSpacing;
+  space: typeof spacing;
+  radius: typeof radius;
+  motion: typeof motion;
+  z: typeof zIndex;
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
 }
@@ -26,6 +48,16 @@ const defaultContext: ThemeContextValue = {
   palette: OsakaJadeDarkPalette,
   canvasTokens: OsakaJadeDarkCanvasTokens,
   machineVisuals: MachineStateVisualsDark,
+  elevation: elevationDark,
+  font: fontFamily,
+  size: fontSize,
+  weight: fontWeight,
+  leading: lineHeight,
+  tracking: letterSpacing,
+  space: spacing,
+  radius,
+  motion,
+  z: zIndex,
   setTheme: () => {},
   toggleTheme: () => {}
 };
@@ -100,6 +132,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialT
   const palette = getOsakaJadePalette(theme);
   const canvasTokens = getCanvasTokens(theme);
   const machineVisuals = getMachineStateVisuals(theme);
+  const elevation = getElevation(theme);
 
   return (
     <ThemeContext.Provider
@@ -108,6 +141,16 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialT
         palette,
         canvasTokens,
         machineVisuals,
+        elevation,
+        font: fontFamily,
+        size: fontSize,
+        weight: fontWeight,
+        leading: lineHeight,
+        tracking: letterSpacing,
+        space: spacing,
+        radius,
+        motion,
+        z: zIndex,
         setTheme,
         toggleTheme
       }}
@@ -118,3 +161,4 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialT
 };
 
 export const useTheme = (): ThemeContextValue => useContext(ThemeContext);
+

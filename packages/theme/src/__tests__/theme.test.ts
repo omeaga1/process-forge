@@ -14,7 +14,17 @@ import {
   MachineStateVisualsLight,
   getMachineStateVisuals,
   generateOsakaJadeCssVariables,
-  osakaJadeTailwindPreset
+  osakaJadeTailwindPreset,
+  fontFamily,
+  fontSize,
+  fontWeight,
+  spacing,
+  radius,
+  getElevation,
+  elevationDark,
+  elevationLight,
+  motion,
+  zIndex
 } from '../index.js';
 
 describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
@@ -128,5 +138,52 @@ describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
       osakaJadeTailwindPreset.theme.extend.colors.pf.light.background.base,
       OsakaJadeLightPalette.background.base
     );
+  });
+
+  it('provides Omarchy-derived typography scale with monospace priority for data', () => {
+    assert.ok(fontFamily.mono.includes('JetBrains Mono'));
+    assert.ok(fontFamily.sans.includes('Inter'));
+    assert.equal(fontSize['2xs'], 10);
+    assert.equal(fontSize.xs, 11);
+    assert.equal(fontSize.sm, 12);
+    assert.equal(fontSize.base, 13);
+    assert.equal(fontSize.md, 14);
+    assert.equal(fontSize.lg, 16);
+    assert.equal(fontWeight.normal, 400);
+    assert.equal(fontWeight.semibold, 600);
+    assert.equal(fontWeight.bold, 700);
+  });
+
+  it('provides 4px-grid spatial scale and tight desktop-rice border radii', () => {
+    assert.equal(spacing[1], 4);
+    assert.equal(spacing[2], 8);
+    assert.equal(spacing[3], 12);
+    assert.equal(spacing[4], 16);
+
+    // Tight radii matching Omarchy terminal/desktop aesthetics (not bubbly 12px)
+    assert.equal(radius.none, 0);
+    assert.equal(radius.sm, 2);
+    assert.equal(radius.md, 4);
+    assert.equal(radius.lg, 6);
+    assert.equal(radius.full, 9999);
+  });
+
+  it('provides calibrated dark and light elevation tokens', () => {
+    const darkElev = getElevation('dark');
+    const lightElev = getElevation('light');
+
+    assert.equal(darkElev, elevationDark);
+    assert.equal(lightElev, elevationLight);
+    assert.ok(darkElev.glow.includes('113, 206, 173')); // Hyprland active border jade
+    assert.ok(darkElev.glowWarning.includes('229, 199, 54')); // Amber gold
+    assert.ok(lightElev.glow.includes('30, 126, 88')); // Imperial jade
+  });
+
+  it('provides motion curves and z-index hierarchy', () => {
+    assert.ok(motion.fast);
+    assert.ok(motion.normal);
+    assert.ok(motion.smooth);
+    assert.ok(zIndex.modal > zIndex.panel);
+    assert.ok(zIndex.panel > zIndex.base);
   });
 });

@@ -17,6 +17,7 @@ target/
 .env.local
 .env.*.local
 *.pem
+.processforge_cloud/
 
 # Logs
 npm-debug.log*

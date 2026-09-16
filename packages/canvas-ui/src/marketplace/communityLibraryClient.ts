@@ -146,7 +146,7 @@ export const VERIFIED_SEED_UNITOPS: CommunityUnitOpItem[] = [
 
 const API_BASE_URL = typeof window !== 'undefined' && (window as any).__PF_COMMUNITY_API_URL__
   ? (window as any).__PF_COMMUNITY_API_URL__
-  : 'https://community-unitops.process-forge.org/api';
+  : 'https://process-forge-community-library.vprescenzi.workers.dev/api';
 
 const SESSION_KEY = 'pf_community_creator_session';
 const LOCAL_PLUGINS_KEY = 'pf_community_local_plugins';

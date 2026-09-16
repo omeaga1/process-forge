@@ -5,8 +5,8 @@ compatibility_date = "2024-12-01"
 # Cloudflare D1 Database Binding
 [[d1_databases]]
 binding = "DB"
-database_name = "process-forge-community-unitops"
-database_id = "process-forge-community-unitops-db"
+database_name = "process-forge-community-unitops-db"
+database_id = "0f8322c5-8644-487d-bda5-adade3acdd1b"
 migrations_dir = "migrations"
 
 [vars]

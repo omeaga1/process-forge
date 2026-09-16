@@ -33,7 +33,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
   onUpdateNodeConfig,
   onUpdateNodeDressing
 }) => {
-  const { palette } = useTheme();
+  const { palette, elevation, space, radius: r } = useTheme();
   const OsakaJadePalette = palette;
   const [selectedNode, setSelectedNode] = useState<ProcessNode | null>(null);
 
@@ -251,21 +251,21 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
           const isBottleneck = node.id === telemetry.activeBottleneck;
           const isBlocked = isRunning && node.id === 'rotary-filler-300';
           const statusText = isBottleneck ? 'Bottleneck' : isBlocked ? 'Backpressure' : isRunning ? 'Nominal' : 'Standby';
-          const statusColor = isBottleneck ? OsakaJadePalette.border.glowAmber : isBlocked ? '#EF4444' : isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted;
+          const statusColor = isBottleneck ? OsakaJadePalette.border.glowAmber : isBlocked ? OsakaJadePalette.status.failed : isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted;
 
           return (
             <div
               key={node.id}
               onClick={() => setSelectedNode(node)}
               style={{
-                padding: '12px 14px',
-                borderRadius: 10,
+                padding: `${space[3]}px`,
+                borderRadius: r.md,
                 backgroundColor: OsakaJadePalette.background.surface,
                 border: isBottleneck ? `1px solid ${OsakaJadePalette.border.glowAmber}` : `1px solid ${OsakaJadePalette.border.default}`,
-                boxShadow: isBottleneck ? '0 0 12px rgba(245, 158, 11, 0.15)' : 'none',
+                boxShadow: isBottleneck ? elevation.glowWarning : 'none',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 8,
+                gap: space[2],
                 cursor: 'pointer',
                 transition: 'background-color 0.15s ease'
               }}

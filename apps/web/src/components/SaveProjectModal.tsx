@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
-import { Save, Download, X, Check } from 'lucide-react';
+import {
+  Save,
+  Download,
+  X,
+  Check,
+  Cloud,
+  ShieldCheck,
+  User,
+  HardDrive
+} from 'lucide-react';
 import { useTheme } from '@process-forge/canvas-ui';
 import type { SimulationProject } from '@process-forge/protocol';
+import { useAccount } from '../auth/useAccount.js';
 
 interface SaveProjectModalProps {
   isOpen: boolean;
@@ -9,6 +19,7 @@ interface SaveProjectModalProps {
   onClose: () => void;
   onSaveLocal: (name: string, description: string) => void;
   onDownloadFile: (name: string, description: string) => void;
+  onSaveCloud?: (name: string, description: string) => Promise<void>;
 }
 
 export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
@@ -16,14 +27,18 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
   project,
   onClose,
   onSaveLocal,
-  onDownloadFile
+  onDownloadFile,
+  onSaveCloud
 }) => {
   const { palette } = useTheme();
   const OsakaJadePalette = palette;
+  const { user, isAuthenticated, openAccountModal } = useAccount();
 
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || '');
   const [isSavedLocally, setIsSavedLocally] = useState(false);
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
+  const [isSavedCloud, setIsSavedCloud] = useState(false);
 
   if (!isOpen) return null;
 
@@ -33,9 +48,22 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
     setTimeout(() => setIsSavedLocally(false), 2000);
   };
 
+  const handleSaveCloud = async () => {
+    if (!onSaveCloud) return;
+    setIsSavingCloud(true);
+    try {
+      await onSaveCloud(name, description);
+      setIsSavedCloud(true);
+      setTimeout(() => setIsSavedCloud(false), 2000);
+    } catch (e) {
+      console.error('Cloud save failed:', e);
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
+
   const handleDownload = () => {
     onDownloadFile(name, description);
-    onClose();
   };
 
   return (
@@ -54,7 +82,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
     >
       <div
         style={{
-          width: 560,
+          width: 580,
           maxWidth: '100%',
           maxHeight: 'min(90vh, calc(100vh - 40px))',
           backgroundColor: OsakaJadePalette.background.surface,
@@ -93,11 +121,11 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
               <Save size={18} />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
                 Save Simulation Flowsheet
               </h3>
               <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-                Preserve topology, equipment parameters, and stream connections
+                Preserve digital twin topology, equipment dressing, and agent transcripts
               </span>
             </div>
           </div>
@@ -115,17 +143,17 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
           </button>
         </div>
 
-        {/* Form Body */}
-        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+        {/* Content Form */}
+        <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 6 }}>
-              Project / Line Name
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
+              Simulation Project Name
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Paint Packaging Line A"
+              placeholder="e.g. Sherwin-Williams Line Twin"
               style={{
                 width: '100%',
                 backgroundColor: OsakaJadePalette.background.canvas,
@@ -140,14 +168,14 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 6 }}>
-              Description & Notes (Optional)
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
+              Description &amp; Engineering Notes
             </label>
             <textarea
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Facility notes, fluid batch details, or line targets..."
+              placeholder="Facility notes, batch recipe details, or line targets..."
               style={{
                 width: '100%',
                 backgroundColor: OsakaJadePalette.background.canvas,
@@ -164,70 +192,111 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
 
           {/* Storage Destination Cards */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
-            {/* Download File */}
+            {/* Primary: ProcessForge Cloud Storage */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: 14,
-                backgroundColor: OsakaJadePalette.background.canvas,
-                border: `1px solid ${OsakaJadePalette.border.subtle}`,
+                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                border: `1px solid ${OsakaJadePalette.jade[600]}`,
                 borderRadius: 8
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Download size={20} color={OsakaJadePalette.jade[500]} />
+                <Cloud size={20} color={OsakaJadePalette.jade[400]} />
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                    Download .pfg.json Bundle
+                  <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    Save to ProcessForge Cloud
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 700,
+                        padding: '1px 6px',
+                        borderRadius: 10,
+                        backgroundColor: OsakaJadePalette.jade[500],
+                        color: OsakaJadePalette.text.inverse
+                      }}
+                    >
+                      RECOMMENDED
+                    </span>
                   </div>
-                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
-                    Recommended for Guest Mode: 100% offline file on your disk.
+                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>
+                    {isAuthenticated && user
+                      ? `Syncs to ${user.name}'s account • Accessible across all devices`
+                      : 'Sync your digital twin across devices and team members'}
                   </div>
                 </div>
               </div>
-              <button
-                onClick={handleDownload}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '7px 14px',
-                  backgroundColor: OsakaJadePalette.jade[500],
-                  border: 'none',
-                  borderRadius: 6,
-                  color: '#0c1214',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                <Download size={14} />
-                Download File
-              </button>
+
+              {isAuthenticated ? (
+                <button
+                  onClick={handleSaveCloud}
+                  disabled={isSavingCloud}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 16px',
+                    backgroundColor: isSavedCloud ? OsakaJadePalette.jade[600] : OsakaJadePalette.jade[500],
+                    border: 'none',
+                    borderRadius: 6,
+                    color: OsakaJadePalette.text.inverse,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: isSavingCloud ? 'wait' : 'pointer'
+                  }}
+                >
+                  {isSavedCloud ? <Check size={14} /> : <Cloud size={14} />}
+                  {isSavedCloud ? 'Saved to Cloud!' : isSavingCloud ? 'Syncing...' : 'Save to Cloud'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    onClose();
+                    openAccountModal();
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    backgroundColor: OsakaJadePalette.jade[500],
+                    border: 'none',
+                    borderRadius: 6,
+                    color: OsakaJadePalette.text.inverse,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <User size={13} />
+                  Sign In to Sync
+                </button>
+              )}
             </div>
 
-            {/* Browser Local Storage Cache */}
+            {/* Browser Storage */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: 14,
+                padding: 12,
                 backgroundColor: OsakaJadePalette.background.canvas,
                 border: `1px solid ${OsakaJadePalette.border.subtle}`,
                 borderRadius: 8
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Save size={20} color={OsakaJadePalette.jade[400]} />
+                <HardDrive size={18} color={OsakaJadePalette.text.secondary} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                    Browser Local Storage Cache
+                    Browser Local Storage
                   </div>
                   <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
-                    Persists this project in your local browser cache for immediate reloading.
+                    Quick save to this browser for fast reloading
                   </div>
                 </div>
               </div>
@@ -237,8 +306,8 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  padding: '7px 14px',
-                  backgroundColor: isSavedLocally ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                  padding: '6px 12px',
+                  backgroundColor: isSavedLocally ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
                   border: `1px solid ${isSavedLocally ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
                   borderRadius: 6,
                   color: isSavedLocally ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.primary,
@@ -247,8 +316,52 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                {isSavedLocally && <Check size={14} color={OsakaJadePalette.jade[400]} />}
-                {isSavedLocally ? 'Saved to Cache' : 'Save to Cache'}
+                {isSavedLocally ? <Check size={13} /> : <Save size={13} />}
+                {isSavedLocally ? 'Saved' : 'Save Local'}
+              </button>
+            </div>
+
+            {/* Download File */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: 12,
+                backgroundColor: OsakaJadePalette.background.canvas,
+                border: `1px solid ${OsakaJadePalette.border.subtle}`,
+                borderRadius: 8
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Download size={18} color={OsakaJadePalette.text.secondary} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
+                    Download .pfg.json Bundle
+                  </div>
+                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
+                    Export a standalone JSON file to share or archive on your drive
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={handleDownload}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 12px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                  border: `1px solid ${OsakaJadePalette.border.default}`,
+                  borderRadius: 6,
+                  color: OsakaJadePalette.text.primary,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <Download size={13} />
+                Download
               </button>
             </div>
           </div>
@@ -257,45 +370,33 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
         {/* Footer */}
         <div
           style={{
-            padding: '14px 20px',
+            padding: '12px 20px',
             backgroundColor: OsakaJadePalette.background.canvas,
             borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
             display: 'flex',
+            alignItems: 'center',
             justifyContent: 'space-between',
-            alignItems: 'center'
+            fontSize: 11,
+            color: OsakaJadePalette.text.muted
           }}
         >
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <ShieldCheck size={12} color={OsakaJadePalette.jade[500]} />
+            100% Deterministic Simulation State Preservation
+          </span>
           <button
-            onClick={handleSaveLocal}
+            onClick={onClose}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 12px',
+              padding: '6px 14px',
               backgroundColor: 'transparent',
-              border: `1px solid ${OsakaJadePalette.border.subtle}`,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
               borderRadius: 6,
               color: OsakaJadePalette.text.secondary,
               fontSize: 12,
               cursor: 'pointer'
             }}
           >
-            {isSavedLocally ? <Check size={14} color={OsakaJadePalette.jade[500]} /> : <Save size={14} />}
-            {isSavedLocally ? 'Saved in Browser Cache!' : 'Cache in Browser'}
-          </button>
-
-          <button
-            onClick={onClose}
-            style={{
-              padding: '6px 14px',
-              backgroundColor: 'transparent',
-              border: 'none',
-              color: OsakaJadePalette.text.muted,
-              fontSize: 13,
-              cursor: 'pointer'
-            }}
-          >
-            Cancel
+            Close
           </button>
         </div>
       </div>

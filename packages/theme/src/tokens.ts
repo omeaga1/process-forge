@@ -90,7 +90,7 @@ export const MachineStateVisualsDark: Record<string, MachineStateVisualConfig> =
     indicatorGlow: '0 0 12px rgba(255, 83, 69, 0.7)'
   },
   IDLE: {
-    label: 'Idle / Offline',
+    label: 'Standby',
     badgeBg: 'rgba(83, 104, 91, 0.15)',
     badgeText: OsakaJadeDarkPalette.status.idle,
     indicatorGlow: 'none'
@@ -123,7 +123,7 @@ export const MachineStateVisualsLight: Record<string, MachineStateVisualConfig> 
     indicatorGlow: '0 0 12px rgba(220, 38, 38, 0.45)'
   },
   IDLE: {
-    label: 'Idle / Offline',
+    label: 'Standby',
     badgeBg: 'rgba(100, 116, 139, 0.12)',
     badgeText: OsakaJadeLightPalette.status.idle,
     indicatorGlow: 'none'

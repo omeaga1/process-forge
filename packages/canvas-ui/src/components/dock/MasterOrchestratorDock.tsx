@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../hooks/useTheme.js';
-import type { ProcessGraph, BottleneckAnalysis } from '@process-forge/protocol';
+import type { ProcessGraph, ProcessNode, BottleneckAnalysis } from '@process-forge/protocol';
 import type { ChatMessage, PlantTelemetryState } from '../../types.js';
 import {
   getAiConfig,
+  getAiConnection,
+  getLlmCredentials,
+  isAgentChatUnlocked,
   PROVIDER_METADATA,
   type AiModelConfig
 } from '../../ai/aiModelManager.js';
 import { dispatchMasterOrchestratorMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Cpu, Zap, Loader2, Play, Pause, RotateCcw, ChevronRight, ChevronLeft, Layers } from 'lucide-react';
+import { Cpu, Loader2, Play, Pause, RotateCcw, ChevronRight, ChevronLeft, Sparkles, Lock, KeyRound } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
@@ -20,6 +23,8 @@ interface MasterOrchestratorDockProps {
   onResetSimulation: () => void;
   onOpenForgeHub: () => void;
   onBroadcastContext: () => void;
+  onAddNode?: (node: ProcessNode) => void;
+  onOpenPopOutStudio?: (nodeId: string) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
 }
@@ -31,41 +36,38 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   isRunning,
   onToggleSimulation,
   onResetSimulation,
-  onOpenForgeHub,
+  onOpenForgeHub: _onOpenForgeHub,
   onBroadcastContext,
+  onAddNode,
+  onOpenPopOutStudio,
   isCollapsed = false,
   onToggleCollapse
 }) => {
-  const { palette } = useTheme();
+  const { palette, elevation, font, size, weight, space, radius: r, motion } = useTheme();
   const OsakaJadePalette = palette;
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [lockStatus, setLockStatus] = useState(() => isAgentChatUnlocked(getAiConnection(), getLlmCredentials()));
+
+  const refreshAiState = () => {
+    setAiConfig(getAiConfig());
+    setLockStatus(isAgentChatUnlocked(getAiConnection(), getLlmCredentials()));
+  };
 
   useEffect(() => {
-    setAiConfig(getAiConfig());
+    refreshAiState();
   }, []);
 
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
-    {
-      id: 'forge-init',
-      sender: 'master_orchestrator',
-      senderTitle: 'Unit-Op Software Engineer',
-      text: `Environment Forge initialized for "${graph.name}". I synthesize custom unit operations, equipment CAD drawings, and nozzle schedules that you can place, connect, and refine on the flowsheet canvas.`,
-      timestamp: '14:26',
-      modelBadge: PROVIDER_METADATA[getAiConfig().provider]?.badgeName || 'Offline (Local)',
-      isOffline: getAiConfig().provider === 'offline',
-      suggestedPrompts: [
-        'Synthesize a jacketed batch reactor with top agitator',
-        'Generate a rotary canning filler with 8 diving nozzles',
-        'Create a 3-phase horizontal separator with weir',
-        'Synthesize ASME flanged nozzle schedule'
-      ]
-    }
-  ]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 
   const handleSendMessage = async (textToSend?: string) => {
+    const currentLock = isAgentChatUnlocked(getAiConnection(), getLlmCredentials());
+    if (!currentLock.unlocked) {
+      setIsAiModalOpen(true);
+      return;
+    }
     const text = textToSend || inputText;
     if (!text.trim() || isProcessing) return;
 
@@ -103,14 +105,19 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         aiConfig
       );
 
+      if (res.createdNode) {
+        onAddNode?.(res.createdNode);
+      }
+
       const agentMsg: ChatMessage = {
         id: `mst-${Date.now() + 1}`,
         sender: 'master_orchestrator',
-        senderTitle: 'Unit-Op Software Engineer',
+        senderTitle: 'Equipment Specialist',
         text: res.text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         modelBadge: res.senderBadge,
-        isOffline: res.isOfflineSolver
+        isOffline: res.isOfflineSolver,
+        createdNode: res.createdNode
       };
 
       setChatHistory((prev) => [...prev, agentMsg]);
@@ -197,82 +204,77 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         flexShrink: 0
       }}
     >
-      {/* Header with Title & Playback Controls */}
+      {/* Header with Clean Title & Dock Controls */}
       <div
         style={{
-          padding: '14px 16px',
+          padding: '12px 14px',
           borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
-          backgroundColor: OsakaJadePalette.background.base
+          backgroundColor: OsakaJadePalette.background.surfaceElevated
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase' }}>
-                Environment & Unit-Op Forge
-              </span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 6,
+                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                border: `1px solid ${OsakaJadePalette.jade[600]}40`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: OsakaJadePalette.jade.glow,
+                flexShrink: 0
+              }}
+            >
+              <Sparkles size={15} />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary, lineHeight: 1.2 }}>
+                Process Copilot
+              </div>
               <button
                 type="button"
                 onClick={() => setIsAiModalOpen(true)}
                 style={{
-                  fontSize: 9,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  fontSize: 10,
                   fontWeight: 600,
-                  padding: '1px 6px',
-                  borderRadius: 10,
-                  backgroundColor: aiConfig.provider === 'offline' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(16, 185, 129, 0.15)',
-                  color: aiConfig.provider === 'offline' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow,
-                  border: `1px solid ${aiConfig.provider === 'offline' ? OsakaJadePalette.border.default : OsakaJadePalette.jade.glow}`,
-                  display: 'inline-flex',
+                  color: OsakaJadePalette.text.secondary,
+                  display: 'flex',
                   alignItems: 'center',
-                  gap: 3,
-                  cursor: 'pointer'
+                  gap: 4,
+                  cursor: 'pointer',
+                  marginTop: 2
                 }}
-                title="Configure AI Model / Provider"
+                title="Configure AI & MCP Tools"
               >
-                {aiConfig.provider === 'offline' ? <Zap size={10} /> : <Cpu size={10} />}
-                <span>{PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'Offline'}</span>
+                <span style={{ width: 6, height: 6, borderRadius: r.full, backgroundColor: lockStatus.unlocked ? OsakaJadePalette.jade.glow : OsakaJadePalette.status.failed, display: 'inline-block' }} />
+                <span>{lockStatus.unlocked ? (PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant') : 'Locked (No Key)'}</span>
+                <span style={{ fontSize: size['2xs'], color: OsakaJadePalette.text.muted }}>• Tools</span>
               </button>
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-              Software Engineer Studio
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button
-              onClick={onOpenForgeHub}
-              style={{
-                backgroundColor: OsakaJadePalette.jade.muted,
-                color: OsakaJadePalette.jade.glow,
-                border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                borderRadius: 6,
-                padding: '6px 10px',
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5
-              }}
-            >
-              <Layers size={13} />
-              <span>Community UnitOps</span>
-            </button>
-
             {onToggleCollapse && (
               <button
                 onClick={onToggleCollapse}
                 title="Collapse Studio Dock"
                 style={{
-                  backgroundColor: 'transparent',
+                  backgroundColor: OsakaJadePalette.background.surface,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   borderRadius: 6,
-                  padding: '6px',
+                  padding: '5px 7px',
                   color: OsakaJadePalette.text.secondary,
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  fontSize: 11
                 }}
               >
                 <ChevronRight size={14} />
@@ -282,7 +284,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         </div>
 
         {/* Simulation Playback Bar */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
           <button
             onClick={onToggleSimulation}
             style={{
@@ -291,70 +293,119 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               color: OsakaJadePalette.text.inverse,
               border: 'none',
               borderRadius: 6,
-              padding: '8px 0',
+              padding: '7px 10px',
               fontWeight: 700,
-              fontSize: 12,
+              fontSize: 11,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 6
+              gap: 6,
+              transition: 'background 0.15s ease'
             }}
           >
-            {isRunning ? <Pause size={14} /> : <Play size={14} />}
+            {isRunning ? <Pause size={13} /> : <Play size={13} />}
             <span>{isRunning ? 'Pause Simulation' : 'Run Simulation'}</span>
           </button>
 
           <button
             onClick={onResetSimulation}
             style={{
-              backgroundColor: OsakaJadePalette.background.surfaceElevated,
+              backgroundColor: OsakaJadePalette.background.surface,
               color: OsakaJadePalette.text.secondary,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               borderRadius: 6,
-              padding: '8px 12px',
-              fontSize: 12,
+              padding: '7px 10px',
+              fontSize: 11,
               fontWeight: 600,
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 5
+              gap: 4
             }}
+            title="Reset simulation to initial state"
           >
-            <RotateCcw size={13} />
+            <RotateCcw size={12} />
             <span>Reset</span>
           </button>
         </div>
       </div>
 
-      {/* Whole-Plant Telemetry Dashboard Banner */}
+      {/* Whole-Plant Telemetry Dashboard Banner (3-Card KPI Grid) */}
       <div
         style={{
-          padding: '12px 16px',
-          borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
-          backgroundColor: OsakaJadePalette.background.surfaceElevated,
-          fontSize: 11
+          padding: '10px 14px',
+          borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
+          backgroundColor: OsakaJadePalette.background.base
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ color: OsakaJadePalette.text.muted }}>PLANT OUTPUT:</span>
-          <span style={{ fontWeight: 700, color: OsakaJadePalette.jade.glow }}>
-            {telemetry.totalPackaged} CANS
-          </span>
-        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          <div
+            style={{
+              padding: '6px 8px',
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <span style={{ fontSize: 9, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Output
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
+              {telemetry.totalPackaged}
+            </span>
+          </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={{ color: OsakaJadePalette.text.muted }}>ACTIVE BOTTLENECK:</span>
-          <span style={{ fontWeight: 700, color: OsakaJadePalette.status.blocked }}>
-            {bottlenecks.bottleneckNodeId ? bottlenecks.bottleneckNodeId.toUpperCase() : 'NONE'}
-          </span>
-        </div>
+          <div
+            style={{
+              padding: '6px 8px',
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <span style={{ fontSize: 9, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Throughput
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
+              {Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin)}/m
+            </span>
+          </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ color: OsakaJadePalette.text.muted }}>THROUGHPUT CAP:</span>
-          <span style={{ fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-            {Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin)} cans/min
-          </span>
+          <div
+            style={{
+              padding: '6px 8px',
+              borderRadius: 6,
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <span style={{ fontSize: 9, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Bottleneck
+            </span>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: bottlenecks.bottleneckNodeId ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade.glow,
+                marginTop: 3,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+              title={bottlenecks.bottleneckNodeId ? (graph.nodes.find(n => n.id === bottlenecks.bottleneckNodeId)?.name || bottlenecks.bottleneckNodeId) : 'None (Balanced)'}
+            >
+              {bottlenecks.bottleneckNodeId
+                ? (graph.nodes.find(n => n.id === bottlenecks.bottleneckNodeId)?.name.split(' ')[0] || 'Node')
+                : 'Balanced'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -369,45 +420,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           gap: 10
         }}
       >
-        {/* Offline Notification Banner */}
-        {aiConfig.provider === 'offline' && (
-          <div
-            style={{
-              padding: '8px 10px',
-              borderRadius: 6,
-              backgroundColor: 'rgba(255, 255, 255, 0.03)',
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              fontSize: 10,
-              lineHeight: 1.4,
-              color: OsakaJadePalette.text.secondary,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 6
-            }}
-          >
-            <div>
-              <strong style={{ color: OsakaJadePalette.text.primary }}>Offline Mode: </strong>
-              Local simulation physics running. Connect MCP or OAuth to synthesize new unit-ops and environments.
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsAiModalOpen(true)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: OsakaJadePalette.jade.glow,
-                fontWeight: 700,
-                fontSize: 10,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Connect AI
-            </button>
-          </div>
-        )}
-
         {chatHistory.map((msg) => {
           const isUser = msg.sender === 'user';
           return (
@@ -437,18 +449,69 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                     border: `1px solid ${msg.isOffline ? OsakaJadePalette.border.default : OsakaJadePalette.jade[600]}`
                   }}
                 >
-                  {msg.modelBadge || (isUser ? 'Operator' : 'Offline Solver')}
+                  {msg.modelBadge || (isUser ? 'Operator' : 'AI Orchestrator')}
                 </span>
                 <span>• {msg.timestamp}</span>
               </div>
               <div>{msg.text}</div>
+
+              {msg.createdNode && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                    border: `1px solid ${OsakaJadePalette.jade[600]}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: OsakaJadePalette.jade.glow }}>
+                    <Sparkles size={13} />
+                    <span>Flowsheet Equipment Placed</span>
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
+                    {msg.createdNode.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
+                    Kind: {msg.createdNode.kind.replace(/_/g, ' ')} • Sub-Agent Initialized
+                  </div>
+                  {onOpenPopOutStudio && (
+                    <button
+                      onClick={() => onOpenPopOutStudio(msg.createdNode!.id)}
+                      style={{
+                        marginTop: 4,
+                        alignSelf: 'flex-start',
+                        padding: '5px 10px',
+                        borderRadius: 4,
+                        backgroundColor: OsakaJadePalette.jade.glow,
+                        color: OsakaJadePalette.background.base,
+                        border: 'none',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Open Unit-Op Studio →
+                    </button>
+                  )}
+                </div>
+              )}
 
               {msg.suggestedPrompts && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
                   {msg.suggestedPrompts.map((p) => (
                     <button
                       key={p}
-                      onClick={() => handleSendMessage(p)}
+                      onClick={() => {
+                        if (!lockStatus.unlocked) {
+                          setIsAiModalOpen(true);
+                        } else {
+                          handleSendMessage(p);
+                        }
+                      }}
                       style={{
                         fontSize: 10,
                         backgroundColor: OsakaJadePalette.background.surface,
@@ -486,104 +549,119 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           >
             <Loader2 size={12} className="animate-spin" color={OsakaJadePalette.jade.glow} />
             <span>
-              {aiConfig.provider === 'offline'
-                ? 'Auditing kinematics & conservation...'
-                : `Consulting ${PROVIDER_METADATA[aiConfig.provider]?.badgeName}...`}
+              Consulting {PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'Solver Engine'}...
             </span>
           </div>
         )}
       </div>
 
-      {/* Chat Input Bar */}
-      <div
-        style={{
-          padding: 12,
-          borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-          display: 'flex',
-          gap: 8,
-          backgroundColor: OsakaJadePalette.background.base,
-          alignItems: 'center'
-        }}
-      >
-        {aiConfig.provider === 'offline' ? (
-          <div
+      {/* Chat Input Bar or Security Lock Gate */}
+      {!lockStatus.unlocked ? (
+        <div
+          style={{
+            padding: `${space[3]}px ${space[4]}px`,
+            borderTop: `1px solid ${OsakaJadePalette.border.default}`,
+            backgroundColor: OsakaJadePalette.background.surfaceElevated,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: space[2.5],
+            alignItems: 'center',
+            textAlign: 'center'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: space[1.5] }}>
+            <Lock size={14} color={OsakaJadePalette.status.failed} />
+            <span style={{ fontSize: size.sm, fontWeight: weight.bold, color: OsakaJadePalette.text.primary }}>
+              Agent Orchestration Locked
+            </span>
+          </div>
+          <span style={{ fontSize: size.xs, color: OsakaJadePalette.text.secondary, lineHeight: 1.4 }}>
+            For your security and privacy, chatting with agents is disabled until credentials (API key or local MCP connection) are detected.
+          </span>
+          <button
+            onClick={() => setIsAiModalOpen(true)}
             style={{
-              flex: 1,
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '6px 12px',
-              borderRadius: 6,
-              backgroundColor: OsakaJadePalette.background.surfaceElevated,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              fontSize: 11,
-              color: OsakaJadePalette.text.muted
+              gap: space[1.5],
+              backgroundColor: OsakaJadePalette.jade[500],
+              color: OsakaJadePalette.text.inverse,
+              border: 'none',
+              borderRadius: r.md,
+              padding: `${space[2]}px ${space[3]}px`,
+              fontSize: size.xs,
+              fontWeight: weight.bold,
+              cursor: 'pointer',
+              boxShadow: elevation.glow,
+              transition: `all ${motion.fast}`
             }}
           >
-            <span>Environment Forge offline. Connect MCP or OAuth.</span>
-            <button
-              type="button"
-              onClick={() => setIsAiModalOpen(true)}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 5,
-                backgroundColor: OsakaJadePalette.jade.glow,
-                color: OsakaJadePalette.background.base,
-                border: 'none',
-                fontWeight: 700,
-                fontSize: 11,
-                cursor: 'pointer'
-              }}
-            >
-              Connect AI
-            </button>
-          </div>
-        ) : (
-          <>
-            <input
-              type="text"
-              placeholder={isProcessing ? 'Processing...' : 'Ask Lead Orchestration Engineer...'}
-              value={inputText}
-              disabled={isProcessing}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
-              style={{
-                flex: 1,
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                borderRadius: 6,
-                padding: '8px 10px',
-                color: OsakaJadePalette.text.primary,
-                fontSize: 12,
-                outline: 'none',
-                opacity: isProcessing ? 0.6 : 1
-              }}
-            />
-            <button
-              onClick={() => handleSendMessage()}
-              disabled={isProcessing || !inputText.trim()}
-              style={{
-                backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
-                color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
-                border: 'none',
-                borderRadius: 6,
-                padding: '8px 12px',
-                fontWeight: 700,
-                fontSize: 11,
-                cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer'
-              }}
-            >
-              Send
-            </button>
-          </>
-        )}
-      </div>
+            <KeyRound size={13} />
+            <span>Unlock Agent / Add Credentials</span>
+          </button>
+        </div>
+      ) : (
+        <div
+          style={{
+            padding: space[3],
+            borderTop: `1px solid ${OsakaJadePalette.border.default}`,
+            display: 'flex',
+            gap: space[2],
+            backgroundColor: OsakaJadePalette.background.base,
+            alignItems: 'center'
+          }}
+        >
+          <input
+            type="text"
+            placeholder={isProcessing ? 'Calculating...' : 'Query plant solver or specify equipment parameters...'}
+            value={inputText}
+            disabled={isProcessing}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
+            style={{
+              flex: 1,
+              backgroundColor: OsakaJadePalette.background.surfaceElevated,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              borderRadius: r.md,
+              padding: `${space[2]}px ${space[2.5]}px`,
+              color: OsakaJadePalette.text.primary,
+              fontSize: size.sm,
+              fontFamily: font.sans,
+              outline: 'none',
+              opacity: isProcessing ? 0.6 : 1
+            }}
+          />
+          <button
+            onClick={() => handleSendMessage()}
+            disabled={isProcessing || !inputText.trim()}
+            style={{
+              backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
+              color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
+              border: 'none',
+              borderRadius: r.md,
+              padding: `${space[2]}px ${space[3]}px`,
+              fontWeight: weight.bold,
+              fontSize: size.xs,
+              cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer',
+              transition: `all ${motion.fast}`
+            }}
+          >
+            Send
+          </button>
+        </div>
+      )}
 
       {/* AI Model & Provider Modal */}
       <AiModelModal
         isOpen={isAiModalOpen}
-        onClose={() => setIsAiModalOpen(false)}
-        onConfigChanged={(cfg) => setAiConfig(cfg)}
+        onClose={() => {
+          setIsAiModalOpen(false);
+          refreshAiState();
+        }}
+        onConfigChanged={(cfg) => {
+          setAiConfig(cfg);
+          refreshAiState();
+        }}
       />
     </div>
   );

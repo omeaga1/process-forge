@@ -18,6 +18,7 @@ export interface ChatMessage {
   cadDrawing?: EquipmentCadDrawing;
   modelBadge?: string;
   isOffline?: boolean;
+  createdNode?: ProcessNode;
 }
 
 export interface CanvasNodeData extends Record<string, unknown> {

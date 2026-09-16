@@ -20,6 +20,13 @@ import { HeaderBar } from './components/HeaderBar.js';
 import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModal.js';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
+import { AccountModal } from './components/AccountModal.js';
+import { CloudProjectsModal } from './components/CloudProjectsModal.js';
+import { StudioErrorBoundary } from './components/StudioErrorBoundary.js';
+import { LandingPageHub } from './components/LandingPageHub.js';
+import { OmnipresentAgentWidget } from './components/OmnipresentAgentWidget.js';
+import { AccountProvider, useAccount } from './auth/useAccount.js';
+import { saveProjectToCloud } from './storage/cloudStorageAdapter.js';
 import { useAppUpdater } from './hooks/useAppUpdater.js';
 import {
   saveLocalProject,
@@ -28,28 +35,49 @@ import {
   readProjectFromFile
 } from './storage/localStorageAdapter.js';
 
-export const App: React.FC = () => {
+function inferTemplateKeyFromProject(proj: SimulationProject): string {
+  if (!proj || !proj.graph) return 'blank';
+  const name = (proj.name || '').toLowerCase();
+  const graphId = (proj.graph.id || '').toLowerCase();
+  if (graphId === 'beverage-bottling-line' || name.includes('beverage')) {
+    return 'beverage-bottling-line';
+  }
+  if (graphId === 'blank' || proj.graph.nodes.length === 0 || name.includes('custom')) {
+    return 'blank';
+  }
+  if (graphId === 'sherwin-williams-paint-line' || name.includes('paint') || name.includes('sherwin')) {
+    return 'sherwin-williams-paint-line';
+  }
+  return 'blank';
+}
+
+const AppInner: React.FC = () => {
   const updater = useAppUpdater();
-  const [templateKey, setTemplateKey] = useState<string>('sherwin-williams-paint-line');
+  const { isAccountModalOpen, openAccountModal, closeAccountModal } = useAccount();
+  const [isCloudProjectsModalOpen, setIsCloudProjectsModalOpen] = useState<boolean>(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(() => getAiConfig());
   const [isGuestModalOpen, setIsGuestModalOpen] = useState<boolean>(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState<boolean>(false);
   const [isCommunityLibraryOpen, setIsCommunityLibraryOpen] = useState<boolean>(false);
+  // App navigation state: 'landing' (hub) | 'studio' (canvas flowsheet)
+  const [viewMode, setViewMode] = useState<'landing' | 'studio'>('landing');
 
   // Initialize or restore active project
   const [project, setProject] = useState<SimulationProject>(() => {
     const cached = loadCurrentLocalProject();
     if (cached) return cached;
     return createSimulationProject(
-      'Sherwin-Williams Paint Canning Line',
-      SHERWIN_WILLIAMS_PAINT_LINE,
+      'Custom Process Forge',
+      BLANK_LINE,
       {
-        description: 'Industrial paint blending, filling, labeling, and palletizing line',
+        description: 'Clean slate industrial process flowsheet',
         isGuest: true
       }
     );
   });
+
+  const [templateKey, setTemplateKey] = useState<string>(() => inferTemplateKeyFromProject(project));
 
   // Check if first-time guest visit
   useEffect(() => {
@@ -141,10 +169,45 @@ export const App: React.FC = () => {
     downloadProjectFile(updated);
   }, [project]);
 
+  const handleSaveCloud = useCallback(async (name: string, description: string) => {
+    const updated: SimulationProject = {
+      ...project,
+      name,
+      description,
+      isGuestProject: false,
+      updatedAt: new Date().toISOString()
+    };
+    setProject(updated);
+    saveLocalProject(updated);
+    await saveProjectToCloud(updated);
+  }, [project]);
+
+  const handleSelectCloudProject = useCallback((loaded: SimulationProject) => {
+    setProject(loaded);
+    setTemplateKey(inferTemplateKeyFromProject(loaded));
+    saveLocalProject(loaded);
+    setIsCloudProjectsModalOpen(false);
+  }, []);
+
+  const handleUploadLocalFile = useCallback(async (file: File) => {
+    try {
+      const imported = await readProjectFromFile(file);
+      setProject(imported);
+      setTemplateKey(inferTemplateKeyFromProject(imported));
+      saveLocalProject(imported);
+      await saveProjectToCloud(imported);
+      setIsCloudProjectsModalOpen(false);
+      alert(`Imported "${imported.name}" and synced to ProcessForge Cloud.`);
+    } catch (err: any) {
+      alert(`Error importing file: ${err?.message || String(err)}`);
+    }
+  }, []);
+
   const handleImportFile = useCallback(async (file: File) => {
     try {
       const imported = await readProjectFromFile(file);
       setProject(imported);
+      setTemplateKey(inferTemplateKeyFromProject(imported));
       saveLocalProject(imported);
       alert(`Successfully loaded project: "${imported.name}" with ${imported.graph.nodes.length} machines.`);
     } catch (err: any) {
@@ -167,47 +230,107 @@ export const App: React.FC = () => {
     });
   }, []);
 
+  const handleCreateBlank = useCallback(() => {
+    const blank = createSimulationProject('Custom Process Forge', BLANK_LINE, {
+      description: 'Clean slate industrial process flowsheet',
+      isGuest: project.isGuestProject
+    });
+    setTemplateKey('blank');
+    setProject(blank);
+    saveLocalProject(blank);
+    setViewMode('studio');
+  }, [project.isGuestProject]);
+
+  const handleSelectTemplateAndLaunch = useCallback((key: string) => {
+    handleSelectTemplate(key);
+    setViewMode('studio');
+  }, [handleSelectTemplate]);
+
+  const handleSelectCloudProjectAndLaunch = useCallback((loaded: SimulationProject) => {
+    handleSelectCloudProject(loaded);
+    setViewMode('studio');
+  }, [handleSelectCloudProject]);
+
+  const handleImportFileAndLaunch = useCallback(async (file: File) => {
+    await handleImportFile(file);
+    setViewMode('studio');
+  }, [handleImportFile]);
+
+  const handleOpenStudio = useCallback(() => {
+    handleCreateBlank();
+  }, [handleCreateBlank]);
+
+  const handleNavigateHome = useCallback(() => {
+    saveLocalProject(project);
+    setViewMode('landing');
+  }, [project]);
+
   return (
-    <ThemeProvider>
-      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', maxWidth: '100vw', maxHeight: '100vh', overflow: 'hidden' }}>
-        {/* Top Application Navigation */}
-      <HeaderBar
-        currentTemplate={templateKey}
-        isGuestMode={project.isGuestProject}
-        activeAiProvider={aiConfig.provider}
-        onSelectTemplate={handleSelectTemplate}
-        onOpenAiModal={() => setIsAiModalOpen(true)}
-        onOpenForgeHub={() => setIsCommunityLibraryOpen(true)}
-        onOpenSaveModal={() => setIsSaveModalOpen(true)}
-        onOpenGuestModal={() => setIsGuestModalOpen(true)}
-        onImportFile={handleImportFile}
-        isDockCollapsed={isDockCollapsed}
-        onToggleDockCollapse={() => setIsDockCollapsed((prev) => !prev)}
-        onCheckForUpdates={() => updater.checkForUpdates(true)}
-        isCheckingUpdates={updater.isChecking}
-        hasUpdateAvailable={updater.hasUpdate}
-      />
-
-      {/* Desktop & Web In-App Auto Update Banner */}
-      <UpdateNotificationBanner
-        status={updater.status}
-        updateInfo={updater.updateInfo}
-        statusMessage={updater.statusMessage}
-        onDismiss={updater.dismissNotification}
-        onCheckForUpdates={() => updater.checkForUpdates(true)}
-        onRestartAndApply={updater.restartAndApplyUpdate}
-        onHardReload={updater.hardReloadApp}
-      />
-
-      {/* Main Interactive Studio Canvas */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minWidth: 0, minHeight: 0 }}>
-        <ProcessCanvas
-          graph={project.graph}
-          onGraphChange={handleGraphChange}
-          isDockCollapsed={isDockCollapsed}
-          onToggleDockCollapse={() => setIsDockCollapsed((prev) => !prev)}
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', maxWidth: '100vw', maxHeight: '100vh', overflow: 'hidden', position: 'relative' }}>
+      {viewMode === 'landing' ? (
+        <LandingPageHub
+          currentProject={project}
+          onCreateBlank={handleCreateBlank}
+          onSelectTemplate={handleSelectTemplateAndLaunch}
+          onOpenProject={handleSelectCloudProjectAndLaunch}
+          onImportFile={handleImportFileAndLaunch}
+          onOpenStudio={handleOpenStudio}
+          onOpenForgeHub={() => setIsCommunityLibraryOpen(true)}
+          onOpenAiModal={() => setIsAiModalOpen(true)}
+          onOpenAccountModal={openAccountModal}
+          onOpenCloudProjectsModal={() => setIsCloudProjectsModalOpen(true)}
         />
-      </div>
+      ) : (
+        <>
+          {/* Top Application Navigation */}
+          <HeaderBar
+            currentTemplate={templateKey}
+            isGuestMode={project.isGuestProject}
+            activeAiProvider={aiConfig.provider}
+            onNavigateHome={handleNavigateHome}
+            onSelectTemplate={handleSelectTemplate}
+            onOpenAiModal={() => setIsAiModalOpen(true)}
+            onOpenForgeHub={() => setIsCommunityLibraryOpen(true)}
+            onOpenSaveModal={() => setIsSaveModalOpen(true)}
+            onOpenGuestModal={() => setIsGuestModalOpen(true)}
+            onImportFile={handleImportFile}
+            onOpenAccountModal={openAccountModal}
+            onOpenCloudProjects={() => setIsCloudProjectsModalOpen(true)}
+            onCheckForUpdates={() => updater.checkForUpdates(true)}
+            isCheckingUpdates={updater.isChecking}
+            hasUpdateAvailable={updater.hasUpdate}
+          />
+
+          {/* Desktop & Web In-App Auto Update Banner */}
+          <UpdateNotificationBanner
+            status={updater.status}
+            updateInfo={updater.updateInfo}
+            statusMessage={updater.statusMessage}
+            onDismiss={updater.dismissNotification}
+            onCheckForUpdates={() => updater.checkForUpdates(true)}
+            onRestartAndApply={updater.restartAndApplyUpdate}
+            onHardReload={updater.hardReloadApp}
+          />
+
+          {/* Main Interactive Studio Canvas */}
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minWidth: 0, minHeight: 0 }}>
+            <ProcessCanvas
+              graph={project.graph}
+              onGraphChange={handleGraphChange}
+              isDockCollapsed={isDockCollapsed}
+              onToggleDockCollapse={() => setIsDockCollapsed((prev) => !prev)}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Omnipresent Overarching Agent Companion (Always Visible Across Both Views) */}
+      <OmnipresentAgentWidget
+        currentProject={project}
+        isInStudioView={viewMode === 'studio'}
+        onOpenStudio={handleOpenStudio}
+        onOpenAiModal={() => setIsAiModalOpen(true)}
+      />
 
       {/* Modals */}
       <AiModelModal
@@ -220,6 +343,7 @@ export const App: React.FC = () => {
         isOpen={isGuestModalOpen}
         onClose={() => setIsGuestModalOpen(false)}
         onExportFile={() => downloadProjectFile(project)}
+        onOpenAccountModal={openAccountModal}
       />
 
       <SaveProjectModal
@@ -228,14 +352,42 @@ export const App: React.FC = () => {
         onClose={() => setIsSaveModalOpen(false)}
         onSaveLocal={handleSaveLocal}
         onDownloadFile={handleDownloadFile}
+        onSaveCloud={handleSaveCloud}
       />
 
-        <CommunityUnitOpLibraryModal
-          isOpen={isCommunityLibraryOpen}
-          onClose={() => setIsCommunityLibraryOpen(false)}
-          onInsertNode={handleInsertCommunityNode}
-        />
-      </div>
+      <CommunityUnitOpLibraryModal
+        isOpen={isCommunityLibraryOpen}
+        onClose={() => setIsCommunityLibraryOpen(false)}
+        onInsertNode={handleInsertCommunityNode}
+      />
+
+      <AccountModal
+        isOpen={isAccountModalOpen}
+        onClose={closeAccountModal}
+        onOpenCloudProjects={() => {
+          closeAccountModal();
+          setIsCloudProjectsModalOpen(true);
+        }}
+      />
+
+      <CloudProjectsModal
+        isOpen={isCloudProjectsModalOpen}
+        onClose={() => setIsCloudProjectsModalOpen(false)}
+        onSelectProject={handleSelectCloudProject}
+        onUploadLocalFile={handleUploadLocalFile}
+      />
+    </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <ThemeProvider>
+      <AccountProvider>
+        <StudioErrorBoundary>
+          <AppInner />
+        </StudioErrorBoundary>
+      </AccountProvider>
     </ThemeProvider>
   );
 };

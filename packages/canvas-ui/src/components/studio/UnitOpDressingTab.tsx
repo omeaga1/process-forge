@@ -16,7 +16,7 @@ interface UnitOpDressingTabProps {
 }
 
 export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUpdateDressing }) => {
-  const { palette } = useTheme();
+  const { palette, size, weight, space, radius: r } = useTheme();
   const OsakaJadePalette = palette;
   const defaultInternals = {
     agitatorType: node.kind === 'BATCH_REACTOR' ? ('pitched_blade' as const) : ('none' as const),
@@ -280,7 +280,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
             style={{
               padding: '8px 16px',
               backgroundColor: isForging || !aiPrompt.trim() ? OsakaJadePalette.background.surface : OsakaJadePalette.jade[500],
-              color: isForging || !aiPrompt.trim() ? OsakaJadePalette.text.muted : '#0c1214',
+              color: isForging || !aiPrompt.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
               border: `1px solid ${isForging || !aiPrompt.trim() ? OsakaJadePalette.border.default : OsakaJadePalette.jade[400]}`,
               borderRadius: '6px',
               fontWeight: 700,
@@ -422,7 +422,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                         gap: '4px'
                       }}
                     >
-                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: nozzle.role === 'inlet' ? '#38bdf8' : nozzle.role === 'outlet' ? '#10b981' : '#f59e0b' }} />
+                      <span style={{ width: '6px', height: '6px', borderRadius: r.full, backgroundColor: nozzle.role === 'inlet' ? OsakaJadePalette.status.starved : nozzle.role === 'outlet' ? OsakaJadePalette.jade.glow : OsakaJadePalette.status.blocked }} />
                       {nozzle.id}
                     </div>
                   </div>
@@ -618,14 +618,14 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
+                  gap: space[1],
+                  padding: `${space[1]}px ${space[2]}px`,
+                  borderRadius: r.md,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: '#38bdf8',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
+                  color: OsakaJadePalette.status.starved,
+                  fontSize: size.xs,
+                  fontWeight: weight.semibold,
                   cursor: 'pointer'
                 }}
               >
@@ -636,14 +636,14 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
+                  gap: space[1],
+                  padding: `${space[1]}px ${space[2]}px`,
+                  borderRadius: r.md,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: '#10b981',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
+                  color: OsakaJadePalette.jade.glow,
+                  fontSize: size.xs,
+                  fontWeight: weight.semibold,
                   cursor: 'pointer'
                 }}
               >
@@ -654,14 +654,14 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
+                  gap: space[1],
+                  padding: `${space[1]}px ${space[2]}px`,
+                  borderRadius: r.md,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: '#f59e0b',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
+                  color: OsakaJadePalette.status.blocked,
+                  fontSize: size.xs,
+                  fontWeight: weight.semibold,
                   cursor: 'pointer'
                 }}
               >
@@ -672,14 +672,14 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '4px',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
+                  gap: space[1],
+                  padding: `${space[1]}px ${space[2]}px`,
+                  borderRadius: r.md,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: '#f43f5e',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
+                  color: OsakaJadePalette.status.failed,
+                  fontSize: size.xs,
+                  fontWeight: weight.semibold,
                   cursor: 'pointer'
                 }}
               >

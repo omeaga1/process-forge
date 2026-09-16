@@ -15,5 +15,8 @@ export * from './ai/aiDispatch.js';
 export * from './components/modals/AiModelModal.js';
 export * from './components/mobile/MobileFieldView.js';
 export * from './components/mobile/MobileUnitOpSheet.js';
+export * from './components/brand/ProcessForgeLogo.js';
 export * from './hooks/useMobileViewport.js';
 export * from './hooks/useTheme.js';
+export * from './utils/nodeFactory.js';
+export * from './components/palette/EquipmentPaletteModal.js';

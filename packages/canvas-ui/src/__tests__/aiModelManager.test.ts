@@ -8,7 +8,13 @@ import {
   initiateOAuthLogin,
   signOutOAuth,
   disconnectMcp,
-  disconnectAll
+  disconnectAll,
+  isAgentChatUnlocked,
+  maskApiKey,
+  purgeAllCredentials,
+  saveLlmCredentials,
+  getLlmCredentials,
+  testLlmConnection
 } from '../ai/aiModelManager.js';
 import {
   dispatchUnitOpMessage,
@@ -135,9 +141,9 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
 
     assert.strictEqual(res.isOfflineSolver, true);
     assert.strictEqual(res.senderBadge, 'Offline (Local Only)');
-    assert.ok(res.text.includes('Unit-Op Forge for "Jacketed Polymerization Reactor RX-201" is in local offline mode'));
+    assert.ok(res.text.includes('Unit-Op Studio for "Jacketed Polymerization Reactor RX-201" is in local offline mode'));
     assert.ok(res.text.includes('Connect via Model Context Protocol (MCP) or sign in with OAuth'));
-    assert.ok(res.errorNotice?.includes('Unit-Op Forge offline'));
+    assert.ok(res.errorNotice?.includes('Unit-Op Studio offline'));
   });
 
   it('when MCP is connected: dispatchUnitOpMessage executes CAD drawing via MCP tool', async () => {
@@ -163,7 +169,7 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
     );
 
     assert.strictEqual(res.isOfflineSolver, false);
-    assert.strictEqual(res.senderBadge, 'MCP Forge');
+    assert.strictEqual(res.senderBadge, 'MCP Connected');
     assert.ok(res.text.includes('[MCP Tool: forge_equipment_drawing]'));
     assert.ok(res.cadDrawing);
     assert.ok(res.cadDrawing?.nozzles.length >= 2);
@@ -199,7 +205,7 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
     );
 
     assert.strictEqual(res.isOfflineSolver, false);
-    assert.strictEqual(res.senderBadge, 'OAuth Enterprise');
+    assert.strictEqual(res.senderBadge, 'Enterprise SSO');
     assert.ok(res.text.includes('Dow Chemical Plant Operations'));
     assert.ok(res.cadDrawing);
   });
@@ -219,7 +225,111 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
     );
 
     assert.strictEqual(res.isOfflineSolver, true);
-    assert.ok(res.text.includes('Environment Forge is in local offline mode'));
+    assert.ok(res.text.includes('Flowsheet Engine is in local offline mode'));
     assert.ok(res.text.includes('Connect via MCP or OAuth'));
+  });
+
+  it('agent chat lockout: isAgentChatUnlocked locks chat until credentials or MCP detected', () => {
+    resetToOfflineConfig();
+    const locked = isAgentChatUnlocked(getAiConnection(), { provider: 'gemini', modelId: 'gemini-3.6-flash' });
+    assert.strictEqual(locked.unlocked, false);
+    assert.strictEqual(locked.activeProvider, 'none');
+    assert.ok(locked.reason?.includes('No API key or active MCP connection detected'));
+
+    // Unlocks with Gemini API key
+    const geminiUnlocked = isAgentChatUnlocked(getAiConnection(), {
+      provider: 'gemini',
+      modelId: 'gemini-3.6-flash',
+      geminiApiKey: 'AIzaSyTestKey12345'
+    });
+    assert.strictEqual(geminiUnlocked.unlocked, true);
+    assert.strictEqual(geminiUnlocked.activeProvider, 'gemini');
+
+    // Unlocks with Claude API key
+    const claudeUnlocked = isAgentChatUnlocked(getAiConnection(), {
+      provider: 'claude',
+      modelId: 'claude-3-7-sonnet-latest',
+      claudeApiKey: 'sk-ant-api03-test-token'
+    });
+    assert.strictEqual(claudeUnlocked.unlocked, true);
+    assert.strictEqual(claudeUnlocked.activeProvider, 'claude');
+
+    // Unlocks with OpenAI API key
+    const openaiUnlocked = isAgentChatUnlocked(getAiConnection(), {
+      provider: 'openai',
+      modelId: 'gpt-4o',
+      openaiApiKey: 'sk-proj-test-token'
+    });
+    assert.strictEqual(openaiUnlocked.unlocked, true);
+    assert.strictEqual(openaiUnlocked.activeProvider, 'openai');
+
+    // Unlocks with active MCP connection (Zero-Key architecture)
+    const mcpState = getAiConnection();
+    mcpState.mode = 'mcp';
+    mcpState.mcp.status = 'connected';
+    const mcpUnlocked = isAgentChatUnlocked(mcpState);
+    assert.strictEqual(mcpUnlocked.unlocked, true);
+    assert.strictEqual(mcpUnlocked.activeProvider, 'mcp');
+  });
+
+  it('key security: maskApiKey masks credentials to prevent shoulder-surfing and screen share exposure', () => {
+    assert.strictEqual(maskApiKey('sk-ant-api03-1234567890abcdef'), 'sk-a...cdef');
+    assert.strictEqual(maskApiKey('AIzaSyD-abc123xyz789'), 'AIza...z789');
+    assert.strictEqual(maskApiKey('short'), '••••••••');
+    assert.strictEqual(maskApiKey(''), '');
+    assert.strictEqual(maskApiKey(undefined), '');
+  });
+
+  it('credential purge: purgeAllCredentials securely wipes all credentials and resets to offline', async () => {
+    saveLlmCredentials({
+      provider: 'gemini',
+      geminiApiKey: 'AIzaSySecretToBePurged123',
+      claudeApiKey: 'sk-ant-secret',
+      openaiApiKey: 'sk-proj-secret'
+    });
+
+    const beforePurge = getLlmCredentials();
+    assert.strictEqual(beforePurge.geminiApiKey, 'AIzaSySecretToBePurged123');
+
+    await purgeAllCredentials();
+
+    const afterPurge = getLlmCredentials();
+    assert.strictEqual(afterPurge.geminiApiKey, undefined);
+    assert.strictEqual(afterPurge.claudeApiKey, undefined);
+    assert.strictEqual(afterPurge.openaiApiKey, undefined);
+    assert.strictEqual(getAiConnection().mode, 'offline');
+    assert.strictEqual(isAgentChatUnlocked().unlocked, false);
+  });
+
+  it('direct TLS & header security: testLlmConnection sends Gemini key via x-goog-api-key header and NOT in URL query', async () => {
+    let capturedUrl = '';
+    let capturedHeaders: Record<string, string> = {};
+
+    const originalFetch = globalThis.fetch;
+    (globalThis as any).fetch = async (url: string, opts: any) => {
+      capturedUrl = url;
+      capturedHeaders = opts.headers || {};
+      return {
+        ok: true,
+        json: async () => ({ candidates: [{ content: { parts: [{ text: 'OK' }] } }] })
+      } as any;
+    };
+
+    try {
+      const result = await testLlmConnection({
+        provider: 'gemini',
+        modelId: 'gemini-3.6-flash',
+        geminiApiKey: 'AIzaSyDirectHeaderKey999'
+      });
+
+      assert.strictEqual(result.ok, true);
+      // Verify query string does NOT leak the API key in the URL
+      assert.ok(!capturedUrl.includes('?key='), 'Gemini URL must not contain ?key= query string');
+      assert.ok(!capturedUrl.includes('AIzaSyDirectHeaderKey999'), 'API key must not be present anywhere in URL');
+      // Verify key is securely sent in header
+      assert.strictEqual(capturedHeaders['x-goog-api-key'], 'AIzaSyDirectHeaderKey999');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

@@ -9,12 +9,15 @@ import { UnitAnim, CustomEquipmentAnim } from '../animations/EquipmentAnimations
 import { UnitOpDressingTab } from './UnitOpDressingTab.js';
 import {
   getAiConfig,
+  getAiConnection,
+  getLlmCredentials,
+  isAgentChatUnlocked,
   PROVIDER_METADATA,
   type AiModelConfig
 } from '../../ai/aiModelManager.js';
 import { dispatchUnitOpMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Cpu, Zap, Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, Network } from 'lucide-react';
+import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, Network, Lock, KeyRound } from 'lucide-react';
 
 interface UnitOpPopOutStudioProps {
   node: ProcessNode | null;
@@ -37,43 +40,38 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   upstreamContext = 'Reactor B-101 (45 gal/min Latex)',
   downstreamContext = 'Conveyor CV-400 (48 cans/min capacity)'
 }) => {
-  const { palette } = useTheme();
+  const { palette, elevation, size, weight, space, radius: r, motion } = useTheme();
   const OsakaJadePalette = palette;
   const [activeTab, setActiveTab] = useState<'CHAT' | 'PARAMETERS' | 'DRESSING' | 'SYSTEM_CONTEXT'>('CHAT');
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [lockStatus, setLockStatus] = useState(() => isAgentChatUnlocked(getAiConnection(), getLlmCredentials()));
+
+  const refreshAiState = () => {
+    setAiConfig(getAiConfig());
+    setLockStatus(isAgentChatUnlocked(getAiConnection(), getLlmCredentials()));
+  };
 
   useEffect(() => {
     if (isOpen) {
-      setAiConfig(getAiConfig());
+      refreshAiState();
     }
   }, [isOpen]);
 
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>(() => [
-    {
-      id: 'msg-init',
-      sender: 'agent',
-      senderTitle: `UnitOpForge [${node?.name?.split(' ')[0] || 'Unit'}]`,
-      text: `Unit-Op Software Engineer ready for "${node?.name || 'Unit'}". I synthesize equipment CAD geometry, place nozzles, and configure port contracts for your flowsheet. What equipment modifications or CAD details shall we generate?`,
-      timestamp: '14:26',
-      modelBadge: PROVIDER_METADATA[getAiConfig().provider]?.badgeName || 'Offline Solver',
-      isOffline: getAiConfig().provider === 'offline',
-      suggestedPrompts: [
-        'Synthesize jacketed vessel with Rushton turbine and relief nozzle',
-        'Add 3-inch 150# RF inlet and outlet flanged nozzles',
-        'Generate distillation column with 6 sieve trays and reflux nozzle',
-        'Configure sanitary Tri-Clamp connections for food/pharma'
-      ]
-    }
-  ]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 
   if (!isOpen || !node) return null;
 
   const config = node.config as Record<string, unknown>;
 
   const handleSendMessage = async (textToSend?: string) => {
+    const currentLock = isAgentChatUnlocked(getAiConnection(), getLlmCredentials());
+    if (!currentLock.unlocked) {
+      setIsAiModalOpen(true);
+      return;
+    }
     const message = textToSend || inputText;
     if (!message.trim() || isProcessing) return;
 
@@ -189,9 +187,9 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                   fontWeight: 600,
                   padding: '2px 8px',
                   borderRadius: 12,
-                  backgroundColor: aiConfig.provider === 'offline' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(16, 185, 129, 0.15)',
-                  color: aiConfig.provider === 'offline' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow,
-                  border: `1px solid ${aiConfig.provider === 'offline' ? OsakaJadePalette.border.default : OsakaJadePalette.jade.glow}`,
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  color: OsakaJadePalette.jade.glow,
+                  border: `1px solid ${OsakaJadePalette.jade[600]}`,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 5,
@@ -199,9 +197,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                 }}
                 title="Configure AI Model / Provider"
               >
-                {aiConfig.provider === 'offline' ? <Zap size={11} /> : <Cpu size={11} />}
-                <span>{PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'Offline Solver'}</span>
-                <span style={{ color: OsakaJadePalette.text.muted, fontSize: 9 }}>[Change]</span>
+                <span style={{ width: 6, height: 6, borderRadius: r.full, backgroundColor: lockStatus.unlocked ? OsakaJadePalette.jade.glow : OsakaJadePalette.status.failed, display: 'inline-block' }} />
+                <span>{lockStatus.unlocked ? (PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant') : 'Locked (No Key)'}</span>
               </button>
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
@@ -337,47 +334,6 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       {activeTab === 'CHAT' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {/* Offline Local Unit-Ops Banner */}
-            {aiConfig.provider === 'offline' && (
-              <div
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  fontSize: 12,
-                  lineHeight: 1.5,
-                  color: OsakaJadePalette.text.secondary,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 12
-                }}
-              >
-                <div>
-                  <strong style={{ color: OsakaJadePalette.text.primary }}>Offline Mode (Local Unit-Ops Only): </strong>
-                  You have 100% offline access to all created and plugin-installed Unit-Ops (dressing, nozzles, internals, and physics). Connect via MCP or OAuth to synthesize new CAD equipment and nozzle schedules.
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAiModalOpen(true)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: 6,
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                    border: `1px solid ${OsakaJadePalette.jade.glow}`,
-                    color: OsakaJadePalette.jade.glow,
-                    fontSize: 11,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  Connect MCP / OAuth
-                </button>
-              </div>
-            )}
-
             {chatHistory.map((msg) => {
               const isUser = msg.sender === 'user';
               return (
@@ -527,7 +483,13 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                       {msg.suggestedPrompts.map((p, idx) => (
                         <button
                           key={idx}
-                          onClick={() => handleSendMessage(p)}
+                          onClick={() => {
+                            if (!lockStatus.unlocked) {
+                              setIsAiModalOpen(true);
+                            } else {
+                              handleSendMessage(p);
+                            }
+                          }}
                           style={{
                             textAlign: 'left',
                             backgroundColor: OsakaJadePalette.background.surfaceElevated,
@@ -565,68 +527,110 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
               >
                 <Loader2 size={14} className="animate-spin" color={OsakaJadePalette.jade.glow} />
                 <span>
-                  {aiConfig.provider === 'offline'
-                    ? 'Solving physical kinematics & CAD geometry...'
-                    : `Consulting ${PROVIDER_METADATA[aiConfig.provider]?.badgeName}...`}
+                  Consulting {PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant'}...
                 </span>
               </div>
             )}
           </div>
 
-          {/* Chat Input Bar */}
-          <div
-            style={{
-              padding: 12,
-              borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-              display: 'flex',
-              gap: 8,
-              backgroundColor: OsakaJadePalette.background.surface,
-              alignItems: 'center'
-            }}
-          >
-            <input
-              type="text"
-              placeholder={
-                isProcessing
-                  ? 'Processing...'
-                  : aiConfig.provider === 'offline'
-                    ? `Describe CAD modification or physics parameter for ${node.name.split(' ')[0]}...`
-                    : `Synthesize equipment details for ${node.name.split(' ')[0]}...`
-              }
-              value={inputText}
-              disabled={isProcessing}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
+          {/* Chat Input Bar or Security Lock Gate */}
+          {!lockStatus.unlocked ? (
+            <div
               style={{
-                flex: 1,
+                padding: `${space[3]}px ${space[4]}px`,
+                borderTop: `1px solid ${OsakaJadePalette.border.default}`,
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                borderRadius: 6,
-                padding: '8px 12px',
-                color: OsakaJadePalette.text.primary,
-                fontSize: 13,
-                outline: 'none',
-                opacity: isProcessing ? 0.6 : 1
-              }}
-            />
-            <button
-              onClick={() => handleSendMessage()}
-              disabled={isProcessing || !inputText.trim()}
-              style={{
-                backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
-                color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
-                border: 'none',
-                borderRadius: 6,
-                padding: '8px 16px',
-                fontWeight: 700,
-                fontSize: 12,
-                cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer',
-                whiteSpace: 'nowrap'
+                display: 'flex',
+                flexDirection: 'column',
+                gap: space[2.5],
+                alignItems: 'center',
+                textAlign: 'center'
               }}
             >
-              Send
-            </button>
-          </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: space[1.5] }}>
+                <Lock size={14} color={OsakaJadePalette.status.failed} />
+                <span style={{ fontSize: size.sm, fontWeight: weight.bold, color: OsakaJadePalette.text.primary }}>
+                  Unit-Op Engineer Locked
+                </span>
+              </div>
+              <span style={{ fontSize: size.xs, color: OsakaJadePalette.text.secondary, lineHeight: 1.4 }}>
+                For your security and privacy, chatting with agents is disabled until credentials (API key or local MCP connection) are detected.
+              </span>
+              <button
+                onClick={() => setIsAiModalOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: space[1.5],
+                  backgroundColor: OsakaJadePalette.jade[500],
+                  color: OsakaJadePalette.text.inverse,
+                  border: 'none',
+                  borderRadius: r.md,
+                  padding: `${space[2]}px ${space[3]}px`,
+                  fontSize: size.xs,
+                  fontWeight: weight.bold,
+                  cursor: 'pointer',
+                  boxShadow: elevation.glow,
+                  transition: `all ${motion.fast}`
+                }}
+              >
+                <KeyRound size={13} />
+                <span>Unlock Agent / Add Credentials</span>
+              </button>
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: 12,
+                borderTop: `1px solid ${OsakaJadePalette.border.default}`,
+                display: 'flex',
+                gap: 8,
+                backgroundColor: OsakaJadePalette.background.surface,
+                alignItems: 'center'
+              }}
+            >
+              <input
+                type="text"
+                placeholder={
+                  isProcessing
+                    ? 'Calculating...'
+                    : `Specify mechanical parameters or CAD geometry for ${node.name.split(' ')[0]}...`
+                }
+                value={inputText}
+                disabled={isProcessing}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
+                style={{
+                  flex: 1,
+                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                  border: `1px solid ${OsakaJadePalette.border.default}`,
+                  borderRadius: 6,
+                  padding: '8px 12px',
+                  color: OsakaJadePalette.text.primary,
+                  fontSize: 13,
+                  outline: 'none',
+                  opacity: isProcessing ? 0.6 : 1
+                }}
+              />
+              <button
+                onClick={() => handleSendMessage()}
+                disabled={isProcessing || !inputText.trim()}
+                style={{
+                  backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
+                  color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '8px 16px',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Send
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -774,8 +778,14 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       {/* AI Model & Provider Modal */}
       <AiModelModal
         isOpen={isAiModalOpen}
-        onClose={() => setIsAiModalOpen(false)}
-        onConfigChanged={(cfg) => setAiConfig(cfg)}
+        onClose={() => {
+          setIsAiModalOpen(false);
+          refreshAiState();
+        }}
+        onConfigChanged={(cfg: AiModelConfig) => {
+          setAiConfig(cfg);
+          refreshAiState();
+        }}
       />
     </div>
   );

@@ -3,27 +3,35 @@ import {
   Cpu,
   CheckCircle2,
   AlertCircle,
-  ShieldCheck,
-  Zap,
   X,
   Copy,
   Check,
-  Lock,
-  User,
-  LogOut,
-  Radio,
-  ExternalLink
+  ExternalLink,
+  Sparkles,
+  Zap,
+  Globe,
+  Terminal,
+  RotateCcw,
+  Server,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  Trash2,
+  Key,
+  ChevronDown,
+  Lock
 } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
 import {
-  getAiConnection,
-  enableMcpMode,
-  initiateOAuthLogin,
-  signOutOAuth,
-  disconnectMcp,
-  resetToOfflineConfig,
-  type AiConnectionState,
-  type AiModelConfig
+  getLlmCredentials,
+  saveLlmCredentials,
+  testLlmConnection,
+  purgeAllCredentials,
+  DEFAULT_PROVIDER_MODELS,
+  type AiModelConfig,
+  type LlmProvider,
+  type LlmCredentials,
+  type ConnectionTestResult
 } from '../../ai/aiModelManager.js';
 
 export interface AiModelModalProps {
@@ -32,90 +40,195 @@ export interface AiModelModalProps {
   onConfigChanged?: (config: AiModelConfig) => void;
 }
 
+interface ProviderMeta {
+  id: LlmProvider | 'mcp';
+  label: string;
+  badge: string;
+  icon: React.ElementType;
+  accentColor: string;
+  accentGlow: string;
+  apiKeyField?: keyof LlmCredentials;
+  keyPlaceholder?: string;
+  keyDocsUrl?: string;
+  docsLabel?: string;
+  description: string;
+}
+
+const PROVIDERS: ProviderMeta[] = [
+  {
+    id: 'gemini',
+    label: 'Google Gemini',
+    badge: 'Fast & Multimodal',
+    icon: Sparkles,
+    accentColor: '#2dd5b7',
+    accentGlow: 'rgba(45, 213, 183, 0.25)',
+    apiKeyField: 'geminiApiKey',
+    keyPlaceholder: 'AIzaSy...',
+    keyDocsUrl: 'https://aistudio.google.com/app/apikey',
+    docsLabel: 'Get Gemini API Key',
+    description: 'Connect directly to Google AI Studio with high multimodal throughput and long context windows.'
+  },
+  {
+    id: 'claude',
+    label: 'Anthropic Claude',
+    badge: 'Deep Reasoning',
+    icon: Zap,
+    accentColor: '#f59e0b',
+    accentGlow: 'rgba(245, 158, 11, 0.25)',
+    apiKeyField: 'claudeApiKey',
+    keyPlaceholder: 'sk-ant-api...',
+    keyDocsUrl: 'https://console.anthropic.com/settings/keys',
+    docsLabel: 'Get Anthropic API Key',
+    description: 'Connect to Anthropic Console for complex P&ID synthesis and rigorous engineering reasoning.'
+  },
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    badge: 'Industry Standard',
+    icon: Globe,
+    accentColor: '#10b981',
+    accentGlow: 'rgba(16, 185, 129, 0.25)',
+    apiKeyField: 'openaiApiKey',
+    keyPlaceholder: 'sk-proj-...',
+    keyDocsUrl: 'https://platform.openai.com/api-keys',
+    docsLabel: 'Get OpenAI API Key',
+    description: 'Connect to OpenAI Platform with standard GPT-4o models and reliable tool execution.'
+  },
+  {
+    id: 'ollama',
+    label: 'Local Ollama',
+    badge: 'Offline & Free',
+    icon: Terminal,
+    accentColor: '#38bdf8',
+    accentGlow: 'rgba(56, 189, 248, 0.25)',
+    apiKeyField: undefined,
+    description: 'Run open-weight models directly on your GPU/workstation with 100% offline privacy.'
+  },
+  {
+    id: 'mcp',
+    label: 'External MCP',
+    badge: 'Agent Bridge',
+    icon: Server,
+    accentColor: '#a855f7',
+    accentGlow: 'rgba(168, 85, 247, 0.25)',
+    apiKeyField: undefined,
+    description: 'Expose ProcessForge simulation and CAD tools to external AI hosts via Model Context Protocol.'
+  }
+];
+
 export const AiModelModal: React.FC<AiModelModalProps> = ({
   isOpen,
   onClose,
   onConfigChanged
 }) => {
-  const { palette } = useTheme();
-  const OsakaJadePalette = palette;
-  const [conn, setConn] = useState<AiConnectionState>(getAiConnection());
-  const [activeTab, setActiveTab] = useState<'mcp' | 'oauth' | 'offline'>('mcp');
-  const [mcpClientTab, setMcpClientTab] = useState<'claude' | 'gemini' | 'cursor' | 'local'>('claude');
-  const [isActivatingMcp, setIsActivatingMcp] = useState<boolean>(false);
-  const [mcpResult, setMcpResult] = useState<{
-    success: boolean;
-    message: string;
-    latencyMs?: number;
-    toolsCount?: number;
-  } | null>(null);
+  const { theme, palette, font } = useTheme();
+  const isDark = theme !== 'light';
+
+  const [activeProvider, setActiveProvider] = useState<LlmProvider | 'mcp'>('gemini');
+  const [creds, setCreds] = useState<LlmCredentials>(() => getLlmCredentials());
+  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
+  const [isTesting, setIsTesting] = useState<boolean>(false);
   const [copiedSnippet, setCopiedSnippet] = useState<boolean>(false);
+  const [saveFeedback, setSaveFeedback] = useState<boolean>(false);
+  const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [purgeFeedback, setPurgeFeedback] = useState<boolean>(false);
+  const [inputFocused, setInputFocused] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
-      const active = getAiConnection();
-      setConn(active);
-      setActiveTab(active.mode === 'offline' ? 'mcp' : active.mode);
-      setMcpResult(null);
+      const loaded = getLlmCredentials();
+      setCreds(loaded);
+      setActiveProvider(loaded.provider || 'gemini');
+      setTestResult(null);
+      setSaveFeedback(false);
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  const handleToggleMcp = () => {
-    if (conn.mode === 'mcp') {
-      const updated = disconnectMcp();
-      setConn(updated);
-      setMcpResult(null);
-      onConfigChanged?.({
-        provider: updated.mode,
-        mode: updated.mode
+  const currentProviderMeta: ProviderMeta = PROVIDERS.find((p) => p.id === activeProvider) ?? (PROVIDERS[0] as ProviderMeta);
+
+  const handleProviderSelect = (provider: LlmProvider | 'mcp') => {
+    setActiveProvider(provider);
+    setTestResult(null);
+    setShowApiKey(false);
+    if (provider !== 'mcp') {
+      const defaultModel = DEFAULT_PROVIDER_MODELS[provider].defaultModel;
+      const updated = saveLlmCredentials({
+        provider,
+        modelId: creds.modelId || defaultModel
       });
-    } else {
-      setIsActivatingMcp(true);
-      const updated = enableMcpMode();
-      setConn(updated);
-      setMcpResult({
-        success: true,
-        message: 'ProcessForge MCP Server enabled with 6 engineering tools active over stdio.',
-        toolsCount: 6,
-        latencyMs: 1
-      });
-      setIsActivatingMcp(false);
+      setCreds(updated);
       onConfigChanged?.({
-        provider: updated.mode,
-        mode: updated.mode
+        provider: provider as any,
+        mode: provider as any,
+        modelId: updated.modelId
       });
     }
   };
 
-  const handleOAuthLogin = (provider: 'google' | 'github' | 'microsoft' | 'sso') => {
-    const updated = initiateOAuthLogin(provider);
-    setConn(updated);
-    onConfigChanged?.({
-      provider: updated.mode,
-      mode: updated.mode
-    });
+  const handleTestConnection = async () => {
+    if (activeProvider === 'mcp') return;
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const result = await testLlmConnection({
+        ...creds,
+        provider: activeProvider
+      });
+      setTestResult(result);
+    } catch (err: any) {
+      setTestResult({ ok: false, error: err.message || 'Connection test failed' });
+    } finally {
+      setIsTesting(false);
+    }
   };
 
-  const handleSignOutOAuth = () => {
-    const updated = signOutOAuth();
-    setConn(updated);
-    onConfigChanged?.({
-      provider: updated.mode,
-      mode: updated.mode
-    });
+  const handleSaveCredentials = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (activeProvider !== 'mcp') {
+      const updated = saveLlmCredentials({
+        ...creds,
+        provider: activeProvider
+      });
+      setCreds(updated);
+      setSaveFeedback(true);
+      setTimeout(() => setSaveFeedback(false), 2200);
+      onConfigChanged?.({
+        provider: activeProvider as any,
+        mode: activeProvider as any,
+        modelId: updated.modelId
+      });
+    }
   };
 
-  const handleSwitchToOffline = () => {
-    resetToOfflineConfig();
-    const updated = getAiConnection();
-    setConn(updated);
-    setMcpResult(null);
-    onConfigChanged?.({
-      provider: updated.mode,
-      mode: updated.mode
-    });
+  const handlePurgeCredentials = async () => {
+    if (
+      typeof window !== 'undefined' &&
+      window.confirm('Permanently purge all API keys and saved credentials from this device?')
+    ) {
+      await purgeAllCredentials();
+      const reset = getLlmCredentials();
+      setCreds(reset);
+      setTestResult(null);
+      setPurgeFeedback(true);
+      setTimeout(() => setPurgeFeedback(false), 2500);
+      onConfigChanged?.({
+        provider: 'offline' as any,
+        mode: 'offline' as any,
+        modelId: 'offline'
+      });
+    }
   };
 
   const claudeDesktopSnippet = JSON.stringify(
@@ -131,712 +244,1036 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     2
   );
 
-  const geminiCliSnippet = `# Connect ProcessForge MCP tools to Gemini CLI (stdio):
-gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
-
-  const cursorSnippet = JSON.stringify(
-    {
-      mcpServers: {
-        'process-forge': {
-          command: 'npx',
-          args: ['-y', '@process-forge/mcp-server']
-        }
-      }
-    },
-    null,
-    2
-  );
-
-  const localDevSnippet = JSON.stringify(
-    {
-      mcpServers: {
-        'process-forge': {
-          command: 'node',
-          args: ['<path-to-repo>/packages/mcp-server/dist/cli.js']
-        }
-      }
-    },
-    null,
-    2
-  );
-
-  const activeSnippetText =
-    mcpClientTab === 'claude'
-      ? claudeDesktopSnippet
-      : mcpClientTab === 'gemini'
-      ? geminiCliSnippet
-      : mcpClientTab === 'cursor'
-      ? cursorSnippet
-      : localDevSnippet;
-
-  const handleCopySnippet = () => {
-    navigator.clipboard.writeText(activeSnippetText);
-    setCopiedSnippet(true);
-    setTimeout(() => setCopiedSnippet(false), 2000);
+  const hasConfiguredKey = (providerId: LlmProvider | 'mcp'): boolean => {
+    switch (providerId) {
+      case 'gemini':
+        return Boolean(creds.geminiApiKey?.trim());
+      case 'claude':
+        return Boolean(creds.claudeApiKey?.trim());
+      case 'openai':
+        return Boolean(creds.openaiApiKey?.trim());
+      case 'ollama':
+        return Boolean(creds.ollamaEndpoint?.trim());
+      case 'mcp':
+        return false;
+      default:
+        return false;
+    }
   };
+
+  // Color tokens
+  const modalBg = isDark
+    ? 'linear-gradient(180deg, #14211c 0%, #0d1714 100%)'
+    : 'linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%)';
+  const cardBg = isDark ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.03)';
+  const inputBg = isDark ? 'rgba(0, 0, 0, 0.35)' : '#ffffff';
+  const borderColor = isDark ? 'rgba(113, 206, 173, 0.18)' : 'rgba(0, 0, 0, 0.1)';
+  const borderFocus = currentProviderMeta.accentColor;
+  const textColor = palette.text.primary;
+  const textMuted = isDark ? '#8ca395' : '#64748b';
+  const textDim = isDark ? '#597063' : '#94a3b8';
 
   return (
     <div
+      onClick={onClose}
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(4px)',
+        backgroundColor: 'rgba(3, 7, 5, 0.78)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        zIndex: 10000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 2000,
         padding: 20
       }}
-      onClick={onClose}
     >
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
-          backgroundColor: OsakaJadePalette.background.surface,
-          border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: 12,
-          width: '100%',
-          maxWidth: 680,
-          boxShadow: '0 24px 48px rgba(0, 0, 0, 0.6)',
+          width: 680,
+          maxWidth: '100%',
+          maxHeight: '92vh',
+          background: modalBg,
+          border: `1px solid ${borderColor}`,
+          borderRadius: 16,
+          boxShadow: isDark
+            ? '0 30px 80px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 40px -10px rgba(45, 213, 183, 0.08)'
+            : '0 25px 60px -15px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+          overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          maxHeight: '90vh',
-          overflow: 'hidden'
+          animation: 'pfModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
-        onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Header */}
+        {/* Header */}
         <div
           style={{
-            padding: '18px 24px',
-            borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            backgroundColor: OsakaJadePalette.background.surfaceElevated
+            padding: '20px 24px',
+            borderBottom: `1px solid ${borderColor}`,
+            background: isDark ? 'rgba(255, 255, 255, 0.015)' : 'transparent'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                border: `1px solid ${OsakaJadePalette.jade[600]}`,
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: `linear-gradient(135deg, ${currentProviderMeta.accentGlow}, rgba(255, 255, 255, 0.02))`,
+                border: `1px solid ${currentProviderMeta.accentColor}40`,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                color: currentProviderMeta.accentColor,
+                boxShadow: `0 4px 12px ${currentProviderMeta.accentGlow}`
               }}
             >
-              <Cpu size={20} color={OsakaJadePalette.jade.glow} />
+              <Cpu size={20} />
             </div>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                AI Connection Manager
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2
+                  style={{
+                    margin: 0,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: textColor,
+                    letterSpacing: '-0.01em'
+                  }}
+                >
+                  AI Model & Engine Settings
+                </h2>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    padding: '2px 7px',
+                    borderRadius: 12,
+                    backgroundColor: `${currentProviderMeta.accentColor}20`,
+                    color: currentProviderMeta.accentColor,
+                    border: `1px solid ${currentProviderMeta.accentColor}40`
+                  }}
+                >
+                  {currentProviderMeta.badge}
+                </span>
               </div>
-              <div style={{ fontSize: 12, color: OsakaJadePalette.text.muted }}>
-                Zero Raw Keys (ADR-0005) • Model Context Protocol & OAuth 2.0 PKCE Only
-              </div>
+              <p
+                style={{
+                  margin: '3px 0 0',
+                  fontSize: 12,
+                  color: textMuted
+                }}
+              >
+                Configure direct browser inference keys, local models, and MCP tool servers
+              </p>
             </div>
           </div>
+
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Close"
             style={{
-              background: 'none',
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: 'transparent',
               border: 'none',
-              color: OsakaJadePalette.text.muted,
+              color: textMuted,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               cursor: 'pointer',
-              padding: 4
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
+              e.currentTarget.style.color = textColor;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = textMuted;
             }}
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Active Connection Status Banner */}
+        {/* Provider Segmented Bar */}
         <div
           style={{
-            padding: '12px 24px',
-            backgroundColor:
-              conn.mode === 'offline'
-                ? 'rgba(255, 255, 255, 0.03)'
-                : 'rgba(16, 185, 129, 0.08)',
-            borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12
+            padding: '12px 24px 0 24px',
+            background: isDark ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.02)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                backgroundColor:
-                  conn.mode === 'offline'
-                    ? OsakaJadePalette.text.muted
-                    : OsakaJadePalette.jade[400],
-                boxShadow:
-                  conn.mode !== 'offline'
-                    ? `0 0 8px ${OsakaJadePalette.jade[400]}`
-                    : 'none'
-              }}
-            />
-            <span style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-              Active Mode:{' '}
-              {conn.mode === 'offline'
-                ? 'Offline (Local Unit-Ops Only)'
-                : conn.mode === 'mcp'
-                ? `MCP Connected (${conn.mcp.serverName})`
-                : `OAuth Session (${conn.oauth.provider.toUpperCase()} • ${conn.oauth.userEmail})`}
-            </span>
-          </div>
+          <div
+            role="tablist"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, 1fr)',
+              gap: 4,
+              padding: 4,
+              borderRadius: 10,
+              backgroundColor: cardBg,
+              border: `1px solid ${borderColor}`
+            }}
+          >
+            {PROVIDERS.map((tab) => {
+              const isSelected = activeProvider === tab.id;
+              const isActiveEngine = creds.provider === tab.id;
+              const hasKey = hasConfiguredKey(tab.id);
+              const Icon = tab.icon;
 
-          {conn.mode !== 'offline' && (
-            <button
-              onClick={handleSwitchToOffline}
+              return (
+                <button
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={isSelected}
+                  onClick={() => handleProviderSelect(tab.id)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '8px 4px',
+                    borderRadius: 7,
+                    border: isSelected
+                      ? `1px solid ${tab.accentColor}50`
+                      : '1px solid transparent',
+                    backgroundColor: isSelected
+                      ? isDark
+                        ? 'rgba(255, 255, 255, 0.07)'
+                        : '#ffffff'
+                      : 'transparent',
+                    boxShadow: isSelected
+                      ? isDark
+                        ? '0 2px 8px rgba(0, 0, 0, 0.35)'
+                        : '0 2px 6px rgba(0, 0, 0, 0.06)'
+                      : 'none',
+                    color: isSelected ? textColor : textMuted,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)';
+                      e.currentTarget.style.color = textColor;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = textMuted;
+                    }
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Icon
+                      size={14}
+                      color={isSelected ? tab.accentColor : textMuted}
+                    />
+                    <span style={{ fontSize: 11, fontWeight: isSelected ? 700 : 500 }}>
+                      {tab.label.replace('Google ', '').replace('Anthropic ', '').replace('Local ', '')}
+                    </span>
+                    {/* Status dot */}
+                    {isActiveEngine && (
+                      <span
+                        title="Active Engine"
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: '50%',
+                          backgroundColor: '#10b981',
+                          boxShadow: '0 0 6px #10b981'
+                        }}
+                      />
+                    )}
+                    {!isActiveEngine && hasKey && (
+                      <span
+                        title="Configured"
+                        style={{
+                          width: 5,
+                          height: 5,
+                          borderRadius: '50%',
+                          backgroundColor: textDim
+                        }}
+                      />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Modal Scrollable Body */}
+        <div
+          style={{
+            padding: 24,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 18,
+            flex: 1
+          }}
+        >
+          {/* Security Assurance Banner */}
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 10,
+              backgroundColor: isDark ? 'rgba(45, 213, 183, 0.05)' : 'rgba(16, 185, 129, 0.05)',
+              border: isDark ? '1px solid rgba(45, 213, 183, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12
+            }}
+          >
+            <div
               style={{
-                padding: '4px 10px',
-                borderRadius: 5,
-                backgroundColor: 'transparent',
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                color: OsakaJadePalette.text.muted,
-                fontSize: 11,
-                cursor: 'pointer'
+                width: 28,
+                height: 28,
+                borderRadius: 7,
+                backgroundColor: isDark ? 'rgba(45, 213, 183, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: currentProviderMeta.accentColor,
+                flexShrink: 0
               }}
             >
-              Switch to Offline
-            </button>
-          )}
-        </div>
+              <ShieldCheck size={16} />
+            </div>
+            <div style={{ flex: 1, fontSize: 11, lineHeight: 1.45, color: textMuted }}>
+              <span style={{ fontWeight: 600, color: textColor }}>Direct TLS Architecture:</span>{' '}
+              API credentials are held in your local browser session and sent straight to provider endpoints.
+              No proxy or intermediary telemetry servers.
+            </div>
+          </div>
 
-        {/* Tab Navigation */}
-        <div
-          style={{
-            display: 'flex',
-            borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
-            backgroundColor: OsakaJadePalette.background.surfaceElevated
-          }}
-        >
-          <button
-            onClick={() => setActiveTab('mcp')}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              border: 'none',
-              borderBottom: activeTab === 'mcp' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
-              backgroundColor: activeTab === 'mcp' ? OsakaJadePalette.background.surface : 'transparent',
-              color: activeTab === 'mcp' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-              fontWeight: 600,
-              fontSize: 12,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8
-            }}
-          >
-            <Radio size={14} />
-            Model Context Protocol (MCP)
-          </button>
-          <button
-            onClick={() => setActiveTab('oauth')}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              border: 'none',
-              borderBottom: activeTab === 'oauth' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
-              backgroundColor: activeTab === 'oauth' ? OsakaJadePalette.background.surface : 'transparent',
-              color: activeTab === 'oauth' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-              fontWeight: 600,
-              fontSize: 12,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8
-            }}
-          >
-            <Lock size={14} />
-            OAuth 2.0 PKCE (Enterprise)
-          </button>
-          <button
-            onClick={() => setActiveTab('offline')}
-            style={{
-              flex: 1,
-              padding: '12px 16px',
-              border: 'none',
-              borderBottom: activeTab === 'offline' ? `2px solid ${OsakaJadePalette.jade.glow}` : 'none',
-              backgroundColor: activeTab === 'offline' ? OsakaJadePalette.background.surface : 'transparent',
-              color: activeTab === 'offline' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-              fontWeight: 600,
-              fontSize: 12,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8
-            }}
-          >
-            <Zap size={14} />
-            Offline Mode Info
-          </button>
-        </div>
+          {/* Form for API-key-based providers (Gemini, Claude, OpenAI) */}
+          {activeProvider !== 'ollama' && activeProvider !== 'mcp' && (
+            <form onSubmit={handleSaveCredentials} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Provider Info text */}
+              <div style={{ fontSize: 12, color: textMuted, lineHeight: 1.5 }}>
+                {currentProviderMeta.description}
+              </div>
 
-        {/* Tab Body */}
-        <div style={{ padding: 24, overflowY: 'auto', flex: 1 }}>
-          {/* TAB 1: MODEL CONTEXT PROTOCOL (MCP) */}
-          {activeTab === 'mcp' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {/* API Key Input Field */}
               <div>
-                <h4 style={{ margin: '0 0 6px 0', fontSize: 14, color: OsakaJadePalette.text.primary }}>
-                  Local Model Context Protocol (MCP) Server
-                </h4>
-                <p style={{ margin: 0, fontSize: 12, color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
-                  ProcessForge runs an embedded MCP server exposing 6 deterministic engineering tools over standard I/O (<code style={{ color: OsakaJadePalette.jade.glow }}>stdio</code>). External AI assistants (Claude Desktop, Gemini CLI, Cursor) connect directly without sending your proprietary CAD or flowsheet topologies to third-party endpoints.
-                </p>
-              </div>
-
-              {/* Status / Activation Card */}
-              <div
-                style={{
-                  padding: 16,
-                  borderRadius: 8,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 16
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        backgroundColor: conn.mode === 'mcp' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-                        boxShadow: conn.mode === 'mcp' ? `0 0 8px ${OsakaJadePalette.jade.glow}` : 'none'
-                      }}
-                    />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                      ProcessForge MCP Server (stdio)
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>
-                    {conn.mode === 'mcp'
-                      ? 'Status: Active • Studio synchronized with local 6-tool engineering engine'
-                      : 'Status: Standalone / Offline • External MCP client configuration ready'}
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleToggleMcp}
-                  disabled={isActivatingMcp}
-                  style={{
-                    padding: '8px 18px',
-                    borderRadius: 6,
-                    backgroundColor: conn.mode === 'mcp' ? OsakaJadePalette.background.surface : OsakaJadePalette.jade.glow,
-                    color: conn.mode === 'mcp' ? OsakaJadePalette.text.primary : OsakaJadePalette.background.base,
-                    border: conn.mode === 'mcp' ? `1px solid ${OsakaJadePalette.border.default}` : 'none',
-                    fontWeight: 700,
-                    fontSize: 12,
-                    cursor: isActivatingMcp ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}
-                >
-                  <Radio size={14} />
-                  {conn.mode === 'mcp' ? 'Deactivate in Studio' : 'Enable in Studio'}
-                </button>
-              </div>
-
-              {/* Status Feedback Banner */}
-              {mcpResult && (
                 <div
                   style={{
-                    padding: '10px 14px',
-                    borderRadius: 6,
-                    backgroundColor: mcpResult.success ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                    border: `1px solid ${mcpResult.success ? OsakaJadePalette.jade[600] : 'rgba(239, 68, 68, 0.4)'}`,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 10,
-                    fontSize: 12,
-                    color: mcpResult.success ? OsakaJadePalette.jade[300] : '#f87171'
+                    justifyContent: 'space-between',
+                    marginBottom: 6
                   }}
                 >
-                  {mcpResult.success ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                  <span>{mcpResult.message}</span>
-                </div>
-              )}
-
-              {/* Client Connection Snippets */}
-              <div
-                style={{
-                  padding: 16,
-                  borderRadius: 8,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                    Connect to AI Assistants (Zero Raw Keys)
-                  </span>
-                  <button
-                    onClick={handleCopySnippet}
+                  <label
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      background: OsakaJadePalette.background.surface,
-                      border: `1px solid ${OsakaJadePalette.border.default}`,
-                      padding: '4px 10px',
-                      borderRadius: 4,
-                      color: OsakaJadePalette.jade[400],
                       fontSize: 11,
-                      fontWeight: 600,
-                      cursor: 'pointer'
+                      fontWeight: 700,
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase',
+                      color: textColor
                     }}
                   >
-                    {copiedSnippet ? <Check size={12} /> : <Copy size={12} />}
-                    {copiedSnippet ? 'Copied' : 'Copy Snippet'}
-                  </button>
-                </div>
-
-                {/* Sub-tabs for AI clients */}
-                <div style={{ display: 'flex', gap: 6, borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`, paddingBottom: 6 }}>
-                  {(['claude', 'gemini', 'cursor', 'local'] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setMcpClientTab(tab)}
+                    {currentProviderMeta.label} API Key
+                  </label>
+                  {currentProviderMeta.keyDocsUrl && (
+                    <a
+                      href={currentProviderMeta.keyDocsUrl}
+                      target="_blank"
+                      rel="noreferrer"
                       style={{
-                        padding: '4px 12px',
-                        borderRadius: 4,
-                        border: 'none',
-                        backgroundColor: mcpClientTab === tab ? OsakaJadePalette.background.canvas : 'transparent',
-                        color: mcpClientTab === tab ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
                         fontSize: 11,
                         fontWeight: 600,
+                        color: currentProviderMeta.accentColor,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        textDecoration: 'none',
+                        transition: 'opacity 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.75')}
+                      onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+                    >
+                      <span>{currentProviderMeta.docsLabel}</span>
+                      <ExternalLink size={11} />
+                    </a>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    position: 'relative',
+                    borderRadius: 8,
+                    border: `1px solid ${inputFocused ? borderFocus : borderColor}`,
+                    boxShadow: inputFocused ? `0 0 0 3px ${currentProviderMeta.accentGlow}` : 'none',
+                    transition: 'all 0.15s ease',
+                    backgroundColor: inputBg
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 12,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: textDim,
+                      display: 'flex',
+                      alignItems: 'center',
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    <Key size={14} />
+                  </div>
+
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    placeholder={currentProviderMeta.keyPlaceholder}
+                    value={
+                      activeProvider === 'gemini'
+                        ? creds.geminiApiKey || ''
+                        : activeProvider === 'claude'
+                          ? creds.claudeApiKey || ''
+                          : creds.openaiApiKey || ''
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      if (activeProvider === 'gemini') {
+                        setCreds({ ...creds, geminiApiKey: val });
+                      } else if (activeProvider === 'claude') {
+                        setCreds({ ...creds, claudeApiKey: val });
+                      } else if (activeProvider === 'openai') {
+                        setCreds({ ...creds, openaiApiKey: val });
+                      }
+                    }}
+                    onFocus={() => setInputFocused(true)}
+                    onBlur={() => setInputFocused(false)}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      padding: '10px 40px 10px 36px',
+                      color: textColor,
+                      fontSize: 12,
+                      fontFamily: font.mono,
+                      letterSpacing: '0.04em'
+                    }}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      color: textMuted,
+                      cursor: 'pointer',
+                      padding: 6,
+                      borderRadius: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={showApiKey ? 'Hide Secret Key' : 'Reveal Secret Key'}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = textColor;
+                      e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = textMuted;
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Model Selection Dropdown */}
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: textColor,
+                    marginBottom: 6
+                  }}
+                >
+                  Model Architecture
+                </label>
+
+                <div
+                  style={{
+                    position: 'relative',
+                    borderRadius: 8,
+                    border: `1px solid ${borderColor}`,
+                    backgroundColor: inputBg,
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 12,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: currentProviderMeta.accentColor,
+                      display: 'flex',
+                      alignItems: 'center',
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    <Sparkles size={14} />
+                  </div>
+
+                  <select
+                    value={
+                      creds.modelId ||
+                      DEFAULT_PROVIDER_MODELS[activeProvider as LlmProvider].defaultModel
+                    }
+                    onChange={(e) => setCreds({ ...creds, modelId: e.target.value })}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      padding: '10px 36px 10px 36px',
+                      color: textColor,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      appearance: 'none',
+                      WebkitAppearance: 'none'
+                    }}
+                  >
+                    {DEFAULT_PROVIDER_MODELS[activeProvider as LlmProvider].models.map((m) => (
+                      <option
+                        key={m.id}
+                        value={m.id}
+                        style={{
+                          backgroundColor: isDark ? '#14211c' : '#ffffff',
+                          color: isDark ? '#f6f5dd' : '#1e2922',
+                          padding: 8
+                        }}
+                      >
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: 12,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: textMuted,
+                      pointerEvents: 'none',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <ChevronDown size={14} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons Row */}
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={
+                    isTesting ||
+                    (activeProvider === 'gemini' && !creds.geminiApiKey) ||
+                    (activeProvider === 'claude' && !creds.claudeApiKey) ||
+                    (activeProvider === 'openai' && !creds.openaiApiKey)
+                  }
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: 8,
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+                    border: `1px solid ${borderColor}`,
+                    color: textColor,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor:
+                      isTesting ||
+                      (activeProvider === 'gemini' && !creds.geminiApiKey) ||
+                      (activeProvider === 'claude' && !creds.claudeApiKey) ||
+                      (activeProvider === 'openai' && !creds.openaiApiKey)
+                        ? 'not-allowed'
+                        : 'pointer',
+                    opacity:
+                      (activeProvider === 'gemini' && !creds.geminiApiKey) ||
+                      (activeProvider === 'claude' && !creds.claudeApiKey) ||
+                      (activeProvider === 'openai' && !creds.openaiApiKey)
+                        ? 0.5
+                        : 1,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isTesting) {
+                      e.currentTarget.style.backgroundColor = isDark
+                        ? 'rgba(255, 255, 255, 0.09)'
+                        : 'rgba(0, 0, 0, 0.08)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = isDark
+                      ? 'rgba(255, 255, 255, 0.05)'
+                      : 'rgba(0, 0, 0, 0.04)';
+                  }}
+                >
+                  {isTesting ? (
+                    <RotateCcw size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Zap size={13} color={currentProviderMeta.accentColor} />
+                  )}
+                  <span>{isTesting ? 'Pinging Provider...' : 'Test Connection'}</span>
+                </button>
+
+                <button
+                  type="submit"
+                  style={{
+                    flex: 1,
+                    padding: '9px 18px',
+                    borderRadius: 8,
+                    background: saveFeedback
+                      ? '#10b981'
+                      : `linear-gradient(135deg, ${currentProviderMeta.accentColor} 0%, #10b981 100%)`,
+                    border: 'none',
+                    color: '#081410',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    boxShadow: `0 4px 14px ${currentProviderMeta.accentGlow}`,
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {saveFeedback ? <Check size={14} /> : <Lock size={13} />}
+                  <span>{saveFeedback ? 'Credentials Saved & Active!' : 'Save Credentials'}</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Form for Local Ollama */}
+          {activeProvider === 'ollama' && (
+            <form onSubmit={handleSaveCredentials} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ fontSize: 12, color: textMuted, lineHeight: 1.5 }}>
+                {currentProviderMeta.description}
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: textColor,
+                    marginBottom: 6
+                  }}
+                >
+                  Ollama Service Endpoint
+                </label>
+                <div
+                  style={{
+                    borderRadius: 8,
+                    border: `1px solid ${borderColor}`,
+                    backgroundColor: inputBg
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="http://localhost:11434"
+                    value={creds.ollamaEndpoint || 'http://localhost:11434'}
+                    onChange={(e) => setCreds({ ...creds, ollamaEndpoint: e.target.value.trim() })}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      padding: '10px 14px',
+                      color: textColor,
+                      fontSize: 12,
+                      fontFamily: font.mono
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: textColor,
+                    marginBottom: 6
+                  }}
+                >
+                  Local Model Tag
+                </label>
+                <div
+                  style={{
+                    borderRadius: 8,
+                    border: `1px solid ${borderColor}`,
+                    backgroundColor: inputBg
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder="llama3:latest, deepseek-r1:latest, mistral:latest"
+                    value={creds.modelId || 'llama3:latest'}
+                    onChange={(e) => setCreds({ ...creds, modelId: e.target.value.trim() })}
+                    style={{
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      padding: '10px 14px',
+                      color: textColor,
+                      fontSize: 12
+                    }}
+                  />
+                </div>
+                <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
+                  {['llama3:latest', 'deepseek-r1:latest', 'mistral:latest'].map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setCreds({ ...creds, modelId: tag })}
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        border: `1px solid ${borderColor}`,
+                        backgroundColor: cardBg,
+                        color: textMuted,
+                        fontSize: 10,
                         cursor: 'pointer'
                       }}
                     >
-                      {tab === 'claude' ? 'Claude Desktop' : tab === 'gemini' ? 'Gemini CLI' : tab === 'cursor' ? 'Cursor IDE' : 'Local Repo'}
+                      {tag}
                     </button>
                   ))}
                 </div>
+              </div>
 
-                <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
-                  {mcpClientTab === 'claude' && (
-                    <span>Add to <code style={{ color: OsakaJadePalette.jade.glow }}>claude_desktop_config.json</code> under <code style={{ color: OsakaJadePalette.jade.glow }}>mcpServers</code>:</span>
+              {/* Ollama Actions */}
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={isTesting}
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: 8,
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+                    border: `1px solid ${borderColor}`,
+                    color: textColor,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7
+                  }}
+                >
+                  {isTesting ? (
+                    <RotateCcw size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Zap size={13} color="#38bdf8" />
                   )}
-                  {mcpClientTab === 'gemini' && (
-                    <span>Run in your terminal to register the ProcessForge MCP tools with Google Gemini CLI:</span>
-                  )}
-                  {mcpClientTab === 'cursor' && (
-                    <span>Add to your project root <code style={{ color: OsakaJadePalette.jade.glow }}>.cursor/mcp.json</code>:</span>
-                  )}
-                  {mcpClientTab === 'local' && (
-                    <span>For developers running the ProcessForge monorepo from local repository build:</span>
-                  )}
+                  <span>{isTesting ? 'Connecting to daemon...' : 'Ping Ollama'}</span>
+                </button>
+
+                <button
+                  type="submit"
+                  style={{
+                    flex: 1,
+                    padding: '9px 18px',
+                    borderRadius: 8,
+                    background: saveFeedback
+                      ? '#10b981'
+                      : 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)',
+                    border: 'none',
+                    color: '#081410',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7
+                  }}
+                >
+                  {saveFeedback ? <Check size={14} /> : <Lock size={13} />}
+                  <span>{saveFeedback ? 'Config Saved & Active!' : 'Save Ollama Config'}</span>
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* MCP Bridge View */}
+          {activeProvider === 'mcp' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ fontSize: 12, color: textMuted, lineHeight: 1.5 }}>
+                {currentProviderMeta.description}
+              </div>
+
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: 10,
+                  backgroundColor: cardBg,
+                  border: `1px solid ${borderColor}`
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 8
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: textColor }}>
+                      claude_desktop_config.json
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 9,
+                        padding: '1px 6px',
+                        borderRadius: 10,
+                        backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                        color: '#c084fc',
+                        fontWeight: 700
+                      }}
+                    >
+                      MCP Stdio
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(claudeDesktopSnippet);
+                      setCopiedSnippet(true);
+                      setTimeout(() => setCopiedSnippet(false), 2000);
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: currentProviderMeta.accentColor,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4
+                    }}
+                  >
+                    {copiedSnippet ? <Check size={12} /> : <Copy size={12} />}
+                    <span>{copiedSnippet ? 'Copied' : 'Copy Config'}</span>
+                  </button>
                 </div>
 
                 <pre
                   style={{
-                    backgroundColor: OsakaJadePalette.background.canvas,
-                    padding: 12,
-                    borderRadius: 6,
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    color: OsakaJadePalette.jade[200],
                     margin: 0,
+                    fontSize: 11,
+                    fontFamily: font.mono,
+                    color: textMuted,
+                    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.05)',
+                    padding: 12,
+                    borderRadius: 8,
                     overflowX: 'auto',
-                    lineHeight: 1.4
+                    border: `1px solid ${borderColor}`
                   }}
                 >
-                  {activeSnippetText}
+                  {claudeDesktopSnippet}
                 </pre>
               </div>
 
-              {/* 6 Deterministic Engineering Tools Registered */}
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.text.primary, marginBottom: 8 }}>
-                  Deterministic Engineering Tools Exposed
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                  {[
-                    { name: 'simulate_process_line', desc: 'Discrete-event queue & Runge-Kutta ODE mass balance' },
-                    { name: 'diagnose_bottlenecks', desc: 'Pinpoints starvation, backpressure, and cycle limits' },
-                    { name: 'query_unit_subagent', desc: 'Retrieves thermodynamic specs and nozzle schedules' },
-                    { name: 'package_unit_op', desc: 'Synthesizes validated UnitOp manifest scaffold directories' },
-                    { name: 'forge_equipment_drawing', desc: 'Generates vector CAD SVG asset definitions and ports' },
-                    { name: 'list_digital_twin_templates', desc: 'Returns canonical industrial chemical line flowsheets' }
-                  ].map((tool) => (
-                    <div
-                      key={tool.name}
-                      style={{
-                        padding: '8px 10px',
-                        borderRadius: 6,
-                        backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                        border: `1px solid ${OsakaJadePalette.border.subtle}`
-                      }}
-                    >
-                      <code style={{ fontSize: 11, color: OsakaJadePalette.jade.glow, fontWeight: 700 }}>
-                        {tool.name}
-                      </code>
-                      <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, marginTop: 2 }}>
-                        {tool.desc}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <p style={{ margin: 0, fontSize: 11, color: textDim, lineHeight: 1.4 }}>
+                Paste the configuration snippet into your Claude Desktop, Cursor, or Antigravity MCP config
+                file to grant your external AI assistant autonomous access to ProcessForge simulation models.
+              </p>
             </div>
           )}
 
-          {/* TAB 2: OAUTH 2.0 PKCE ENTERPRISE */}
-          {activeTab === 'oauth' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-              <div>
-                <h4 style={{ margin: '0 0 6px 0', fontSize: 14, color: OsakaJadePalette.text.primary }}>
-                  OAuth 2.0 PKCE & Enterprise Single Sign-On
-                </h4>
-                <p style={{ margin: 0, fontSize: 12, color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
-                  Authenticate via standard corporate identity providers.
-                  Quota billing, audit logging, and Zero Data Retention (ZDR) guarantees are managed at the organization level with zero raw API keys.
-                </p>
-              </div>
-
-              {conn.oauth.status === 'authenticated' ? (
-                /* Authenticated Profile Card */
-                <div
-                  style={{
-                    padding: 18,
-                    borderRadius: 8,
-                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                    border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 14
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div
-                        style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: '50%',
-                          backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                          border: `1px solid ${OsakaJadePalette.jade[500]}`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                      >
-                        <User size={22} color={OsakaJadePalette.jade[400]} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                          {conn.oauth.userName}
-                        </div>
-                        <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-                          {conn.oauth.userEmail}
-                        </div>
-                        <div style={{ fontSize: 11, color: OsakaJadePalette.jade[400], marginTop: 2 }}>
-                          {conn.oauth.organization} • OAuth 2.0 PKCE Active
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={handleSignOutOAuth}
-                      style={{
-                        padding: '8px 14px',
-                        borderRadius: 6,
-                        backgroundColor: 'transparent',
-                        border: `1px solid ${OsakaJadePalette.border.default}`,
-                        color: OsakaJadePalette.text.muted,
-                        fontSize: 12,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6
-                      }}
-                    >
-                      <LogOut size={13} />
-                      Sign Out
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* 1-Click Login Providers */
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <button
-                    onClick={() => handleOAuthLogin('google')}
-                    style={{
-                      padding: '12px 18px',
-                      borderRadius: 8,
-                      backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                      border: `1px solid ${OsakaJadePalette.border.default}`,
-                      color: OsakaJadePalette.text.primary,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <span>Continue with Google Workspace (OAuth 2.0 PKCE)</span>
-                    <ExternalLink size={14} color={OsakaJadePalette.text.muted} />
-                  </button>
-                  <button
-                    onClick={() => handleOAuthLogin('github')}
-                    style={{
-                      padding: '12px 18px',
-                      borderRadius: 8,
-                      backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                      border: `1px solid ${OsakaJadePalette.border.default}`,
-                      color: OsakaJadePalette.text.primary,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <span>Continue with GitHub Enterprise</span>
-                    <ExternalLink size={14} color={OsakaJadePalette.text.muted} />
-                  </button>
-                  <button
-                    onClick={() => handleOAuthLogin('sso')}
-                    style={{
-                      padding: '12px 18px',
-                      borderRadius: 8,
-                      backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                      border: `1px solid ${OsakaJadePalette.border.default}`,
-                      color: OsakaJadePalette.text.primary,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <span>Enterprise Single Sign-On (Azure Entra ID / Okta)</span>
-                    <ExternalLink size={14} color={OsakaJadePalette.text.muted} />
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB 3: OFFLINE MODE INFO */}
-          {activeTab === 'offline' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <h4 style={{ margin: '0 0 6px 0', fontSize: 14, color: OsakaJadePalette.text.primary }}>
-                  Offline Local Operation
-                </h4>
-                <p style={{ margin: 0, fontSize: 12, color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
-                  ProcessForge is local-first by design. In offline mode:
-                </p>
-              </div>
-
+          {/* Test Connection Feedback Banner */}
+          {testResult && (
+            <div
+              style={{
+                padding: '12px 16px',
+                borderRadius: 10,
+                backgroundColor: testResult.ok
+                  ? isDark
+                    ? 'rgba(16, 185, 129, 0.1)'
+                    : 'rgba(16, 185, 129, 0.08)'
+                  : isDark
+                    ? 'rgba(239, 68, 68, 0.1)'
+                    : 'rgba(239, 68, 68, 0.08)',
+                border: `1px solid ${testResult.ok ? '#10b981' : '#ef4444'}40`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12
+              }}
+            >
               <div
                 style={{
-                  padding: 16,
-                  borderRadius: 8,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 7,
+                  backgroundColor: testResult.ok ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                  fontSize: 12,
-                  color: OsakaJadePalette.text.secondary
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: testResult.ok ? '#10b981' : '#ef4444',
+                  flexShrink: 0
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircle2 size={16} color={OsakaJadePalette.jade[400]} />
-                  <span>Full access to all Unit-Ops you created or installed from the plugin catalog.</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircle2 size={16} color={OsakaJadePalette.jade[400]} />
-                  <span>Local Runge-Kutta 4th-order fluid continuous balances and discrete containers.</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircle2 size={16} color={OsakaJadePalette.jade[400]} />
-                  <span>Complete nozzle elevation, mechanical dressing, and parameter configuration.</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <AlertCircle size={16} color={OsakaJadePalette.border.glowAmber} />
-                  <span>Vector CAD synthesis and custom unit-op generation are paused until connected via MCP or OAuth.</span>
-                </div>
+                {testResult.ok ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
               </div>
 
-              <button
-                onClick={handleSwitchToOffline}
-                style={{
-                  padding: '10px 16px',
-                  borderRadius: 6,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  alignSelf: 'flex-start'
-                }}
-              >
-                Set Active Connection to Offline
-              </button>
+              <div style={{ flex: 1, fontSize: 12, lineHeight: 1.4 }}>
+                {testResult.ok ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ color: textColor }}>
+                      <strong>Connection Verified:</strong> {testResult.modelName} responded successfully.
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '2px 7px',
+                        borderRadius: 10,
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        color: '#10b981',
+                        fontFamily: font.mono
+                      }}
+                    >
+                      {testResult.latencyMs} ms
+                    </span>
+                  </div>
+                ) : (
+                  <span style={{ color: isDark ? '#fca5a5' : '#dc2626' }}>
+                    <strong>Verification Failed:</strong> {testResult.error}
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Footer Zero-Key Assurance Callout */}
+        {/* Modal Footer */}
         <div
           style={{
             padding: '14px 24px',
-            borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-            backgroundColor: OsakaJadePalette.background.surfaceElevated,
+            backgroundColor: isDark ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.02)',
+            borderTop: `1px solid ${borderColor}`,
             display: 'flex',
-            alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 12
+            alignItems: 'center'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: OsakaJadePalette.text.muted }}>
-            <ShieldCheck size={16} color={OsakaJadePalette.jade[500]} />
-            <span>Zero Raw API Keys Policy: No sk-... or AIza... keys are ever required or stored.</span>
-          </div>
           <button
-            onClick={onClose}
+            type="button"
+            onClick={handlePurgeCredentials}
             style={{
-              padding: '8px 20px',
+              padding: '6px 12px',
               borderRadius: 6,
-              backgroundColor: OsakaJadePalette.jade[500],
-              color: OsakaJadePalette.text.inverse,
-              border: 'none',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer'
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.05)',
+              color: isDark ? '#f87171' : '#dc2626',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'all 0.15s ease'
+            }}
+            title="Permanently remove all keys and stored credentials from this device"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.18)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.05)';
             }}
           >
-            Done
+            <Trash2 size={12} />
+            <span>{purgeFeedback ? 'All Keys Cleared!' : 'Purge All Keys'}</span>
           </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 11, color: textDim }}>
+              Active Engine:{' '}
+              <strong style={{ color: textColor }}>
+                {PROVIDERS.find((p) => p.id === creds.provider)?.label || 'Offline'}
+              </strong>
+            </span>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: '7px 16px',
+                borderRadius: 7,
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                color: textColor,
+                border: `1px solid ${borderColor}`,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+              }}
+            >
+              Done
+            </button>
+          </div>
         </div>
       </div>
     </div>
