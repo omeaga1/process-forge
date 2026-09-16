@@ -469,7 +469,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
 
         {/* Primary Action Buttons */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
-          {/* Primary Action: Download for Windows .exe */}
+          {/* Secondary Action: Download Native Desktop App */}
           <a
             href="/ProcessForge-Setup-x64.exe"
             download="ProcessForge-Setup-x64.exe"
@@ -477,27 +477,23 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '11px 22px',
+              padding: '11px 16px',
               borderRadius: 4,
-              backgroundColor: OsakaJadePalette.jade[600],
-              border: `1px solid ${OsakaJadePalette.jade[400]}`,
-              color: '#ffffff',
+              backgroundColor: OsakaJadePalette.background.surface,
+              border: `1px solid ${OsakaJadePalette.border.strong}`,
+              color: OsakaJadePalette.text.primary,
               fontSize: 13,
-              fontWeight: 700,
+              fontWeight: 600,
               cursor: 'pointer',
-              boxShadow: theme === 'dark'
-                ? `inset 0 1px 0 rgba(255,255,255,0.25), 0 3px 16px ${OsakaJadePalette.jade.glow}55`
-                : '0 2px 6px rgba(0,0,0,0.15)',
               fontFamily: '"JetBrains Mono", monospace',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
+              letterSpacing: '0.02em',
               textDecoration: 'none',
               transition: 'all 0.12s ease'
             }}
             title="Download ProcessForge Windows Setup (.exe Installer)"
           >
-            <Download size={16} strokeWidth={2.5} />
-            <span>Download Installer (.exe)</span>
+            <Download size={14} />
+            <span>Desktop App (.exe)</span>
           </a>
 
           {/* Primary Action: Open Studio */}
