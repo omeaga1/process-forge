@@ -35,10 +35,13 @@ jobs:
       matrix:
         include:
           - platform: 'windows-latest'
-            args: '--target x86_64-pc-windows-msvc'
+            target: 'x86_64-pc-windows-msvc'
+            args: ''
           - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
+            target: 'aarch64-apple-darwin'
+            args: ''
           - platform: 'ubuntu-22.04'
+            target: 'x86_64-unknown-linux-gnu'
             args: ''
 
     runs-on: ${{ matrix.platform }}
@@ -60,6 +63,8 @@ jobs:
 
       - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Install Linux Dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -90,9 +95,8 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: apps/desktop
-          tauriScript: pnpm --filter @process-forge/desktop tauri
-          tagName: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.2' }}"
-          releaseName: "ProcessForge ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.2' }}"
+          tagName: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.3' }}"
+          releaseName: "ProcessForge ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.3' }}"
           releaseBody: |
             Official ProcessForge Desktop Release — 1-Click Installer & Portable.
             
@@ -106,7 +110,7 @@ jobs:
             
             ### Installation via Terminal (Windows)
             ```powershell
-            irm https://omeaga1.github.io/process-forge/install.ps1 | iex
+            irm https://process-forge.pages.dev/install.ps1 | iex
             ```
             
             ### Security & Verification
@@ -136,7 +140,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.2' }}"
+          tag_name: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.3' }}"
           files: signed-installer/*
 
   # ── Portable & Web Distribution Bundles ────────────────────────────────────
@@ -144,6 +148,7 @@ jobs:
     name: Package Portable ZIP & Web Distribution
     runs-on: windows-latest
     needs: [build-desktop-installers]
+    if: always()
     permissions:
       contents: write
     steps:
@@ -173,8 +178,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.2' }}"
-          name: "ProcessForge ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.2' }}"
+          tag_name: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.3' }}"
+          name: "ProcessForge ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.3' }}"
           draft: false
           prerelease: false
           files: |
