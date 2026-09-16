@@ -2,46 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>ProcessForge — Industrial Flowsheet & Process Simulation Studio</title>
-    <meta name="theme-color" content="#0c1214" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="ProcessForge" />
-    <meta name="format-detection" content="telephone=no" />
-    <link rel="manifest" href="./manifest.json" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
-    <script>
-      (function() {
-        try {
-          var stored = localStorage.getItem('pf-theme');
-          var theme = stored === 'light' || stored === 'dark'
-            ? stored
-            : (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-          document.documentElement.setAttribute('data-theme', theme);
-          document.documentElement.style.colorScheme = theme;
-          var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', theme === 'light' ? '#f8f7f0' : '#0c1214');
-        } catch (e) {}
-      })();
-      // ProcessForge desktop launcher heartbeat loop
-      setInterval(function() {
-        if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
-          fetch('/api/heartbeat').catch(function() {});
-        }
-      }, 5000);
-    </script>
-    <!-- Google Identity Services for real Google Accounts -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script type="module" crossorigin src="/process-forge/studio/assets/index-D6ZDetaW.js"></script>
-    <link rel="stylesheet" crossorigin href="/process-forge/studio/assets/index-WuNChK0t.css">
+    <meta http-equiv="refresh" content="0; url=https://process-forge.pages.dev/" />
+    <script>window.location.href = "https://process-forge.pages.dev/";</script>
+    <title>Redirecting to ProcessForge Studio...</title>
   </head>
-  <body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; overflow: hidden;">
-    <div id="root"></div>
+  <body>
+    <p>Redirecting to ProcessForge Studio at <a href="https://process-forge.pages.dev/">https://process-forge.pages.dev/</a>...</p>
   </body>
 </html>
