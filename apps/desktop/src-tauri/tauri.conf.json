@@ -37,18 +37,18 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "timestampUrl": "http://timestamp.digicert.com"
-    },
-    "nsis": {
-      "oneClick": true,
-      "perMachine": false,
-      "allowElevation": true,
-      "installerIcon": "icons/icon.ico",
-      "displayName": "ProcessForge — Industrial Twin Studio",
-      "shortDescription": "Industrial process simulation and digital twin platform",
-      "startMenuFolder": "ProcessForge",
-      "createDesktopShortcut": "always",
-      "createStartMenuShortcut": true
+      "timestampUrl": "http://timestamp.digicert.com",
+      "nsis": {
+        "oneClick": true,
+        "perMachine": false,
+        "allowElevation": true,
+        "installerIcon": "icons/icon.ico",
+        "displayName": "ProcessForge — Industrial Twin Studio",
+        "shortDescription": "Industrial process simulation and digital twin platform",
+        "startMenuFolder": "ProcessForge",
+        "createDesktopShortcut": "always",
+        "createStartMenuShortcut": true
+      }
     },
     "macOS": {
       "frameworks": [],
