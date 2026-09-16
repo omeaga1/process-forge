@@ -358,7 +358,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             </a>
 
             <a
-              href="./studio/"
+              href="https://process-forge.pages.dev"
               onClick={(e) => {
                 if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                   e.preventDefault();
@@ -710,7 +710,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
         {/* "Try it yourself" link */}
         <div style={{ textAlign: 'center', marginTop: '28px' }}>
           <a
-            href="./studio/"
+            href="https://process-forge.pages.dev"
             onClick={(e) => {
               if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
                 e.preventDefault();

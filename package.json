@@ -14,6 +14,8 @@
     "typecheck": "turbo run typecheck",
     "verify:scaffolds": "node ./packages/scaffold-registry/dist/cli.js check",
     "mcp:start": "pnpm --filter @process-forge/mcp-server start",
+    "deploy:web": "pnpm --filter @process-forge/web build && wrangler pages deploy apps/web/dist --project-name process-forge",
+    "deploy:api": "pnpm --filter @process-forge/community-library-api deploy",
     "clean": "turbo run clean"
   },
   "devDependencies": {

@@ -41,20 +41,28 @@ jobs:
       - name: Build Core Monorepo Packages
         run: pnpm run build
 
-      - name: Build Web Studio for Subpath
-        run: pnpm --filter @process-forge/web build
-        env:
-          VITE_BASE_PATH: /process-forge/studio/
-
       - name: Build Showcase Landing Page
         run: pnpm --filter @process-forge/docs-landing build
         env:
           VITE_BASE_PATH: /process-forge/
 
-      - name: Bundle Web Studio into Landing Distribution
+      - name: Create Web Studio Redirect to Cloudflare Pages
         run: |
           mkdir -p apps/docs-landing/dist/studio
-          cp -r apps/web/dist/* apps/docs-landing/dist/studio/
+          cat << 'EOF' > apps/docs-landing/dist/studio/index.html
+          <!DOCTYPE html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta http-equiv="refresh" content="0; url=https://process-forge.pages.dev/" />
+              <script>window.location.href = "https://process-forge.pages.dev/";</script>
+              <title>Redirecting to ProcessForge Studio...</title>
+            </head>
+            <body>
+              <p>Redirecting to ProcessForge Studio at <a href="https://process-forge.pages.dev/">https://process-forge.pages.dev/</a>...</p>
+            </body>
+          </html>
+          EOF
           touch apps/docs-landing/dist/.nojekyll
 
       - name: Deploy to GitHub Pages Branch
