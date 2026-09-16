@@ -9,7 +9,6 @@ import {
 import {
   Download,
   Terminal,
-  ShieldCheck,
   ExternalLink,
   Bot,
   Copy,
@@ -17,15 +16,18 @@ import {
   X,
   Boxes,
   Cpu,
-  ChevronRight,
   ArrowRight,
-  LayoutGrid
+  Factory,
+  Package,
+  Activity,
+  CheckCircle2,
+  HardDrive
 } from 'lucide-react';
 
 // ── Tutorial Step Animations CSS ──────────────────────────────────────────────
 const TUTORIAL_CSS = `
   @keyframes pf-fade-up {
-    from { opacity: 0; transform: translateY(24px); }
+    from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
   }
   @keyframes pf-stream-flow {
@@ -57,22 +59,22 @@ interface TutorialStep {
 const TUTORIAL_STEPS: TutorialStep[] = [
   {
     step: 1,
-    title: 'Place a Reactor',
-    description: 'Ask the AI software engine to synthesize a jacketed CSTR with Rushton turbine. It generates the unit-op definition, vector CAD geometry, and ASME nozzle schedule.',
+    title: '1. Place Equipment & Reactors',
+    description: 'Add standard or custom unit operations — from jacketed CSTRs and surge vessels to 3D print farm queues and conveyors. The AI engine synthesizes vector CAD geometry and ASME nozzle schedules to specification.',
     equipment: ['reactor'],
     showStreams: 0
   },
   {
     step: 2,
-    title: 'Add a Transfer Pump',
-    description: 'Place a centrifugal pump downstream. The software engine synthesizes suction and discharge ports with ASME 150# flanges, ready for stream connection.',
+    title: '2. Add Fluid & Material Transfer',
+    description: 'Place transfer pumps or transport lines downstream. Ports, flanges, and connection endpoints snap together to define stream connectivity and mass balance boundaries.',
     equipment: ['reactor', 'pump'],
     showStreams: 1
   },
   {
     step: 3,
-    title: 'Connect to a Surge Tank',
-    description: 'Complete the circuit with a buffer vessel. Connect the piping streams, set your parameters, and run the deterministic ODE + discrete-event simulation.',
+    title: '3. Run Dynamic Simulation & Solve Bottlenecks',
+    description: 'Connect surge buffers and packaging stations. Run the deterministic hybrid simulation (continuous Runge-Kutta ODEs + discrete Poisson queuing) to expose bottlenecks in real time.',
     equipment: ['reactor', 'pump', 'tank'],
     showStreams: 2
   }
@@ -84,6 +86,7 @@ interface PlatformInfo {
   os: 'windows' | 'macos' | 'linux' | 'unknown';
   extension: string;
   downloadUrl: string;
+  fileLabel: string;
 }
 
 export interface ProductLandingPageProps {
@@ -94,14 +97,15 @@ export interface ProductLandingPageProps {
 
 export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
   onLaunchStudio,
-  onOpenPortal,
+  onOpenPortal: _onOpenPortal,
   onSelectTemplate: _onSelectTemplate
 }) => {
   const [platform, setPlatform] = useState<PlatformInfo>({
     name: 'Windows',
     os: 'windows',
-    extension: '.exe (Installer)',
-    downloadUrl: '/ProcessForge-Setup-x64.exe'
+    extension: '.exe',
+    downloadUrl: '/ProcessForge-Setup-x64.exe',
+    fileLabel: 'Windows Installer (64-bit .exe)'
   });
 
   const [isOtherModalOpen, setIsOtherModalOpen] = useState<boolean>(false);
@@ -120,14 +124,16 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
         name: 'macOS',
         os: 'macos',
         extension: '.dmg',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest'
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_aarch64.dmg',
+        fileLabel: 'macOS Installer (.dmg)'
       });
     } else if (platformStr.includes('linux') || userAgent.includes('linux')) {
       setPlatform({
         name: 'Linux',
         os: 'linux',
         extension: '.AppImage',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/latest'
+        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_amd64.AppImage',
+        fileLabel: 'Linux AppImage (.AppImage)'
       });
     }
   }, []);
@@ -136,7 +142,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
   useEffect(() => {
     const timer = setInterval(() => {
       setTutorialStep((prev) => (prev + 1) % TUTORIAL_STEPS.length);
-    }, 4000);
+    }, 4500);
     return () => clearInterval(timer);
   }, []);
 
@@ -171,16 +177,16 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
         flexDirection: 'column'
       }}
     >
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      {/* ── Top Navigation Header ────────────────────────────────────────── */}
       <header
         style={{
           borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
           backgroundColor: `${OsakaJadePalette.background.surface}cc`,
-          backdropFilter: 'blur(12px)',
+          backdropFilter: 'blur(14px)',
           position: 'sticky',
           top: 0,
           zIndex: 50,
-          padding: '14px 28px',
+          padding: '14px 32px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between'
@@ -202,38 +208,50 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             <Boxes size={18} color="#0c1214" />
           </div>
           <div>
-            <span style={{ fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.02em', color: OsakaJadePalette.text.primary }}>
+            <span style={{ fontWeight: 800, fontSize: '1.15rem', letterSpacing: '-0.02em', color: OsakaJadePalette.text.primary }}>
               PROCESS<span style={{ color: OsakaJadePalette.jade[400] }}>FORGE</span>
             </span>
             <span
               style={{
                 marginLeft: '8px',
                 fontSize: '0.68rem',
-                fontWeight: 600,
-                padding: '2px 6px',
+                fontWeight: 700,
+                padding: '2px 7px',
                 borderRadius: '4px',
                 backgroundColor: `${OsakaJadePalette.jade.muted}`,
                 color: OsakaJadePalette.jade[300],
                 border: `1px solid ${OsakaJadePalette.jade[700]}`
               }}
             >
-              v0.1.1
+              v0.1.3
             </span>
           </div>
         </div>
 
-        <nav style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
           <a
-            href="#tutorial"
-            style={{ color: OsakaJadePalette.text.secondary, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500 }}
+            href="#solutions"
+            style={{ color: OsakaJadePalette.text.secondary, textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500 }}
           >
-            Tutorial
+            Solutions
           </a>
           <a
-            href="#mcp"
-            style={{ color: OsakaJadePalette.text.secondary, textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500 }}
+            href="#modeling"
+            style={{ color: OsakaJadePalette.text.secondary, textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500 }}
           >
-            MCP Protocol
+            Physics Engine
+          </a>
+          <a
+            href="#tutorial"
+            style={{ color: OsakaJadePalette.text.secondary, textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500 }}
+          >
+            How It Works
+          </a>
+          <a
+            href="#automation"
+            style={{ color: OsakaJadePalette.text.secondary, textDecoration: 'none', fontSize: '0.88rem', fontWeight: 500 }}
+          >
+            MCP Automation
           </a>
           <a
             href="https://github.com/omeaga1/process-forge"
@@ -242,7 +260,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             style={{
               color: OsakaJadePalette.text.secondary,
               textDecoration: 'none',
-              fontSize: '0.9rem',
+              fontSize: '0.88rem',
               fontWeight: 500,
               display: 'flex',
               alignItems: 'center',
@@ -252,16 +270,16 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             GitHub <ExternalLink size={13} />
           </a>
 
-          {/* Project Portal Hub Button */}
+          {/* Web Studio Secondary Link */}
           <button
-            onClick={onOpenPortal}
+            onClick={onLaunchStudio}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
               padding: '7px 14px',
               borderRadius: '6px',
-              backgroundColor: OsakaJadePalette.background.surfaceElevated,
+              backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.strong}`,
               color: OsakaJadePalette.text.primary,
               fontSize: '0.84rem',
@@ -269,19 +287,20 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               cursor: 'pointer',
               transition: 'all 0.12s ease'
             }}
-            title="Open ProcessForge Project Portal & Cloud Storage"
+            title="Launch Web Studio directly in browser"
           >
-            <LayoutGrid size={14} color={OsakaJadePalette.jade[400]} />
-            <span>Project Portal</span>
+            <span>Launch Web Studio</span>
+            <ArrowRight size={13} color={OsakaJadePalette.text.muted} />
           </button>
 
+          {/* Primary Desktop App Download Button */}
           <a
             href={platform.downloadUrl}
             download={platform.os === 'windows' ? 'ProcessForge-Setup-x64.exe' : undefined}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '7px',
               padding: '7px 16px',
               borderRadius: '6px',
               backgroundColor: OsakaJadePalette.jade[500],
@@ -295,70 +314,68 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             }}
           >
             <Download size={14} />
-            Download ({platform.extension})
+            <span>Download Desktop ({platform.extension})</span>
           </a>
-
-          {/* Launch Web Studio Button */}
-          <button
-            onClick={onLaunchStudio}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '7px 16px',
-              borderRadius: '6px',
-              backgroundColor: OsakaJadePalette.jade[600],
-              border: `1px solid ${OsakaJadePalette.jade[400]}`,
-              color: '#ffffff',
-              fontSize: '0.84rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: `0 0 14px ${OsakaJadePalette.jade.glow}33`
-            }}
-          >
-            <span>Launch Studio</span>
-            <ArrowRight size={13} />
-          </button>
         </nav>
       </header>
 
-      {/* ── Hero ───────────────────────────────────────────────────────────── */}
+      {/* ── Hero Section ─────────────────────────────────────────────────── */}
       <section
         style={{
           position: 'relative',
-          padding: '100px 24px 80px',
+          padding: '80px 24px 70px',
           textAlign: 'center',
-          maxWidth: '900px',
+          maxWidth: '960px',
           margin: '0 auto',
           width: '100%'
         }}
       >
-        {/* Glow */}
+        {/* Subtle Ambient Radial Glow */}
         <div
           style={{
             position: 'absolute',
-            top: '40px',
+            top: '20px',
             left: '50%',
             transform: 'translateX(-50%)',
-            width: '500px',
-            height: '200px',
-            background: `radial-gradient(ellipse at center, ${OsakaJadePalette.jade[500]}22 0%, transparent 70%)`,
+            width: '600px',
+            height: '240px',
+            background: `radial-gradient(ellipse at center, ${OsakaJadePalette.jade[500]}1a 0%, transparent 70%)`,
             pointerEvents: 'none',
             zIndex: 0
           }}
         />
 
         <div style={{ position: 'relative', zIndex: 1 }}>
+          {/* Overline Badge */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '5px 14px',
+              borderRadius: '20px',
+              backgroundColor: OsakaJadePalette.background.surfaceElevated,
+              border: `1px solid ${OsakaJadePalette.border.strong}`,
+              color: OsakaJadePalette.jade[300],
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              marginBottom: '22px'
+            }}
+          >
+            <Boxes size={13} color={OsakaJadePalette.jade[400]} />
+            <span>Native Desktop Process Engineering Studio &bull; Windows, macOS &amp; Linux</span>
+          </div>
+
           <h1
             style={{
-              fontSize: 'clamp(2.5rem, 5vw, 4rem)',
+              fontSize: 'clamp(2.4rem, 5vw, 3.8rem)',
               fontWeight: 800,
               letterSpacing: '-0.03em',
               lineHeight: 1.15,
-              marginBottom: '24px'
+              marginBottom: '20px'
             }}
           >
-            Design, Simulate, and Refine{' '}
+            Model Any Process — From{' '}
             <span
               style={{
                 background: `linear-gradient(135deg, ${OsakaJadePalette.jade[300]} 0%, ${OsakaJadePalette.jade[500]} 100%)`,
@@ -366,38 +383,48 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 WebkitTextFillColor: 'transparent'
               }}
             >
-              Industrial Flowsheets
+              Chemical Plants
+            </span>{' '}
+            to{' '}
+            <span
+              style={{
+                background: `linear-gradient(135deg, ${OsakaJadePalette.jade[300]} 0%, ${OsakaJadePalette.jade[500]} 100%)`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent'
+              }}
+            >
+              3D Print Farms
             </span>
           </h1>
 
           <p
             style={{
-              fontSize: '1.15rem',
+              fontSize: '1.12rem',
               color: OsakaJadePalette.text.secondary,
               lineHeight: 1.6,
-              maxWidth: '640px',
-              margin: '0 auto 40px'
+              maxWidth: '720px',
+              margin: '0 auto 36px'
             }}
           >
-            AI synthesizes unit operations, CAD equipment, and nozzle schedules.
-            You place, connect, and simulate on the flowsheet canvas.
+            ProcessForge is an engineering desktop application for modeling, simulating, and optimizing complex operations.
+            Combines continuous Runge-Kutta ODEs with discrete Poisson queuing, backed by an AI co-pilot for equipment and nozzle synthesis.
           </p>
 
-          {/* Three CTAs */}
+          {/* Primary Action Buttons */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '14px',
-              marginBottom: '30px',
+              marginBottom: '22px',
               flexWrap: 'wrap'
             }}
           >
-            {/* Primary Action: Download for Windows .exe */}
+            {/* Primary Action: Download Native Desktop App */}
             <a
-              href="/ProcessForge-Setup-x64.exe"
-              download="ProcessForge-Setup-x64.exe"
+              href={platform.downloadUrl}
+              download={platform.os === 'windows' ? 'ProcessForge-Setup-x64.exe' : undefined}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -413,13 +440,13 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 cursor: 'pointer',
                 transition: 'all 0.12s ease'
               }}
-              title="Download ProcessForge Windows Setup (.exe Installer)"
+              title={`Download ProcessForge for ${platform.name}`}
             >
-              <Download size={18} strokeWidth={2.5} />
-              <span>Download for Windows (.exe)</span>
+              <Download size={18} strokeWidth={2.4} />
+              <span>Download for {platform.name} ({platform.extension})</span>
             </a>
 
-            {/* Launch Web Studio */}
+            {/* Secondary Action: Launch Web Studio */}
             <button
               onClick={onLaunchStudio}
               style={{
@@ -429,7 +456,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 padding: '13px 24px',
                 borderRadius: '8px',
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.jade[500]}66`,
+                border: `1px solid ${OsakaJadePalette.border.strong}`,
                 color: OsakaJadePalette.text.primary,
                 fontWeight: 600,
                 fontSize: '0.98rem',
@@ -438,199 +465,113 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 transition: 'all 0.12s ease'
               }}
             >
-              <span>Launch Web Studio</span>
+              <span>Launch Web Studio (In-Browser)</span>
               <ArrowRight size={16} color={OsakaJadePalette.jade[400]} />
-            </button>
-
-            {/* Project Portal Hub */}
-            <button
-              onClick={onOpenPortal}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '13px 20px',
-                borderRadius: '8px',
-                backgroundColor: OsakaJadePalette.background.surface,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                color: OsakaJadePalette.text.secondary,
-                fontWeight: 600,
-                fontSize: '0.95rem',
-                cursor: 'pointer',
-                transition: 'all 0.12s ease'
-              }}
-              title="Manage Cloud Projects, AI Connections & Templates"
-            >
-              <LayoutGrid size={16} color={OsakaJadePalette.jade[400]} />
-              <span>Project Portal</span>
             </button>
           </div>
 
-          {/* Quick Install PowerShell One-Liner */}
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: '6px',
-              padding: '6px 14px',
-              marginBottom: '8px',
-              fontSize: '0.8rem',
-              fontFamily: 'monospace'
-            }}
-          >
-            <Terminal size={14} color={OsakaJadePalette.jade[400]} />
-            <span style={{ color: OsakaJadePalette.text.secondary }}>
-              irm https://process-forge.pages.dev/install.ps1 | iex
-            </span>
+          {/* Platform Selector Link */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.82rem', color: OsakaJadePalette.text.secondary }}>
+            <span>Available for Windows, macOS &amp; Linux.</span>
             <button
-              onClick={() => copyToClipboard('irm https://process-forge.pages.dev/install.ps1 | iex')}
-              title="Copy PowerShell install & purge command"
+              onClick={() => setIsOtherModalOpen(true)}
               style={{
                 background: 'none',
                 border: 'none',
-                cursor: 'pointer',
                 color: OsakaJadePalette.jade[400],
-                display: 'flex',
-                alignItems: 'center',
-                padding: '2px',
-                marginLeft: '4px'
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: 0,
+                textDecoration: 'underline'
               }}
             >
-              {copiedSnippet ? <Check size={14} /> : <Copy size={14} />}
+              View all formats &amp; architectures (.msi, .dmg, .AppImage, portable .zip)
             </button>
           </div>
 
-          <div style={{ fontSize: '0.74rem', color: OsakaJadePalette.text.muted, marginBottom: '20px' }}>
-            Direct installer (.exe) &bull; 1-Click setup script &bull; Antivirus-safe delivery &bull; Working update pulls
-          </div>
-
-          {/* Download Chips */}
+          {/* Key Engineering Assurances */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '10px',
-              marginBottom: '12px',
-              flexWrap: 'wrap'
+              gap: '24px',
+              marginTop: '28px',
+              flexWrap: 'wrap',
+              fontSize: '0.78rem',
+              color: OsakaJadePalette.text.muted
             }}
           >
-            <a
-              href="/ProcessForge-Setup-x64.exe"
-              download="ProcessForge-Setup-x64.exe"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.jade[500]}`,
-                color: OsakaJadePalette.jade[300],
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                textDecoration: 'none'
-              }}
-            >
-              <Download size={13} /> Windows Setup (.exe)
-            </a>
-            <a
-              href="/install.cmd"
-              download="install.cmd"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                color: OsakaJadePalette.text.secondary,
-                fontSize: '0.8rem',
-                fontWeight: 500,
-                textDecoration: 'none'
-              }}
-            >
-              <Download size={13} /> 1-Click Script (.cmd)
-            </a>
-            <button
-              onClick={() => setIsOtherModalOpen(true)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '5px 12px',
-                borderRadius: '6px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                color: OsakaJadePalette.jade[400],
-                fontSize: '0.78rem',
-                fontWeight: 500,
-                cursor: 'pointer'
-              }}
-            >
-              <Download size={12} /> All Platforms (.msi, macOS, Linux)
-            </button>
-          </div>
-
-          <div style={{ fontSize: '0.78rem', color: OsakaJadePalette.text.muted }}>
-            Free &amp; open source (Apache 2.0) · Zero login required
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckCircle2 size={13} color={OsakaJadePalette.jade[400]} />
+              100% Offline &amp; Local Execution
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckCircle2 size={13} color={OsakaJadePalette.jade[400]} />
+              Deterministic ODE + Discrete Physics
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckCircle2 size={13} color={OsakaJadePalette.jade[400]} />
+              Native Rust &amp; Tauri v2 Architecture
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <CheckCircle2 size={13} color={OsakaJadePalette.jade[400]} />
+              Open Source (Apache-2.0)
+            </span>
           </div>
         </div>
       </section>
 
-      {/* ── Animated Tutorial ──────────────────────────────────────────────── */}
+      {/* ── Interactive Tutorial ─────────────────────────────────────────── */}
       <section
         id="tutorial"
         style={{
           padding: '60px 24px 80px',
-          maxWidth: '1000px',
+          maxWidth: '1020px',
           margin: '0 auto',
           width: '100%'
         }}
       >
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '12px' }}>
-            Build a Flowsheet in 3 Steps
+        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '10px' }}>
+            Build a Process Flowsheet in Minutes
           </h2>
-          <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '1rem', maxWidth: '540px', margin: '0 auto' }}>
-            The AI software engine creates equipment. You place it, connect streams, and run the simulation.
+          <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.98rem', maxWidth: '580px', margin: '0 auto' }}>
+            The AI engine synthesizes unit operations and vector CAD dressing. You place equipment, connect streams, and simulate dynamics.
           </p>
         </div>
 
-        {/* Step Indicator Dots */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '32px' }}>
+        {/* Step Indicator */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '28px' }}>
           {TUTORIAL_STEPS.map((s, i) => (
             <button
               key={s.step}
               onClick={() => setTutorialStep(i)}
               style={{
                 width: i === tutorialStep ? '32px' : '10px',
-                height: '10px',
-                borderRadius: '5px',
+                height: '8px',
+                borderRadius: '4px',
                 border: 'none',
                 backgroundColor: i === tutorialStep ? OsakaJadePalette.jade[400] : OsakaJadePalette.border.default,
                 cursor: 'pointer',
-                transition: 'all 0.3s ease'
+                transition: 'all 0.25s ease'
               }}
+              title={`Step ${s.step}`}
             />
           ))}
         </div>
 
-        {/* Tutorial Canvas */}
+        {/* Interactive CAD Canvas Preview Box */}
         <div
           style={{
             borderRadius: '12px',
             border: `1px solid ${OsakaJadePalette.border.default}`,
             backgroundColor: OsakaJadePalette.background.canvas,
             overflow: 'hidden',
-            boxShadow: `0 24px 48px rgba(0,0,0,0.4), 0 0 24px ${OsakaJadePalette.jade.glow}12`
+            boxShadow: `0 24px 48px rgba(0,0,0,0.45), 0 0 24px ${OsakaJadePalette.jade.glow}10`
           }}
         >
-          {/* Canvas Top Bar */}
+          {/* Header */}
           <div
             style={{
               padding: '10px 20px',
@@ -648,7 +589,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981' }} />
               </div>
               <span style={{ fontSize: '0.82rem', color: OsakaJadePalette.text.primary, fontWeight: 700 }}>
-                ProcessForge Canvas
+                ProcessForge Industrial Flowsheet Viewport
               </span>
             </div>
             <span style={{ fontSize: '0.72rem', color: OsakaJadePalette.text.muted }}>
@@ -656,15 +597,15 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             </span>
           </div>
 
-          {/* Canvas Body */}
+          {/* Canvas Viewport */}
           <div
             style={{
               padding: '40px 24px',
-              minHeight: '280px',
+              minHeight: '270px',
               position: 'relative'
             }}
           >
-            {/* Grid Dots */}
+            {/* Grid Pattern */}
             <div
               style={{
                 position: 'absolute',
@@ -676,7 +617,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               }}
             />
 
-            {/* Equipment Row */}
+            {/* Equipment Sequence */}
             <div
               style={{
                 display: 'flex',
@@ -702,14 +643,14 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                       borderRadius: '10px',
                       padding: '14px',
                       textAlign: 'center',
-                      animation: i === currentTutorial.equipment.length - 1 ? 'pf-fade-up 0.5s ease-out' : 'none',
+                      animation: i === currentTutorial.equipment.length - 1 ? 'pf-fade-up 0.4s ease-out' : 'none',
                       boxShadow: i === currentTutorial.equipment.length - 1
                         ? `0 0 20px ${OsakaJadePalette.jade.glow}33`
                         : 'none'
                     }}
                   >
                     <div style={{ fontSize: '0.65rem', fontWeight: 700, color: OsakaJadePalette.jade[400], marginBottom: '6px' }}>
-                      {eq === 'reactor' ? 'RX-101' : eq === 'pump' ? 'P-101' : 'TK-102'}
+                      {eq === 'reactor' ? 'CSTR-101' : eq === 'pump' ? 'P-101' : 'TK-102'}
                     </div>
                     <div style={{ height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {eq === 'reactor' && <ReactorAnim isRunning={true} hasJacket={true} agitatorType="rushton" />}
@@ -721,7 +662,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                     </div>
                   </div>
 
-                  {/* Stream Connector */}
+                  {/* Stream Piping */}
                   {i < currentTutorial.equipment.length - 1 && i < currentTutorial.showStreams && (
                     <div style={{ width: '48px', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <svg width="48" height="24" viewBox="0 0 48 24">
@@ -752,7 +693,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             </div>
           </div>
 
-          {/* Step Description Bar */}
+          {/* Description Footer */}
           <div
             style={{
               padding: '16px 24px',
@@ -784,45 +725,180 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: '2px' }}>
                 {currentTutorial.title}
               </div>
-              <div style={{ fontSize: '0.82rem', color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
+              <div style={{ fontSize: '0.84rem', color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
                 {currentTutorial.description}
               </div>
             </div>
           </div>
         </div>
+      </section>
 
-        {/* "Try it yourself" button */}
-        <div style={{ textAlign: 'center', marginTop: '28px' }}>
-          <button
-            onClick={onLaunchStudio}
+      {/* ── Industry Solutions Section ───────────────────────────────────── */}
+      <section
+        id="solutions"
+        style={{
+          padding: '70px 24px',
+          backgroundColor: OsakaJadePalette.background.surface,
+          borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
+          borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`
+        }}
+      >
+        <div style={{ maxWidth: '1100px', margin: '0 auto', width: '100%' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+            <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '10px' }}>
+              Engineered for Diverse Process Domains
+            </h2>
+            <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.98rem', maxWidth: '600px', margin: '0 auto' }}>
+              Whether you are balancing fluid kinetics in a chemical plant or analyzing cycle times in a 3D printing farm, ProcessForge models your physics accurately.
+            </p>
+          </div>
+
+          <div
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '10px 22px',
-              borderRadius: '8px',
-              backgroundColor: OsakaJadePalette.background.surfaceElevated,
-              border: `1px solid ${OsakaJadePalette.jade[700]}`,
-              color: OsakaJadePalette.jade[300],
-              fontWeight: 600,
-              fontSize: '0.9rem',
-              cursor: 'pointer'
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+              gap: '24px'
             }}
           >
-            Try it yourself in Web Studio <ChevronRight size={16} />
-          </button>
+            {/* Domain 1: Chemical & Process Plants */}
+            <div
+              style={{
+                padding: '28px',
+                borderRadius: '10px',
+                backgroundColor: OsakaJadePalette.background.canvas,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: OsakaJadePalette.jade[400]
+                }}
+              >
+                <Activity size={22} />
+              </div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
+                Chemical &amp; Continuous Plants
+              </h3>
+              <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.88rem', lineHeight: 1.6, margin: 0 }}>
+                Model continuous and batch reactions, multi-stage distillation, fluid hydraulics, and heat exchange networks.
+              </p>
+              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: OsakaJadePalette.text.muted, lineHeight: 1.8 }}>
+                <li>Runge-Kutta ODE solvers for continuous kinetics</li>
+                <li>Pumping head curves, TDH &amp; viscosity penalties</li>
+                <li>ASME B16.5 flange &amp; nozzle schedule verification</li>
+              </ul>
+            </div>
+
+            {/* Domain 2: 3D Printing & Discrete Manufacturing */}
+            <div
+              style={{
+                padding: '28px',
+                borderRadius: '10px',
+                backgroundColor: OsakaJadePalette.background.canvas,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: OsakaJadePalette.jade[400]
+                }}
+              >
+                <Factory size={22} />
+              </div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
+                Discrete Manufacturing &amp; 3D Print Farms
+              </h3>
+              <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.88rem', lineHeight: 1.6, margin: 0 }}>
+                Balance multi-machine 3D printer fleets, CNC machining cells, and automated robotic assembly lines.
+              </p>
+              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: OsakaJadePalette.text.muted, lineHeight: 1.8 }}>
+                <li>Poisson discrete-event queue &amp; cycle time modeling</li>
+                <li>Machine utilization &amp; post-processing buffer depths</li>
+                <li>Starvation and line-blocking bottleneck identification</li>
+              </ul>
+            </div>
+
+            {/* Domain 3: Warehousing & Logistics Operations */}
+            <div
+              style={{
+                padding: '28px',
+                borderRadius: '10px',
+                backgroundColor: OsakaJadePalette.background.canvas,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: OsakaJadePalette.jade[400]
+                }}
+              >
+                <Package size={22} />
+              </div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
+                Warehousing &amp; Packaging Logistics
+              </h3>
+              <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.88rem', lineHeight: 1.6, margin: 0 }}>
+                Optimize container throughput, sortation lines, accumulation conveyors, and end-of-line palletizing cells.
+              </p>
+              <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: OsakaJadePalette.text.muted, lineHeight: 1.8 }}>
+                <li>Real-time pieces-per-minute (CPM) rate telemetry</li>
+                <li>Accumulation conveyor buffering &amp; indexing</li>
+                <li>Packaging line phase transitions (fluid $\rightarrow$ discrete containers)</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ── Three Value Props ──────────────────────────────────────────────── */}
+      {/* ── Physics Engine & Core Architecture ───────────────────────────── */}
       <section
+        id="modeling"
         style={{
-          padding: '60px 24px',
+          padding: '70px 24px',
           maxWidth: '1100px',
           margin: '0 auto',
           width: '100%'
         }}
       >
+        <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '10px' }}>
+            Built on Rigorous Engineering Foundations
+          </h2>
+          <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.98rem', maxWidth: '580px', margin: '0 auto' }}>
+            A unified simulation kernel with zero cloud latency and total intellectual property privacy.
+          </p>
+        </div>
+
         <div
           style={{
             display: 'grid',
@@ -857,7 +933,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               Dual Continuous &amp; Discrete Solver
             </h3>
             <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.88rem', lineHeight: 1.6, margin: 0 }}>
-              Runge-Kutta ODEs for chemical kinetics and fluid rheology run on the exact same timeline as Poisson discrete-event simulation for conveyor queues and robotic packaging.
+              Continuous Runge-Kutta numerical integration for reaction kinetics and fluid rheology runs synchronized on the exact same master clock as discrete event queues and conveyor transfers.
             </p>
           </div>
 
@@ -885,10 +961,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               <Bot size={22} />
             </div>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>
-              AI-Generated Equipment
+              AI Equipment &amp; CAD Synthesis
             </h3>
             <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.88rem', lineHeight: 1.6, margin: 0 }}>
-              Need a custom reactor, column, or filler? The AI software engine synthesizes complete unit-op definitions, vector CAD drawings, and ASME nozzle schedules for you to place and connect.
+              Describe equipment geometry, process constraints, or nozzle ratings in plain language. The built-in AI co-pilot creates validated JSON node definitions, vector CAD drawings, and ASME nozzle schedules.
             </p>
           </div>
 
@@ -913,21 +989,21 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 color: OsakaJadePalette.jade[400]
               }}
             >
-              <ShieldCheck size={22} />
+              <HardDrive size={22} />
             </div>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>
-              Zero Lock-In, Full Privacy
+              100% Offline &amp; Data Privacy
             </h3>
             <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.88rem', lineHeight: 1.6, margin: 0 }}>
-              Open-source (Apache 2.0). MCP protocol for any LLM. OAuth PKCE with no plaintext secrets. All simulation physics run locally. No telemetry, no cloud dependency.
+              The native desktop application runs completely self-contained. All simulation math, flowsheet topology, and proprietary facility data remain securely on your local workstation.
             </p>
           </div>
         </div>
       </section>
 
-      {/* ── MCP Quick Start ────────────────────────────────────────────────── */}
+      {/* ── Extensibility & MCP Automation ───────────────────────────────── */}
       <section
-        id="mcp"
+        id="automation"
         style={{
           padding: '60px 24px',
           backgroundColor: OsakaJadePalette.background.surface,
@@ -935,7 +1011,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
           borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`
         }}
       >
-        <div style={{ maxWidth: '720px', margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ maxWidth: '740px', margin: '0 auto', textAlign: 'center' }}>
           <div
             style={{
               display: 'inline-flex',
@@ -950,13 +1026,13 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               marginBottom: '16px'
             }}
           >
-            <Terminal size={14} /> Model Context Protocol
+            <Terminal size={14} /> Model Context Protocol (MCP) Standard
           </div>
           <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '12px' }}>
-            Connect Claude Desktop or Gemini CLI
+            Automate &amp; Script with External AI Assistants
           </h2>
-          <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.95rem', marginBottom: '28px', maxWidth: '560px', margin: '0 auto 28px' }}>
-            Give your AI assistant direct access to synthesize unit operations and scaffold flowsheet environments.
+          <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.94rem', marginBottom: '28px', maxWidth: '580px', margin: '0 auto 28px' }}>
+            Connect Claude Desktop, Gemini CLI, or custom Python scripts via the MCP standard to programmatically synthesize unit operations, run sweeps, and analyze bottlenecks.
           </p>
 
           <div
@@ -1046,19 +1122,19 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
         </div>
       </section>
 
-      {/* ── Footer ─────────────────────────────────────────────────────────── */}
+      {/* ── Footer ───────────────────────────────────────────────────────── */}
       <footer
         style={{
           marginTop: 'auto',
           borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
-          padding: '40px 24px',
+          padding: '36px 24px',
           backgroundColor: OsakaJadePalette.background.base,
           textAlign: 'center'
         }}
       >
         <div
           style={{
-            maxWidth: '900px',
+            maxWidth: '960px',
             margin: '0 auto',
             display: 'flex',
             flexWrap: 'wrap',
@@ -1072,7 +1148,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               PROCESS<span style={{ color: OsakaJadePalette.jade[400] }}>FORGE</span>
             </div>
             <div style={{ fontSize: '0.8rem', color: OsakaJadePalette.text.muted }}>
-              The software forge for custom unit operations and industrial flowsheets.
+              Native desktop simulation studio for continuous and discrete industrial processes.
             </div>
           </div>
 
@@ -1086,12 +1162,12 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               GitHub
             </a>
             <a
-              href="https://github.com/omeaga1/process-forge/releases"
+              href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.3"
               target="_blank"
               rel="noreferrer"
               style={{ color: OsakaJadePalette.text.secondary, textDecoration: 'none' }}
             >
-              Releases
+              Releases (v0.1.3)
             </a>
             <a
               href="https://github.com/omeaga1/process-forge/blob/main/LICENSE"
@@ -1105,14 +1181,14 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
         </div>
       </footer>
 
-      {/* ── All Platforms Modal ─────────────────────────────────────────────── */}
+      {/* ── All Platforms & Formats Modal ─────────────────────────────────── */}
       {isOtherModalOpen && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            backdropFilter: 'blur(6px)',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1127,16 +1203,21 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               border: `1px solid ${OsakaJadePalette.border.default}`,
               borderRadius: '12px',
               padding: '24px',
-              maxWidth: '480px',
+              maxWidth: '540px',
               width: '100%',
               boxShadow: '0 20px 40px rgba(0,0,0,0.6)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Download size={18} color={OsakaJadePalette.jade[400]} /> All Platforms
-              </h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: OsakaJadePalette.text.primary, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Download size={18} color={OsakaJadePalette.jade[400]} /> ProcessForge Desktop Downloads
+                </h3>
+                <span style={{ fontSize: '0.78rem', color: OsakaJadePalette.text.muted }}>
+                  Official Release v0.1.3 &bull; Native 64-bit binaries
+                </span>
+              </div>
               <button
                 onClick={() => setIsOtherModalOpen(false)}
                 style={{ background: 'none', border: 'none', color: OsakaJadePalette.text.muted, cursor: 'pointer', padding: '4px' }}
@@ -1147,11 +1228,48 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {[
-                { label: 'Windows Setup (.exe Installer)', url: '/ProcessForge-Setup-x64.exe', download: 'ProcessForge-Setup-x64.exe', sub: 'Recommended — Native 64-bit Windows setup executable' },
-                { label: 'Windows 1-Click Script (.cmd)', url: '/install.cmd', download: 'install.cmd', sub: 'Direct automated install script — purges old version and unpacks latest release' },
-                { label: 'Windows Portable Bundle (.zip)', url: '/process-forge-windows-portable-x64.zip', download: 'process-forge-windows-portable-x64.zip', sub: 'Standalone portable archive — zero installation needed' },
-                { label: 'macOS Universal (.dmg)', url: 'https://github.com/omeaga1/process-forge/releases/latest', sub: 'Apple Silicon & Intel' },
-                { label: 'Linux (.AppImage / .deb)', url: 'https://github.com/omeaga1/process-forge/releases/latest', sub: 'Ubuntu, Debian, Fedora, Arch' }
+                {
+                  label: 'Windows Setup Installer (.exe)',
+                  url: '/ProcessForge-Setup-x64.exe',
+                  download: 'ProcessForge-Setup-x64.exe',
+                  tag: 'Recommended (Windows)',
+                  sub: 'Native NSIS 64-bit installer with automatic updates'
+                },
+                {
+                  label: 'Windows MSI Enterprise Package (.msi)',
+                  url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_x64_en-US.msi',
+                  download: 'ProcessForge_0.1.3_x64_en-US.msi',
+                  tag: 'Enterprise MSI',
+                  sub: 'Standard Windows Installer package for managed deployments'
+                },
+                {
+                  label: 'Windows Portable Bundle (.zip)',
+                  url: '/process-forge-windows-portable-x64.zip',
+                  download: 'process-forge-windows-portable-x64.zip',
+                  tag: 'Zero Install',
+                  sub: 'Standalone executable archive — runs without administrative installation'
+                },
+                {
+                  label: 'macOS Disk Image (.dmg)',
+                  url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_aarch64.dmg',
+                  download: 'ProcessForge_0.1.3_aarch64.dmg',
+                  tag: 'macOS Apple Silicon',
+                  sub: 'Apple Silicon (M1/M2/M3/M4) native universal app'
+                },
+                {
+                  label: 'Linux AppImage (.AppImage)',
+                  url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_amd64.AppImage',
+                  download: 'ProcessForge_0.1.3_amd64.AppImage',
+                  tag: 'Linux Standalone',
+                  sub: 'Compatible with Ubuntu, Debian, Fedora, Arch Linux'
+                },
+                {
+                  label: 'Linux Debian Package (.deb)',
+                  url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_amd64.deb',
+                  download: 'ProcessForge_0.1.3_amd64.deb',
+                  tag: 'Ubuntu / Debian',
+                  sub: 'Native Debian package with apt integration'
+                }
               ].map((item) => (
                 <a
                   key={item.label}
@@ -1163,38 +1281,50 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '12px 14px',
-                    borderRadius: '6px',
+                    padding: '11px 14px',
+                    borderRadius: '8px',
                     backgroundColor: OsakaJadePalette.background.surfaceElevated,
                     border: `1px solid ${OsakaJadePalette.border.subtle}`,
                     color: OsakaJadePalette.text.primary,
-                    textDecoration: 'none'
+                    textDecoration: 'none',
+                    transition: 'all 0.12s ease'
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.label}</div>
-                    <div style={{ fontSize: '0.72rem', color: OsakaJadePalette.text.muted }}>{item.sub}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.label}</span>
+                      <span
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          padding: '1px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: OsakaJadePalette.jade.muted,
+                          color: OsakaJadePalette.jade[300]
+                        }}
+                      >
+                        {item.tag}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: OsakaJadePalette.text.muted }}>{item.sub}</div>
                   </div>
-                  <Download size={14} color={OsakaJadePalette.jade[400]} />
+                  <Download size={15} color={OsakaJadePalette.jade[400]} />
                 </a>
               ))}
             </div>
 
-            <div style={{ fontSize: '0.75rem', color: OsakaJadePalette.jade[400], marginTop: '14px', lineHeight: 1.4, padding: '8px 10px', borderRadius: '6px', backgroundColor: OsakaJadePalette.jade.muted, border: `1px solid ${OsakaJadePalette.jade[700]}`, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <ShieldCheck size={14} /> Antivirus-Safe: All releases built via GitHub Actions CI with official checksum verification.
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '18px' }}>
               <button
                 onClick={() => setIsOtherModalOpen(false)}
                 style={{
-                  padding: '8px 16px',
+                  padding: '8px 18px',
                   borderRadius: '6px',
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   color: OsakaJadePalette.text.primary,
                   cursor: 'pointer',
-                  fontWeight: 600
+                  fontWeight: 600,
+                  fontSize: '0.85rem'
                 }}
               >
                 Close
