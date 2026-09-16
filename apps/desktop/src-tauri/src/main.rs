@@ -3,7 +3,6 @@
 
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
-use tauri_plugin_process::ProcessExt;
 use tauri_plugin_updater::UpdaterExt;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -122,6 +121,7 @@ async fn install_and_restart_update(app: tauri::AppHandle) -> Result<String, Str
                         .map_err(|e| format!("Failed to download and install update: {}", e))?;
 
                     app.restart();
+                    #[allow(unreachable_code)]
                     Ok("Update installed. Restarting...".to_string())
                 }
                 Ok(None) => Ok("Application is already at latest version.".to_string()),
