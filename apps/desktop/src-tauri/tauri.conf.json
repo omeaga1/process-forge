@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm --filter @process-forge/web dev",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "pnpm --filter @process-forge/web build",
+    "beforeBuildCommand": "",
     "frontendDist": "../../web/dist"
   },
   "app": {
