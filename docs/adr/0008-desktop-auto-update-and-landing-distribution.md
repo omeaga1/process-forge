@@ -22,11 +22,11 @@ We implement a zero-cost, open-source distribution and auto-update architecture:
 - Embeds a 1-click **Launch Web Studio (Guest Mode)** action enabling zero-login trial simulations.
 - Provides copy-paste configuration snippets for Claude Desktop and Gemini CLI stdio MCP integration.
 
-### 2. GitHub Pages Deployment (`.github/workflows/deploy-landing.yml`)
-- Automatically builds `@process-forge/docs-landing` and `@process-forge/web` upon pushes to `main`.
-- Deploys the static assets to **GitHub Pages** at `https://omeaga1.github.io/process-forge/`.
-- Hosts the interactive Web Studio subpath at `https://omeaga1.github.io/process-forge/studio/`.
-- Supports zero-friction custom domain attachment via Cloudflare DNS CNAME.
+### 2. Cloudflare Pages Deployment
+- Deploys the unified interactive Web Studio (`apps/web`) directly to **Cloudflare Pages** at `https://process-forge.pages.dev/`.
+- Provides edge CDN delivery across 300+ Anycast cities with zero subpath routing collisions, full HTTP/3 support, and unlimited free bandwidth.
+- Co-located with the Cloudflare Workers / D1 Community Flowsheet Library backend (`https://process-forge-community-library.vprescenzi.workers.dev`).
+- Deprecated and removed legacy GitHub Pages (`https://omeaga1.github.io/process-forge/`) to prevent duplicate site confusion and subpath routing issues.
 
 ### 3. Tauri v2 Desktop Auto-Updater Handshake
 - Configured in `apps/desktop/src-tauri/tauri.conf.json` using the `tauri-plugin-updater` plugin.
