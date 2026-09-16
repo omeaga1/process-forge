@@ -18,6 +18,7 @@ import {
 } from '@process-forge/protocol';
 import { HeaderBar } from './components/HeaderBar.js';
 import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModal.js';
+import { StudioEntryGateModal } from './components/StudioEntryGateModal.js';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
 import { AccountModal } from './components/AccountModal.js';
@@ -54,7 +55,8 @@ function inferTemplateKeyFromProject(proj: SimulationProject): string {
 
 const AppInner: React.FC = () => {
   const updater = useAppUpdater();
-  const { isAccountModalOpen, openAccountModal, closeAccountModal } = useAccount();
+  const { isAccountModalOpen, openAccountModal, closeAccountModal, isAuthenticated } = useAccount();
+  const [isEntryGateOpen, setIsEntryGateOpen] = useState<boolean>(false);
   const [isCloudProjectsModalOpen, setIsCloudProjectsModalOpen] = useState<boolean>(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(() => getAiConfig());
@@ -260,9 +262,24 @@ const AppInner: React.FC = () => {
     setViewMode('studio');
   }, [handleImportFile]);
 
+  const handleEnterStudioWithBlankCanvas = useCallback((asGuest: boolean = false) => {
+    const blank = createSimulationProject('Custom Process Flow', BLANK_LINE, {
+      description: 'Clean slate industrial process flowsheet',
+      isGuest: asGuest
+    });
+    setTemplateKey('blank');
+    setProject(blank);
+    saveLocalProject(blank);
+    setViewMode('studio');
+  }, []);
+
   const handleOpenStudio = useCallback(() => {
-    handleCreateBlank();
-  }, [handleCreateBlank]);
+    if (isAuthenticated) {
+      handleEnterStudioWithBlankCanvas(false);
+    } else {
+      setIsEntryGateOpen(true);
+    }
+  }, [isAuthenticated, handleEnterStudioWithBlankCanvas]);
 
   const handleNavigateHome = useCallback(() => {
     saveLocalProject(project);
@@ -275,8 +292,16 @@ const AppInner: React.FC = () => {
   }, [project]);
 
   const handleLaunchStudioFromLanding = useCallback(() => {
-    setViewMode('studio');
-  }, []);
+    if (isAuthenticated) {
+      handleEnterStudioWithBlankCanvas(false);
+    } else {
+      setIsEntryGateOpen(true);
+    }
+  }, [isAuthenticated, handleEnterStudioWithBlankCanvas]);
+
+  const handleContinueGuest = useCallback(() => {
+    handleEnterStudioWithBlankCanvas(true);
+  }, [handleEnterStudioWithBlankCanvas]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', maxWidth: '100vw', maxHeight: '100vh', overflow: 'hidden', position: 'relative' }}>
@@ -357,6 +382,16 @@ const AppInner: React.FC = () => {
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
         onConfigChanged={(cfg) => setAiConfig(cfg)}
+      />
+
+      <StudioEntryGateModal
+        isOpen={isEntryGateOpen}
+        onClose={() => setIsEntryGateOpen(false)}
+        onOpenAccountModal={() => {
+          setIsEntryGateOpen(false);
+          openAccountModal();
+        }}
+        onContinueGuest={handleContinueGuest}
       />
 
       <GuestAcknowledgementModal

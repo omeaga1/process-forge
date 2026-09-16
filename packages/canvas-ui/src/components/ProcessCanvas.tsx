@@ -429,7 +429,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     >
       {/* Center Interactive Flow Canvas */}
       <div style={{ flex: 1, position: 'relative', height: '100%', minWidth: 0, minHeight: 0 }}>
-        {/* Floating Top Simulation Transport & Telemetry Bar */}
+        {/* Floating Top Precision CAD Simulation & Telemetry Bar */}
         <div
           style={{
             position: 'absolute',
@@ -439,18 +439,18 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             zIndex: 10,
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
-            padding: '6px 14px',
-            borderRadius: 30,
-            backgroundColor: `${OsakaJadePalette.background.surfaceElevated}ee`,
-            backdropFilter: 'blur(12px)',
+            gap: 8,
+            padding: '5px 10px',
+            borderRadius: 8,
+            backgroundColor: `${OsakaJadePalette.background.surfaceElevated}f5`,
+            backdropFilter: 'blur(16px)',
             border: `1px solid ${isRunning ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
             boxShadow: isRunning
-              ? `0 0 20px ${OsakaJadePalette.jade.glow}33, 0 8px 24px rgba(0,0,0,0.5)`
-              : '0 8px 20px rgba(0,0,0,0.4)',
-            transition: 'all 0.2s ease',
+              ? `0 0 16px ${OsakaJadePalette.jade.glow}28, 0 8px 24px rgba(0,0,0,0.5)`
+              : '0 8px 24px rgba(0,0,0,0.45)',
+            transition: 'all 0.15s ease',
             pointerEvents: 'auto',
-            maxWidth: '90vw'
+            maxWidth: '92vw'
           }}
         >
           {/* Play / Pause Action Button */}
@@ -460,20 +460,20 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              padding: '6px 14px',
-              borderRadius: 20,
+              padding: '6px 12px',
+              borderRadius: 6,
               backgroundColor: isRunning ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[500],
               color: OsakaJadePalette.text.inverse,
               border: 'none',
               fontSize: 12,
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: isRunning ? 'none' : `0 0 12px ${OsakaJadePalette.jade.glow}55`,
-              transition: 'all 0.2s ease'
+              boxShadow: isRunning ? 'none' : `0 2px 8px ${OsakaJadePalette.jade.glow}44`,
+              transition: 'all 0.15s ease'
             }}
             title="Press Spacebar to toggle simulation"
           >
-            {isRunning ? <Pause size={14} /> : <Play size={14} />}
+            {isRunning ? <Pause size={13} /> : <Play size={13} />}
             <span>{isRunning ? 'Pause Simulation' : 'Run Simulation'}</span>
           </button>
 
@@ -484,20 +484,19 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: 5,
-              padding: '6px 12px',
-              borderRadius: 20,
+              padding: '6px 11px',
+              borderRadius: 6,
               backgroundColor: OsakaJadePalette.background.surface,
-              color: OsakaJadePalette.jade.glow,
-              border: `1px solid ${OsakaJadePalette.jade[600]}`,
+              color: OsakaJadePalette.jade[300],
+              border: `1px solid ${OsakaJadePalette.border.strong}`,
               fontSize: 12,
-              fontWeight: 700,
+              fontWeight: 600,
               cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              boxShadow: `0 0 8px ${OsakaJadePalette.jade.glow}20`
+              transition: 'all 0.15s ease'
             }}
             title="Open Equipment Palette to add Pumps, Tanks, Reactors, Fillers, etc."
           >
-            <Plus size={14} />
+            <Plus size={13} color={OsakaJadePalette.jade[400]} />
             <span>Add UnitOp</span>
           </button>
 
@@ -508,9 +507,9 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 30,
-              height: 30,
-              borderRadius: '50%',
+              width: 28,
+              height: 28,
+              borderRadius: 6,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.secondary,
@@ -518,20 +517,20 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             }}
             title="Reset Simulation Time and Counters"
           >
-            <RotateCcw size={13} />
+            <RotateCcw size={12} />
           </button>
 
-          <div style={{ width: 1, height: 18, backgroundColor: OsakaJadePalette.border.default }} />
+          <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle }} />
 
-          {/* Speed Multiplier Pill */}
+          {/* Speed Multiplier Segmented Control */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 2,
+              gap: 1,
               backgroundColor: OsakaJadePalette.background.surface,
-              padding: '2px 4px',
-              borderRadius: 16,
+              padding: 2,
+              borderRadius: 6,
               border: `1px solid ${OsakaJadePalette.border.subtle}`
             }}
           >
@@ -540,13 +539,13 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                 key={speed}
                 onClick={() => setSimSpeed(speed)}
                 style={{
-                  padding: '2px 8px',
-                  borderRadius: 12,
+                  padding: '3px 7px',
+                  borderRadius: 4,
                   fontSize: 10,
                   fontWeight: 700,
                   border: 'none',
                   backgroundColor: simSpeed === speed ? OsakaJadePalette.jade.muted : 'transparent',
-                  color: simSpeed === speed ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
+                  color: simSpeed === speed ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.muted,
                   cursor: 'pointer'
                 }}
               >
@@ -555,22 +554,25 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             ))}
           </div>
 
-          <div style={{ width: 1, height: 18, backgroundColor: OsakaJadePalette.border.default }} />
+          <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle }} />
 
           {/* Real-time Status Badge & Telemetry */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
             <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
-                color: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted
+                color: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
+                fontWeight: 700,
+                fontSize: 10,
+                letterSpacing: '0.04em'
               }}
             >
               <span
                 style={{
-                  width: 7,
-                  height: 7,
+                  width: 6,
+                  height: 6,
                   borderRadius: '50%',
                   backgroundColor: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
                   boxShadow: isRunning ? `0 0 6px ${OsakaJadePalette.jade.glow}` : 'none'
@@ -579,16 +581,22 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               {isRunning ? 'RUNNING' : 'STANDBY'}
             </span>
 
-            <span style={{ color: OsakaJadePalette.text.secondary }}>•</span>
+            <span style={{ color: OsakaJadePalette.text.muted }}>|</span>
 
-            <span style={{ color: OsakaJadePalette.text.primary, fontFamily: 'monospace' }}>
-              {telemetry.averageRatePerMin || 35} CPM
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+              <span style={{ color: OsakaJadePalette.text.muted, fontSize: 10, fontWeight: 600 }}>RATE</span>
+              <span style={{ color: OsakaJadePalette.text.primary, fontFamily: 'monospace', fontWeight: 600 }}>
+                {telemetry.averageRatePerMin || 35} CPM
+              </span>
             </span>
 
-            <span style={{ color: OsakaJadePalette.text.secondary }}>•</span>
+            <span style={{ color: OsakaJadePalette.text.muted }}>|</span>
 
-            <span style={{ color: OsakaJadePalette.text.primary, fontFamily: 'monospace' }}>
-              {telemetry.totalPackaged} units
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+              <span style={{ color: OsakaJadePalette.text.muted, fontSize: 10, fontWeight: 600 }}>UNITS</span>
+              <span style={{ color: OsakaJadePalette.text.primary, fontFamily: 'monospace', fontWeight: 600 }}>
+                {telemetry.totalPackaged}
+              </span>
             </span>
 
             {telemetry.activeBottleneck && (
@@ -597,17 +605,17 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 4,
-                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
                   color: OsakaJadePalette.status.blocked,
-                  padding: '2px 8px',
-                  borderRadius: 12,
+                  padding: '2px 7px',
+                  borderRadius: 4,
                   fontSize: 10,
                   fontWeight: 700,
                   border: '1px solid rgba(245, 158, 11, 0.3)'
                 }}
               >
                 <AlertTriangle size={11} />
-                Bottleneck: {telemetry.activeBottleneck.replace(/-/g, ' ')}
+                <span>{telemetry.activeBottleneck.replace(/-/g, ' ')}</span>
               </span>
             )}
           </div>

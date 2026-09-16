@@ -194,40 +194,23 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%', overflowY: 'auto', padding: '16px' }}>
-      {/* AI Equipment CAD Forge Bar (OAuth / MCP Connected) */}
+      {/* AI Vector CAD Synthesis Section */}
       <div
         style={{
-          padding: '12px 16px',
+          padding: '14px 16px',
           backgroundColor: OsakaJadePalette.background.surfaceElevated,
-          borderRadius: '10px',
+          borderRadius: '8px',
           border: `1px solid ${OsakaJadePalette.border.default}`,
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px'
+          gap: '12px'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Sparkles size={16} color={OsakaJadePalette.jade[400]} />
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-              Unit-Op CAD Drawing Studio
-            </span>
-            <span
-              style={{
-                fontSize: '0.68rem',
-                fontWeight: 600,
-                padding: '1px 6px',
-                borderRadius: '4px',
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                color: OsakaJadePalette.jade[300],
-                border: `1px solid ${OsakaJadePalette.jade[700]}`,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
-              }}
-            >
-              <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: OsakaJadePalette.jade[400] }} />
-              OAuth / MCP Connected • Zero Raw Keys
+            <Sparkles size={15} color={OsakaJadePalette.jade[400]} />
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: OsakaJadePalette.text.primary, letterSpacing: '-0.01em' }}>
+              Unit-Op CAD Geometry
             </span>
           </div>
 
@@ -235,97 +218,104 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
             <button
               onClick={handleResetToStandard}
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '5px',
                 fontSize: '0.72rem',
-                padding: '4px 10px',
-                backgroundColor: 'transparent',
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                borderRadius: '6px',
+                fontWeight: 600,
+                padding: '3px 8px',
+                backgroundColor: OsakaJadePalette.background.surface,
+                border: `1px solid ${OsakaJadePalette.border.strong}`,
+                borderRadius: '4px',
                 color: OsakaJadePalette.text.secondary,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
               }}
+              title="Reset CAD geometry to standard dynamic animated shell"
             >
-              <RotateCcw size={12} />
-              Reset to Standard Dynamic Animation
+              <RotateCcw size={11} />
+              <span>Reset to Standard</span>
             </button>
           )}
         </div>
 
-        {/* Input Field & Action Button */}
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <input
-            type="text"
-            value={aiPrompt}
-            onChange={(e) => setAiPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleForgeDrawing();
-            }}
-            placeholder="Describe equipment geometry to synthesize (e.g. 'Fractionation tower with 6 trays' or 'Jacketed CSTR with relief vent')..."
-            style={{
-              flex: 1,
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: '6px',
-              padding: '8px 12px',
-              color: OsakaJadePalette.text.primary,
-              fontSize: '0.82rem',
-              outline: 'none'
-            }}
-          />
-          <button
-            onClick={() => handleForgeDrawing()}
-            disabled={isForging || !aiPrompt.trim()}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: isForging || !aiPrompt.trim() ? OsakaJadePalette.background.surface : OsakaJadePalette.jade[500],
-              color: isForging || !aiPrompt.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
-              border: `1px solid ${isForging || !aiPrompt.trim() ? OsakaJadePalette.border.default : OsakaJadePalette.jade[400]}`,
-              borderRadius: '6px',
-              fontWeight: 700,
-              fontSize: '0.82rem',
-              cursor: isForging || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <Sparkles size={14} />
-            {isForging ? 'Synthesizing CAD...' : 'Forge CAD Drawing'}
-          </button>
-        </div>
-
-        {/* Quick Suggestion Chips */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.7rem', color: OsakaJadePalette.text.muted }}>Quick CAD Presets:</span>
-          {[
-            { label: 'Jacketed CSTR', prompt: 'Jacketed CSTR with Rushton turbine and relief vent' },
-            { label: 'Distillation Tower', prompt: 'Vertical distillation tower with 6 sieve trays and top reflux nozzle' },
-            { label: 'Spherical LPG Tank', prompt: 'Spherical LPG storage vessel with relief nozzle on support legs' },
-            { label: 'Cyclone Separator', prompt: 'Cyclone separator for vapor-solid particulate separation' },
-            { label: 'Shell & Tube Exchanger', prompt: 'Horizontal shell and tube heat exchanger with baffles' },
-            { label: 'Spray Atomizer', prompt: 'Twin-fluid spray atomizer with conical droplet dispersion' }
-          ].map((chip) => (
-            <button
-              key={chip.label}
-              onClick={() => {
-                setAiPrompt(chip.prompt);
-                handleForgeDrawing(chip.prompt);
+        {/* CAD Preset Selection & Synthesis Controls */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {/* Clean Dropdown for Presets */}
+            <select
+              value=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  setAiPrompt(e.target.value);
+                  handleForgeDrawing(e.target.value);
+                }
               }}
               style={{
-                fontSize: '0.7rem',
-                padding: '2px 8px',
-                borderRadius: '12px',
                 backgroundColor: OsakaJadePalette.background.surface,
-                border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                color: OsakaJadePalette.jade[300],
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                borderRadius: '6px',
+                padding: '7px 10px',
+                color: OsakaJadePalette.text.primary,
+                fontSize: '0.8rem',
+                outline: 'none',
+                minWidth: '170px',
                 cursor: 'pointer'
               }}
             >
-              + {chip.label}
+              <option value="">Load CAD Preset...</option>
+              <option value="Jacketed CSTR with Rushton turbine and relief vent">Jacketed CSTR</option>
+              <option value="Vertical distillation tower with 6 sieve trays and top reflux nozzle">Distillation Tower</option>
+              <option value="Spherical LPG storage vessel with relief nozzle on support legs">Spherical LPG Tank</option>
+              <option value="Cyclone separator for vapor-solid particulate separation">Cyclone Separator</option>
+              <option value="Horizontal shell and tube heat exchanger with baffles">Shell & Tube Exchanger</option>
+              <option value="Twin-fluid spray atomizer with conical droplet dispersion">Spray Atomizer</option>
+            </select>
+
+            {/* Prompt Input */}
+            <input
+              type="text"
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleForgeDrawing();
+              }}
+              placeholder="Or describe custom geometry (e.g. 'Fractionation column with 12 trays')..."
+              style={{
+                flex: 1,
+                backgroundColor: OsakaJadePalette.background.surface,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                borderRadius: '6px',
+                padding: '7px 12px',
+                color: OsakaJadePalette.text.primary,
+                fontSize: '0.8rem',
+                outline: 'none'
+              }}
+            />
+
+            {/* Action Button */}
+            <button
+              onClick={() => handleForgeDrawing()}
+              disabled={isForging || !aiPrompt.trim()}
+              style={{
+                padding: '7px 14px',
+                backgroundColor: isForging || !aiPrompt.trim() ? OsakaJadePalette.background.surface : OsakaJadePalette.jade[500],
+                color: isForging || !aiPrompt.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
+                border: `1px solid ${isForging || !aiPrompt.trim() ? OsakaJadePalette.border.default : OsakaJadePalette.jade[400]}`,
+                borderRadius: '6px',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                cursor: isForging || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <Sparkles size={13} />
+              <span>{isForging ? 'Synthesizing...' : 'Forge CAD'}</span>
             </button>
-          ))}
+          </div>
         </div>
       </div>
 
