@@ -215,7 +215,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         </div>
       </div>
 
-      {/* Sub-Agent Indicator Footer */}
+      {/* Industrial Unit Identifier & Port Metadata */}
       <div
         style={{
           display: 'flex',
@@ -223,22 +223,23 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           alignItems: 'center',
           marginTop: space[2],
           fontSize: size['2xs'],
-          color: OsakaJadePalette.text.muted
+          color: OsakaJadePalette.text.muted,
+          fontFamily: font.mono
         }}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: space[1] }}>
           <span
             style={{
-              width: 6,
-              height: 6,
+              width: 5,
+              height: 5,
               borderRadius: r.full,
               backgroundColor: OsakaJadePalette.jade.glow
             }}
           />
-          Forge Ready
+          TAG: {processNode.id.toUpperCase()}
         </span>
-        <span style={{ fontStyle: 'italic', fontSize: size['2xs'], color: OsakaJadePalette.text.secondary }}>
-          Click to open studio
+        <span style={{ fontSize: size['2xs'], color: OsakaJadePalette.text.muted, letterSpacing: '0.04em' }}>
+          {processNode.inputs.length + processNode.outputs.length} PORTS
         </span>
       </div>
     </div>

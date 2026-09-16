@@ -12,16 +12,16 @@ import {
 } from '../../ai/aiModelManager.js';
 import { dispatchMasterOrchestratorMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Cpu, Loader2, Play, Pause, RotateCcw, ChevronRight, ChevronLeft, Sparkles, Lock, KeyRound } from 'lucide-react';
+import { Cpu, Loader2, ChevronRight, ChevronLeft, Sparkles, KeyRound } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
   bottlenecks: BottleneckAnalysis;
   telemetry: PlantTelemetryState;
-  isRunning: boolean;
-  onToggleSimulation: () => void;
-  onResetSimulation: () => void;
-  onOpenForgeHub: () => void;
+  isRunning?: boolean;
+  onToggleSimulation?: () => void;
+  onResetSimulation?: () => void;
+  onOpenForgeHub?: () => void;
   onBroadcastContext: () => void;
   onAddNode?: (node: ProcessNode) => void;
   onOpenPopOutStudio?: (nodeId: string) => void;
@@ -33,9 +33,9 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   graph,
   bottlenecks,
   telemetry,
-  isRunning,
-  onToggleSimulation,
-  onResetSimulation,
+  isRunning: _isRunning,
+  onToggleSimulation: _onToggleSimulation,
+  onResetSimulation: _onResetSimulation,
   onOpenForgeHub: _onOpenForgeHub,
   onBroadcastContext,
   onAddNode,
@@ -43,7 +43,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   isCollapsed = false,
   onToggleCollapse
 }) => {
-  const { palette, elevation, font, size, weight, space, radius: r, motion } = useTheme();
+  const { palette, font, size, weight, space, radius: r, motion } = useTheme();
   const OsakaJadePalette = palette;
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
@@ -63,11 +63,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 
   const handleSendMessage = async (textToSend?: string) => {
-    const currentLock = isAgentChatUnlocked(getAiConnection(), getLlmCredentials());
-    if (!currentLock.unlocked) {
-      setIsAiModalOpen(true);
-      return;
-    }
     const text = textToSend || inputText;
     if (!text.trim() || isProcessing) return;
 
@@ -212,7 +207,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           backgroundColor: OsakaJadePalette.background.surfaceElevated
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <div
               style={{
@@ -252,8 +247,16 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                 }}
                 title="Configure AI & MCP Tools"
               >
-                <span style={{ width: 6, height: 6, borderRadius: r.full, backgroundColor: lockStatus.unlocked ? OsakaJadePalette.jade.glow : OsakaJadePalette.status.failed, display: 'inline-block' }} />
-                <span>{lockStatus.unlocked ? (PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant') : 'Locked (No Key)'}</span>
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: r.full,
+                    backgroundColor: lockStatus.unlocked ? OsakaJadePalette.jade.glow : OsakaJadePalette.streams.continuousFluid,
+                    display: 'inline-block'
+                  }}
+                />
+                <span>{lockStatus.unlocked ? (PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant') : 'Local Solver'}</span>
                 <span style={{ fontSize: size['2xs'], color: OsakaJadePalette.text.muted }}>• Tools</span>
               </button>
             </div>
@@ -281,53 +284,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               </button>
             )}
           </div>
-        </div>
-
-        {/* Simulation Playback Bar */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            onClick={onToggleSimulation}
-            style={{
-              flex: 1,
-              backgroundColor: isRunning ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[500],
-              color: OsakaJadePalette.text.inverse,
-              border: 'none',
-              borderRadius: 6,
-              padding: '7px 10px',
-              fontWeight: 700,
-              fontSize: 11,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              transition: 'background 0.15s ease'
-            }}
-          >
-            {isRunning ? <Pause size={13} /> : <Play size={13} />}
-            <span>{isRunning ? 'Pause Simulation' : 'Run Simulation'}</span>
-          </button>
-
-          <button
-            onClick={onResetSimulation}
-            style={{
-              backgroundColor: OsakaJadePalette.background.surface,
-              color: OsakaJadePalette.text.secondary,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 6,
-              padding: '7px 10px',
-              fontSize: 11,
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4
-            }}
-            title="Reset simulation to initial state"
-          >
-            <RotateCcw size={12} />
-            <span>Reset</span>
-          </button>
         </div>
       </div>
 
@@ -555,101 +511,91 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         )}
       </div>
 
-      {/* Chat Input Bar or Security Lock Gate */}
-      {!lockStatus.unlocked ? (
+      {/* Offline Solver Status Banner (Unobtrusive) */}
+      {!lockStatus.unlocked && (
         <div
           style={{
-            padding: `${space[3]}px ${space[4]}px`,
-            borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-            backgroundColor: OsakaJadePalette.background.surfaceElevated,
+            padding: '6px 14px',
+            backgroundColor: 'rgba(16, 185, 129, 0.05)',
+            borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
             display: 'flex',
-            flexDirection: 'column',
-            gap: space[2.5],
             alignItems: 'center',
-            textAlign: 'center'
+            justifyContent: 'space-between',
+            fontSize: 11,
+            color: OsakaJadePalette.text.secondary
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: space[1.5] }}>
-            <Lock size={14} color={OsakaJadePalette.status.failed} />
-            <span style={{ fontSize: size.sm, fontWeight: weight.bold, color: OsakaJadePalette.text.primary }}>
-              Agent Orchestration Locked
-            </span>
-          </div>
-          <span style={{ fontSize: size.xs, color: OsakaJadePalette.text.secondary, lineHeight: 1.4 }}>
-            For your security and privacy, chatting with agents is disabled until credentials (API key or local MCP connection) are detected.
-          </span>
+          <span>Offline solver active</span>
           <button
             onClick={() => setIsAiModalOpen(true)}
             style={{
+              background: 'none',
+              border: 'none',
+              color: OsakaJadePalette.jade.glow,
+              fontWeight: 600,
+              fontSize: 11,
+              cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: space[1.5],
-              backgroundColor: OsakaJadePalette.jade[500],
-              color: OsakaJadePalette.text.inverse,
-              border: 'none',
-              borderRadius: r.md,
-              padding: `${space[2]}px ${space[3]}px`,
-              fontSize: size.xs,
-              fontWeight: weight.bold,
-              cursor: 'pointer',
-              boxShadow: elevation.glow,
-              transition: `all ${motion.fast}`
+              gap: 4,
+              padding: 0
             }}
           >
-            <KeyRound size={13} />
-            <span>Unlock Agent / Add Credentials</span>
-          </button>
-        </div>
-      ) : (
-        <div
-          style={{
-            padding: space[3],
-            borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-            display: 'flex',
-            gap: space[2],
-            backgroundColor: OsakaJadePalette.background.base,
-            alignItems: 'center'
-          }}
-        >
-          <input
-            type="text"
-            placeholder={isProcessing ? 'Calculating...' : 'Query plant solver or specify equipment parameters...'}
-            value={inputText}
-            disabled={isProcessing}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
-            style={{
-              flex: 1,
-              backgroundColor: OsakaJadePalette.background.surfaceElevated,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: r.md,
-              padding: `${space[2]}px ${space[2.5]}px`,
-              color: OsakaJadePalette.text.primary,
-              fontSize: size.sm,
-              fontFamily: font.sans,
-              outline: 'none',
-              opacity: isProcessing ? 0.6 : 1
-            }}
-          />
-          <button
-            onClick={() => handleSendMessage()}
-            disabled={isProcessing || !inputText.trim()}
-            style={{
-              backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
-              color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
-              border: 'none',
-              borderRadius: r.md,
-              padding: `${space[2]}px ${space[3]}px`,
-              fontWeight: weight.bold,
-              fontSize: size.xs,
-              cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer',
-              transition: `all ${motion.fast}`
-            }}
-          >
-            Send
+            <KeyRound size={11} />
+            <span>Connect AI Key</span>
           </button>
         </div>
       )}
+
+      {/* Chat Input Bar */}
+      <div
+        style={{
+          padding: space[3],
+          borderTop: `1px solid ${OsakaJadePalette.border.default}`,
+          display: 'flex',
+          gap: space[2],
+          backgroundColor: OsakaJadePalette.background.base,
+          alignItems: 'center'
+        }}
+      >
+        <input
+          type="text"
+          placeholder={isProcessing ? 'Calculating...' : 'Query plant solver, ask bottleneck, or type "add pump"...'}
+          value={inputText}
+          disabled={isProcessing}
+          onChange={(e) => setInputText(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
+          style={{
+            flex: 1,
+            backgroundColor: OsakaJadePalette.background.surfaceElevated,
+            border: `1px solid ${OsakaJadePalette.border.default}`,
+            borderRadius: r.md,
+            padding: `${space[2]}px ${space[2.5]}px`,
+            color: OsakaJadePalette.text.primary,
+            fontSize: size.sm,
+            fontFamily: font.sans,
+            outline: 'none',
+            opacity: isProcessing ? 0.6 : 1
+          }}
+        />
+        <button
+          onClick={() => handleSendMessage()}
+          disabled={isProcessing || !inputText.trim()}
+          style={{
+            backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
+            color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
+            border: 'none',
+            borderRadius: r.md,
+            padding: `${space[2]}px ${space[3]}px`,
+            fontWeight: weight.bold,
+            fontSize: size.xs,
+            cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer',
+            transition: `all ${motion.fast}`
+          }}
+        >
+          Send
+        </button>
+      </div>
 
       {/* AI Model & Provider Modal */}
       <AiModelModal

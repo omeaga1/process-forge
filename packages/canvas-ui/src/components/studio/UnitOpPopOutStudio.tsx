@@ -17,7 +17,7 @@ import {
 } from '../../ai/aiModelManager.js';
 import { dispatchUnitOpMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, Network, Lock, KeyRound } from 'lucide-react';
+import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, Network, KeyRound } from 'lucide-react';
 
 interface UnitOpPopOutStudioProps {
   node: ProcessNode | null;
@@ -40,7 +40,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   upstreamContext = 'Reactor B-101 (45 gal/min Latex)',
   downstreamContext = 'Conveyor CV-400 (48 cans/min capacity)'
 }) => {
-  const { palette, elevation, size, weight, space, radius: r, motion } = useTheme();
+  const { palette, radius: r } = useTheme();
   const OsakaJadePalette = palette;
   const [activeTab, setActiveTab] = useState<'CHAT' | 'PARAMETERS' | 'DRESSING' | 'SYSTEM_CONTEXT'>('CHAT');
   const [inputText, setInputText] = useState('');
@@ -67,11 +67,6 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   const config = node.config as Record<string, unknown>;
 
   const handleSendMessage = async (textToSend?: string) => {
-    const currentLock = isAgentChatUnlocked(getAiConnection(), getLlmCredentials());
-    if (!currentLock.unlocked) {
-      setIsAiModalOpen(true);
-      return;
-    }
     const message = textToSend || inputText;
     if (!message.trim() || isProcessing) return;
 
@@ -197,8 +192,16 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                 }}
                 title="Configure AI Model / Provider"
               >
-                <span style={{ width: 6, height: 6, borderRadius: r.full, backgroundColor: lockStatus.unlocked ? OsakaJadePalette.jade.glow : OsakaJadePalette.status.failed, display: 'inline-block' }} />
-                <span>{lockStatus.unlocked ? (PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant') : 'Locked (No Key)'}</span>
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: r.full,
+                    backgroundColor: lockStatus.unlocked ? OsakaJadePalette.jade.glow : OsakaJadePalette.streams.continuousFluid,
+                    display: 'inline-block'
+                  }}
+                />
+                <span>{lockStatus.unlocked ? (PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant') : 'Local Engine'}</span>
               </button>
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
@@ -533,104 +536,94 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             )}
           </div>
 
-          {/* Chat Input Bar or Security Lock Gate */}
-          {!lockStatus.unlocked ? (
+          {/* Offline Solver Status Banner (Unobtrusive) */}
+          {!lockStatus.unlocked && (
             <div
               style={{
-                padding: `${space[3]}px ${space[4]}px`,
-                borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                padding: '6px 14px',
+                backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
                 display: 'flex',
-                flexDirection: 'column',
-                gap: space[2.5],
                 alignItems: 'center',
-                textAlign: 'center'
+                justifyContent: 'space-between',
+                fontSize: 11,
+                color: OsakaJadePalette.text.secondary
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: space[1.5] }}>
-                <Lock size={14} color={OsakaJadePalette.status.failed} />
-                <span style={{ fontSize: size.sm, fontWeight: weight.bold, color: OsakaJadePalette.text.primary }}>
-                  Unit-Op Engineer Locked
-                </span>
-              </div>
-              <span style={{ fontSize: size.xs, color: OsakaJadePalette.text.secondary, lineHeight: 1.4 }}>
-                For your security and privacy, chatting with agents is disabled until credentials (API key or local MCP connection) are detected.
-              </span>
+              <span>Local CAD & mechanical solver active</span>
               <button
                 onClick={() => setIsAiModalOpen(true)}
                 style={{
+                  background: 'none',
+                  border: 'none',
+                  color: OsakaJadePalette.jade.glow,
+                  fontWeight: 600,
+                  fontSize: 11,
+                  cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: space[1.5],
-                  backgroundColor: OsakaJadePalette.jade[500],
-                  color: OsakaJadePalette.text.inverse,
-                  border: 'none',
-                  borderRadius: r.md,
-                  padding: `${space[2]}px ${space[3]}px`,
-                  fontSize: size.xs,
-                  fontWeight: weight.bold,
-                  cursor: 'pointer',
-                  boxShadow: elevation.glow,
-                  transition: `all ${motion.fast}`
+                  gap: 4,
+                  padding: 0
                 }}
               >
-                <KeyRound size={13} />
-                <span>Unlock Agent / Add Credentials</span>
-              </button>
-            </div>
-          ) : (
-            <div
-              style={{
-                padding: 12,
-                borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-                display: 'flex',
-                gap: 8,
-                backgroundColor: OsakaJadePalette.background.surface,
-                alignItems: 'center'
-              }}
-            >
-              <input
-                type="text"
-                placeholder={
-                  isProcessing
-                    ? 'Calculating...'
-                    : `Specify mechanical parameters or CAD geometry for ${node.name.split(' ')[0]}...`
-                }
-                value={inputText}
-                disabled={isProcessing}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
-                style={{
-                  flex: 1,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 6,
-                  padding: '8px 12px',
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: 13,
-                  outline: 'none',
-                  opacity: isProcessing ? 0.6 : 1
-                }}
-              />
-              <button
-                onClick={() => handleSendMessage()}
-                disabled={isProcessing || !inputText.trim()}
-                style={{
-                  backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
-                  color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '8px 16px',
-                  fontWeight: 700,
-                  fontSize: 12,
-                  cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Send
+                <KeyRound size={11} />
+                <span>Connect AI Key</span>
               </button>
             </div>
           )}
+
+          {/* Chat Input Bar */}
+          <div
+            style={{
+              padding: 12,
+              borderTop: `1px solid ${OsakaJadePalette.border.default}`,
+              display: 'flex',
+              gap: 8,
+              backgroundColor: OsakaJadePalette.background.surface,
+              alignItems: 'center'
+            }}
+          >
+            <input
+              type="text"
+              placeholder={
+                isProcessing
+                  ? 'Calculating...'
+                  : `Specify mechanical parameters or CAD geometry for ${node.name.split(' ')[0]}...`
+              }
+              value={inputText}
+              disabled={isProcessing}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
+              style={{
+                flex: 1,
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                borderRadius: 6,
+                padding: '8px 12px',
+                color: OsakaJadePalette.text.primary,
+                fontSize: 13,
+                outline: 'none',
+                opacity: isProcessing ? 0.6 : 1
+              }}
+            />
+            <button
+              onClick={() => handleSendMessage()}
+              disabled={isProcessing || !inputText.trim()}
+              style={{
+                backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
+                color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
+                border: 'none',
+                borderRadius: 6,
+                padding: '8px 16px',
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Send
+            </button>
+          </div>
         </div>
       )}
 

@@ -85,14 +85,7 @@ const AppInner: React.FC = () => {
 
   const [templateKey, setTemplateKey] = useState<string>(() => inferTemplateKeyFromProject(project));
 
-  // Check if first-time guest visit
-  useEffect(() => {
-    const hasSeenNotice = localStorage.getItem('pf_guest_notice_acknowledged');
-    if (!hasSeenNotice && project.isGuestProject) {
-      setIsGuestModalOpen(true);
-      localStorage.setItem('pf_guest_notice_acknowledged', 'true');
-    }
-  }, [project.isGuestProject]);
+
 
   // Persist project changes to local browser cache
   useEffect(() => {
@@ -304,7 +297,7 @@ const AppInner: React.FC = () => {
   }, [handleEnterStudioWithBlankCanvas]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', maxWidth: '100vw', maxHeight: '100vh', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', maxWidth: '100vw', maxHeight: '100vh', overflow: viewMode === 'landing' ? 'auto' : 'hidden', position: 'relative' }}>
       {viewMode === 'landing' ? (
         <ProductLandingPage
           onLaunchStudio={handleLaunchStudioFromLanding}

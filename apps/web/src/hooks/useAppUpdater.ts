@@ -6,7 +6,7 @@ import {
   invokeTauriCommand
 } from '../components/UpdateNotificationBanner.js';
 
-const CURRENT_APP_VERSION = '0.1.2';
+const CURRENT_APP_VERSION = '0.1.3';
 
 export interface UseAppUpdaterReturn {
   status: UpdaterStatus;
@@ -26,86 +26,48 @@ export function useAppUpdater(): UseAppUpdaterReturn {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const checkForUpdates = useCallback(async (isManual = false) => {
+    // Only run update checks in desktop Tauri environment
+    if (!isTauriEnvironment()) {
+      if (isManual) {
+        setStatus('up-to-date');
+        setStatusMessage(`ProcessForge Web Studio v${CURRENT_APP_VERSION} is current.`);
+      }
+      return;
+    }
+
     setStatus('checking');
     setStatusMessage('Checking for available ProcessForge updates...');
 
-    if (isTauriEnvironment()) {
-      try {
-        const info = await invokeTauriCommand<UpdateInfo>('check_for_updates');
-        setUpdateInfo(info);
-        if (info && info.should_update) {
-          setStatus('available');
-          setStatusMessage(info.release_notes || 'New update available.');
-        } else {
-          if (isManual) {
-            setStatus('up-to-date');
-            setStatusMessage(`ProcessForge v${info?.current_version || CURRENT_APP_VERSION} is the latest release.`);
-          } else {
-            setStatus('idle');
-          }
-        }
-      } catch (err: any) {
-        console.debug('Tauri update check failed:', err);
+    try {
+      const info = await invokeTauriCommand<UpdateInfo>('check_for_updates');
+      setUpdateInfo(info);
+      if (info && info.should_update) {
+        setStatus('available');
+        setStatusMessage(info.release_notes || 'New update available.');
+      } else {
         if (isManual) {
-          setStatus('error');
-          setStatusMessage(err?.message || 'Unable to connect to update server.');
+          setStatus('up-to-date');
+          setStatusMessage(`ProcessForge v${info?.current_version || CURRENT_APP_VERSION} is the latest release.`);
         } else {
           setStatus('idle');
         }
       }
-    } else {
-      // Browser / Web Studio check via GitHub API
-      try {
-        const res = await fetch('https://api.github.com/repos/omeaga1/process-forge/releases/latest', {
-          headers: { Accept: 'application/vnd.github.v3+json' }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const latestTag = (data.tag_name || '').replace(/^v/, '');
-          const isNewer = latestTag && latestTag !== CURRENT_APP_VERSION && latestTag > CURRENT_APP_VERSION;
-
-          const info: UpdateInfo = {
-            current_version: CURRENT_APP_VERSION,
-            latest_version: latestTag || CURRENT_APP_VERSION,
-            should_update: Boolean(isNewer),
-            release_notes: data.body || 'New release available with performance and stability updates.',
-            release_url: data.html_url || 'https://github.com/omeaga1/process-forge/releases/latest'
-          };
-          setUpdateInfo(info);
-
-          if (isNewer) {
-            setStatus('available');
-            setStatusMessage(info.release_notes);
-          } else {
-            if (isManual) {
-              setStatus('up-to-date');
-              setStatusMessage(`ProcessForge Web Studio v${CURRENT_APP_VERSION} is running the latest version.`);
-            } else {
-              setStatus('idle');
-            }
-          }
-        } else {
-          if (isManual) {
-            setStatus('up-to-date');
-            setStatusMessage(`ProcessForge v${CURRENT_APP_VERSION} is up to date.`);
-          } else {
-            setStatus('idle');
-          }
-        }
-      } catch {
-        if (isManual) {
-          setStatus('up-to-date');
-          setStatusMessage(`ProcessForge v${CURRENT_APP_VERSION} is active.`);
-        } else {
-          setStatus('idle');
-        }
+    } catch (err: any) {
+      console.debug('Tauri update check failed:', err);
+      if (isManual) {
+        setStatus('error');
+        setStatusMessage(err?.message || 'Unable to connect to update server.');
+      } else {
+        setStatus('idle');
       }
     }
   }, []);
 
-  // Background check on load
+  // Background check on load (Tauri desktop only)
   useEffect(() => {
-    checkForUpdates(false);
+    if (isTauriEnvironment()) {
+      checkForUpdates(false);
+    }
   }, [checkForUpdates]);
 
   const restartAndApplyUpdate = useCallback(async () => {

@@ -75,9 +75,6 @@ export function getInitialTheme(explicitTheme?: ThemeMode): ThemeMode {
     try {
       const stored = localStorage.getItem('pf-theme');
       if (stored === 'light' || stored === 'dark') return stored;
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-        return 'light';
-      }
     } catch {
       // Ignore storage/security errors
     }

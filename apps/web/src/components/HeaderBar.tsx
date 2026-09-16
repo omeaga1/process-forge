@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useMobileViewport, useTheme, ProcessForgeLogo } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
+import { isTauriEnvironment } from './UpdateNotificationBanner.js';
 
 interface HeaderBarProps {
   currentTemplate: string;
@@ -542,8 +543,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <ShieldCheck size={16} />
         </div>
 
-        {/* Check for Updates Action */}
-        {onCheckForUpdates && (
+        {/* Check for Updates Action (Desktop Tauri only) */}
+        {isTauriEnvironment() && onCheckForUpdates && (
           <button
             onClick={onCheckForUpdates}
             disabled={isCheckingUpdates}

@@ -180,11 +180,20 @@ export async function dispatchUnitOpMessage(
 
   // 5. Direct LLM Provider (Gemini, Claude, OpenAI, Ollama)
   if (!hasValidCredentials(creds)) {
+    if (cadDrawing) {
+      return {
+        text: `Generated ASME/ISA-5.1 vector CAD geometry with ${cadDrawing.nozzles.length} nozzle ports for "${ctx.node.name}". Click "Apply Equipment Dressing" below to update the canvas node symbol.`,
+        senderBadge: 'CAD Synthesizer',
+        isOfflineSolver: true,
+        cadDrawing,
+        newDressing
+      };
+    }
+
     return {
-      text: `[Configuration Required]: No AI API key connected for provider ${config.provider || creds.provider}. Click "Configure AI" to add your API key.`,
-      senderBadge: 'No Key',
+      text: `Unit-Op Studio offline solver active for "${ctx.node.name}". You can request vector CAD geometry adjustments (e.g. "add 3 nozzles" or "add cooling jacket"). To enable generative engineering explanations, connect an API key in AI Tools.`,
+      senderBadge: 'Offline CAD Solver',
       isOfflineSolver: true,
-      errorNotice: 'Connect your Gemini, Claude, or OpenAI API key in AI settings.',
       cadDrawing,
       newDressing
     };
@@ -275,13 +284,42 @@ export async function dispatchMasterOrchestratorMessage(
     };
   }
 
-  // 4. Direct LLM Provider
+  // 4. Direct LLM Provider (Offline Heuristic / Solver Fallback)
   if (!hasValidCredentials(creds)) {
+    const { createdNode } = parseUnitOpToolCall('', message);
+
+    if (createdNode) {
+      return {
+        text: `Instantiated ${createdNode.name} (${createdNode.kind}) on flowsheet canvas with default industrial sizing.`,
+        senderBadge: 'Offline CAD Solver',
+        isOfflineSolver: true,
+        createdNode
+      };
+    }
+
+    const lower = message.toLowerCase();
+    if (
+      lower.includes('bottleneck') ||
+      lower.includes('capacity') ||
+      lower.includes('throughput') ||
+      lower.includes('rate') ||
+      lower.includes('status') ||
+      lower.includes('output')
+    ) {
+      const bnText = ctx.bottleneckNodeName
+        ? `Primary constraint identified at "${ctx.bottleneckNodeName}". Max system capacity: ${ctx.maxThroughput ? Math.round(ctx.maxThroughput) : 'Dynamic'} units/min.`
+        : 'No hydraulic or discrete constraint currently limiting line throughput.';
+      return {
+        text: `[Plant Telemetry Solver]: ${bnText} Current packaged output: ${ctx.totalPackaged} units at ${Math.round(ctx.averageRatePerMin)} units/min.`,
+        senderBadge: 'Telemetry Solver',
+        isOfflineSolver: true
+      };
+    }
+
     return {
-      text: `[Configuration Required]: No AI API key connected for provider ${config.provider || creds.provider}. Click "Configure AI" to add your API key.`,
-      senderBadge: 'No Key',
-      isOfflineSolver: true,
-      errorNotice: 'Connect your Gemini, Claude, or OpenAI API key in AI settings.'
+      text: `Process Copilot offline solver active for "${ctx.graphName}". You can query plant bottlenecks, throughput, or type "add pump" / "add tank". Connect an API key in AI Tools to unlock full autonomous reasoning.`,
+      senderBadge: 'Offline Solver',
+      isOfflineSolver: true
     };
   }
 

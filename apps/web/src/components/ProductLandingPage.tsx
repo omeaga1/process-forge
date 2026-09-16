@@ -146,6 +146,17 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  // Escape key closes platforms modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOtherModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const claudeConfigSnippet = `{
   "mcpServers": {
     "process-forge": {

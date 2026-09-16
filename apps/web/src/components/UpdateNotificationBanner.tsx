@@ -150,8 +150,8 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
     }
   }, [controlledDismiss]);
 
-  // Don't render when idle or dismissed
-  if (status === 'idle' || isDismissed) {
+  // In browser web studio, never show the binary update banner
+  if (!isTauriEnvironment() || status === 'idle' || isDismissed) {
     return null;
   }
 
@@ -160,12 +160,11 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
       aria-label="Application Update Status"
       style={{
         position: 'fixed',
-        top: 58,
-        left: '50%',
-        transform: 'translateX(-50%)',
+        bottom: 24,
+        right: 24,
         zIndex: 9000,
-        width: 'calc(100% - 32px)',
-        maxWidth: 780,
+        width: 'calc(100% - 48px)',
+        maxWidth: 480,
         backgroundColor: OsakaJadePalette.background.surfaceElevated,
         border: `1px solid ${
           status === 'error'
@@ -183,7 +182,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 12,
-        animation: 'slideDown 0.3s ease-out'
+        animation: 'slideUp 0.3s ease-out'
       }}
     >
       {/* Left: Icon and Status Details */}
