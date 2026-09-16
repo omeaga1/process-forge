@@ -24,6 +24,7 @@ import { AccountModal } from './components/AccountModal.js';
 import { CloudProjectsModal } from './components/CloudProjectsModal.js';
 import { StudioErrorBoundary } from './components/StudioErrorBoundary.js';
 import { LandingPageHub } from './components/LandingPageHub.js';
+import { ProductLandingPage } from './components/ProductLandingPage.js';
 import { OmnipresentAgentWidget } from './components/OmnipresentAgentWidget.js';
 import { AccountProvider, useAccount } from './auth/useAccount.js';
 import { saveProjectToCloud } from './storage/cloudStorageAdapter.js';
@@ -60,8 +61,11 @@ const AppInner: React.FC = () => {
   const [isGuestModalOpen, setIsGuestModalOpen] = useState<boolean>(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState<boolean>(false);
   const [isCommunityLibraryOpen, setIsCommunityLibraryOpen] = useState<boolean>(false);
-  // App navigation state: 'landing' (hub) | 'studio' (canvas flowsheet)
-  const [viewMode, setViewMode] = useState<'landing' | 'studio'>('landing');
+  // App navigation state:
+  // - 'landing': Clean Product Showcase Landing Page (what is ProcessForge, animated PFD tutorial, download .exe)
+  // - 'portal': Engineering Project Portal & Hub (cloud projects, orchestrator, templates, quotas)
+  // - 'studio': Interactive Flowsheet Canvas Studio (ReactFlow, equipment palette, live simulation)
+  const [viewMode, setViewMode] = useState<'landing' | 'portal' | 'studio'>('landing');
 
   // Initialize or restore active project
   const [project, setProject] = useState<SimulationProject>(() => {
@@ -265,11 +269,27 @@ const AppInner: React.FC = () => {
     setViewMode('landing');
   }, [project]);
 
+  const handleOpenPortal = useCallback(() => {
+    saveLocalProject(project);
+    setViewMode('portal');
+  }, [project]);
+
+  const handleLaunchStudioFromLanding = useCallback(() => {
+    setViewMode('studio');
+  }, []);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', maxWidth: '100vw', maxHeight: '100vh', overflow: 'hidden', position: 'relative' }}>
       {viewMode === 'landing' ? (
+        <ProductLandingPage
+          onLaunchStudio={handleLaunchStudioFromLanding}
+          onOpenPortal={handleOpenPortal}
+          onSelectTemplate={handleSelectTemplateAndLaunch}
+        />
+      ) : viewMode === 'portal' ? (
         <LandingPageHub
           currentProject={project}
+          onNavigateLanding={handleNavigateHome}
           onCreateBlank={handleCreateBlank}
           onSelectTemplate={handleSelectTemplateAndLaunch}
           onOpenProject={handleSelectCloudProjectAndLaunch}
@@ -287,7 +307,7 @@ const AppInner: React.FC = () => {
             currentTemplate={templateKey}
             isGuestMode={project.isGuestProject}
             activeAiProvider={aiConfig.provider}
-            onNavigateHome={handleNavigateHome}
+            onNavigateHome={handleOpenPortal}
             onSelectTemplate={handleSelectTemplate}
             onOpenAiModal={() => setIsAiModalOpen(true)}
             onOpenForgeHub={() => setIsCommunityLibraryOpen(true)}

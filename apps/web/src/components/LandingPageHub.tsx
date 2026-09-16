@@ -43,6 +43,7 @@ import {
 
 interface LandingPageHubProps {
   currentProject: SimulationProject;
+  onNavigateLanding?: () => void;
   onCreateBlank: () => void;
   onSelectTemplate: (templateKey: string) => void;
   onOpenProject: (project: SimulationProject) => void;
@@ -56,6 +57,7 @@ interface LandingPageHubProps {
 
 export const LandingPageHub: React.FC<LandingPageHubProps> = ({
   currentProject,
+  onNavigateLanding,
   onCreateBlank,
   onSelectTemplate,
   onOpenProject,
@@ -234,17 +236,59 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
           flexShrink: 0
         }}
       >
-        {/* Brand */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <ProcessForgeLogo size={32} wordmarkSize={17} />
+        {/* Brand & Navigation */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            onClick={onNavigateLanding}
+            style={{ display: 'flex', alignItems: 'center', cursor: onNavigateLanding ? 'pointer' : 'default' }}
+            title={onNavigateLanding ? 'Return to Product Showcase & Landing Page' : undefined}
+          >
+            <ProcessForgeLogo size={32} wordmarkSize={17} />
+          </div>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: 4,
+              backgroundColor: 'rgba(45, 213, 183, 0.12)',
+              border: `1px solid ${OsakaJadePalette.border.strong}`,
+              color: OsakaJadePalette.jade[400],
+              fontFamily: '"JetBrains Mono", monospace'
+            }}
+          >
+            PROJECT PORTAL
+          </span>
+          {onNavigateLanding && (
+            <button
+              onClick={onNavigateLanding}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '4px 10px',
+                borderRadius: 4,
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                color: OsakaJadePalette.text.secondary,
+                fontSize: 11,
+                fontWeight: 600,
+                fontFamily: '"JetBrains Mono", monospace',
+                cursor: 'pointer'
+              }}
+              title="Return to Product Showcase Landing Page"
+            >
+              <span>← SHOWCASE</span>
+            </button>
+          )}
         </div>
 
         {/* Right Nav Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Download Windows Desktop App */}
+          {/* Download Windows Desktop App (.exe) */}
           <a
-            href="/process-forge-windows-portable-x64.zip"
-            download="process-forge-windows-portable-x64.zip"
+            href="/ProcessForge-Setup-x64.exe"
+            download="ProcessForge-Setup-x64.exe"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -262,10 +306,10 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               boxShadow: `0 0 10px ${OsakaJadePalette.jade.glow}44`,
               transition: 'all 0.12s ease'
             }}
-            title="Download ProcessForge for Windows (1-Click Package)"
+            title="Download ProcessForge for Windows (Native .exe Setup)"
           >
             <Download size={13} strokeWidth={2.5} />
-            <span>DOWNLOAD FOR WINDOWS</span>
+            <span>DOWNLOAD (.EXE)</span>
           </a>
 
           {/* AI Model Status */}
@@ -425,10 +469,10 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
 
         {/* Primary Action Buttons */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
-          {/* Primary Action: Download for Windows */}
+          {/* Primary Action: Download for Windows .exe */}
           <a
-            href="/process-forge-windows-portable-x64.zip"
-            download="process-forge-windows-portable-x64.zip"
+            href="/ProcessForge-Setup-x64.exe"
+            download="ProcessForge-Setup-x64.exe"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -450,10 +494,10 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               textDecoration: 'none',
               transition: 'all 0.12s ease'
             }}
-            title="Download ProcessForge for Windows (1-Click Package)"
+            title="Download ProcessForge Windows Setup (.exe Installer)"
           >
             <Download size={16} strokeWidth={2.5} />
-            <span>Download for Windows</span>
+            <span>Download Installer (.exe)</span>
           </a>
 
           {/* Primary Action: Open Studio */}
