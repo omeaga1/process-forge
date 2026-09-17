@@ -5,3 +5,7 @@ export * from './graph.js';
 export * from './agents.js';
 export * from './storage.js';
 export * from './cad/equipmentCadEngine.js';
+export * from './unitop/expression.js';
+export * from './unitop/contract.js';
+export * from './unitop/evaluate.js';
+export * from './unitop/examples/waxCoolingBelt.js';

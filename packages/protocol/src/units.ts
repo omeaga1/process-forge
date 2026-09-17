@@ -13,7 +13,17 @@ export const FluidPropertiesSchema = z.object({
   name: z.string().min(1),
   densityGPerCm3: z.number().positive(),
   viscosityCentipoise: z.number().positive(),
-  temperatureCelsius: z.number()
+  temperatureCelsius: z.number(),
+  /**
+   * Thermal properties. Optional because most existing graphs are isothermal
+   * packaging lines that never needed them, but required for any unit op whose
+   * behavior is an energy balance -- a cooling belt, a heat exchanger, a
+   * jacketed reactor. Without these the graph has nowhere to carry energy and
+   * a duty calculation has no inputs.
+   */
+  specificHeatKjPerKgK: z.number().positive().optional(),
+  latentHeatOfFusionKjPerKg: z.number().nonnegative().optional(),
+  meltingPointCelsius: z.number().optional()
 });
 export type FluidProperties = z.infer<typeof FluidPropertiesSchema>;
 

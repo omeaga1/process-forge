@@ -11,7 +11,8 @@ export interface SimEvent {
     | 'FILLER_CYCLE_COMPLETE'
     | 'CONVEYOR_TRANSFER_COMPLETE'
     | 'LABELER_CYCLE_COMPLETE'
-    | 'PALLETIZER_CYCLE_COMPLETE';
+    | 'PALLETIZER_CYCLE_COMPLETE'
+    | 'CONTRACT_CYCLE_COMPLETE';
   payload?: Record<string, unknown>;
 }
 

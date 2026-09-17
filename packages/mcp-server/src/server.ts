@@ -12,6 +12,8 @@ import { executeDiagnoseBottlenecks } from './tools/diagnoseBottlenecks.js';
 import { executeQueryUnitSubAgent } from './tools/queryUnitSubAgent.js';
 import { executePackageUnitOp } from './tools/packageUnitOp.js';
 import { executeForgeEquipmentDrawing } from './tools/forgeEquipmentDrawing.js';
+import { executeDesignUnitOp } from './tools/designUnitOp.js';
+import { executeValidateUnitOp } from './tools/validateUnitOp.js';
 import { AVAILABLE_TEMPLATES } from './templates.js';
 
 export function createProcessForgeMcpServer(): Server {
@@ -169,6 +171,53 @@ export function createProcessForgeMcpServer(): Server {
           }
         },
         {
+          name: 'design_unit_op',
+          description:
+            'Returns everything needed to author a UnitOpContract for a unit operation described in natural language: the target schema, the restricted expression grammar and its complete function list, the names the engine supplies at evaluation time, a complete worked example, and -- when a graph is supplied -- the upstream and downstream stream conditions that constrain the design. This tool performs no model inference of its own; the calling client is the model. Author the contract from this brief, then submit it to validate_unit_op.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              description: {
+                type: 'string',
+                description: 'The description of the unit operation in the engineer\'s own words (e.g. "a water-cooled belt where molten wax is poured on, solidifies, and is scraped off at the end").'
+              },
+              graph: {
+                type: 'object',
+                description: 'Optional ProcessGraph this unit op will join, used to report surrounding stream conditions.'
+              },
+              targetNodeId: {
+                type: 'string',
+                description: 'Optional id of the node being designed or replaced within `graph`.'
+              },
+              preferredMode: {
+                type: 'string',
+                enum: ['DISCRETE_CYCLE', 'CONTINUOUS_RATE'],
+                description: 'Optional expected behavior mode.'
+              }
+            },
+            required: ['description']
+          }
+        },
+        {
+          name: 'validate_unit_op',
+          description:
+            'Checks a proposed UnitOpContract against three gates and returns the verdict computed by the engine: schema conformance, static coherence (every expression parses and every reference resolves), and physical validity (every ERROR-severity constraint evaluated against the parameter values the contract itself declares). Returns ACCEPTED or REJECTED with the specific failures and revision guidance. The verdict is computed, not asserted -- a contract that cannot survive its own simulator is rejected.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              contract: {
+                type: 'object',
+                description: 'The candidate UnitOpContract to check.'
+              },
+              parameterOverrides: {
+                type: 'object',
+                description: 'Optional parameter overrides, for asking whether the design holds at a different operating point (e.g. { "beltSpeedMPerMin": 20 }).'
+              }
+            },
+            required: ['contract']
+          }
+        },
+        {
           name: 'list_digital_twin_templates',
           description: 'Lists all available pre-configured digital twin manufacturing lines in ProcessForge.',
           inputSchema: {
@@ -211,6 +260,30 @@ export function createProcessForgeMcpServer(): Server {
 
         case 'query_unit_subagent': {
           const result = executeQueryUnitSubAgent(args as any);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }
+            ]
+          };
+        }
+
+        case 'design_unit_op': {
+          const result = executeDesignUnitOp(args as any);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+              }
+            ]
+          };
+        }
+
+        case 'validate_unit_op': {
+          const result = executeValidateUnitOp(args as any);
           return {
             content: [
               {
