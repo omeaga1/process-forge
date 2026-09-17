@@ -829,6 +829,83 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         <Sparkles size={14} color={OsakaJadePalette.jade.glow} />
                         <span>Prompt Google One Tap Overlay</span>
                       </button>
+
+                      {/* Origin Mismatch Helper Box */}
+                      <div
+                        style={{
+                          marginTop: 14,
+                          padding: '10px 12px',
+                          borderRadius: 6,
+                          backgroundColor: OsakaJadePalette.background.canvas,
+                          border: `1px solid ${OsakaJadePalette.border.subtle}`,
+                          fontSize: 11,
+                          color: OsakaJadePalette.text.secondary,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 600, color: OsakaJadePalette.text.primary }}>
+                            Seeing Error 400: origin_mismatch?
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsEditingClientId(true);
+                              setCustomClientIdInput(googleClientId);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: OsakaJadePalette.jade.glow,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              padding: 0
+                            }}
+                          >
+                            Change Client ID →
+                          </button>
+                        </div>
+                        <p style={{ margin: 0, lineHeight: 1.4 }}>
+                          Google requires this exact origin registered in Google Cloud Console under <strong>Authorized JavaScript origins</strong>:
+                        </p>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            backgroundColor: OsakaJadePalette.background.surface,
+                            padding: '6px 10px',
+                            borderRadius: 4,
+                            border: `1px solid ${OsakaJadePalette.border.default}`
+                          }}
+                        >
+                          <code style={{ color: OsakaJadePalette.jade.glow, fontSize: 11 }}>
+                            {typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyOrigin(typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: copiedOrigin === (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')
+                                ? OsakaJadePalette.jade[400]
+                                : OsakaJadePalette.text.muted,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              fontSize: 11
+                            }}
+                          >
+                            <Copy size={12} />
+                            <span>{copiedOrigin === (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000') ? 'Copied!' : 'Copy Origin'}</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     /* ── GOOGLE CLIENT ID CONFIGURATION GUIDE ── */
@@ -840,14 +917,31 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         padding: 14
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                        <KeyRound size={15} color={OsakaJadePalette.jade.glow} />
-                        <span style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                          Google Sign-In Configuration
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <KeyRound size={15} color={OsakaJadePalette.jade.glow} />
+                          <span style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
+                            Google Sign-In Configuration
+                          </span>
+                        </div>
+                        {googleClientId && (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingClientId(false)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: OsakaJadePalette.text.muted,
+                              fontSize: 11,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
                       </div>
                       <p style={{ fontSize: 11, color: OsakaJadePalette.text.secondary, margin: '0 0 10px 0', lineHeight: 1.5 }}>
-                        Google requires a free <strong>OAuth Client ID</strong> from Google Cloud Console so your browser can securely show your Google accounts.
+                        Google requires a free <strong>OAuth Client ID</strong> from Google Cloud Console so your browser can securely authenticate with Google.
                       </p>
 
                       <div
@@ -866,6 +960,34 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         <span style={{ fontWeight: 600, color: OsakaJadePalette.text.primary }}>
                           Authorized JavaScript Origins to add in Google Console:
                         </span>
+                        {/* Current Browser Origin */}
+                        {typeof window !== 'undefined' && window.location.origin && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 4, borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
+                            <div>
+                              <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, display: 'block', fontWeight: 600 }}>
+                                Current Origin (This Tab):
+                              </span>
+                              <code style={{ fontSize: 11, color: OsakaJadePalette.text.primary }}>{window.location.origin}</code>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyOrigin(window.location.origin)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: copiedOrigin === window.location.origin ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                fontSize: 10
+                              }}
+                            >
+                              <Copy size={12} />
+                              <span>{copiedOrigin === window.location.origin ? 'Copied' : 'Copy'}</span>
+                            </button>
+                          </div>
+                        )}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <code style={{ fontSize: 11, color: OsakaJadePalette.jade.glow }}>http://localhost:3000</code>
                           <button
