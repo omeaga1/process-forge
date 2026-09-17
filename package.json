@@ -19,6 +19,7 @@
     "clean": "turbo run clean"
   },
   "devDependencies": {
+    "playwright": "^1.63.0",
     "turbo": "^2.4.4",
     "typescript": "^5.8.2"
   }

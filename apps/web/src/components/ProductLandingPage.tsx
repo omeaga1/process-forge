@@ -281,18 +281,18 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             GitHub <ExternalLink size={13} />
           </a>
 
-          {/* Web Studio Secondary Link */}
+          {/* Launch Web Studio Button */}
           <button
             onClick={onLaunchStudio}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
-              padding: '7px 14px',
+              padding: '8px 16px',
               borderRadius: '6px',
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.strong}`,
-              color: OsakaJadePalette.text.primary,
+              backgroundColor: 'rgba(16, 185, 129, 0.12)',
+              border: `1px solid ${OsakaJadePalette.jade[600]}`,
+              color: OsakaJadePalette.jade[300],
               fontSize: '0.84rem',
               fontWeight: 600,
               cursor: 'pointer',
@@ -301,32 +301,8 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             title="Launch Web Studio directly in browser"
           >
             <span>Launch Web Studio</span>
-            <ArrowRight size={13} color={OsakaJadePalette.text.muted} />
+            <ArrowRight size={13} color={OsakaJadePalette.jade[400]} />
           </button>
-
-          {/* Primary Desktop App Download Button */}
-          <a
-            href={platform.downloadUrl}
-            download={platform.os === 'windows' ? 'ProcessForge-Setup-x64.exe' : undefined}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '7px',
-              padding: '7px 16px',
-              borderRadius: '6px',
-              backgroundColor: OsakaJadePalette.jade[500],
-              color: OsakaJadePalette.text.inverse,
-              textDecoration: 'none',
-              fontSize: '0.84rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              boxShadow: `0 0 12px ${OsakaJadePalette.jade.glow}44`,
-              transition: 'all 0.12s ease'
-            }}
-          >
-            <Download size={14} />
-            <span>Download Desktop ({platform.extension})</span>
-          </a>
         </nav>
       </header>
 
@@ -482,8 +458,8 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
           </div>
 
           {/* Platform Selector Link */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '0.82rem', color: OsakaJadePalette.text.secondary }}>
-            <span>Available for Windows, macOS &amp; Linux.</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.84rem', color: OsakaJadePalette.text.secondary }}>
+            <span>Available for Windows, macOS &amp; Linux &bull;</span>
             <button
               onClick={() => setIsOtherModalOpen(true)}
               style={{
@@ -496,7 +472,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 textDecoration: 'underline'
               }}
             >
-              View all formats &amp; architectures (.msi, .dmg, .AppImage, portable .zip)
+              All platforms &amp; formats &rarr;
             </button>
           </div>
 

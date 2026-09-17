@@ -362,13 +362,15 @@ const AppInner: React.FC = () => {
         </>
       )}
 
-      {/* Omnipresent Overarching Agent Companion (Always Visible Across Both Views) */}
-      <OmnipresentAgentWidget
-        currentProject={project}
-        isInStudioView={viewMode === 'studio'}
-        onOpenStudio={handleOpenStudio}
-        onOpenAiModal={() => setIsAiModalOpen(true)}
-      />
+      {/* Omnipresent Overarching Agent Companion (Studio View Only — Never on Landing Page) */}
+      {viewMode === 'studio' && (
+        <OmnipresentAgentWidget
+          currentProject={project}
+          isInStudioView={false}
+          onOpenStudio={handleOpenStudio}
+          onOpenAiModal={() => setIsAiModalOpen(true)}
+        />
+      )}
 
       {/* Modals */}
       <AiModelModal

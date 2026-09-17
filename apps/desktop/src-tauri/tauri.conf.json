@@ -6,8 +6,8 @@
   "build": {
     "beforeDevCommand": "pnpm --filter @process-forge/web dev",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "",
-    "frontendDist": "../../web/dist"
+    "beforeBuildCommand": "pnpm --filter @process-forge/web build",
+    "frontendDist": "../../apps/web/dist"
   },
   "app": {
     "windows": [
