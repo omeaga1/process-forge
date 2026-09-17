@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "process-forge-web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@process-forge/web", "dev"],
+      "port": 3000
+    }
+  ]
+}
