@@ -6,7 +6,7 @@ import {
   NozzleDressingSchema
 } from '../index.js';
 
-describe('Equipment CAD Drawing Engine (Drawing-with-Thought)', () => {
+describe('Equipment CAD Drawing Template Library', () => {
   it('synthesizes a distillation column with multiple sieve trays and nozzles', () => {
     const dwg = synthesizeEquipmentDrawing('Fractionation distillation tower with 6 sieve trays and top reflux', {
       kind: 'DISTILLATION_COLUMN',
@@ -17,8 +17,8 @@ describe('Equipment CAD Drawing Engine (Drawing-with-Thought)', () => {
     assert.ok(dwg.svgShell.includes('<rect'));
     assert.ok(dwg.svgShell.includes('<ellipse'));
     assert.ok(dwg.svgDetails.includes('<line'));
-    assert.ok(dwg.thinking.includes('Step 1'));
-    assert.ok(dwg.thinking.includes('Step 6'));
+    assert.ok(dwg.templateNotes.includes('Form:'));
+    assert.ok(dwg.templateNotes.includes('Connections:'));
     assert.ok(dwg.nozzles.length >= 4);
     assert.equal(dwg.internals.packingType, 'trays');
   });
@@ -31,7 +31,7 @@ describe('Equipment CAD Drawing Engine (Drawing-with-Thought)', () => {
 
     assert.equal(dwg.category, 'Reactors');
     assert.ok(dwg.svgShell.includes('<rect'));
-    assert.ok(dwg.svgDetails.includes('Rushton') || dwg.thinking.includes('rushton'));
+    assert.ok(dwg.svgDetails.includes('Rushton') || dwg.templateNotes.includes('rushton'));
     assert.equal(dwg.internals.agitatorType, 'rushton');
     assert.equal(dwg.internals.hasJacket, true);
     assert.ok(dwg.nozzles.some((n) => n.role === 'relief'));

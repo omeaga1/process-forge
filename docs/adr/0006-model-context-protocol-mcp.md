@@ -28,6 +28,12 @@ We implement `@process-forge/mcp-server` adhering to Anthropic's open **Model Co
 3. `query_unit_subagent`: Serves as the machine-level specialist software engineer, synthesizing dynamic Generative UI controls, physical parameters, and MTBF/MTTR failure distributions.
 4. `package_unit_op`: Packages validated Unit-Ops and Sub-Agents into Obsidian-style `.pfu` community bundles for ForgeHub.
 5. `forge_equipment_drawing`: Synthesizes parametric 2D CAD engineering drawings with ASME nozzle schedules, internals, and animated SVG components using Drawing-with-Thought.
+   > **Correction (2026-09-17, audit Phase 3):** "Drawing-with-Thought" describes no
+   > implemented mechanism. `synthesizeEquipmentDrawing` is a keyword-matched lookup over a
+   > fixed template library with a few interpolated parameters. The decision recorded above
+   > stands as written; this note marks the gap between it and the code rather than editing
+   > the historical record. The tool itself is **Built** — the drawings are real; the
+   > reasoning pipeline is not.
 6. `list_digital_twin_templates`: Lists pre-configured digital twins (e.g. Sherwin-Williams paint canning line, beverage bottling line).
 
 ### 3. Cross-Platform Compatibility

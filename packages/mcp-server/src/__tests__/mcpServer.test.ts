@@ -96,7 +96,7 @@ describe('ProcessForge MCP Server Tools', () => {
     assert.ok(res.svgMarkup.includes('<svg'));
     assert.ok(res.suggestedDressing.customSvgShell.length > 0);
     assert.ok(res.suggestedDressing.nozzles.length >= 4);
-    assert.ok(res.reasoningTrace.includes('Step 1'));
+    assert.ok(res.templateNotes.includes('Form:'));
   });
 
   it('synthesizes equipment drawing when querying unit subagent with drawing inquiry', () => {
