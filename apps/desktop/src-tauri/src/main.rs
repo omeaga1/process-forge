@@ -31,10 +31,10 @@ fn get_system_telemetry() -> Result<SystemTelemetry, String> {
 }
 
 fn namespaced_service(service: &str) -> String {
-    if service.starts_with("com.processforge.app:") {
+    if service.starts_with("com.processforge.studio:") {
         service.to_string()
     } else {
-        format!("com.processforge.app:{}", service)
+        format!("com.processforge.studio:{}", service)
     }
 }
 

@@ -2,12 +2,12 @@
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
   "productName": "ProcessForge",
   "version": "0.1.4",
-  "identifier": "com.processforge.app",
+  "identifier": "com.processforge.studio",
   "build": {
     "beforeDevCommand": "pnpm --filter @process-forge/web dev",
     "devUrl": "http://localhost:3000",
     "beforeBuildCommand": "",
-    "frontendDist": "../../apps/web/dist"
+    "frontendDist": "../../web/dist"
   },
   "app": {
     "windows": [
