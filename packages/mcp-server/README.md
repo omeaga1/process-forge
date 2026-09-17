@@ -14,7 +14,7 @@ This package turns frontier AI models (such as Claude Desktop, Gemini CLI, Curso
 | `diagnose_bottlenecks` | Audits process flow graph topology, detects continuous/discrete port mismatches, audits conservation of mass/volume, and pinpoints backpressure accumulation. |
 | `query_unit_subagent` | Consults with the unit-level Sub-Agent acting as a software engineer for a machine (e.g. Rotary Filler, Reactor, Labeler), synthesizing dynamic parameters and Generative UI schemas. |
 | `package_unit_op` | Packages validated Unit-Ops and their Sub-Agents into Obsidian-style `.pfu` plugin bundles ready for ForgeHub sharing. |
-| `forge_equipment_drawing` | Synthesizes parametric 2D CAD engineering drawings with ASME nozzle schedules, internals, and animated SVG components using Drawing-with-Thought. |
+| `forge_equipment_drawing` | **Built.** Selects a 2D CAD equipment drawing from a fixed template library by keyword-matching the description against known equipment families, returning SVG geometry, nozzle placements, and internals. A few parameters (tray count, agitator type, bottom head style) are interpolated from the description; unmatched descriptions return a generic vertical vessel. |
 | `list_digital_twin_templates` | Lists all available pre-configured digital twins (e.g. Sherwin-Williams paint canning line, beverage bottling line). |
 
 ---

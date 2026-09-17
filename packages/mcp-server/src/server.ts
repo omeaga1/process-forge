@@ -144,7 +144,7 @@ export function createProcessForgeMcpServer(): Server {
         {
           name: 'forge_equipment_drawing',
           description:
-            'Synthesizes an ISA-5.1 compliant CAD equipment vector drawing (SVG geometry, viewBox, nozzles, internals, and aspect ratio) from a natural language engineering description using an 8-step Drawing-with-Thought reasoning pipeline.',
+            'Selects an ISA-5.1 compliant CAD equipment vector drawing (SVG geometry, viewBox, nozzles, internals, and aspect ratio) from a fixed template library, matching a natural language engineering description against known equipment families by keyword. Templates are pre-authored, with a few parameters (tray count, agitator type, bottom head style) interpolated from the description; unmatched descriptions return a generic vertical vessel.',
           inputSchema: {
             type: 'object',
             properties: {

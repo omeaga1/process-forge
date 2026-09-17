@@ -14,7 +14,11 @@ export interface ForgeEquipmentDrawingResult {
   success: boolean;
   drawing: EquipmentCadDrawing;
   svgMarkup: string;
-  reasoningTrace: string;
+  /**
+   * Hand-written notes describing the geometry of the selected template.
+   * Static prose from the template definition — not a reasoning trace.
+   */
+  templateNotes: string;
   suggestedDressing: {
     customSvgShell: string;
     customSvgDetails: string;
@@ -56,7 +60,7 @@ export function executeForgeEquipmentDrawing(
     success: true,
     drawing,
     svgMarkup,
-    reasoningTrace: drawing.thinking,
+    templateNotes: drawing.templateNotes,
     suggestedDressing: {
       customSvgShell: drawing.svgShell,
       customSvgDetails: drawing.svgDetails,

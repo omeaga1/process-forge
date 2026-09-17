@@ -1,7 +1,12 @@
 import type { NozzleDressing, InternalsDressing } from '../nodes.js';
 
 export interface EquipmentCadDrawing {
-  thinking: string;
+  /**
+   * Hand-written description of the geometry this template was authored with.
+   * Static prose stored next to the template — not generated, not validated
+   * against `svgShell`/`svgDetails`, and not a record of any computation.
+   */
+  templateNotes: string;
   label: string;
   category: 'Vessels' | 'Separations' | 'Heat Transfer' | 'Fluid Movement' | 'Reactors' | 'Solids Handling' | 'Drying' | 'Utilities' | 'Other';
   description: string;
@@ -14,16 +19,23 @@ export interface EquipmentCadDrawing {
 }
 
 /**
- * Synthesizes an ISA-5.1 compliant CAD equipment drawing from natural language descriptions.
- * Uses the 8-step "Drawing-with-Thought" geometric reasoning pipeline derived from ProcessFlow:
- * 1. Physical Form Analysis
- * 2. ISA-5.1 Silhouette & Geometry Convention
- * 3. SVG Primitive Mapping (circle, rect, ellipse, polygon)
- * 4. Spatial Coordinate Planning on 100x100 canvas (x: 5-95, y: 5-95)
- * 5. Canvas Coverage & Scale Invariance (min 60px coverage)
- * 6. Connection Point Verification
- * 7. Shell vs Details Split (svgShell body outline >= 2 elements, svgDetails internal lines)
- * 8. Real-world Aspect Ratio & Mechanical Dressing (Nozzles & Internals)
+ * Selects an ISA-5.1 compliant CAD equipment drawing template from a natural
+ * language description.
+ *
+ * This is a template lookup, not a reasoning pipeline. The prompt is lowercased
+ * and matched with substring tests (`p.includes('distill')`, etc.) against a
+ * fixed set of equipment families; the first match returns a pre-authored SVG
+ * template. A small number of parameters are interpolated from the prompt
+ * (tray count, packed vs. trayed, cone vs. dished bottom, agitator type).
+ * Unmatched prompts fall through to a generic vertical vessel.
+ *
+ * Each template carries a `templateNotes` string describing the geometry that
+ * template was authored with — physical form, ISA-5.1 convention, SVG
+ * primitives, coordinates, canvas coverage, connection points, shell/detail
+ * split, and aspect ratio. These notes are written by hand alongside the
+ * template. They are documentation of a fixed asset, not a record of any
+ * computation performed at call time, and nothing in this function validates
+ * them against the SVG it returns.
  */
 export function synthesizeEquipmentDrawing(
   prompt: string,
@@ -68,7 +80,7 @@ export function synthesizeEquipmentDrawing(
     }
 
     return {
-      thinking: `Step 1: Vertical cylindrical fractionator with 2:1 ellipsoidal heads. Step 2: ISA-5.1 distillation tower convention. Step 3: Tall rect + top/bottom ellipse caps. Step 4: Rect(32,10,36,80), top ellipse(50,10,18,5), bottom ellipse(50,90,18,5). Step 5: Width=36px, Height=85px, fills vertical canvas. Step 6: Caps connect at x=32 and x=68. Match YES. Step 7: svgShell has 3 body primitives; details has ${isPacked ? 'structured packing cross-hatching' : `${trayCount} internal tray lines`}. Step 8: Aspect ratio 65x180.`,
+      templateNotes: `Form: Vertical cylindrical fractionator with 2:1 ellipsoidal heads. Convention: ISA-5.1 distillation tower convention. Primitives: Tall rect + top/bottom ellipse caps. Coordinates: Rect(32,10,36,80), top ellipse(50,10,18,5), bottom ellipse(50,90,18,5). Coverage: Width=36px, Height=85px, fills vertical canvas. Connections: Caps connect at x=32 and x=68. Split: svgShell has 3 body primitives; details has ${isPacked ? 'structured packing cross-hatching' : `${trayCount} internal tray lines`}. Aspect ratio: 65x180.`,
       label: isPacked ? 'Packed Absorption Column' : 'Distillation Column',
       category: 'Separations',
       description: isPacked ? 'Packed gas-liquid absorption column with internal packing bed' : `Multi-stage fractionation column with ${trayCount} sieve trays`,
@@ -106,7 +118,7 @@ export function synthesizeEquipmentDrawing(
       : "<line x1='50' y1='12' x2='50' y2='65' strokeWidth='0.8'/><line x1='35' y1='55' x2='50' y2='65' strokeWidth='0.8'/><line x1='65' y1='55' x2='50' y2='65' strokeWidth='0.8'/><line x1='35' y1='45' x2='65' y2='45' strokeWidth='0.8'/>";
 
     return {
-      thinking: `Step 1: Vertical cylindrical process reactor with top dome and motor-driven agitator. Step 2: ISA-5.1 CSTR convention. Step 3: Rect body + ellipse head + ${isConeBottom ? 'conical bottom polygon' : 'dished bottom head'}. Step 4: Body spans x=26-74, y=12-80. Shaft spans (50,12) to (50,65). Step 5: Width=48px, Height=75px. Step 6: Agitator shaft centered at x=50. Match YES. Step 7: Outer shell outline in svgShell; shaft and ${agitatorType} impeller blades in svgDetails. Step 8: Aspect ratio 80x110.`,
+      templateNotes: `Form: Vertical cylindrical process reactor with top dome and motor-driven agitator. Convention: ISA-5.1 CSTR convention. Primitives: Rect body + ellipse head + ${isConeBottom ? 'conical bottom polygon' : 'dished bottom head'}. Coordinates: Body spans x=26-74, y=12-80. Shaft spans (50,12) to (50,65). Coverage: Width=48px, Height=75px. Connections: Agitator shaft centered at x=50. Split: Outer shell outline in svgShell; shaft and ${agitatorType} impeller blades in svgDetails. Aspect ratio: 80x110.`,
       label: isConeBottom ? 'Cone-Bottom Agitated Reactor' : 'Jacketed Chemical Reactor (CSTR)',
       category: 'Reactors',
       description: `Agitated chemical reactor with ${agitatorType.replace('_', ' ')} turbine impeller and thermal jacket`,
@@ -134,7 +146,7 @@ export function synthesizeEquipmentDrawing(
   // 3. Shell & Tube / U-Tube Heat Exchanger
   if (p.includes('exchanger') || p.includes('cooler') || p.includes('heater') || p.includes('condenser') || p.includes('reboiler') || kind.includes('exchanger')) {
     return {
-      thinking: 'Step 1: Horizontal cylindrical shell with tube sheets and dished channel heads. Step 2: ISA-5.1 heat exchanger convention. Step 3: Horizontal rect + left/right ellipse caps + vertical baffle plates. Step 4: Rect(10,28,80,44), left cap(10,50,7,22), right cap(90,50,7,22). Step 5: Width=87px, Height=44px. Step 6: Caps intersect shell at y=28 and y=72. Match YES. Step 7: svgShell holds shell & heads; svgDetails holds 5 internal baffle lines. Step 8: Aspect ratio 140x60.',
+      templateNotes: 'Form: Horizontal cylindrical shell with tube sheets and dished channel heads. Convention: ISA-5.1 heat exchanger convention. Primitives: Horizontal rect + left/right ellipse caps + vertical baffle plates. Coordinates: Rect(10,28,80,44), left cap(10,50,7,22), right cap(90,50,7,22). Coverage: Width=87px, Height=44px. Connections: Caps intersect shell at y=28 and y=72. Split: svgShell holds shell & heads; svgDetails holds 5 internal baffle lines. Aspect ratio: 140x60.',
       label: 'Shell & Tube Heat Exchanger',
       category: 'Heat Transfer',
       description: 'Horizontal countercurrent shell and tube heat exchanger with transverse tube baffles',
@@ -157,7 +169,7 @@ export function synthesizeEquipmentDrawing(
   // 4. Pumps (Centrifugal, Rotary, Lobe)
   if (p.includes('pump') || p.includes('compressor') || kind.includes('pump')) {
     return {
-      thinking: 'Step 1: Volute casing with tangential discharge and internal impeller. Step 2: ISA-5.1 centrifugal pump symbol. Step 3: Outer circle casing + filled triangular impeller pointing towards discharge. Step 4: Circle cx=50 cy=50 r=38; polygon points (22,22 22,78 88,50). Step 5: Width=66px, Height=56px. Step 6: Impeller apex touches circle boundary at x=88. Match YES. Step 7: All in svgShell with fill=currentColor on impeller. Step 8: Aspect ratio 70x70.',
+      templateNotes: 'Form: Volute casing with tangential discharge and internal impeller. Convention: ISA-5.1 centrifugal pump symbol. Primitives: Outer circle casing + filled triangular impeller pointing towards discharge. Coordinates: Circle cx=50 cy=50 r=38; polygon points (22,22 22,78 88,50). Coverage: Width=66px, Height=56px. Connections: Impeller apex touches circle boundary at x=88. Split: All in svgShell with fill=currentColor on impeller. Aspect ratio: 70x70.',
       label: 'Centrifugal Process Pump',
       category: 'Fluid Movement',
       description: 'Standard volute centrifugal pump with directional discharge impeller',
@@ -177,7 +189,7 @@ export function synthesizeEquipmentDrawing(
   // 5. Cyclone Separator
   if (p.includes('cyclone') || (p.includes('separator') && p.includes('gas-solid'))) {
     return {
-      thinking: 'Step 1: Inverted conical vessel with upper cylindrical section and bottom grit pot. Step 2: ISA-5.1 cyclone separator. Step 3: Top trapezoid polygon + bottom rectangular dust hopper. Step 4: Polygon (15,10 85,10 62,55 38,55); Rect (38,55,24,35). Step 5: Width=70px, Height=80px. Step 6: Polygon bottom matches rect top at y=55, x=38-62. Match YES. Step 7: Both in svgShell. Step 8: Aspect ratio 70x140.',
+      templateNotes: 'Form: Inverted conical vessel with upper cylindrical section and bottom grit pot. Convention: ISA-5.1 cyclone separator. Primitives: Top trapezoid polygon + bottom rectangular dust hopper. Coordinates: Polygon (15,10 85,10 62,55 38,55); Rect (38,55,24,35). Coverage: Width=70px, Height=80px. Connections: Polygon bottom matches rect top at y=55, x=38-62. Split: Both in svgShell. Aspect ratio: 70x140.',
       label: 'Cyclone Dust Separator',
       category: 'Separations',
       description: 'Tangential entry cyclone separator for particulate separation from vapor stream',
@@ -197,7 +209,7 @@ export function synthesizeEquipmentDrawing(
   // 6. Spray Chamber / Atomizer / Scrubber
   if (p.includes('spray') || p.includes('atomiz') || p.includes('scrubber') || kind.includes('scrubber') || kind.includes('spray')) {
     return {
-      thinking: 'Step 1: Atomizing chamber with converging header and wide conical spray dispersion. Step 2: ISA-5.1 two-fluid atomizer. Step 3: Dual feed lines + mixing chamber ellipse + spray cone polygon. Step 4: Line (20,8)->(47,39), Line (80,8)->(53,39), Ellipse(50,40,4,3), Polygon(47,63 53,63 78,88 22,88). Step 5: Width=60px, Height=80px. Step 6: Lines converge on ellipse; nozzle body meets spray cone at y=63. Match YES. Step 7: Body in svgShell; fan lines in svgDetails. Step 8: Aspect ratio 75x120.',
+      templateNotes: 'Form: Atomizing chamber with converging header and wide conical spray dispersion. Convention: ISA-5.1 two-fluid atomizer. Primitives: Dual feed lines + mixing chamber ellipse + spray cone polygon. Coordinates: Line (20,8)->(47,39), Line (80,8)->(53,39), Ellipse(50,40,4,3), Polygon(47,63 53,63 78,88 22,88). Coverage: Width=60px, Height=80px. Connections: Lines converge on ellipse; nozzle body meets spray cone at y=63. Split: Body in svgShell; fan lines in svgDetails. Aspect ratio: 75x120.',
       label: 'Twin-Fluid Spray Atomizer',
       category: 'Utilities',
       description: 'Two-substance liquid atomizer producing a high-dispersion conical droplet spray',
@@ -219,7 +231,7 @@ export function synthesizeEquipmentDrawing(
   // 7. Spherical Storage Vessel (Horton Sphere / LPG Tank)
   if (p.includes('sphere') || p.includes('spherical') || p.includes('horton') || p.includes('lpg sphere')) {
     return {
-      thinking: 'Step 1: Spherical high-pressure storage tank supported on vertical structural legs. Step 2: ISA-5.1 spherical pressure vessel. Step 3: Circle body + 4 bottom support legs. Step 4: Circle cx=50 cy=50 r=38; legs span from y=75 to y=92. Step 5: Width=76px, Height=82px. Step 6: Leg tops anchor to circle perimeter at r=38. Match YES. Step 7: Circle in svgShell; support leg pairs in svgDetails. Step 8: Aspect ratio 85x95.',
+      templateNotes: 'Form: Spherical high-pressure storage tank supported on vertical structural legs. Convention: ISA-5.1 spherical pressure vessel. Primitives: Circle body + 4 bottom support legs. Coordinates: Circle cx=50 cy=50 r=38; legs span from y=75 to y=92. Coverage: Width=76px, Height=82px. Connections: Leg tops anchor to circle perimeter at r=38. Split: Circle in svgShell; support leg pairs in svgDetails. Aspect ratio: 85x95.',
       label: 'Spherical Storage Pressure Vessel',
       category: 'Vessels',
       description: 'Horton spherical pressure vessel for high-pressure liquefied petroleum gas storage',
@@ -239,7 +251,7 @@ export function synthesizeEquipmentDrawing(
   // 8. Horizontal Bullet / Pressure Drum
   if (p.includes('horizontal') || p.includes('bullet') || p.includes('surge drum')) {
     return {
-      thinking: 'Step 1: Horizontal cylindrical bullet tank with hemispherical heads on concrete saddles. Step 2: ISA-5.1 horizontal pressure drum. Step 3: Horizontal rect + left/right semi-circle heads. Step 4: Rect(18,32,64,36), left cap(18,50,r=18), right cap(82,50,r=18). Step 5: Width=82px, Height=36px. Step 6: Caps smoothly join rectangle body at x=18 and x=82. Match YES. Step 7: Shell outline in svgShell; support saddles in svgDetails. Step 8: Aspect ratio 140x60.',
+      templateNotes: 'Form: Horizontal cylindrical bullet tank with hemispherical heads on concrete saddles. Convention: ISA-5.1 horizontal pressure drum. Primitives: Horizontal rect + left/right semi-circle heads. Coordinates: Rect(18,32,64,36), left cap(18,50,r=18), right cap(82,50,r=18). Coverage: Width=82px, Height=36px. Connections: Caps smoothly join rectangle body at x=18 and x=82. Split: Shell outline in svgShell; support saddles in svgDetails. Aspect ratio: 140x60.',
       label: 'Horizontal Bullet Pressure Vessel',
       category: 'Vessels',
       description: 'Horizontal cylindrical pressure bullet with dished heads and saddle mounts',
@@ -258,7 +270,7 @@ export function synthesizeEquipmentDrawing(
 
   // Default: Vertical Cylindrical Process Vessel
   return {
-    thinking: `Step 1: Vertical cylindrical equipment body for "${name}". Step 2: ISA-5.1 vertical vessel silhouette. Step 3: Vertical rect + 2:1 ellipsoidal top and bottom heads. Step 4: Rect(28,14,44,72), top ellipse(50,14,22,7), bottom ellipse(50,86,22,7). Step 5: Width=44px, Height=79px. Step 6: Ellipse caps align with rectangle sides at x=28 and x=72. Match YES. Step 7: svgShell has 3 boundary elements. Step 8: Aspect ratio 70x160.`,
+    templateNotes: `Form: Vertical cylindrical equipment body for "${name}". Convention: ISA-5.1 vertical vessel silhouette. Primitives: Vertical rect + 2:1 ellipsoidal top and bottom heads. Coordinates: Rect(28,14,44,72), top ellipse(50,14,22,7), bottom ellipse(50,86,22,7). Coverage: Width=44px, Height=79px. Connections: Ellipse caps align with rectangle sides at x=28 and x=72. Split: svgShell has 3 boundary elements. Aspect ratio: 70x160.`,
     label: `${name} (ISA-5.1 CAD Model)`,
     category: 'Vessels',
     description: `Process vessel geometry generated according to description: "${prompt.slice(0, 80)}"`,
