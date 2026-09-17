@@ -1,4 +1,5 @@
-import type { ProcessGraph, ProcessNode } from '@process-forge/protocol';
+import type { ProcessGraph, ProcessNode, UnitOpContract, UnitOpEvaluation } from '@process-forge/protocol';
+import { evaluateUnitOp, blockingViolations } from '@process-forge/protocol';
 import { PriorityQueue } from './priority-queue.js';
 import type {
   MachineOeeReport,
@@ -21,6 +22,13 @@ interface InternalNodeRuntime {
   bufferCans: number;
   maxBuffer: number;
   fluidLevelGallons: number;
+  /**
+   * Present when this node's behavior comes from a UnitOpContract rather than
+   * one of the hardcoded machine handlers. This is what lets the engine run a
+   * unit operation that did not exist when the engine was compiled.
+   */
+  contract?: UnitOpContract;
+  contractEval?: UnitOpEvaluation;
 }
 
 export class SimulationEngine {
@@ -52,6 +60,30 @@ export class SimulationEngine {
         maxBuffer = cfg.maxItemCapacity ?? 48;
       }
 
+      // A node whose config carries a contract is executed generically. The
+      // contract is evaluated once, up front, so that a physically incoherent
+      // unit op fails before the clock starts rather than partway through a run.
+      const contractCfg = node.config as { contract?: UnitOpContract; bufferCapacity?: number };
+      const contract = contractCfg.contract;
+      let contractEval: UnitOpEvaluation | undefined;
+      if (contract) {
+        contractEval = evaluateUnitOp(contract);
+        if (contractEval.error) {
+          throw new Error(
+            `Node "${node.id}" contract "${contract.id}" failed to evaluate at ` +
+              `${contractEval.error.path}: ${contractEval.error.message}`
+          );
+        }
+        const blocking = blockingViolations(contractEval);
+        if (blocking.length > 0) {
+          throw new Error(
+            `Node "${node.id}" contract "${contract.id}" is not physically valid: ` +
+              blocking.map((c) => c.message).join(' | ')
+          );
+        }
+        maxBuffer = contractCfg.bufferCapacity ?? maxBuffer;
+      }
+
       this.nodes.set(node.id, {
         node,
         state: 'IDLE',
@@ -64,7 +96,8 @@ export class SimulationEngine {
         unitsScrapped: 0,
         bufferCans: 0,
         maxBuffer,
-        fluidLevelGallons: initialFluid
+        fluidLevelGallons: initialFluid,
+        ...(contract ? { contract, contractEval } : {})
       });
     }
   }
@@ -135,6 +168,21 @@ export class SimulationEngine {
         this.setNodeState(runtime, 'STARVED');
       } else if (runtime.node.kind === 'PALLETIZER') {
         this.setNodeState(runtime, 'STARVED');
+      }
+
+      // Contract-defined nodes. A node with no inbound edge is a source and
+      // starts cycling immediately; anything downstream waits for material.
+      if (runtime.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
+        if (this.isSourceNode(runtime.node.id)) {
+          this.setNodeState(runtime, 'BUSY');
+          this.scheduleEvent(
+            runtime.contractEval.behavior.cycleSeconds,
+            runtime.node.id,
+            'CONTRACT_CYCLE_COMPLETE'
+          );
+        } else {
+          this.setNodeState(runtime, 'STARVED');
+        }
       }
     }
 
@@ -317,12 +365,98 @@ export class SimulationEngine {
         break;
       }
 
+      case 'CONTRACT_CYCLE_COMPLETE': {
+        this.handleContractCycle(runtime);
+        break;
+      }
+
       default:
         break;
     }
   }
 
+  private isSourceNode(nodeId: string): boolean {
+    return !this.graph.edges.some((e) => e.targetNodeId === nodeId);
+  }
+
+  /**
+   * Generic handler for a contract-defined unit operation in DISCRETE_CYCLE
+   * mode. Deliberately mirrors the filler's backpressure discipline rather than
+   * the labeler's: capacity is checked before any transfer, and the node blocks
+   * when downstream is full. A contract-defined node therefore participates in
+   * bottleneck analysis on the same terms as a built-in one.
+   */
+  private handleContractCycle(runtime: InternalNodeRuntime): void {
+    const evaluation = runtime.contractEval;
+    if (!evaluation || evaluation.behavior.mode !== 'DISCRETE_CYCLE') return;
+
+    const { cycleSeconds, unitsPerCycle, scrapFraction } = evaluation.behavior;
+    const isSource = this.isSourceNode(runtime.node.id);
+
+    // Determine how many units this cycle can act on.
+    let available: number;
+    if (isSource) {
+      available = unitsPerCycle;
+    } else {
+      if (runtime.bufferCans <= 0) {
+        this.setNodeState(runtime, 'STARVED');
+        return;
+      }
+      available = Math.min(unitsPerCycle, runtime.bufferCans);
+      runtime.bufferCans -= available;
+    }
+
+    // Scrap is a deterministic fraction, not a coin flip, so that a
+    // contract-defined node does not reintroduce the nondeterminism that the
+    // hardcoded handlers suffer from.
+    const scrapped = Math.floor(available * scrapFraction);
+    const produced = available - scrapped;
+    runtime.unitsScrapped += scrapped;
+
+    const downstream = this.findDownstreamRuntime(runtime.node.id);
+    if (downstream) {
+      const room = downstream.maxBuffer - downstream.bufferCans;
+      const transferred = Math.max(0, Math.min(produced, room));
+      downstream.bufferCans += transferred;
+      runtime.unitsProduced += transferred;
+
+      const heldBack = produced - transferred;
+      if (heldBack > 0) {
+        // Downstream is full: hold the remainder and block, exactly as the
+        // filler does. This is what makes backpressure propagate.
+        runtime.bufferCans += heldBack;
+        this.setNodeState(runtime, 'BLOCKED');
+      } else {
+        this.setNodeState(runtime, 'BUSY');
+      }
+
+      if (transferred > 0 && (downstream.state === 'STARVED' || downstream.state === 'IDLE')) {
+        this.triggerDownstreamMachine(downstream);
+      }
+    } else {
+      // Terminal node: everything produced leaves the system.
+      runtime.unitsProduced += produced;
+      this.setNodeState(runtime, 'BUSY');
+    }
+
+    if (runtime.state === 'BUSY') {
+      this.scheduleEvent(cycleSeconds, runtime.node.id, 'CONTRACT_CYCLE_COMPLETE');
+    }
+  }
+
   private triggerDownstreamMachine(downstream: InternalNodeRuntime): void {
+    if (downstream.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
+      if (downstream.bufferCans > 0 && downstream.state !== 'BUSY') {
+        this.setNodeState(downstream, 'BUSY');
+        this.scheduleEvent(
+          downstream.contractEval.behavior.cycleSeconds,
+          downstream.node.id,
+          'CONTRACT_CYCLE_COMPLETE'
+        );
+      }
+      return;
+    }
+
     if (downstream.node.kind === 'CONVEYOR' && downstream.bufferCans > 0) {
       if (downstream.state !== 'BUSY') {
         this.setNodeState(downstream, 'BUSY');
