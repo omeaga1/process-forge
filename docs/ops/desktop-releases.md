@@ -51,18 +51,32 @@ Updates are signed. The public half is already in `tauri.conf.json`; the private
 half has to exist as a repository secret or the release build will fail its
 verification step.
 
-Generate a keypair:
+Generate a keypair. `--ci` skips the passphrase prompt, which is the
+recommended setup here:
 
 ```
-pnpm --filter @process-forge/desktop exec tauri signer generate -w ~/.tauri/process-forge.key
+npx.cmd @tauri-apps/cli signer generate -w $env:USERPROFILE\.tauri\process-forge.key --ci
 ```
+
+A passphrase only protects the key file on a developer's disk. The key's real
+protection is that it exists solely as a repository secret. A passphrase that
+does not exactly match what is stored in `TAURI_KEY_PASSWORD` fails every
+release build at the signing step -- which is precisely what happened on the
+first v0.1.5 attempt:
+
+    Finished 2 bundles at: ProcessForge_0.1.5_x64-setup.exe, ...
+    failed to decode secret key: incorrect updater private key password
+
+Note that the installers built fine and only signing failed. Before the
+verification step added here, that release would have published happily and
+been undiscoverable to every installed client.
 
 Then add to **Settings → Secrets and variables → Actions**:
 
 | Secret | Value |
 |---|---|
 | `TAURI_SIGNING_PRIVATE_KEY` | contents of the generated private key file |
-| `TAURI_KEY_PASSWORD` | the password you set, if any |
+| `TAURI_KEY_PASSWORD` | only if the key has a passphrase. With a `--ci` key, leave this secret **absent** -- it resolves to an empty string, which is the correct password. |
 
 Finally, replace `plugins.updater.pubkey` in
 `apps/desktop/src-tauri/tauri.conf.json` with the public key it prints.
