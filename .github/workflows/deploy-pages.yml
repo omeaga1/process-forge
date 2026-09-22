@@ -57,9 +57,16 @@ jobs:
           echo "Build output:"
           ls -la apps/web/dist | head -20
 
+      # cloudflare/wrangler-action is deliberately NOT used here. It probes for
+      # wrangler with `pnpm exec wrangler`, and on a miss runs
+      # `pnpm add wrangler@<pinned>` -- which pnpm refuses in a workspace root
+      # without -w (ERR_PNPM_ADDING_TO_ROOT), so the action cannot install its
+      # own tool and fails. Calling wrangler through `pnpm dlx` sidesteps the
+      # action's package-manager assumptions and adds no dependency to the root,
+      # which the repo convention forbids anyway.
       - name: Publish to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/web/dist --project-name=process-forge --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm dlx wrangler@4 pages deploy apps/web/dist             --project-name=process-forge             --branch=main
