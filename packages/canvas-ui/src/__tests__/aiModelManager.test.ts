@@ -231,7 +231,7 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
 
   it('agent chat lockout: isAgentChatUnlocked locks chat until credentials or MCP detected', () => {
     resetToOfflineConfig();
-    const locked = isAgentChatUnlocked(getAiConnection(), { provider: 'gemini', modelId: 'gemini-3.6-flash' });
+    const locked = isAgentChatUnlocked(getAiConnection(), { provider: 'gemini', modelId: 'gemini-2.5-flash' });
     assert.strictEqual(locked.unlocked, false);
     assert.strictEqual(locked.activeProvider, 'none');
     assert.ok(locked.reason?.includes('No API key or active MCP connection detected'));
@@ -239,7 +239,7 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
     // Unlocks with Gemini API key
     const geminiUnlocked = isAgentChatUnlocked(getAiConnection(), {
       provider: 'gemini',
-      modelId: 'gemini-3.6-flash',
+      modelId: 'gemini-2.5-flash',
       geminiApiKey: 'AIzaSyTestKey12345'
     });
     assert.strictEqual(geminiUnlocked.unlocked, true);
@@ -248,7 +248,7 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
     // Unlocks with Claude API key
     const claudeUnlocked = isAgentChatUnlocked(getAiConnection(), {
       provider: 'claude',
-      modelId: 'claude-3-7-sonnet-latest',
+      modelId: 'claude-opus-5',
       claudeApiKey: 'sk-ant-api03-test-token'
     });
     assert.strictEqual(claudeUnlocked.unlocked, true);
@@ -318,7 +318,7 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
     try {
       const result = await testLlmConnection({
         provider: 'gemini',
-        modelId: 'gemini-3.6-flash',
+        modelId: 'gemini-2.5-flash',
         geminiApiKey: 'AIzaSyDirectHeaderKey999'
       });
 
