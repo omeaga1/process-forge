@@ -81,9 +81,27 @@ jobs:
       - name: Build Core Packages
         run: pnpm run build
 
+      # TAURI_SIGNING_PRIVATE_KEY must be present or `tauri build` emits no .sig
+      # files, latest.json cannot be assembled, and the in-app updater stays
+      # permanently blind. The pubkey baked into tauri.conf.json must be the
+      # counterpart of this key.
       - name: Build Tauri Desktop Package
         working-directory: apps/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: pnpm exec tauri build
+
+      - name: Verify Updater Artifacts Were Produced
+        shell: bash
+        run: |
+          count=$(find apps/desktop/src-tauri/target/release/bundle -name '*.sig' | wc -l)
+          echo "Found $count updater signature file(s)"
+          find apps/desktop/src-tauri/target/release/bundle -name '*.sig' -print
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No .sig files were produced. TAURI_SIGNING_PRIVATE_KEY is probably unset, so the in-app updater would never work. Refusing to publish a release that cannot be updated."
+            exit 1
+          fi
 
       - name: Upload Platform Release Assets
         uses: softprops/action-gh-release@v2
@@ -101,6 +119,10 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
             apps/desktop/src-tauri/target/release/bundle/deb/*.deb
             apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.sig
+            apps/desktop/src-tauri/target/release/bundle/macos/*.sig
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.sig
 
       # ── Optional: SignPath Foundation Free OSS Signing ──────────────────────
       - name: Sign Windows Installer (SignPath Foundation - Free for OSS)
@@ -167,3 +189,98 @@ jobs:
           files: |
             release-dist/process-forge-windows-portable-x64.zip
             release-dist/process-forge-web-dist.tar.gz
+
+  # ── Updater manifest ────────────────────────────────────────────────────────
+  # Without this job the in-app updater is permanently blind: tauri.conf.json
+  # polls releases/latest/download/latest.json, and that file has never existed,
+  # so check_for_updates has always failed silently. Every published release
+  # since v0.1.0 has been undiscoverable to installed clients.
+  #
+  # It runs after every platform build so it can reference all three artifacts
+  # in one manifest.
+  publish-updater-manifest:
+    name: Publish latest.json
+    needs: build-desktop-installers
+    if: always() && needs.build-desktop-installers.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Resolve Release Tag
+        id: tag
+        run: |
+          TAG="${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}"
+          if [ -z "$TAG" ]; then echo "::error::No release tag resolved"; exit 1; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download Release Assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p assets
+          gh release download "${{ steps.tag.outputs.tag }}" \
+            --repo "${{ github.repository }}" --dir assets --clobber
+          ls -la assets
+
+      # A signature is the literal contents of the .sig file. Each platform key
+      # is matched by artifact shape rather than by a pinned filename, so a
+      # version bump cannot silently drop a platform from the manifest.
+      - name: Assemble latest.json
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const { VERSION, TAG, REPO } = process.env;
+          const base = `https://github.com/${REPO}/releases/download/${TAG}`;
+          const files = fs.readdirSync('assets');
+
+          const find = (re) => files.find((f) => re.test(f));
+          const sigFor = (artifact) => {
+            const sig = files.find((f) => f === `${artifact}.sig`);
+            return sig ? fs.readFileSync(path.join('assets', sig), 'utf8').trim() : null;
+          };
+
+          const targets = {
+            'windows-x86_64': find(/x64-setup\.exe$/),
+            'darwin-aarch64': find(/\.app\.tar\.gz$/),
+            'linux-x86_64': find(/\.AppImage$/)
+          };
+
+          const platforms = {};
+          const missing = [];
+          for (const [key, artifact] of Object.entries(targets)) {
+            if (!artifact) { missing.push(`${key}: no artifact`); continue; }
+            const signature = sigFor(artifact);
+            if (!signature) { missing.push(`${key}: ${artifact} has no .sig`); continue; }
+            platforms[key] = { signature, url: `${base}/${encodeURIComponent(artifact)}` };
+          }
+
+          if (Object.keys(platforms).length === 0) {
+            console.error('::error::No signed artifacts found; latest.json would be useless.');
+            console.error(missing.join('\n'));
+            process.exit(1);
+          }
+          for (const m of missing) console.log(`::warning::${m}`);
+
+          const manifest = {
+            version: VERSION,
+            notes: `ProcessForge ${TAG}`,
+            pub_date: new Date().toISOString(),
+            platforms
+          };
+          fs.writeFileSync('latest.json', JSON.stringify(manifest, null, 2));
+          console.log(JSON.stringify(manifest, null, 2));
+          NODE
+
+      - name: Attach latest.json to the Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: latest.json
