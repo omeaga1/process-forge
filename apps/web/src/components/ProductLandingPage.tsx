@@ -74,7 +74,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
   {
     step: 3,
     title: '3. Run Dynamic Simulation & Solve Bottlenecks',
-    description: 'Connect surge buffers and packaging stations. Run the deterministic hybrid simulation (continuous Runge-Kutta ODEs + discrete Poisson queuing) to expose bottlenecks in real time.',
+    description: 'Connect surge buffers and packaging stations. Run the discrete-event simulation to expose bottlenecks, blocked and starved time, and OEE for every machine on the line.',
     equipment: ['reactor', 'pump', 'tank'],
     showStreams: 2
   }
@@ -394,7 +394,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             }}
           >
             ProcessForge is an engineering desktop application for modeling, simulating, and optimizing complex operations.
-            Combines continuous Runge-Kutta ODEs with discrete Poisson queuing, backed by an AI co-pilot for equipment and nozzle synthesis.
+            A discrete-event simulation engine you can drive from your own AI assistant over MCP, with custom unit operations the engine checks against your physics before it will run them.
           </p>
 
           {/* Primary Action Buttons */}
@@ -495,11 +495,11 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <CheckCircle2 size={13} color={OsakaJadePalette.jade[400]} />
-              Deterministic ODE + Discrete Physics
+              Discrete-Event Simulation &amp; OEE
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <CheckCircle2 size={13} color={OsakaJadePalette.jade[400]} />
-              Native Rust &amp; Tauri v2 Architecture
+              Native Desktop App (Tauri v2)
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <CheckCircle2 size={13} color={OsakaJadePalette.jade[400]} />
@@ -780,7 +780,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 Model continuous and batch reactions, multi-stage distillation, fluid hydraulics, and heat exchange networks.
               </p>
               <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: OsakaJadePalette.text.muted, lineHeight: 1.8 }}>
-                <li>Runge-Kutta ODE solvers for continuous kinetics</li>
+                <li>Custom unit operations with engine-checked energy and mass balances</li>
                 <li>Pumping head curves, TDH &amp; viscosity penalties</li>
                 <li>ASME B16.5 flange &amp; nozzle schedule verification</li>
               </ul>
@@ -819,7 +819,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 Balance multi-machine 3D printer fleets, CNC machining cells, and automated robotic assembly lines.
               </p>
               <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: OsakaJadePalette.text.muted, lineHeight: 1.8 }}>
-                <li>Poisson discrete-event queue &amp; cycle time modeling</li>
+                <li>Discrete-event queue &amp; cycle time modeling</li>
                 <li>Machine utilization &amp; post-processing buffer depths</li>
                 <li>Starvation and line-blocking bottleneck identification</li>
               </ul>
@@ -917,10 +917,10 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               <Cpu size={22} />
             </div>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>
-              Dual Continuous &amp; Discrete Solver
+              Unit Operations You Define
             </h3>
             <p style={{ color: OsakaJadePalette.text.secondary, fontSize: '0.88rem', lineHeight: 1.6, margin: 0 }}>
-              Continuous Runge-Kutta numerical integration for reaction kinetics and fluid rheology runs synchronized on the exact same master clock as discrete event queues and conveyor transfers.
+Describe equipment we never shipped a model for. A sub-agent writes it as a declarative contract, and the engine evaluates the relations and constraints itself — rejecting a design that cannot hold, with the reason, before it ever reaches your flowsheet.
             </p>
           </div>
 
