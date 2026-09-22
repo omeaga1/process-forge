@@ -1,0 +1,65 @@
+name: Deploy Web Studio to Cloudflare Pages
+
+# WHY THIS EXISTS
+#
+# Cloudflare's own Git-connected build failed on every commit it attempted, and
+# wrangler exposes neither the build configuration nor the build log, so the
+# cause was not diagnosable from outside the dashboard.
+#
+# Rather than keep guessing at an opaque build environment, the build moves here
+# -- to the same steps that already run green on every push in
+# ci-simulation-test.yml. Cloudflare then receives a finished directory and does
+# not build anything.
+#
+# That is better regardless of what was wrong: the deploy now uses the exact
+# Node version, package manager and build ordering the tests use, so a green CI
+# run and a good deploy cannot disagree.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Two pushes in quick succession should not race each other onto production.
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The whole workspace, not a filter. apps/web typechecks against the built
+      # dist/ of four workspace packages, so turbo has to build them first.
+      - name: Build Workspace
+        run: pnpm run build
+
+      - name: Verify Build Output
+        run: |
+          test -f apps/web/dist/index.html \
+            || { echo "::error::apps/web/dist/index.html is missing; refusing to deploy an empty directory"; exit 1; }
+          echo "Build output:"
+          ls -la apps/web/dist | head -20
+
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy apps/web/dist --project-name=process-forge --branch=main
