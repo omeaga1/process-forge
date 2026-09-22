@@ -174,7 +174,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
           >
             <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Throughput</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.jade.glow }}>
-              {isRunning ? `${telemetry.averageRatePerMin || 35} CPM` : '0 CPM'}
+              {isRunning ? `${Math.round(telemetry.averageRatePerMin)} CPM` : '0 CPM'}
             </div>
           </div>
 

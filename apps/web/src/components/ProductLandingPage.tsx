@@ -803,8 +803,8 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               </p>
               <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: OsakaJadePalette.text.muted, lineHeight: 1.8 }}>
                 <li>Custom unit operations with engine-checked energy and mass balances</li>
-                <li>Pumping head curves, TDH &amp; viscosity penalties</li>
-                <li>ASME B16.5 flange &amp; nozzle schedule verification</li>
+                <li>Steady-state energy and mass balances, checked before a design runs</li>
+                <li>ISA-5.1 equipment symbols with nozzle placement</li>
               </ul>
             </div>
 
@@ -882,7 +882,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
               <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.82rem', color: OsakaJadePalette.text.muted, lineHeight: 1.8 }}>
                 <li>Real-time pieces-per-minute (CPM) rate telemetry</li>
                 <li>Accumulation conveyor buffering &amp; indexing</li>
-                <li>Packaging line phase transitions (fluid $\rightarrow$ discrete containers)</li>
+                <li>Packaging line phase transitions (fluid to discrete containers)</li>
               </ul>
             </div>
           </div>

@@ -35,19 +35,18 @@ export interface ConnectionTestResult {
 
 export const DEFAULT_PROVIDER_MODELS: Record<LlmProvider, { defaultModel: string; models: { id: string; name: string }[] }> = {
   gemini: {
-    defaultModel: 'gemini-3.6-flash',
+    defaultModel: 'gemini-2.5-flash',
     models: [
-      { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash' },
-      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
       { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
       { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' }
     ]
   },
   claude: {
-    defaultModel: 'claude-3-7-sonnet-latest',
+    defaultModel: 'claude-opus-5',
     models: [
-      { id: 'claude-3-7-sonnet-latest', name: 'Claude 3.7 Sonnet' },
-      { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku' }
+      { id: 'claude-opus-5', name: 'Claude Opus 5' },
+      { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
+      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5' }
     ]
   },
   openai: {
@@ -92,9 +91,9 @@ export async function testLlmConnection(creds: LlmCredentials): Promise<Connecti
         if (!creds.geminiApiKey?.trim()) {
           return { ok: false, error: 'Google Gemini API key is missing' };
         }
-        const rawModel = creds.modelId || 'gemini-3.6-flash';
+        const rawModel = creds.modelId || 'gemini-2.5-flash';
         const model = rawModel === 'gemini-2.0-flash' || rawModel === 'gemini-1.5-flash' || rawModel === 'gemini-1.5-pro'
-          ? 'gemini-3.6-flash'
+          ? 'gemini-2.5-flash'
           : rawModel;
         // Direct Client-to-Google TLS: Header-based authentication prevents key exposure in proxy/access logs
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -120,7 +119,7 @@ export async function testLlmConnection(creds: LlmCredentials): Promise<Connecti
         if (!creds.claudeApiKey?.trim()) {
           return { ok: false, error: 'Anthropic Claude API key is missing' };
         }
-        const model = creds.modelId || 'claude-3-5-haiku-latest';
+        const model = creds.modelId || 'claude-haiku-4-5';
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -207,9 +206,9 @@ export async function callLlmModel(
       if (!creds.geminiApiKey?.trim()) {
         throw new Error('Google Gemini API key not configured. Open AI settings to connect your key.');
       }
-      const rawModel = creds.modelId || 'gemini-3.6-flash';
+      const rawModel = creds.modelId || 'gemini-2.5-flash';
       const model = rawModel === 'gemini-2.0-flash' || rawModel === 'gemini-1.5-flash' || rawModel === 'gemini-1.5-pro'
-        ? 'gemini-3.6-flash'
+        ? 'gemini-2.5-flash'
         : rawModel;
       // Direct Client-to-Google TLS: Header-based authentication prevents key exposure in proxy/access logs
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
@@ -256,7 +255,7 @@ export async function callLlmModel(
       if (!creds.claudeApiKey?.trim()) {
         throw new Error('Anthropic Claude API key not configured. Open AI settings to connect your key.');
       }
-      const model = creds.modelId || 'claude-3-7-sonnet-latest';
+      const model = creds.modelId || 'claude-opus-5';
       const formattedMessages = messages
         .filter((m) => m.role !== 'system')
         .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
