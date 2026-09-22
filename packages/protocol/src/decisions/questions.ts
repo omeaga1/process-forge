@@ -195,6 +195,27 @@ export type TemplateFamily =
   | 'generic';
 
 /**
+ * Kinds that imply a drawing family. Callers pass either a node kind
+ * (`BATCH_REACTOR`) or, from MCP, a free-form machine type ("scrubber"), so
+ * this matches words in either. Only kinds with one obvious template are
+ * listed; a SURGE_TANK or SEPARATOR could be drawn several ways, so they give
+ * no hint and the description decides.
+ */
+const KIND_HINTS: [string[], TemplateFamily][] = [
+  [['distillation', 'column', 'tower'], 'column'],
+  [['reactor'], 'reactor'],
+  [['exchanger'], 'exchanger'],
+  [['pump'], 'pump'],
+  [['scrubber', 'spray'], 'spray']
+];
+
+function familyForKind(kind: unknown): TemplateFamily | undefined {
+  const k = String(kind ?? '').toLowerCase().replace(/_/g, ' ');
+  if (!k) return undefined;
+  return KIND_HINTS.find(([words]) => keywordWeight(k, words) > 0)?.[1];
+}
+
+/**
  * Was: eight families, first substring match wins, `column` in family one.
  *
  * The tray-count defect lives alongside this: `p.includes('10')` reads a bare
@@ -223,19 +244,44 @@ export const templateFamily: ChoiceQuestion<TemplateFamily> = {
     // two matching keywords each; "distillation fractionation column feeding a
     // cyclone" would have weighed 3:1 and silently rendered a column.
     const named = (keywords: string[]) => (keywordWeight(t, keywords) > 0 ? 1 : 0);
-    return {
+    // A MODIFIER hints at a family without naming one. "horizontal" alone means
+    // a drum, but "horizontal heat exchanger" is an exchanger; "impeller" alone
+    // suggests an agitator, but a pump has one too. Weighted so that a named
+    // family always outvotes it (1 vs 0.25 = 0.8, actionable) while it still
+    // decides when nothing is named.
+    const hinted = (keywords: string[]) => (keywordWeight(t, keywords) > 0 ? 0.25 : 0);
+    const either = (strong: string[], weak: string[] = []) => Math.max(named(strong), hinted(weak));
+
+    const weights: Record<TemplateFamily, number> = {
       // Whole words: keywordWeight matches on word boundaries, so a stem like
       // 'fractionat' never matched "fractionation" or "fractionator".
-      column: named(['distillation', 'fractionation', 'fractionator', 'column', 'tower', 'absorption', 'stripper']),
-      reactor: named(['reactor', 'cstr', 'agitator', 'impeller']),
-      exchanger: named(['heat exchanger', 'exchanger', 'shell and tube', 'condenser']),
-      pump: named(['pump', 'volute']),
-      cyclone: named(['cyclone', 'separator']),
-      spray: named(['spray', 'atomiser', 'atomizer']),
-      sphere: named(['sphere', 'spherical', 'lpg']),
-      drum: named(['drum', 'bullet', 'horizontal tank', 'saddle']),
+      column: either(['distillation', 'fractionation', 'fractionator', 'column', 'tower', 'absorption', 'absorber', 'stripper']),
+      reactor: either(
+        ['reactor', 'cstr', 'agitator', 'agitated', 'ferment', 'fermenter', 'fermentor', 'fermentation', 'bioreactor'],
+        ['impeller']
+      ),
+      // A condenser or reboiler is usually named as a PART of something else --
+      // "column with an overhead reflux condenser" is a column. Alone, it is
+      // still the only thing named and draws an exchanger.
+      exchanger: either(['heat exchanger', 'exchanger', 'shell and tube', 'cooler', 'heater'], ['condenser', 'reboiler']),
+      pump: either(['pump', 'volute', 'compressor']),
+      // Not bare 'separator': a two-phase separator is a plain vertical vessel,
+      // and the ladder only drew a cyclone for a gas-solid one.
+      cyclone: either(['cyclone', 'gas-solid', 'gas solid']),
+      spray: either(['spray', 'atomiser', 'atomizer', 'atomizing', 'atomising', 'scrubber']),
+      // Not 'lpg': LPG is stored in bullets as often as spheres, and listing it
+      // turned "horizontal bullet for LPG storage" into a tie.
+      sphere: either(['sphere', 'spherical', 'horton']),
+      drum: either(['drum', 'bullet', 'horizontal tank', 'saddle', 'saddles'], ['horizontal']),
       generic: 0
     };
+
+    // The node's kind, when the caller has one, is a hint of the same strength
+    // as a modifier: the engineer's description wins over it, but it decides
+    // for a description that names nothing ("jacketed, 2 m3").
+    const kindHint = familyForKind(state.kind);
+    if (kindHint) weights[kindHint] = Math.max(weights[kindHint], 0.25);
+    return weights;
   }
 };
 

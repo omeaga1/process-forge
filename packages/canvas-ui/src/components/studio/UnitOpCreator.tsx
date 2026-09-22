@@ -5,11 +5,13 @@ import {
   evaluateUnitOp,
   blockingViolations,
   synthesizeEquipmentDrawing,
+  type TemplateFamily,
   type UnitOpContract,
   type UnitOpEvaluation,
   type ContractValidationIssue
 } from '@process-forge/protocol';
 import { OsakaJadePalette as P, drafting, draftingRadius } from '@process-forge/theme';
+import { TemplateChoice } from './TemplateChoice.js';
 
 const D = drafting('dark');
 
@@ -144,6 +146,9 @@ export function UnitOpCreator({
   const [busy, setBusy] = useState(false);
   const [proposeError, setProposeError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, number>>({});
+  // Keyed to the description it was made for, so editing the description
+  // discards a pick that no longer applies.
+  const [familyPick, setFamilyPick] = useState<{ description: string; family: TemplateFamily } | null>(null);
 
   const parsedDraft = useMemo<unknown>(() => {
     if (!draft.trim()) return undefined;
@@ -164,13 +169,17 @@ export function UnitOpCreator({
   const drawing = useMemo(() => {
     if (!description.trim()) return null;
     try {
-      return synthesizeEquipmentDrawing(description, {
-        machineName: reviewState.contract?.name
-      });
+      const machineName = reviewState.contract?.name;
+      const auto = synthesizeEquipmentDrawing(description, { machineName });
+      const picked = familyPick?.description === description ? familyPick.family : undefined;
+      const shown = picked ? synthesizeEquipmentDrawing(description, { machineName, family: picked }) : auto;
+      // `routing` stays the description's own, so the choice stays on offer
+      // after a pick and the engineer can change their mind.
+      return { ...shown, routing: auto.routing, current: picked ?? auto.routing.family };
     } catch {
       return null;
     }
-  }, [description, reviewState.contract?.name]);
+  }, [description, reviewState.contract?.name, familyPick]);
 
   const accepted =
     gateState(reviewState, 'schema') === 'pass' &&
@@ -420,6 +429,11 @@ export function UnitOpCreator({
               <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: P.text.muted }}>
                 {drawing.label} — template match from the ISA-5.1 library, not a generated drawing.
               </p>
+              <TemplateChoice
+                routing={drawing.routing}
+                current={drawing.current}
+                onPick={(family) => setFamilyPick({ description, family })}
+              />
             </div>
           )}
 

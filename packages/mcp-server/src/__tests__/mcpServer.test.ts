@@ -144,3 +144,18 @@ describe('ProcessForge MCP Server Tools', () => {
     assert.ok(server);
   });
 });
+
+describe('forge_equipment_drawing: template routing', () => {
+  it('tells the model when a description named two families, and takes its pick', () => {
+    const tie = executeForgeEquipmentDrawing({ description: 'absorption column feeding a cyclone' });
+    assert.equal(tie.routing.decided, false);
+    assert.deepEqual(tie.routing.alternatives, ['cyclone']);
+
+    const picked = executeForgeEquipmentDrawing({
+      description: 'absorption column feeding a cyclone',
+      templateFamily: 'cyclone'
+    });
+    assert.equal(picked.drawing.label, 'Cyclone Dust Separator');
+    assert.equal(picked.routing.source, 'caller');
+  });
+});

@@ -1,6 +1,8 @@
 import {
   synthesizeEquipmentDrawing,
-  type EquipmentCadDrawing
+  type EquipmentCadDrawing,
+  type TemplateFamily,
+  type TemplateRouting
 } from '@process-forge/protocol';
 
 export interface ForgeEquipmentDrawingParams {
@@ -8,11 +10,19 @@ export interface ForgeEquipmentDrawingParams {
   machineType?: string;
   unitName?: string;
   includeNozzles?: boolean;
+  /** Skip the family question and draw this one. */
+  templateFamily?: TemplateFamily;
 }
 
 export interface ForgeEquipmentDrawingResult {
   success: boolean;
   drawing: EquipmentCadDrawing;
+  /**
+   * How the template was chosen. When `decided` is false the description named
+   * more than one family and the first declared was drawn; ask the engineer
+   * which of `alternatives` they meant and call again with `templateFamily`.
+   */
+  routing: TemplateRouting;
   svgMarkup: string;
   /**
    * Hand-written notes describing the geometry of the selected template.
@@ -32,11 +42,12 @@ export interface ForgeEquipmentDrawingResult {
 export function executeForgeEquipmentDrawing(
   params: ForgeEquipmentDrawingParams
 ): ForgeEquipmentDrawingResult {
-  const { description, machineType, unitName, includeNozzles = true } = params;
+  const { description, machineType, unitName, includeNozzles = true, templateFamily } = params;
 
   const drawing = synthesizeEquipmentDrawing(description, {
     kind: machineType,
-    machineName: unitName
+    machineName: unitName,
+    family: templateFamily
   });
 
   const nozzles = includeNozzles ? drawing.nozzles : [];
@@ -59,6 +70,7 @@ export function executeForgeEquipmentDrawing(
   return {
     success: true,
     drawing,
+    routing: drawing.routing,
     svgMarkup,
     templateNotes: drawing.templateNotes,
     suggestedDressing: {

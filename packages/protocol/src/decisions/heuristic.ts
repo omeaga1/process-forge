@@ -52,10 +52,21 @@ function normalise<T extends string>(
   return out;
 }
 
-function answerChoice(q: ChoiceQuestion<string>, state: DecisionState): ChoiceAnswer<string> {
-  const options = Object.keys(q.criteria);
-  const probabilities = normalise(q.heuristic(state), options);
-  let value = options[0] ?? '';
+/**
+ * Answers one choice question synchronously, with the offline heuristic.
+ *
+ * For callers that cannot await: the CAD engine is called from render paths
+ * and from sync MCP tools. They get the same distribution `ask()` would give,
+ * and a caller holding a better answer (an engineer's pick, a model provider)
+ * passes it in rather than calling this.
+ *
+ * Ties go to the option declared first in `criteria`, so declaration order is
+ * the tie-break and should be written deliberately.
+ */
+export function answerChoice<T extends string>(q: ChoiceQuestion<T>, state: DecisionState): ChoiceAnswer<T> {
+  const options = Object.keys(q.criteria) as T[];
+  const probabilities = normalise<T>(q.heuristic(state), options);
+  let value = options[0] ?? ('' as T);
   let best = -1;
   for (const opt of options) {
     const p = probabilities[opt] ?? 0;

@@ -165,6 +165,12 @@ export function createProcessForgeMcpServer(): Server {
               includeNozzles: {
                 type: 'boolean',
                 description: 'Whether to calculate perimeter nozzle placement coordinates (default: true).'
+              },
+              templateFamily: {
+                type: 'string',
+                enum: ['column', 'reactor', 'exchanger', 'pump', 'cyclone', 'spray', 'sphere', 'drum', 'generic'],
+                description:
+                  'Draw this template family instead of choosing one from the description. Use it when a previous call returned routing.decided = false and you know which of routing.alternatives the engineer meant.'
               }
             },
             required: ['description']

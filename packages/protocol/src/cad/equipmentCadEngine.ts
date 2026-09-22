@@ -1,4 +1,7 @@
 import type { NozzleDressing, InternalsDressing } from '../nodes.js';
+import { answerChoice } from '../decisions/heuristic.js';
+import { templateFamily, type TemplateFamily } from '../decisions/questions.js';
+import { hasSignal, isActionable, runnersUp } from '../decisions/types.js';
 
 export interface EquipmentCadDrawing {
   /**
@@ -22,12 +25,14 @@ export interface EquipmentCadDrawing {
  * Selects an ISA-5.1 compliant CAD equipment drawing template from a natural
  * language description.
  *
- * This is a template lookup, not a reasoning pipeline. The prompt is lowercased
- * and matched with substring tests (`p.includes('distill')`, etc.) against a
- * fixed set of equipment families; the first match returns a pre-authored SVG
- * template. A small number of parameters are interpolated from the prompt
- * (tray count, packed vs. trayed, cone vs. dished bottom, agitator type).
- * Unmatched prompts fall through to a generic vertical vessel.
+ * This is a template lookup, not a reasoning pipeline. The family is chosen by
+ * the declared `templateFamily` question (plan 0001, seam 4) -- whole-word
+ * evidence, with the node kind as a weak hint -- and returns a pre-authored SVG
+ * template. When two families are named equally, the one declared first wins
+ * and `routing` says it was a tie. A small number of parameters are
+ * interpolated from the prompt (tray count, packed vs. trayed, cone vs. dished
+ * bottom, agitator type). A prompt naming no family gets a generic vertical
+ * vessel.
  *
  * Each template carries a `templateNotes` string describing the geometry that
  * template was authored with — physical form, ISA-5.1 convention, SVG
@@ -39,14 +44,69 @@ export interface EquipmentCadDrawing {
  */
 export function synthesizeEquipmentDrawing(
   prompt: string,
-  context?: { kind?: string; machineName?: string }
-): EquipmentCadDrawing {
+  context?: {
+    kind?: string;
+    machineName?: string;
+    /**
+     * Draw this family, skipping the question. For a caller that already has
+     * a better answer: the engineer picked one of `routing.alternatives`, or a
+     * model-backed provider answered `templateFamily`.
+     */
+    family?: TemplateFamily;
+  }
+): EquipmentCadDrawing & { routing: TemplateRouting } {
+  const routing = routeTemplate(prompt, context);
+  const drawing = drawTemplate(routing.family, prompt, context?.machineName || 'Custom Unit');
+  return { ...drawing, routing };
+}
+
+/**
+ * How the template was chosen, returned with the drawing so a caller can
+ * disclose it.
+ *
+ * The ladder this replaces was first-match: "absorption column feeding a
+ * cyclone" drew a column and discarded the fact that a cyclone was named too.
+ * The same drawing is still returned -- a render path needs one -- but when
+ * `decided` is false the caller knows it was a tie and can offer the
+ * alternatives instead of presenting the pick as settled.
+ */
+export interface TemplateRouting {
+  family: TemplateFamily;
+  /** Probability mass on `family`; 1 when the caller supplied it. */
+  confidence: number;
+  /** True when the family is safe to present without asking. */
+  decided: boolean;
+  /** Other families the description also named, most likely first. */
+  alternatives: TemplateFamily[];
+  /** Where the answer came from. */
+  source: 'caller' | 'description' | 'default';
+}
+
+function routeTemplate(prompt: string, context?: { kind?: string; family?: TemplateFamily }): TemplateRouting {
+  if (context?.family) {
+    return { family: context.family, confidence: 1, decided: true, alternatives: [], source: 'caller' };
+  }
+  const answer = answerChoice(templateFamily, { message: prompt, kind: context?.kind });
+  // Nothing named at all: a uniform distribution whose "winner" is just the
+  // first option declared. That is not a column; it is the generic vessel.
+  if (!hasSignal(answer)) {
+    return { family: 'generic', confidence: 0, decided: true, alternatives: [], source: 'default' };
+  }
+  const decided = isActionable(answer);
+  return {
+    family: answer.value,
+    confidence: answer.confidence,
+    decided,
+    alternatives: decided ? [] : runnersUp(answer, 3).filter((f) => f !== answer.value),
+    source: 'description'
+  };
+}
+
+function drawTemplate(family: TemplateFamily, prompt: string, name: string): EquipmentCadDrawing {
   const p = prompt.toLowerCase();
-  const kind = context?.kind?.toLowerCase() || '';
-  const name = context?.machineName || 'Custom Unit';
 
   // 1. Distillation Column / Fractionation Tower
-  if (p.includes('distill') || p.includes('fractionat') || p.includes('column') || p.includes('tower') || kind.includes('distillation')) {
+  if (family === 'column') {
     // A tray count has to be a count OF TRAYS. The previous test read any bare
     // digit out of the prompt -- `p.includes('10')` -- so
     // "distillation column with a 10 inch nozzle" rendered a ten-tray column.
@@ -115,7 +175,7 @@ export function synthesizeEquipmentDrawing(
   }
 
   // 2. Continuous Stirred Tank Reactor (CSTR) / Fermenter / Agitated Vessel
-  if (p.includes('reactor') || p.includes('cstr') || p.includes('agitator') || p.includes('ferment') || kind.includes('reactor')) {
+  if (family === 'reactor') {
     const isConeBottom = p.includes('cone') || p.includes('crystalliz');
     const agitatorType = p.includes('rushton') ? 'rushton' : p.includes('anchor') ? 'anchor' : 'pitched_blade';
     const hasJacket = !p.includes('no jacket') && !p.includes('unjacketed');
@@ -155,7 +215,7 @@ export function synthesizeEquipmentDrawing(
   }
 
   // 3. Shell & Tube / U-Tube Heat Exchanger
-  if (p.includes('exchanger') || p.includes('cooler') || p.includes('heater') || p.includes('condenser') || p.includes('reboiler') || kind.includes('exchanger')) {
+  if (family === 'exchanger') {
     return {
       templateNotes: 'Form: Horizontal cylindrical shell with tube sheets and dished channel heads. Convention: ISA-5.1 heat exchanger convention. Primitives: Horizontal rect + left/right ellipse caps + vertical baffle plates. Coordinates: Rect(10,28,80,44), left cap(10,50,7,22), right cap(90,50,7,22). Coverage: Width=87px, Height=44px. Connections: Caps intersect shell at y=28 and y=72. Split: svgShell holds shell & heads; svgDetails holds 5 internal baffle lines. Aspect ratio: 140x60.',
       label: 'Shell & Tube Heat Exchanger',
@@ -178,7 +238,7 @@ export function synthesizeEquipmentDrawing(
   }
 
   // 4. Pumps (Centrifugal, Rotary, Lobe)
-  if (p.includes('pump') || p.includes('compressor') || kind.includes('pump')) {
+  if (family === 'pump') {
     return {
       templateNotes: 'Form: Volute casing with tangential discharge and internal impeller. Convention: ISA-5.1 centrifugal pump symbol. Primitives: Outer circle casing + filled triangular impeller pointing towards discharge. Coordinates: Circle cx=50 cy=50 r=38; polygon points (22,22 22,78 88,50). Coverage: Width=66px, Height=56px. Connections: Impeller apex touches circle boundary at x=88. Split: All in svgShell with fill=currentColor on impeller. Aspect ratio: 70x70.',
       label: 'Centrifugal Process Pump',
@@ -198,7 +258,7 @@ export function synthesizeEquipmentDrawing(
   }
 
   // 5. Cyclone Separator
-  if (p.includes('cyclone') || (p.includes('separator') && p.includes('gas-solid'))) {
+  if (family === 'cyclone') {
     return {
       templateNotes: 'Form: Inverted conical vessel with upper cylindrical section and bottom grit pot. Convention: ISA-5.1 cyclone separator. Primitives: Top trapezoid polygon + bottom rectangular dust hopper. Coordinates: Polygon (15,10 85,10 62,55 38,55); Rect (38,55,24,35). Coverage: Width=70px, Height=80px. Connections: Polygon bottom matches rect top at y=55, x=38-62. Split: Both in svgShell. Aspect ratio: 70x140.',
       label: 'Cyclone Dust Separator',
@@ -218,7 +278,7 @@ export function synthesizeEquipmentDrawing(
   }
 
   // 6. Spray Chamber / Atomizer / Scrubber
-  if (p.includes('spray') || p.includes('atomiz') || p.includes('scrubber') || kind.includes('scrubber') || kind.includes('spray')) {
+  if (family === 'spray') {
     return {
       templateNotes: 'Form: Atomizing chamber with converging header and wide conical spray dispersion. Convention: ISA-5.1 two-fluid atomizer. Primitives: Dual feed lines + mixing chamber ellipse + spray cone polygon. Coordinates: Line (20,8)->(47,39), Line (80,8)->(53,39), Ellipse(50,40,4,3), Polygon(47,63 53,63 78,88 22,88). Coverage: Width=60px, Height=80px. Connections: Lines converge on ellipse; nozzle body meets spray cone at y=63. Split: Body in svgShell; fan lines in svgDetails. Aspect ratio: 75x120.',
       label: 'Twin-Fluid Spray Atomizer',
@@ -240,7 +300,7 @@ export function synthesizeEquipmentDrawing(
   }
 
   // 7. Spherical Storage Vessel (Horton Sphere / LPG Tank)
-  if (p.includes('sphere') || p.includes('spherical') || p.includes('horton') || p.includes('lpg sphere')) {
+  if (family === 'sphere') {
     return {
       templateNotes: 'Form: Spherical high-pressure storage tank supported on vertical structural legs. Convention: ISA-5.1 spherical pressure vessel. Primitives: Circle body + 4 bottom support legs. Coordinates: Circle cx=50 cy=50 r=38; legs span from y=75 to y=92. Coverage: Width=76px, Height=82px. Connections: Leg tops anchor to circle perimeter at r=38. Split: Circle in svgShell; support leg pairs in svgDetails. Aspect ratio: 85x95.',
       label: 'Spherical Storage Pressure Vessel',
@@ -260,7 +320,7 @@ export function synthesizeEquipmentDrawing(
   }
 
   // 8. Horizontal Bullet / Pressure Drum
-  if (p.includes('horizontal') || p.includes('bullet') || p.includes('surge drum')) {
+  if (family === 'drum') {
     return {
       templateNotes: 'Form: Horizontal cylindrical bullet tank with hemispherical heads on concrete saddles. Convention: ISA-5.1 horizontal pressure drum. Primitives: Horizontal rect + left/right semi-circle heads. Coordinates: Rect(18,32,64,36), left cap(18,50,r=18), right cap(82,50,r=18). Coverage: Width=82px, Height=36px. Connections: Caps smoothly join rectangle body at x=18 and x=82. Split: Shell outline in svgShell; support saddles in svgDetails. Aspect ratio: 140x60.',
       label: 'Horizontal Bullet Pressure Vessel',
