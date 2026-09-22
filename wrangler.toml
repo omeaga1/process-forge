@@ -1,0 +1,12 @@
+# Cloudflare Pages configuration for the ProcessForge web studio.
+#
+# This file exists so the build output directory is version-controlled rather
+# than living only in the dashboard. The Git-connected builds were failing with
+# no way to inspect why from the CLI -- wrangler exposes neither the build
+# config nor the build log -- so every setting that CAN move into the repo has.
+#
+# What still cannot: the build command and the install step. Those remain
+# dashboard-only. See docs/ops/cloudflare-pages.md.
+name = "process-forge"
+pages_build_output_dir = "apps/web/dist"
+compatibility_date = "2026-09-22"
