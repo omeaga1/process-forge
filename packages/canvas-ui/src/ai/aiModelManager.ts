@@ -147,6 +147,39 @@ const STORAGE_KEY_LLM_CREDS = 'pf_ai_credentials';
 
 import type { LlmCredentials } from './llmClient.js';
 
+/** Credential fields that are secrets and must never reach localStorage on desktop. */
+const SECRET_FIELDS = ['geminiApiKey', 'claudeApiKey', 'openaiApiKey'] as const;
+
+/** Keychain service name per provider secret. */
+const SECRET_SERVICE: Record<(typeof SECRET_FIELDS)[number], string> = {
+  geminiApiKey: 'gemini',
+  claudeApiKey: 'claude',
+  openaiApiKey: 'openai'
+};
+
+/**
+ * True when the OS keychain is reachable, i.e. we are inside the Tauri shell.
+ *
+ * This is the pivot for the whole module. On the desktop the keychain is the
+ * only place a secret is written. In the browser there is no keychain, so
+ * localStorage remains the only option -- that is a real limitation of running
+ * in a tab, and it is stated rather than papered over.
+ */
+export function hasSecureVault(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    Boolean((window as unknown as { __TAURI__?: { core?: { invoke?: unknown } } }).__TAURI__?.core
+      ?.invoke)
+  );
+}
+
+/** Strips every secret field, leaving the non-sensitive settings. */
+function withoutSecrets(creds: LlmCredentials): LlmCredentials {
+  const copy: LlmCredentials = { ...creds };
+  for (const f of SECRET_FIELDS) delete copy[f];
+  return copy;
+}
+
 export function getLlmCredentials(): LlmCredentials {
   if (typeof window === 'undefined' || !window.localStorage) {
     return { provider: 'gemini', modelId: 'gemini-3.6-flash' };
@@ -173,18 +206,31 @@ export function getLlmCredentials(): LlmCredentials {
 export function saveLlmCredentials(creds: Partial<LlmCredentials>): LlmCredentials {
   const current = getLlmCredentials();
   const updated: LlmCredentials = { ...current, ...creds };
+
+  // On the desktop the OS keychain is the store of record and the localStorage
+  // copy carries NO secrets. Previously the plaintext write happened first and
+  // unconditionally, the keychain got a duplicate copy for two of the three
+  // providers, and nothing ever read it back -- so the keychain was decoration
+  // and every key sat in plaintext regardless. See docs/audit/01-claims.md.
+  const secure = hasSecureVault();
+  const persisted = secure ? withoutSecrets(updated) : updated;
+
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      window.localStorage.setItem(STORAGE_KEY_LLM_CREDS, JSON.stringify(updated));
+      window.localStorage.setItem(STORAGE_KEY_LLM_CREDS, JSON.stringify(persisted));
     } catch (e) {}
   }
 
-  // If in desktop Tauri environment, securely store in OS Keyring (Windows DPAPI / macOS Keychain)
-  if (updated.geminiApiKey) {
-    saveTauriSecureToken('gemini', 'api_key', updated.geminiApiKey);
-  }
-  if (updated.openaiApiKey) {
-    saveTauriSecureToken('openai', 'api_key', updated.openaiApiKey);
+  if (secure) {
+    for (const field of SECRET_FIELDS) {
+      const value = updated[field];
+      if (value) {
+        // Fire-and-forget by design: a keychain write must not block the UI.
+        // Failures are surfaced by the read path returning nothing, not by
+        // pretending the secret was stored.
+        void saveTauriSecureToken(SECRET_SERVICE[field], 'api_key', value);
+      }
+    }
   }
 
   // Automatically switch connection mode to the authenticated provider
@@ -279,6 +325,73 @@ export async function purgeAllCredentials(): Promise<void> {
   await deleteTauriSecureToken('openai', 'api_key');
   await deleteTauriSecureToken('oauth', 'token');
   resetToOfflineConfig();
+}
+
+/**
+ * Reads a secret back out of the OS keychain.
+ *
+ * The audit found `get_secure_token` defined in Rust and registered as a
+ * handler but never invoked from TypeScript, which meant the read path was
+ * always localStorage no matter what had been written to the vault. This is
+ * that missing half.
+ */
+async function getTauriSecureToken(service: string, account: string): Promise<string | undefined> {
+  if (!hasSecureVault()) return undefined;
+  try {
+    const value = await (window as any).__TAURI__.core.invoke('get_secure_token', {
+      service,
+      account
+    });
+    return typeof value === 'string' && value.length > 0 ? value : undefined;
+  } catch {
+    // A miss is normal: nothing has been stored for this provider yet.
+    return undefined;
+  }
+}
+
+/**
+ * The credentials to actually use: non-secret settings from localStorage, with
+ * every secret loaded from the OS keychain on desktop.
+ *
+ * Callers that need a key must await this rather than reading
+ * getLlmCredentials() directly, because on desktop the synchronous read
+ * deliberately has no secrets in it.
+ */
+export async function loadLlmCredentials(): Promise<LlmCredentials> {
+  const base = getLlmCredentials();
+  if (!hasSecureVault()) return base;
+
+  const resolved: LlmCredentials = { ...base };
+  for (const field of SECRET_FIELDS) {
+    const fromVault = await getTauriSecureToken(SECRET_SERVICE[field], 'api_key');
+    if (fromVault) resolved[field] = fromVault;
+  }
+  return resolved;
+}
+
+/**
+ * One-time migration for anyone who already has plaintext keys in localStorage
+ * from a previous version: move them into the keychain and scrub the plaintext.
+ * Safe to call repeatedly.
+ */
+export async function migratePlaintextCredentialsToVault(): Promise<boolean> {
+  if (!hasSecureVault()) return false;
+  const existing = getLlmCredentials();
+  const secrets = SECRET_FIELDS.filter((f) => Boolean(existing[f]));
+  if (secrets.length === 0) return false;
+
+  for (const field of secrets) {
+    await saveTauriSecureToken(SECRET_SERVICE[field], 'api_key', existing[field] as string);
+  }
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEY_LLM_CREDS,
+        JSON.stringify(withoutSecrets(existing))
+      );
+    } catch (e) {}
+  }
+  return true;
 }
 
 async function saveTauriSecureToken(service: string, account: string, secret: string): Promise<void> {
