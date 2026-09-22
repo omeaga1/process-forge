@@ -31,6 +31,7 @@ import { useMobileViewport } from '../hooks/useMobileViewport.js';
 import { useTheme } from '../hooks/useTheme.js';
 import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates/sherwinWilliamsPaintLine.js';
 import type { CanvasNodeData, CanvasEdgeData, PlantTelemetryState } from '../types.js';
+import { draftingRadius } from '@process-forge/theme';
 
 const nodeTypes = {
   industrialNode: IndustrialNode
@@ -480,7 +481,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             alignItems: 'center',
             gap: 8,
             padding: '5px 10px',
-            borderRadius: 8,
+            borderRadius: draftingRadius.soft,
             backgroundColor: `${OsakaJadePalette.background.surfaceElevated}f5`,
             backdropFilter: 'blur(16px)',
             border: `1px solid ${isRunning ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
@@ -500,7 +501,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               alignItems: 'center',
               gap: 6,
               padding: '6px 12px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: isRunning ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[500],
               color: OsakaJadePalette.text.inverse,
               border: 'none',
@@ -524,7 +525,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               alignItems: 'center',
               gap: 5,
               padding: '6px 11px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               color: OsakaJadePalette.jade[300],
               border: `1px solid ${OsakaJadePalette.border.strong}`,
@@ -548,7 +549,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               justifyContent: 'center',
               width: 28,
               height: 28,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.secondary,
@@ -569,7 +570,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               gap: 1,
               backgroundColor: OsakaJadePalette.background.surface,
               padding: 2,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               border: `1px solid ${OsakaJadePalette.border.subtle}`
             }}
           >
@@ -579,7 +580,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                 onClick={() => setSimSpeed(speed)}
                 style={{
                   padding: '3px 7px',
-                  borderRadius: 4,
+                  borderRadius: draftingRadius.soft,
                   fontSize: 10,
                   fontWeight: 700,
                   border: 'none',
@@ -647,7 +648,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                   backgroundColor: 'rgba(245, 158, 11, 0.12)',
                   color: OsakaJadePalette.status.blocked,
                   padding: '2px 7px',
-                  borderRadius: 4,
+                  borderRadius: draftingRadius.soft,
                   fontSize: 10,
                   fontWeight: 700,
                   border: '1px solid rgba(245, 158, 11, 0.3)'
@@ -688,7 +689,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               style={{
                 width: 44,
                 height: 44,
-                borderRadius: 10,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: 'rgba(16, 185, 129, 0.15)',
                 border: `1px solid ${OsakaJadePalette.jade[600]}`,
                 display: 'flex',
@@ -717,7 +718,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '9px 12px',
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surface,
                   border: `1px solid ${OsakaJadePalette.jade[600]}`,
                   color: OsakaJadePalette.text.primary,
@@ -740,7 +741,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '9px 12px',
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surface,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   color: OsakaJadePalette.text.primary,
@@ -763,7 +764,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '9px 12px',
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surface,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   color: OsakaJadePalette.text.primary,
@@ -784,7 +785,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                 style={{
                   marginTop: 4,
                   padding: '7px 10px',
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: 'transparent',
                   border: `1px dashed ${OsakaJadePalette.border.default}`,
                   color: OsakaJadePalette.text.secondary,
@@ -817,7 +818,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             style={{
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 8,
+              borderRadius: draftingRadius.soft,
               fill: OsakaJadePalette.text.primary
             }}
           />

@@ -9,7 +9,9 @@ import {
   type UnitOpEvaluation,
   type ContractValidationIssue
 } from '@process-forge/protocol';
-import { OsakaJadePalette as P } from '@process-forge/theme';
+import { OsakaJadePalette as P, drafting, draftingRadius } from '@process-forge/theme';
+
+const D = drafting('dark');
 
 /**
  * The unit-op creator: where an engineer describes a unit operation that does
@@ -98,22 +100,16 @@ function gateState(r: ReviewState, gate: Gate): 'pass' | 'fail' | 'pending' {
 
 const card: React.CSSProperties = {
   background: P.background.surfaceElevated,
-  border: `1px solid ${P.background.surfaceHover}`,
-  borderRadius: 8,
+  border: D.rule,
+  borderRadius: draftingRadius.sharp,
   padding: 14
 };
 
-const labelStyle: React.CSSProperties = {
-  fontSize: '0.7rem',
-  letterSpacing: '0.06em',
-  textTransform: 'uppercase',
-  color: P.text.muted,
-  marginBottom: 6
-};
+const labelStyle: React.CSSProperties = { ...D.label, marginBottom: 6 } as React.CSSProperties;
 
 function GateBadge({ state, label }: { state: 'pass' | 'fail' | 'pending'; label: string }) {
   const color =
-    state === 'pass' ? P.jade[400] : state === 'fail' ? P.border.glowAmber : P.text.muted;
+    state === 'pass' ? D.semantic.ok : state === 'fail' ? D.semantic.violation : D.semantic.inert;
   const glyph = state === 'pass' ? '✓' : state === 'fail' ? '✕' : '·';
   return (
     <div
@@ -122,10 +118,11 @@ function GateBadge({ state, label }: { state: 'pass' | 'fail' | 'pending'; label
         alignItems: 'center',
         gap: 6,
         padding: '4px 10px',
-        borderRadius: 999,
+        borderRadius: draftingRadius.sharp,
         border: `1px solid ${color}`,
         color,
-        fontSize: '0.74rem',
+        ...D.data,
+        fontSize: '0.72rem',
         fontWeight: 600
       }}
     >
@@ -229,7 +226,7 @@ export function UnitOpCreator({
               background: 'transparent',
               border: `1px solid ${P.background.surfaceHover}`,
               color: P.text.secondary,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               padding: '4px 10px',
               cursor: 'pointer'
             }}
@@ -272,7 +269,7 @@ export function UnitOpCreator({
             background: P.background.surfaceMuted,
             color: P.text.primary,
             border: `1px solid ${P.background.surfaceHover}`,
-            borderRadius: 6,
+            borderRadius: draftingRadius.soft,
             padding: 10,
             fontSize: '0.85rem',
             resize: 'vertical',
@@ -288,7 +285,7 @@ export function UnitOpCreator({
               background: busy ? P.background.surfaceHover : P.jade[600],
               color: P.text.inverse,
               border: 'none',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               padding: '8px 16px',
               fontWeight: 600,
               cursor: busy || !description.trim() ? 'not-allowed' : 'pointer'
@@ -304,7 +301,7 @@ export function UnitOpCreator({
           </p>
         )}
         {proposeError && (
-          <p style={{ margin: '8px 0 0', fontSize: '0.78rem', color: P.border.glowAmber }}>
+          <p style={{ margin: '8px 0 0', fontSize: '0.78rem', color: D.semantic.violation }}>
             {proposeError}
           </p>
         )}
@@ -325,8 +322,8 @@ export function UnitOpCreator({
             width: '100%',
             background: P.background.surfaceMuted,
             color: P.text.primary,
-            border: `1px solid ${jsonBroken ? P.border.glowAmber : P.background.surfaceHover}`,
-            borderRadius: 6,
+            border: `1px solid ${jsonBroken ? D.semantic.violation : P.background.surfaceHover}`,
+            borderRadius: draftingRadius.soft,
             padding: 10,
             fontSize: '0.76rem',
             fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -335,7 +332,7 @@ export function UnitOpCreator({
           }}
         />
         {jsonBroken && (
-          <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: P.border.glowAmber }}>
+          <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: D.semantic.violation }}>
             Not valid JSON yet.
           </p>
         )}
@@ -348,7 +345,7 @@ export function UnitOpCreator({
       </div>
 
       {reviewState.schemaErrors.length > 0 && (
-        <div style={{ ...card, borderColor: P.border.glowAmber }}>
+        <div style={{ ...card, borderColor: D.semantic.violation }}>
           <div style={labelStyle}>Schema problems</div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.8rem', color: P.text.secondary }}>
             {reviewState.schemaErrors.map((e) => (
@@ -359,7 +356,7 @@ export function UnitOpCreator({
       )}
 
       {reviewState.staticIssues.length > 0 && (
-        <div style={{ ...card, borderColor: P.border.glowAmber }}>
+        <div style={{ ...card, borderColor: D.semantic.violation }}>
           <div style={labelStyle}>Unresolved references</div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.8rem', color: P.text.secondary }}>
             {reviewState.staticIssues.map((i) => (
@@ -372,7 +369,7 @@ export function UnitOpCreator({
       )}
 
       {evaluation?.error && (
-        <div style={{ ...card, borderColor: P.border.glowAmber }}>
+        <div style={{ ...card, borderColor: D.semantic.violation }}>
           <div style={labelStyle}>Evaluation failed</div>
           <p style={{ margin: 0, fontSize: '0.8rem', color: P.text.secondary }}>
             <code style={{ color: P.text.accent }}>{evaluation.error.path}</code> —{' '}
@@ -392,7 +389,7 @@ export function UnitOpCreator({
                   justifyContent: 'center',
                   padding: 8,
                   background: P.background.surfaceMuted,
-                  borderRadius: 6
+                  borderRadius: draftingRadius.soft
                 }}
               >
                 <svg
@@ -452,9 +449,9 @@ export function UnitOpCreator({
                       style={{
                         width: 96,
                         background: P.background.surfaceMuted,
-                        color: outOfBounds ? P.border.glowAmber : P.text.primary,
-                        border: `1px solid ${outOfBounds ? P.border.glowAmber : P.background.surfaceHover}`,
-                        borderRadius: 4,
+                        color: outOfBounds ? D.semantic.violation : P.text.primary,
+                        border: `1px solid ${outOfBounds ? D.semantic.violation : P.background.surfaceHover}`,
+                        borderRadius: draftingRadius.soft,
                         padding: '4px 6px',
                         textAlign: 'right'
                       }}
@@ -475,7 +472,7 @@ export function UnitOpCreator({
                   style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}
                 >
                   <span style={{ color: P.text.secondary }}>{d.label}</span>
-                  <span style={{ color: P.text.accent, fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ color: P.text.accent, ...D.data }}>
                     {Number(evaluation.derived[d.name] ?? 0).toLocaleString(undefined, {
                       maximumFractionDigits: 3
                     })}{' '}
@@ -494,7 +491,7 @@ export function UnitOpCreator({
                 const color = ok
                   ? P.jade[400]
                   : c.severity === 'ERROR'
-                    ? P.border.glowAmber
+                    ? D.semantic.violation
                     : P.text.gold;
                 return (
                   <div key={c.id} style={{ display: 'flex', gap: 8, fontSize: '0.78rem' }}>
@@ -523,7 +520,7 @@ export function UnitOpCreator({
             background: accepted ? P.jade[600] : P.background.surfaceHover,
             color: accepted ? P.text.inverse : P.text.muted,
             border: 'none',
-            borderRadius: 6,
+            borderRadius: draftingRadius.soft,
             padding: '10px 20px',
             fontWeight: 700,
             cursor: accepted ? 'pointer' : 'not-allowed'
