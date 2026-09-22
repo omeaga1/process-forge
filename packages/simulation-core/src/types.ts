@@ -42,6 +42,12 @@ export interface MachineOeeReport {
 }
 
 export interface SimulationResult {
+  /**
+   * The seed this run used. Pass it back to simulateProcess to replay the run
+   * exactly. Present so that a reported result is reproducible by whoever
+   * receives it, not only by whoever produced it.
+   */
+  seed: number;
   durationMinutes: number;
   simulatedTimeSeconds: number;
   wallClockExecutionTimeMs: number;

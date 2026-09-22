@@ -1,6 +1,7 @@
 import type { ProcessGraph, ProcessNode, UnitOpContract, UnitOpEvaluation } from '@process-forge/protocol';
 import { evaluateUnitOp, blockingViolations } from '@process-forge/protocol';
 import { PriorityQueue } from './priority-queue.js';
+import { createRng, seedFromString, type SeededRng } from './rng.js';
 import type {
   MachineOeeReport,
   MachineOperationalState,
@@ -39,8 +40,27 @@ export class SimulationEngine {
   private eventCounter = 0;
   private lastTelemetrySnapshotMinute = -1;
 
-  constructor(private readonly graph: ProcessGraph) {
+  private readonly rng: SeededRng;
+
+  /**
+   * @param options.seed Seed for the simulation's random draws (machine
+   * rejects, inspection failures). Omit it and the seed is derived from the
+   * graph id, so the same graph is reproducible by identity without the caller
+   * having to supply a number. Supply one explicitly to compare two designs
+   * under identical random draws, which is the only way a throughput difference
+   * between them means anything.
+   */
+  constructor(
+    private readonly graph: ProcessGraph,
+    options: { seed?: number } = {}
+  ) {
+    this.rng = createRng(options.seed ?? seedFromString(graph.id));
     this.initializeNodes();
+  }
+
+  /** The seed this run used. Reported on the result so a run can be replayed. */
+  public get seed(): number {
+    return this.rng.seed;
   }
 
   private initializeNodes(): void {
@@ -230,7 +250,7 @@ export class SimulationEngine {
         };
         const nozzles = cfg.nozzleCount ?? 10;
         const rejectRate = (cfg.rejectRatePercentage ?? 0.5) / 100;
-        const rejected = Math.random() < rejectRate ? 1 : 0;
+        const rejected = this.rng.next() < rejectRate ? 1 : 0;
         const produced = nozzles - rejected;
 
         runtime.unitsProduced += produced;
@@ -306,7 +326,7 @@ export class SimulationEngine {
 
         if (runtime.bufferCans > 0) {
           runtime.bufferCans--;
-          const failed = Math.random() < failRate;
+          const failed = this.rng.next() < failRate;
           if (failed) {
             runtime.unitsScrapped++;
           } else {
@@ -620,6 +640,7 @@ export class SimulationEngine {
     }
 
     return {
+      seed: this.rng.seed,
       durationMinutes,
       simulatedTimeSeconds: totalSimTime,
       wallClockExecutionTimeMs: Math.round(wallClockExecutionTimeMs * 100) / 100,
@@ -636,7 +657,11 @@ export class SimulationEngine {
 /**
  * High-level runner to execute a simulation scenario.
  */
-export function simulateProcess(graph: ProcessGraph, durationMinutes: number): SimulationResult {
-  const engine = new SimulationEngine(graph);
+export function simulateProcess(
+  graph: ProcessGraph,
+  durationMinutes: number,
+  options: { seed?: number } = {}
+): SimulationResult {
+  const engine = new SimulationEngine(graph, options);
   return engine.run(durationMinutes);
 }
