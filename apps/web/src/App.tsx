@@ -6,6 +6,7 @@ import {
   BLANK_LINE,
   AiModelModal,
   CommunityUnitOpLibraryModal,
+  UnitOpCreator,
   getAiConfig,
   type AiModelConfig,
   ThemeProvider
@@ -20,6 +21,7 @@ import { HeaderBar } from './components/HeaderBar.js';
 import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModal.js';
 import { StudioEntryGateModal } from './components/StudioEntryGateModal.js';
 import { initialViewMode, homeViewMode, isDesktopRuntime } from './runtime/desktop.js';
+import { contractToProcessNode } from './unitop/contractToNode.js';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
 import { AccountModal } from './components/AccountModal.js';
@@ -64,6 +66,7 @@ const AppInner: React.FC = () => {
   const [isGuestModalOpen, setIsGuestModalOpen] = useState<boolean>(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState<boolean>(false);
   const [isCommunityLibraryOpen, setIsCommunityLibraryOpen] = useState<boolean>(false);
+  const [isUnitOpCreatorOpen, setIsUnitOpCreatorOpen] = useState<boolean>(false);
   // App navigation state:
   // - 'landing': Clean Product Showcase Landing Page (what is ProcessForge, animated PFD tutorial, download .exe)
   // - 'portal': Engineering Project Portal & Hub (cloud projects, orchestrator, templates, quotas)
@@ -232,6 +235,19 @@ const AppInner: React.FC = () => {
     });
   }, []);
 
+  /**
+   * A contract that passed every gate becomes a node on the flowsheet. The
+   * engine re-evaluates it at construction, so an accepted design is checked
+   * once more before it can affect a simulation.
+   */
+  const handleAcceptUnitOpContract = useCallback(
+    (contract: Parameters<typeof contractToProcessNode>[0]) => {
+      handleInsertCommunityNode(contractToProcessNode(contract));
+      setIsUnitOpCreatorOpen(false);
+    },
+    [handleInsertCommunityNode]
+  );
+
   const handleCreateBlank = useCallback(() => {
     const blank = createSimulationProject('Custom Process Forge', BLANK_LINE, {
       description: 'Clean slate industrial process flowsheet',
@@ -332,6 +348,7 @@ const AppInner: React.FC = () => {
             onSelectTemplate={handleSelectTemplate}
             onOpenAiModal={() => setIsAiModalOpen(true)}
             onOpenForgeHub={() => setIsCommunityLibraryOpen(true)}
+            onOpenUnitOpCreator={() => setIsUnitOpCreatorOpen(true)}
             onOpenSaveModal={() => setIsSaveModalOpen(true)}
             onOpenGuestModal={() => setIsGuestModalOpen(true)}
             onImportFile={handleImportFile}
@@ -407,6 +424,41 @@ const AppInner: React.FC = () => {
         onDownloadFile={handleDownloadFile}
         onSaveCloud={handleSaveCloud}
       />
+
+      {isUnitOpCreatorOpen && (
+        <div
+          role="dialog"
+          aria-label="Unit Operation Creator"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsUnitOpCreatorOpen(false);
+          }}
+        >
+          <div
+            style={{
+              width: 'min(760px, 100%)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              borderRadius: '10px',
+              boxShadow: '0 24px 64px rgba(0,0,0,0.5)'
+            }}
+          >
+            <UnitOpCreator
+              onAccept={handleAcceptUnitOpContract}
+              onClose={() => setIsUnitOpCreatorOpen(false)}
+            />
+          </div>
+        </div>
+      )}
 
       <CommunityUnitOpLibraryModal
         isOpen={isCommunityLibraryOpen}
