@@ -12,7 +12,8 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"Community Library API lint clean\"",
-    "test": "echo \"Community Library API tests passed\""
+    "test": "tsc -p tsconfig.test.json && node --test dist/__tests__/*.test.js",
+    "db:migrate": "wrangler d1 migrations apply process-forge-community-unitops-db --remote"
   },
   "dependencies": {
     "@process-forge/protocol": "workspace:*"

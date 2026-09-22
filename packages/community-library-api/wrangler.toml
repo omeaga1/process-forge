@@ -12,3 +12,10 @@ migrations_dir = "migrations"
 [vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGIN = "*"
+# OAuth client IDs whose Google ID tokens this API accepts (public values).
+# The desktop client ID is added separately as GOOGLE_DESKTOP_CLIENT_ID.
+GOOGLE_CLIENT_IDS = "9591432369-crhvoo58gj37besk9f9r9vpeibg066cs.apps.googleusercontent.com"
+
+# Secrets, set with `wrangler secret put <NAME>` and never committed:
+#   SESSION_SECRET                 HMAC key for session tokens (>= 32 chars)
+#   GOOGLE_DESKTOP_CLIENT_SECRET   desktop OAuth client, for the loopback flow

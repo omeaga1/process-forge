@@ -1,6 +1,8 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod oauth_loopback;
+
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use tauri_plugin_updater::UpdaterExt;
@@ -62,7 +64,10 @@ fn delete_secure_token(service: String, account: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn check_for_updates(app: tauri::AppHandle) -> Result<UpdateInfo, String> {
-    let current_version = env!("CARGO_PKG_VERSION").to_string();
+    // The app version from tauri.conf.json, which is what the updater compares.
+    // CARGO_PKG_VERSION is the crate version, which had drifted to 0.1.4 while
+    // the app shipped as 0.1.6, so the banner reported the wrong version.
+    let current_version = app.package_info().version.to_string();
 
     match app.updater() {
         Ok(updater) => {
@@ -142,7 +147,8 @@ fn main() {
             get_secure_token,
             delete_secure_token,
             check_for_updates,
-            install_and_restart_update
+            install_and_restart_update,
+            oauth_loopback::google_loopback_sign_in
         ])
         .run(tauri::generate_context!())
         .expect("error while running ProcessForge desktop application");

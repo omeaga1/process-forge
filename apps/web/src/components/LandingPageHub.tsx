@@ -41,6 +41,7 @@ import { useAccount } from '../auth/useAccount.js';
 import {
   listUserCloudProjects,
   deleteProjectFromCloud,
+  resolveProjectBundle,
   type CloudProjectRecord
 } from '../storage/cloudStorageAdapter.js';
 
@@ -839,7 +840,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 {cloudProjects.slice(0, 3).map((cp) => (
                   <div
                     key={cp.id}
-                    onClick={() => onOpenProject(cp.bundle)}
+                    onClick={() => void resolveProjectBundle(cp, user).then((b) => b && onOpenProject(b))}
                     style={{
                       padding: '12px 14px',
                       backgroundColor: OsakaJadePalette.background.canvas,

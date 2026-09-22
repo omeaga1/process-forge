@@ -12,14 +12,13 @@ import {
   ArrowRight,
   AlertCircle,
   KeyRound,
-  CheckCircle2,
-  ExternalLink,
-  Copy,
-  Sparkles
+  CheckCircle2
 } from 'lucide-react';
 import { useTheme } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
 import { getInitials } from '../auth/accountManager.js';
+import { isDesktopRuntime } from '../runtime/desktop.js';
+import { isDesktopGoogleSignInConfigured } from '../auth/desktopGoogleSignIn.js';
 
 export interface AccountModalProps {
   isOpen: boolean;
@@ -34,7 +33,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 }) => {
   const { palette } = useTheme();
   const OsakaJadePalette = palette;
-  const { user, isAuthenticated, login, register, signInWithGoogleCredential, signOut } = useAccount();
+  const { user, isAuthenticated, login, register, signInWithGoogleCredential, signInWithGoogleDesktop, signOut } =
+    useAccount();
 
   // Auth Mode: 'signin' | 'register'
   const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
@@ -49,18 +49,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const [orgInput, setOrgInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Google inputs & client state
-  const [googleCredentialInput, setGoogleCredentialInput] = useState('');
-  const [googleClientId, setGoogleClientId] = useState<string>(() => {
-    return (
-      (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
-      (typeof localStorage !== 'undefined' ? localStorage.getItem('pf_google_client_id') || '' : '')
-    );
-  });
-  const [customClientIdInput, setCustomClientIdInput] = useState('');
-  const [isEditingClientId, setIsEditingClientId] = useState(false);
-  const [copiedOrigin, setCopiedOrigin] = useState<string | null>(null);
-  const [showAdvancedToken, setShowAdvancedToken] = useState(false);
+  // The site's own OAuth client. It used to be overridable from localStorage,
+  // but the cloud API only accepts tokens issued for its configured clients,
+  // so an override could never have produced a working sign-in.
+  const googleClientId: string = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
   const googleButtonContainerRef = useRef<HTMLDivElement>(null);
 
   // Status state
@@ -70,7 +62,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
   // Initialize Google Identity Services (GIS) when Google tab is active and client ID is present
   useEffect(() => {
-    if (!isOpen || activeTab !== 'google' || !googleClientId) return;
+    if (!isOpen || activeTab !== 'google' || !googleClientId || isDesktopRuntime()) return;
 
     const gis = (window as any).google?.accounts?.id;
     if (!gis) return;
@@ -122,23 +114,20 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSaveClientId = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleaned = customClientIdInput.trim();
-    if (!cleaned) return;
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('pf_google_client_id', cleaned);
+  const handleDesktopGoogleSignIn = async () => {
+    setErrorMessage(null);
+    setIsSubmitting(true);
+    try {
+      const session = await signInWithGoogleDesktop();
+      setSuccessMessage(`Signed in as ${session.email}.`);
+      setTimeout(() => {
+        setIsSubmitting(false);
+        onClose();
+      }, 800);
+    } catch (e: any) {
+      setErrorMessage(e?.message || 'Google sign-in failed.');
+      setIsSubmitting(false);
     }
-    setGoogleClientId(cleaned);
-    setIsEditingClientId(false);
-    setSuccessMessage('Google Client ID activated! Google Sign-In is ready.');
-    setTimeout(() => setSuccessMessage(null), 3000);
-  };
-
-  const handleCopyOrigin = (origin: string) => {
-    navigator.clipboard.writeText(origin);
-    setCopiedOrigin(origin);
-    setTimeout(() => setCopiedOrigin(null), 2000);
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -181,46 +170,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
         setErrorMessage(err.message || 'Invalid email or password.');
         setIsSubmitting(false);
       }
-    }
-  };
-
-  const handleGoogleOneTap = () => {
-    setErrorMessage(null);
-    const gis = (window as any).google?.accounts?.id;
-    if (gis && googleClientId) {
-      try {
-        gis.prompt();
-        return;
-      } catch (e: any) {
-        console.warn('Google One Tap prompt failed:', e);
-      }
-    }
-    if (!googleClientId) {
-      setIsEditingClientId(true);
-      setErrorMessage('Please enter your Google Client ID below to enable Google One Tap.');
-    }
-  };
-
-  const handleGoogleTokenSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!googleCredentialInput.trim()) return;
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    try {
-      const session = await signInWithGoogleCredential(googleCredentialInput.trim());
-      if (session) {
-        setSuccessMessage('Authenticated with Google token!');
-        setTimeout(() => {
-          setIsSubmitting(false);
-          onClose();
-        }, 800);
-      } else {
-        setErrorMessage('Invalid Google OAuth token. Could not decode profile.');
-        setIsSubmitting(false);
-      }
-    } catch (e: any) {
-      setErrorMessage(e.message || 'Failed to sign in with Google token.');
-      setIsSubmitting(false);
     }
   };
 
@@ -789,384 +738,47 @@ export const AccountModal: React.FC<AccountModalProps> = ({
               ) : (
                 /* ── GOOGLE SIGN-IN TAB ── */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {googleClientId && !isEditingClientId ? (
-                    <div>
-                      <p style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, margin: '0 0 12px 0', lineHeight: 1.5 }}>
-                        Select your Google account below to authenticate, sync cloud flowsheets, and load your Google profile photo.
-                      </p>
-
-                      {/* Official Google Identity Services iframe button container */}
-                      <div
-                        ref={googleButtonContainerRef}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'center',
-                          minHeight: 44,
-                          marginBottom: 12
-                        }}
-                      />
-
-                      {/* Secondary One Tap trigger */}
+                  <p style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, margin: 0, lineHeight: 1.5 }}>
+                    A Google account is what ProcessForge Cloud uses to know whose projects are whose. Your
+                    projects stay on this device until you choose Save to Cloud.
+                  </p>
+                  {isDesktopRuntime() ? (
+                    isDesktopGoogleSignInConfigured() ? (
                       <button
                         type="button"
-                        onClick={handleGoogleOneTap}
+                        onClick={handleDesktopGoogleSignIn}
+                        disabled={isSubmitting}
                         style={{
-                          width: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 8,
-                          padding: '10px 14px',
+                          padding: '10px 16px',
                           borderRadius: 6,
-                          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                          border: `1px solid ${OsakaJadePalette.border.default}`,
-                          color: OsakaJadePalette.text.primary,
-                          fontSize: 12,
-                          fontWeight: 500,
-                          cursor: 'pointer'
+                          backgroundColor: OsakaJadePalette.jade[600],
+                          border: 'none',
+                          color: '#fff',
+                          fontSize: 13,
+                          fontWeight: 700,
+                          cursor: isSubmitting ? 'wait' : 'pointer'
                         }}
                       >
-                        <Sparkles size={14} color={OsakaJadePalette.jade.glow} />
-                        <span>Prompt Google One Tap Overlay</span>
+                        {isSubmitting ? 'Waiting for your browser…' : 'Continue with Google'}
                       </button>
-
-                      {/* Origin Mismatch Helper Box */}
-                      <div
-                        style={{
-                          marginTop: 14,
-                          padding: '10px 12px',
-                          borderRadius: 6,
-                          backgroundColor: OsakaJadePalette.background.canvas,
-                          border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                          fontSize: 11,
-                          color: OsakaJadePalette.text.secondary,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 8
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                            Seeing Error 400: origin_mismatch?
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsEditingClientId(true);
-                              setCustomClientIdInput(googleClientId);
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: OsakaJadePalette.jade.glow,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              padding: 0
-                            }}
-                          >
-                            Change Client ID →
-                          </button>
-                        </div>
-                        <p style={{ margin: 0, lineHeight: 1.4 }}>
-                          Google requires this exact origin registered in Google Cloud Console under <strong>Authorized JavaScript origins</strong>:
-                        </p>
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            backgroundColor: OsakaJadePalette.background.surface,
-                            padding: '6px 10px',
-                            borderRadius: 4,
-                            border: `1px solid ${OsakaJadePalette.border.default}`
-                          }}
-                        >
-                          <code style={{ color: OsakaJadePalette.jade.glow, fontSize: 11 }}>
-                            {typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}
-                          </code>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyOrigin(typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: copiedOrigin === (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')
-                                ? OsakaJadePalette.jade[400]
-                                : OsakaJadePalette.text.muted,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              fontSize: 11
-                            }}
-                          >
-                            <Copy size={12} />
-                            <span>{copiedOrigin === (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000') ? 'Copied!' : 'Copy Origin'}</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    /* ── GOOGLE CLIENT ID CONFIGURATION GUIDE ── */
-                    <div
-                      style={{
-                        backgroundColor: OsakaJadePalette.background.canvas,
-                        border: `1px solid ${OsakaJadePalette.border.default}`,
-                        borderRadius: 8,
-                        padding: 14
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <KeyRound size={15} color={OsakaJadePalette.jade.glow} />
-                          <span style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                            Google Sign-In Configuration
-                          </span>
-                        </div>
-                        {googleClientId && (
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingClientId(false)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: OsakaJadePalette.text.muted,
-                              fontSize: 11,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        )}
-                      </div>
-                      <p style={{ fontSize: 11, color: OsakaJadePalette.text.secondary, margin: '0 0 10px 0', lineHeight: 1.5 }}>
-                        Google requires a free <strong>OAuth Client ID</strong> from Google Cloud Console so your browser can securely authenticate with Google.
+                    ) : (
+                      <p role="status" style={{ fontSize: 12, color: OsakaJadePalette.text.muted, margin: 0 }}>
+                        Google sign-in is not set up in this desktop build yet. Everything else works without an
+                        account; projects are saved on this device.
                       </p>
-
-                      <div
-                        style={{
-                          backgroundColor: OsakaJadePalette.background.surface,
-                          borderRadius: 6,
-                          padding: 10,
-                          marginBottom: 12,
-                          fontSize: 11,
-                          color: OsakaJadePalette.text.secondary,
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: 6
-                        }}
-                      >
-                        <span style={{ fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                          Authorized JavaScript Origins to add in Google Console:
-                        </span>
-                        {/* Current Browser Origin */}
-                        {typeof window !== 'undefined' && window.location.origin && (
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 4, borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
-                            <div>
-                              <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, display: 'block', fontWeight: 600 }}>
-                                Current Origin (This Tab):
-                              </span>
-                              <code style={{ fontSize: 11, color: OsakaJadePalette.text.primary }}>{window.location.origin}</code>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleCopyOrigin(window.location.origin)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: copiedOrigin === window.location.origin ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                fontSize: 10
-                              }}
-                            >
-                              <Copy size={12} />
-                              <span>{copiedOrigin === window.location.origin ? 'Copied' : 'Copy'}</span>
-                            </button>
-                          </div>
-                        )}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <code style={{ fontSize: 11, color: OsakaJadePalette.jade.glow }}>http://localhost:3000</code>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyOrigin('http://localhost:3000')}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: copiedOrigin === 'http://localhost:3000' ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              fontSize: 10
-                            }}
-                          >
-                            <Copy size={12} />
-                            <span>{copiedOrigin === 'http://localhost:3000' ? 'Copied' : 'Copy'}</span>
-                          </button>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <code style={{ fontSize: 11, color: OsakaJadePalette.jade.glow }}>https://process-forge.pages.dev</code>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyOrigin('https://process-forge.pages.dev')}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: copiedOrigin === 'https://process-forge.pages.dev' ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 4,
-                              fontSize: 10
-                            }}
-                          >
-                            <Copy size={12} />
-                            <span>{copiedOrigin === 'https://process-forge.pages.dev' ? 'Copied' : 'Copy'}</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <form onSubmit={handleSaveClientId} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <label style={{ fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary }}>
-                          Paste your Google OAuth Client ID:
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={customClientIdInput}
-                          onChange={(e) => setCustomClientIdInput(e.target.value)}
-                          placeholder="xxxxxxxxxxxx.apps.googleusercontent.com"
-                          style={{
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            backgroundColor: OsakaJadePalette.background.surface,
-                            border: `1px solid ${OsakaJadePalette.border.default}`,
-                            borderRadius: 6,
-                            padding: '8px 10px',
-                            color: OsakaJadePalette.text.primary,
-                            fontSize: 12,
-                            outline: 'none'
-                          }}
-                        />
-                        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                          <button
-                            type="submit"
-                            disabled={!customClientIdInput.trim()}
-                            style={{
-                              flex: 1,
-                              padding: '8px 12px',
-                              borderRadius: 6,
-                              backgroundColor: customClientIdInput.trim() ? OsakaJadePalette.jade[600] : 'rgba(255,255,255,0.05)',
-                              border: 'none',
-                              color: '#fff',
-                              fontSize: 12,
-                              fontWeight: 600,
-                              cursor: customClientIdInput.trim() ? 'pointer' : 'default'
-                            }}
-                          >
-                            Save & Activate Google Sign-In
-                          </button>
-                          {googleClientId && (
-                            <button
-                              type="button"
-                              onClick={() => setIsEditingClientId(false)}
-                              style={{
-                                padding: '8px 12px',
-                                borderRadius: 6,
-                                backgroundColor: 'transparent',
-                                border: `1px solid ${OsakaJadePalette.border.default}`,
-                                color: OsakaJadePalette.text.secondary,
-                                fontSize: 12,
-                                cursor: 'pointer'
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </div>
-                      </form>
-
-                      <div style={{ marginTop: 10, textAlign: 'center' }}>
-                        <a
-                          href="https://console.cloud.google.com/apis/credentials"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            fontSize: 11,
-                            color: OsakaJadePalette.jade.glow,
-                            textDecoration: 'none',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4
-                          }}
-                        >
-                          <span>Open Google Cloud Credentials Console</span>
-                          <ExternalLink size={12} />
-                        </a>
-                      </div>
-                    </div>
+                    )
+                  ) : googleClientId ? (
+                    <div ref={googleButtonContainerRef} style={{ minHeight: 44 }} />
+                  ) : (
+                    <p role="status" style={{ fontSize: 12, color: OsakaJadePalette.text.muted, margin: 0 }}>
+                      Google sign-in is not configured for this site.
+                    </p>
                   )}
-
-                  {/* ── ADVANCED DEVELOPER TOKEN OPTION ── */}
-                  <div style={{ marginTop: 4 }}>
-                    <button
-                      type="button"
-                      onClick={() => setShowAdvancedToken(!showAdvancedToken)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: OsakaJadePalette.text.muted,
-                        fontSize: 11,
-                        cursor: 'pointer',
-                        padding: 0,
-                        textDecoration: 'underline'
-                      }}
-                    >
-                      {showAdvancedToken ? 'Hide manual JWT token input' : 'Advanced: Paste raw Google JWT credential token'}
-                    </button>
-
-                    {showAdvancedToken && (
-                      <form onSubmit={handleGoogleTokenSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                        <input
-                          type="text"
-                          value={googleCredentialInput}
-                          onChange={(e) => setGoogleCredentialInput(e.target.value)}
-                          placeholder="Paste Google JWT credential string (eyJhbGci...)"
-                          style={{
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            backgroundColor: OsakaJadePalette.background.canvas,
-                            border: `1px solid ${OsakaJadePalette.border.default}`,
-                            borderRadius: 6,
-                            padding: '7px 10px',
-                            color: OsakaJadePalette.text.primary,
-                            fontSize: 11,
-                            outline: 'none'
-                          }}
-                        />
-                        <button
-                          type="submit"
-                          disabled={!googleCredentialInput.trim() || isSubmitting}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: 6,
-                            backgroundColor: googleCredentialInput.trim() ? OsakaJadePalette.jade[600] : 'rgba(255,255,255,0.05)',
-                            border: 'none',
-                            color: '#fff',
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: googleCredentialInput.trim() ? 'pointer' : 'default'
-                          }}
-                        >
-                          Authenticate Google Token
-                        </button>
-                      </form>
-                    )}
-                  </div>
+                  {isDesktopRuntime() && isSubmitting && (
+                    <p style={{ fontSize: 11, color: OsakaJadePalette.text.muted, margin: 0 }}>
+                      Finish signing in in the browser window that opened, then come back here.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

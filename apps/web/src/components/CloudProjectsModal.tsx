@@ -20,6 +20,7 @@ import { useAccount } from '../auth/useAccount.js';
 import {
   listUserCloudProjects,
   deleteProjectFromCloud,
+  resolveProjectBundle,
   type CloudProjectRecord
 } from '../storage/cloudStorageAdapter.js';
 import { downloadProjectFile } from '../storage/localStorageAdapter.js';
@@ -60,12 +61,16 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSelect = (record: CloudProjectRecord) => {
+  const handleSelect = async (record: CloudProjectRecord) => {
     setLoadedId(record.id);
-    setTimeout(() => {
-      onSelectProject(record.bundle);
-      onClose();
-    }, 400);
+    const bundle = await resolveProjectBundle(record, user);
+    if (!bundle) {
+      setLoadedId(null);
+      window.alert(`Could not load "${record.name}" from ProcessForge Cloud.`);
+      return;
+    }
+    onSelectProject(bundle);
+    onClose();
   };
 
   const handleDelete = async (e: React.MouseEvent, recordId: string) => {
@@ -78,7 +83,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
 
   const handleExport = (e: React.MouseEvent, record: CloudProjectRecord) => {
     e.stopPropagation();
-    downloadProjectFile(record.bundle);
+    void resolveProjectBundle(record, user).then((bundle) => bundle && downloadProjectFile(bundle));
   };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {

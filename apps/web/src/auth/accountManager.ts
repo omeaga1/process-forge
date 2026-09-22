@@ -1,8 +1,17 @@
 /**
- * User Account & Session Management for ProcessForge Cloud
- * Authentic authentication with real password verification, SHA-256 hashing,
- * and zero fake stock photos or mock personas.
+ * User accounts and sessions.
+ *
+ * Two kinds of account, with different reach:
+ *
+ * - Google: verified by the cloud API, which issues a session (`cloudToken`).
+ *   These accounts can save to and load from ProcessForge Cloud.
+ * - Email and password: a LOCAL profile. The account and its salted hash live
+ *   in this browser's storage and are checked here; no server has ever seen
+ *   them, so they cannot authenticate to the cloud and their projects stay on
+ *   this device.
  */
+
+import { postCloudSignIn, type CloudSignIn } from '../storage/cloudApi.js';
 
 export interface UserSession {
   id: string;
@@ -12,12 +21,27 @@ export interface UserSession {
   organization: string;
   provider: 'github' | 'google' | 'microsoft' | 'email';
   token: string;
+  /**
+   * A session issued by the cloud API after it verified a Google sign-in.
+   * Present ONLY for server-verified accounts; it is the sole credential the
+   * cloud accepts. Local email/password profiles and guests never have one,
+   * so their projects stay on this device.
+   */
+  cloudToken?: string;
+  cloudTokenExpiresAt?: string;
   plan: 'Community' | 'Professional' | 'Enterprise';
   cloudStorageQuota: {
     usedProjects: number;
     maxProjects: number;
   };
   createdAt: string;
+}
+
+/** True when this session can talk to the cloud API. */
+export function hasCloudSession(user: UserSession | null | undefined): user is UserSession & { cloudToken: string } {
+  if (!user?.cloudToken) return false;
+  if (user.cloudTokenExpiresAt && Date.parse(user.cloudTokenExpiresAt) <= Date.now()) return false;
+  return true;
 }
 
 export interface StoredUserAccount {
@@ -131,33 +155,6 @@ export function getUserSession(): UserSession | null {
     return raw ? (JSON.parse(raw) as UserSession) : null;
   } catch (err) {
     console.warn('Failed to parse user session from localStorage:', err);
-    return null;
-  }
-}
-
-/**
- * Decode a Google Identity Services (GIS) JWT credential token
- */
-export function decodeGoogleCredential(credentialToken: string): {
-  email: string;
-  name: string;
-  picture?: string;
-  sub: string;
-} | null {
-  try {
-    const parts = credentialToken.split('.');
-    if (parts.length < 2) return null;
-    const base64Url = parts[1]!;
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    console.error('Failed to decode Google JWT credential:', e);
     return null;
   }
 }
@@ -341,34 +338,22 @@ export async function loginWithPassword(credentials: {
   return session;
 }
 
-/**
- * Log in directly using an authentic Google OAuth credential token
- */
-export async function loginWithGoogleCredential(credentialToken: string): Promise<UserSession | null> {
-  const payload = decodeGoogleCredential(credentialToken);
-  if (!payload) return null;
-
-  const email = payload.email;
-  const name = payload.name;
-  const avatarUrl = payload.picture || generateInitialsAvatar(name, email);
-  const userId = `usr_google_${payload.sub || Date.now().toString(36)}`;
-
+function sessionFromCloud(signIn: CloudSignIn): UserSession {
+  const { user } = signIn;
   const session: UserSession = {
-    id: userId,
-    email,
-    name,
-    avatarUrl,
-    organization: 'Google Account Workspace',
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    avatarUrl: user.avatarUrl || generateInitialsAvatar(user.name, user.email),
+    organization: 'Google account',
     provider: 'google',
-    token: credentialToken,
-    plan: 'Professional',
-    cloudStorageQuota: {
-      usedProjects: 0,
-      maxProjects: 50
-    },
+    token: signIn.token,
+    cloudToken: signIn.token,
+    cloudTokenExpiresAt: signIn.expiresAt,
+    plan: 'Community',
+    cloudStorageQuota: { usedProjects: 0, maxProjects: 50 },
     createdAt: new Date().toISOString()
   };
-
   if (typeof localStorage !== 'undefined') {
     try {
       localStorage.setItem(STORAGE_KEY_USER_SESSION, JSON.stringify(session));
@@ -376,24 +361,33 @@ export async function loginWithGoogleCredential(credentialToken: string): Promis
       console.error('Failed to save user session to localStorage:', e);
     }
   }
-
-  // Persist / sync user profile to Cloudflare D1 SQL database
-  try {
-    fetch('https://process-forge-community-library.vprescenzi.workers.dev/api/auth/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: userId,
-        email,
-        name,
-        avatarUrl,
-        provider: 'google',
-        organization: 'Google Account Workspace'
-      })
-    }).catch(() => {});
-  } catch {}
-
   return session;
+}
+
+/**
+ * Sign in with a Google Identity Services credential (the web button).
+ *
+ * The credential goes to the cloud API, which verifies Google's signature and
+ * issues a session. This used to base64-decode the token in the browser and
+ * trust whatever it said -- so any hand-made token with any email "signed in"
+ * as that person. Nothing is accepted locally now; if the API cannot verify
+ * the credential, sign-in fails.
+ */
+export async function loginWithGoogleCredential(credentialToken: string): Promise<UserSession> {
+  return sessionFromCloud(await postCloudSignIn('/auth/google', { credential: credentialToken }));
+}
+
+/**
+ * Sign in from the desktop app's system-browser flow: an authorization code
+ * from Google's loopback redirect, exchanged by the cloud API (which holds the
+ * desktop client secret) and bound to this app by the PKCE verifier.
+ */
+export async function loginWithGoogleCode(params: {
+  code: string;
+  codeVerifier: string;
+  redirectUri: string;
+}): Promise<UserSession> {
+  return sessionFromCloud(await postCloudSignIn('/auth/google/code', params));
 }
 
 const TEST_FALLBACKS: Record<string, { name: string; organization: string; plan: 'Professional' | 'Enterprise' }> = {

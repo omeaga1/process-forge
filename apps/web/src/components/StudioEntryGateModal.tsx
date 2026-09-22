@@ -81,6 +81,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
               justifyContent: 'center'
             }}
             title="Close"
+            aria-label="Close"
           >
             <X size={18} />
           </button>
@@ -123,7 +124,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                     Sign Up or Sign In
                   </h4>
                   <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-                    Recommended for engineering teams and persistent projects
+                    Keep a copy of your flowsheets you can open on another device
                   </span>
                 </div>
               </div>
@@ -138,22 +139,22 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                   border: `1px solid ${OsakaJadePalette.jade[500]}66`
                 }}
               >
-                Cloud Storage Enabled
+                Google account
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: OsakaJadePalette.text.secondary }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CheckCircle2 size={13} color={OsakaJadePalette.jade[400]} />
-                <span>Automatic cloud backups of flowsheets and dynamic ODE states</span>
+                <span>Save to Cloud keeps a copy under your Google account — only when you choose to</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CheckCircle2 size={13} color={OsakaJadePalette.jade[400]} />
-                <span>Seamlessly access and resume your digital twin across desktop & web</span>
+                <span>Open the same projects in the desktop app and in the browser</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CheckCircle2 size={13} color={OsakaJadePalette.jade[400]} />
-                <span>Unlimited project revisions and shared community unit operations</span>
+                <span>Publish unit operations to the community library under your name</span>
               </div>
             </div>
 
@@ -219,7 +220,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                     Continue in Guest Mode
                   </h4>
                   <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-                    Quick scratchpad session without creating an account
+                    Everything works without an account
                   </span>
                 </div>
               </div>
@@ -234,22 +235,22 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                   border: '1px solid rgba(245, 158, 11, 0.3)'
                 }}
               >
-                Cloud Storage Disabled
+                This device only
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, color: OsakaJadePalette.text.secondary }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <ShieldAlert size={13} color={OsakaJadePalette.status.blocked} />
-                <span>Flowsheets are saved only in this browser's temporary local cache</span>
+                <span>Projects are saved in this browser (or this desktop app) and never uploaded</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <ShieldAlert size={13} color={OsakaJadePalette.status.blocked} />
-                <span>Clearing browser cookies/history will reset your local data</span>
+                <span>Clearing site data removes them, so export anything you want to keep</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CheckCircle2 size={13} color={OsakaJadePalette.text.muted} />
-                <span>You can export manual <code style={{ color: OsakaJadePalette.jade[400] }}>.processforge</code> project files to your disk at any time</span>
+                <span>Export a project as a <code style={{ color: OsakaJadePalette.jade[400] }}>.pfg.json</code> file at any time</span>
               </div>
             </div>
 
