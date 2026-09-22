@@ -47,8 +47,19 @@ export function synthesizeEquipmentDrawing(
 
   // 1. Distillation Column / Fractionation Tower
   if (p.includes('distill') || p.includes('fractionat') || p.includes('column') || p.includes('tower') || kind.includes('distillation')) {
-    const isPacked = p.includes('pack') || p.includes('absorption');
-    const trayCount = p.includes('10') ? 10 : p.includes('8') ? 8 : p.includes('6') ? 6 : p.includes('4') ? 4 : 5;
+    // A tray count has to be a count OF TRAYS. The previous test read any bare
+    // digit out of the prompt -- `p.includes('10')` -- so
+    // "distillation column with a 10 inch nozzle" rendered a ten-tray column.
+    // See plan 0001 section 2.3 and Appendix A.3.
+    const trayMatch = p.match(/(\d{1,2})\s*(?:sieve\s+|valve\s+|bubble[- ]cap\s+)?(?:tray|plate|stage)s?\b/);
+    const explicitTrayCount = trayMatch ? Math.min(40, Math.max(1, Number(trayMatch[1]))) : null;
+
+    // An explicit tray count outranks a packing keyword. "absorption column with
+    // 6 trays" is unambiguous, and previously rendered packing cross-hatching
+    // because isPacked was tested first and the count was discarded.
+    const mentionsPacking = /\bpack(ed|ing)?\b|\babsorption\b|\brandom packing\b/.test(p);
+    const isPacked = mentionsPacking && explicitTrayCount === null;
+    const trayCount = explicitTrayCount ?? 5;
 
     let detailsLines = '';
     if (isPacked) {
