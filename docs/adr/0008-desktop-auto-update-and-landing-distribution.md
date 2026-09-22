@@ -14,6 +14,24 @@ ProcessForge is distributed as both a browser-based Web Studio and a native desk
 We implement a zero-cost, open-source distribution and auto-update architecture:
 
 ### 1. Showcase Landing Page (`apps/docs-landing`)
+
+> **Correction (2026-09-22): superseded. `apps/docs-landing` has been removed and
+> the GitHub Pages site taken down.**
+>
+> This ADR was internally inconsistent as accepted: section 1 specified
+> `apps/docs-landing` as the showcase landing page, while section 2 stated that
+> GitHub Pages had been "deprecated and removed". Neither half was true in
+> practice -- both sites were live and diverging, and the GitHub Pages deploy was
+> last updated 2026-09-16 while `apps/web` moved on.
+>
+> There is now exactly ONE landing page: the `apps/web` landing view served from
+> Cloudflare Pages at `https://process-forge.pages.dev/`. The features listed
+> below (OS detection for installers, guest-mode launch, MCP configuration
+> snippets) belong to that page, wherever they are not yet implemented there.
+>
+> ProcessForge is desktop-first. The landing page is a demo and download surface
+> for the WEB build only; the desktop shell never renders it. See
+> `apps/web/src/runtime/desktop.ts`.
 - Built using Vite, React 19, and the Osaka Jade design system.
 - Implements client OS detection (`navigator.userAgent` / `navigator.platform`) to automatically highlight the user's native installer:
   - **Windows:** 64-bit MSI Installer (`.msi`) & Standalone Portable Executable (`.exe`).
