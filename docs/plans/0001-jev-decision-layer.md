@@ -358,3 +358,113 @@ a home for the fixtures. And promoting the eight equipment families from an
 * [A new kind of AI model from a ChatGPT inventor is thrilling developers](https://techcrunch.com/2026/09/18/a-new-kind-of-ai-model-from-a-chatgpt-inventor-is-thrilling-developers/) — TechCrunch, 2026-09-18
 * [ChatGPT pioneer launches Jev model for programmatic logic](https://www.artificialintelligence-news.com/news/chatgpt-pioneer-launches-jev-model-for-programmatic-logic/) — AI News
 * [Building a harness with Jev](https://www.langchain.com/blog/building-a-harness-with-jev) — LangChain
+
+---
+
+## Appendix A — Verification (2026-09-22)
+
+§8.1 makes reading the real Jev documentation a hard gate before any
+implementation. This appendix records the result of running that gate, and of
+checking §2's claims against the source.
+
+### A.1 Jev exists, and §3 describes it accurately
+
+Released 2026-09-15 by TypeSafe AI. The three primitives are as described —
+Noul, Choice, Score — questions in one request are evaluated in parallel, and
+published pricing is $0.042 per million input tokens with output unmetered.
+Reported latency is 70–500 ms end to end.
+
+### A.2 The real API shape, which §5.1 does not match
+
+From the Cloudflare model documentation (`typesafe/jev`), a request carries
+**all questions at once**, keyed:
+
+```json
+{
+  "state": "string or object",
+  "questions": {
+    "equipment_family": {
+      "type": "choice",
+      "instructions": "...",
+      "criteria": { "column": "...", "reactor": "..." }
+    }
+  }
+}
+```
+
+and the response returns them together:
+
+```json
+{
+  "model": "jev-1.13.0",
+  "answers": { "equipment_family": { "type": "choice", "choice": "column",
+               "confidence": 0.8, "probabilities": { } } },
+  "usage": { "input_tokens": 0, "output_tokens": 0 }
+}
+```
+
+Context window is 32,000 tokens. No documented ceiling on question count.
+
+**This contradicts the `DecisionProvider` interface in §5.1.** That interface is
+per-question — `choice()`, `noul()` and `score()` each take a state and return
+one answer. Called against the real API it would issue N round trips for N
+questions, which:
+
+- forfeits the parallel evaluation that is Jev's central advantage, and
+- re-sends the state N times, so a 500-token state asked four questions costs
+  4× what the batched form costs.
+
+The interface should be batch-shaped to match:
+
+```ts
+ask<Q extends QuestionSet>(state: DecisionState, questions: Q): Promise<AnswersFor<Q>>;
+```
+
+with the per-question helpers kept as thin conveniences over a single-entry
+batch. The heuristic provider satisfies the same signature trivially.
+
+### A.3 §2 claims, checked against the source
+
+| Claim | Result |
+|---|---|
+| `isCadRequest` is twelve OR'd substring tests including bare `reactor`, `tank`, `column` (`aiDispatch.ts:80`) | **Confirmed** — exactly twelve |
+| "the reactor feed pump is fine, don't change anything" trips CAD synthesis | **Confirmed** — the string contains `reactor` |
+| Kind ladder tests `pump` before `reactor` (`aiDispatch.ts:419`) | **Confirmed** — "add a reactor with a feed pump" yields `PUMP` |
+| `trayCount` reads a bare `'10'` out of the prompt (`equipmentCadEngine.ts:51`) | **Confirmed** — the line is as quoted |
+| "135 `.includes()` tests across the source packages" | **Wrong.** 92 excluding tests and dist; 195 including tests. Neither figure is 135 |
+| "add a 10 inch nozzle" renders a ten-tray column | **Wrong.** It renders the generic Custom Unit fallback — the column family requires `distill`/`fractionat`/`column`/`tower` to match first |
+
+The tray bug is real, but its trigger is worse than the one given, because the
+prompt that trips it is one an engineer would actually write:
+
+```
+"distillation column with a 10 inch nozzle"  ->  Distillation Column, 10 trays
+```
+
+### A.4 A further bug in the same function, not in §2
+
+```
+"absorption column with 6 trays"  ->  Packed Absorption Column, packing cross-hatching
+```
+
+`isPacked` is tested before the tray count is used, and `absorption` sets it. An
+explicit, unambiguous "6 trays" is discarded in favour of packing. This is the
+same class of defect and belongs in the motivation.
+
+### A.5 Recommendation
+
+The motivation survives verification. Two figures in §2 need correcting and one
+example needs replacing, but the defects they point at are real and one is worse
+than stated.
+
+The decision layer is worth building **for the interface alone**, before any
+provider question is settled: it turns four unnamed branch points into declared
+questions with fixtures, which is what makes them testable at all. §4's own
+framing is right — the `includes()` ladder can be tested but cannot be improved,
+because every fix is one more substring that breaks a neighbouring case.
+
+Recommended sequencing change: build the batch-shaped interface and the
+heuristic provider first and ship that on its own. It requires no network, no
+key, and no new dependency, and it is independently valuable. Treat the Jev
+provider as a second, separable change once the seams have fixtures to be
+measured against.
