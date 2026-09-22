@@ -339,9 +339,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             style={{
               width: 6,
               height: 6,
-              borderRadius: '50%',
+              borderRadius: 0,
               backgroundColor: OsakaJadePalette.jade[400],
-              boxShadow: `0 0 6px ${OsakaJadePalette.jade[400]}`,
               flexShrink: 0
             }}
           />
@@ -544,9 +543,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               style={{
                 width: 6,
                 height: 6,
-                borderRadius: '50%',
-                backgroundColor: OsakaJadePalette.jade[400],
-                boxShadow: `0 0 6px ${OsakaJadePalette.jade.glow}`
+                borderRadius: 0,
+                backgroundColor: OsakaJadePalette.jade[400]
               }}
               title="Cloud Sync Active"
             />
@@ -595,7 +593,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               cursor: isCheckingUpdates ? 'wait' : 'pointer',
               whiteSpace: 'nowrap',
               boxSizing: 'border-box',
-              boxShadow: hasUpdateAvailable ? `0 0 10px ${OsakaJadePalette.jade.glow}33` : 'none'
+              borderColor: hasUpdateAvailable
+                ? OsakaJadePalette.jade[400]
+                : OsakaJadePalette.border.default
             }}
             title={hasUpdateAvailable ? 'Update Available — Click to Apply' : 'Check for Updates'}
           >
