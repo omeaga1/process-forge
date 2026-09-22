@@ -9,6 +9,7 @@ import {
   updateUserProfile,
   type UserSession
 } from './accountManager.js';
+import { signInWithGoogleOnDesktop } from './desktopGoogleSignIn.js';
 
 interface AccountContextValue {
   user: UserSession | null;
@@ -31,6 +32,8 @@ interface AccountContextValue {
     details?: { email?: string; name?: string; organization?: string; avatarUrl?: string }
   ) => Promise<UserSession>;
   signInWithGoogleCredential: (credentialToken: string) => Promise<UserSession | null>;
+  /** Desktop only: system browser + loopback. See desktopGoogleSignIn.ts. */
+  signInWithGoogleDesktop: () => Promise<UserSession>;
   signOut: () => void;
   updateProfile: (updates: Partial<UserSession>) => void;
 }
@@ -92,6 +95,12 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     return session;
   };
 
+  const signInWithGoogleDesktop = async () => {
+    const session = await signInWithGoogleOnDesktop();
+    setUser(session);
+    return session;
+  };
+
   const signOut = () => {
     logoutUser();
     setUser(null);
@@ -116,6 +125,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         login,
         signIn,
         signInWithGoogleCredential,
+        signInWithGoogleDesktop,
         signOut,
         updateProfile
       }}

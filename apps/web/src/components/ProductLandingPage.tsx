@@ -483,7 +483,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
                 'Reproducible runs — the same graph and seed produce the same numbers',
                 'Custom unit operations, with constraints the engine evaluates before it will run them',
                 'Six MCP tools over stdio, driven by your own AI subscription',
-                'Runs entirely on your machine; no plant data leaves it'
+                'Runs on your machine; a flowsheet leaves it only when you sign in with Google and choose Save to Cloud'
               ].map((t) => (
                 <div key={t} style={{ display: 'flex', gap: 10, padding: '7px 0', borderBottom: HAIRLINE, fontSize: '0.86rem', lineHeight: 1.5 }}>
                   <span style={{ ...mono, color: P.text.accent }}>✓</span>

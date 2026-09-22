@@ -197,13 +197,84 @@ describe('ProcessForge Cloud Storage Persistence Layer', () => {
     mockLocalStorage.clear();
   });
 
-  it('seeds default cloud projects on first retrieval for a user', async () => {
+  it('starts a new user with no projects, not a fabricated "synced 3 days ago" one', async () => {
     const user = await loginUser('github');
-    const projects = await listUserCloudProjects(user);
+    assert.deepStrictEqual(await listUserCloudProjects(user), []);
+  });
 
-    assert.ok(projects.length > 0);
-    assert.ok(projects[0]?.name.includes('Sherwin-Williams'));
-    assert.strictEqual(projects[0]?.syncStatus, 'synced');
+  it('never touches the network without a verified cloud session', async () => {
+    // These tests used to save through the production API on every run:
+    // 117 rows in the live database came from this file.
+    const realFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      throw new Error('network is off limits here');
+    }) as typeof fetch;
+    try {
+      const user = await loginUser('github');
+      const project = createSimulationProject('Local only', sampleGraph, { isGuest: false });
+      const result = await saveProjectToCloud(project, user);
+      await listUserCloudProjects(user);
+      await loadProjectFromCloud(project.id, user);
+      await deleteProjectFromCloud(project.id, user);
+      assert.strictEqual(calls, 0);
+      assert.strictEqual(result.synced, false);
+      assert.match(result.message, /on this device/);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it('with a cloud session, sends only the session token and says when sync failed', async () => {
+    const realFetch = globalThis.fetch;
+    const seen: { url: string; auth: string | null; body: any }[] = [];
+    let status = 200;
+    globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
+      const headers = new Headers(init.headers);
+      seen.push({ url: String(url), auth: headers.get('Authorization'), body: init.body ? JSON.parse(String(init.body)) : null });
+      return new Response(JSON.stringify(status === 200 ? { success: true } : { error: 'nope' }), { status });
+    }) as typeof fetch;
+    try {
+      const user = {
+        ...(await loginUser('email', { email: 'a@b.c' })),
+        cloudToken: 'pfs1.session.sig',
+        cloudTokenExpiresAt: new Date(Date.now() + 60_000).toISOString()
+      };
+      const project = createSimulationProject('Synced', sampleGraph, { isGuest: false });
+
+      const ok = await saveProjectToCloud(project, user);
+      assert.strictEqual(ok.synced, true);
+      assert.strictEqual(seen[0]?.auth, 'Bearer pfs1.session.sig');
+      assert.ok(!('userId' in seen[0]!.body), 'the server takes the owner from the session, not the body');
+
+      status = 500;
+      const failed = await saveProjectToCloud(project, user);
+      assert.strictEqual(failed.synced, false);
+      assert.match(failed.message, /not to the cloud/);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it('treats an expired cloud session as no session', async () => {
+    const user = {
+      ...(await loginUser('email', { email: 'a@b.c' })),
+      cloudToken: 'pfs1.session.sig',
+      cloudTokenExpiresAt: new Date(Date.now() - 1000).toISOString()
+    };
+    const realFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      return new Response('{}');
+    }) as typeof fetch;
+    try {
+      await listUserCloudProjects(user);
+      assert.strictEqual(calls, 0);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 
   it('saves, lists, and loads a simulation project with full engineering fidelity', async () => {

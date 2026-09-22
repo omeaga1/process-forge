@@ -184,7 +184,8 @@ const AppInner: React.FC = () => {
     };
     setProject(updated);
     saveLocalProject(updated);
-    await saveProjectToCloud(updated);
+    const result = await saveProjectToCloud(updated);
+    return { synced: result.synced, message: result.message };
   }, [project]);
 
   const handleSelectCloudProject = useCallback((loaded: SimulationProject) => {
@@ -200,9 +201,11 @@ const AppInner: React.FC = () => {
       setProject(imported);
       setTemplateKey(inferTemplateKeyFromProject(imported));
       saveLocalProject(imported);
-      await saveProjectToCloud(imported);
+      // Importing a file used to upload it to the cloud as a side effect, for
+      // every user including guests. An import stays on this device; uploading
+      // is a separate, explicit Save to Cloud.
       setIsCloudProjectsModalOpen(false);
-      alert(`Imported "${imported.name}" and synced to ProcessForge Cloud.`);
+      alert(`Imported "${imported.name}" on this device.`);
     } catch (err: any) {
       alert(`Error importing file: ${err?.message || String(err)}`);
     }

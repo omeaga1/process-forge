@@ -12,6 +12,7 @@ import {
 import { useTheme } from '@process-forge/canvas-ui';
 import type { SimulationProject } from '@process-forge/protocol';
 import { useAccount } from '../auth/useAccount.js';
+import { hasCloudSession } from '../auth/accountManager.js';
 
 interface SaveProjectModalProps {
   isOpen: boolean;
@@ -19,7 +20,8 @@ interface SaveProjectModalProps {
   onClose: () => void;
   onSaveLocal: (name: string, description: string) => void;
   onDownloadFile: (name: string, description: string) => void;
-  onSaveCloud?: (name: string, description: string) => Promise<void>;
+  /** Resolves with what was actually written, so the button cannot claim a sync that failed. */
+  onSaveCloud?: (name: string, description: string) => Promise<{ synced: boolean; message: string }>;
 }
 
 export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
@@ -32,13 +34,17 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
 }) => {
   const { palette } = useTheme();
   const OsakaJadePalette = palette;
-  const { user, isAuthenticated, openAccountModal } = useAccount();
+  const { user, openAccountModal } = useAccount();
+  // Only a Google account verified by the cloud API can sync. A local email
+  // profile is "signed in" but has no cloud credential.
+  const canSync = hasCloudSession(user);
 
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description || '');
   const [isSavedLocally, setIsSavedLocally] = useState(false);
   const [isSavingCloud, setIsSavingCloud] = useState(false);
   const [isSavedCloud, setIsSavedCloud] = useState(false);
+  const [cloudMessage, setCloudMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -52,11 +58,14 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
     if (!onSaveCloud) return;
     setIsSavingCloud(true);
     try {
-      await onSaveCloud(name, description);
-      setIsSavedCloud(true);
-      setTimeout(() => setIsSavedCloud(false), 2000);
-    } catch (e) {
-      console.error('Cloud save failed:', e);
+      const result = await onSaveCloud(name, description);
+      setCloudMessage(result.message);
+      if (result.synced) {
+        setIsSavedCloud(true);
+        setTimeout(() => setIsSavedCloud(false), 2000);
+      }
+    } catch (e: any) {
+      setCloudMessage(`Cloud save failed: ${e?.message || String(e)}`);
     } finally {
       setIsSavingCloud(false);
     }
@@ -223,14 +232,21 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                     </span>
                   </div>
                   <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>
-                    {isAuthenticated && user
-                      ? `Syncs to ${user.name}'s account • Accessible across all devices`
-                      : 'Sync your digital twin across devices and team members'}
+                    {canSync && user
+                      ? `Syncs to ${user.email} • available on any device you sign in on`
+                      : user
+                        ? 'Needs a Google sign-in. Email profiles are stored on this device only.'
+                        : 'Sign in with Google to keep a copy you can open on any device'}
+                    {cloudMessage && (
+                      <div role="status" style={{ marginTop: 4, color: OsakaJadePalette.text.primary }}>
+                        {cloudMessage}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {isAuthenticated ? (
+              {canSync ? (
                 <button
                   onClick={handleSaveCloud}
                   disabled={isSavingCloud}
@@ -272,7 +288,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                   }}
                 >
                   <User size={13} />
-                  Sign In to Sync
+                  {user ? 'Sign in with Google' : 'Sign In to Sync'}
                 </button>
               )}
             </div>
