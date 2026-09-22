@@ -75,7 +75,22 @@ export const isCreationRequest: NoulQuestion = {
   },
   heuristic: (state: DecisionState) => {
     const t = text(state);
-    const imperative = keywordWeight(t, ['add', 'create', 'place', 'insert', 'put in', 'give me']);
+    // Phrases, not bare verbs, where the bare verb is ambiguous: "make a pump"
+    // is a request, "make the pump bigger" is not, and the old ladder treated
+    // both as creation because it matched a bare 'make'.
+    const imperative = keywordWeight(t, [
+      'add',
+      'create',
+      'place',
+      'insert',
+      'put in',
+      'give me',
+      'make a',
+      'make an',
+      'put a',
+      'want a',
+      'need a'
+    ]);
     const interrogative = /^(what|why|how|is|are|does|do|can|should|would|could|which)\b/.test(
       t.trim()
     ) || t.includes('?');
@@ -87,13 +102,23 @@ export const isCreationRequest: NoulQuestion = {
 
 // ── 3. Which kind of unit operation? ─────────────────────────────────────────
 
+/**
+ * Every kind the node factory can instantiate, plus the two that fall through
+ * to its generic branch. Covering the full set matters: the ladder this
+ * replaces handled separators, fillers, labelers and palletizers, and a
+ * narrower question would silently regress "add a labeler".
+ */
 export type EquipmentKindChoice =
   | 'PUMP'
   | 'BATCH_REACTOR'
   | 'SURGE_TANK'
   | 'HEAT_EXCHANGER'
+  | 'SEPARATOR'
   | 'DISTILLATION_COLUMN'
+  | 'ROTARY_FILLER'
   | 'CONVEYOR'
+  | 'LABELER'
+  | 'PALLETIZER'
   | 'CUSTOM_UNIT_OP';
 
 /**
@@ -112,21 +137,47 @@ export const equipmentKind: ChoiceQuestion<EquipmentKindChoice> = {
     BATCH_REACTOR: 'A vessel where reaction occurs: reactor, CSTR, polymeriser, jacketed vessel.',
     SURGE_TANK: 'Intermediate storage or buffering: surge tank, day tank, hold vessel.',
     HEAT_EXCHANGER: 'Heat transfer between streams: exchanger, cooler, condenser, chiller.',
+    SEPARATOR: 'Phase separation in a drum: flash drum, knockout pot, decanter, separator.',
     DISTILLATION_COLUMN: 'Vapour-liquid separation: column, tower, fractionator, absorber.',
+    ROTARY_FILLER: 'Container filling: rotary filler, can filler, bottle filler.',
     CONVEYOR: 'Discrete transport: conveyor, belt, accumulation table.',
+    LABELER: 'Applying labels to containers: labeler, labeller, label applicator.',
+    PALLETIZER: 'Stacking containers onto pallets: palletizer, palletiser, end-of-line stacker.',
     CUSTOM_UNIT_OP: 'Something outside the standard families, or too unclear to place.'
   },
   heuristic: (state: DecisionState) => {
-    const t = text(state);
-    return {
-      PUMP: keywordWeight(t, ['pump', 'pumps']),
-      BATCH_REACTOR: keywordWeight(t, ['reactor', 'cstr', 'polymeriser', 'polymerizer']),
-      SURGE_TANK: keywordWeight(t, ['tank', 'surge', 'vessel', 'drum']),
-      HEAT_EXCHANGER: keywordWeight(t, ['heat exchanger', 'exchanger', 'cooler', 'condenser', 'chiller']),
-      DISTILLATION_COLUMN: keywordWeight(t, ['column', 'tower', 'fractionator', 'absorber', 'distillation']),
-      CONVEYOR: keywordWeight(t, ['conveyor', 'belt', 'accumulation']),
+    // PRESENCE, not keyword count. A kind is either named or it is not.
+    //
+    // Counting matches looks like evidence strength and is not: "surge tank" is
+    // two keywords for one piece of equipment, so "add a surge tank and a pump"
+    // weighed 2:1, cleared the threshold, and silently created the tank. That is
+    // the ladder's bug in a subtler form -- whichever equipment has the longer
+    // name wins. Found by the flow-rate fixture in kindClarification.test.ts.
+    const named = (t: string, keywords: string[]) => (keywordWeight(t, keywords) > 0 ? 1 : 0);
+    const weigh = (t: string) => ({
+      PUMP: named(t, ['pump', 'pumps', 'pumping']),
+      BATCH_REACTOR: named(t, ['reactor', 'cstr', 'polymeriser', 'polymerizer']),
+      // 'drum' is deliberately NOT here: it belongs to SEPARATOR, and listing it
+      // in both would turn every "flash drum" into a tie.
+      SURGE_TANK: named(t, ['tank', 'surge', 'vessel']),
+      HEAT_EXCHANGER: named(t, ['heat exchanger', 'exchanger', 'cooler', 'condenser', 'chiller']),
+      SEPARATOR: named(t, ['separator', 'flash drum', 'knockout', 'knock-out', 'decanter']),
+      DISTILLATION_COLUMN: named(t, ['column', 'tower', 'fractionator', 'absorber', 'distillation']),
+      ROTARY_FILLER: named(t, ['filler', 'rotary filler', 'can filler', 'bottle filler']),
+      CONVEYOR: named(t, ['conveyor', 'belt', 'accumulation']),
+      LABELER: named(t, ['labeler', 'labeller', 'labeling', 'labelling']),
+      PALLETIZER: named(t, ['palletizer', 'palletiser', 'pallet']),
       CUSTOM_UNIT_OP: 0
-    };
+    });
+
+    // The engineer's own words are the authority on what to add. The model's
+    // reply is consulted only when those words carry no kind at all -- the case
+    // where the engineer says something vague and the model answers "added a
+    // centrifugal pump". Reading both at once would let the reply outvote the
+    // request.
+    const fromMessage = weigh(text(state, 'message'));
+    const total = Object.values(fromMessage).reduce((s, w) => s + w, 0);
+    return total > 0 ? fromMessage : weigh(text(state, 'response'));
   }
 };
 
@@ -167,15 +218,22 @@ export const templateFamily: ChoiceQuestion<TemplateFamily> = {
   },
   heuristic: (state: DecisionState) => {
     const t = text(state);
+    // Presence, not count -- see equipmentKind. The ambiguity fixture for this
+    // question only passed before because both named families happened to have
+    // two matching keywords each; "distillation fractionation column feeding a
+    // cyclone" would have weighed 3:1 and silently rendered a column.
+    const named = (keywords: string[]) => (keywordWeight(t, keywords) > 0 ? 1 : 0);
     return {
-      column: keywordWeight(t, ['distillation', 'fractionat', 'column', 'tower', 'absorption', 'stripper']),
-      reactor: keywordWeight(t, ['reactor', 'cstr', 'agitator', 'impeller']),
-      exchanger: keywordWeight(t, ['heat exchanger', 'exchanger', 'shell and tube', 'condenser']),
-      pump: keywordWeight(t, ['pump', 'volute', 'impeller pump']),
-      cyclone: keywordWeight(t, ['cyclone', 'separator']),
-      spray: keywordWeight(t, ['spray', 'atomiser', 'atomizer']),
-      sphere: keywordWeight(t, ['sphere', 'spherical', 'lpg']),
-      drum: keywordWeight(t, ['drum', 'bullet', 'horizontal tank', 'saddle']),
+      // Whole words: keywordWeight matches on word boundaries, so a stem like
+      // 'fractionat' never matched "fractionation" or "fractionator".
+      column: named(['distillation', 'fractionation', 'fractionator', 'column', 'tower', 'absorption', 'stripper']),
+      reactor: named(['reactor', 'cstr', 'agitator', 'impeller']),
+      exchanger: named(['heat exchanger', 'exchanger', 'shell and tube', 'condenser']),
+      pump: named(['pump', 'volute']),
+      cyclone: named(['cyclone', 'separator']),
+      spray: named(['spray', 'atomiser', 'atomizer']),
+      sphere: named(['sphere', 'spherical', 'lpg']),
+      drum: named(['drum', 'bullet', 'horizontal tank', 'saddle']),
       generic: 0
     };
   }

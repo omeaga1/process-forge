@@ -225,8 +225,37 @@ describe('AI Connection Manager & Zero-Key Architecture (ADR-0005)', () => {
     );
 
     assert.strictEqual(res.isOfflineSolver, true);
-    assert.ok(res.text.includes('Flowsheet Engine is in local offline mode'));
-    assert.ok(res.text.includes('Connect via MCP or OAuth'));
+    assert.ok(res.text.includes('Working offline'));
+    // Says what IS possible offline, rather than only what is not.
+    assert.ok(res.text.includes('add a surge tank'));
+    assert.strictEqual(res.createdNode, undefined, 'a throughput question must not create a node');
+  });
+
+  it('in offline mode: a plain request for standard equipment is fulfilled with no model', async () => {
+    // Offline is the default with no key configured. This used to refuse with
+    // "Connect via MCP or OAuth to generate new unit operations" -- for a pump,
+    // which needs no model, on a product advertising offline execution.
+    resetToOfflineConfig();
+    const res = await dispatchMasterOrchestratorMessage(
+      'add a surge tank',
+      { graphName: 'Architectural Coatings Line', nodeCount: 5, totalPackaged: 0, averageRatePerMin: 0 },
+      { provider: 'offline' }
+    );
+    assert.strictEqual(res.isOfflineSolver, true);
+    assert.ok(res.createdNode, 'offline mode should place standard equipment');
+    assert.strictEqual(res.createdNode.kind, 'SURGE_TANK');
+  });
+
+  it('in offline mode: an ambiguous request asks instead of guessing', async () => {
+    resetToOfflineConfig();
+    const res = await dispatchMasterOrchestratorMessage(
+      'add a reactor with a feed pump',
+      { graphName: 'Architectural Coatings Line', nodeCount: 5, totalPackaged: 0, averageRatePerMin: 0 },
+      { provider: 'offline' }
+    );
+    assert.strictEqual(res.createdNode, undefined);
+    assert.ok(res.clarification);
+    assert.deepEqual(res.clarification.options.map((o) => o.kind).sort(), ['BATCH_REACTOR', 'PUMP']);
   });
 
   it('agent chat lockout: isAgentChatUnlocked locks chat until credentials or MCP detected', () => {

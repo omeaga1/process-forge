@@ -11,6 +11,8 @@ import {
   type AiModelConfig
 } from '../../ai/aiModelManager.js';
 import { dispatchMasterOrchestratorMessage } from '../../ai/aiDispatch.js';
+import { createDefaultProcessNode } from '../../utils/nodeFactory.js';
+import { draftingRadius } from '@process-forge/theme';
 import { AiModelModal } from '../modals/AiModelModal.js';
 import { Cpu, Loader2, ChevronRight, ChevronLeft, Sparkles, KeyRound } from 'lucide-react';
 
@@ -62,6 +64,36 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
 
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 
+  /**
+   * The engineer answered a clarification. Create exactly the option they
+   * picked, and clear the question off the message it was asked on, so the
+   * same choice cannot be made twice from a stale bubble.
+   */
+  const resolveClarification = (
+    messageId: string,
+    option: NonNullable<ChatMessage['clarification']>['options'][number],
+    flowRateGpm?: number
+  ) => {
+    const node = createDefaultProcessNode(option.kind, {
+      name: option.name,
+      ...(flowRateGpm !== undefined ? { flowRateGpm } : {})
+    });
+    onAddNode?.(node);
+    setChatHistory((prev) => [
+      ...prev.map((m) => (m.id === messageId ? { ...m, clarification: undefined } : m)),
+      {
+        id: `mst-${Date.now()}`,
+        sender: 'master_orchestrator',
+        senderTitle: 'Equipment Specialist',
+        text: `Added ${option.label}.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        modelBadge: 'Engineer choice',
+        isOffline: true,
+        createdNode: node
+      }
+    ]);
+  };
+
   const handleSendMessage = async (textToSend?: string) => {
     const text = textToSend || inputText;
     if (!text.trim() || isProcessing) return;
@@ -112,7 +144,8 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         modelBadge: res.senderBadge,
         isOffline: res.isOfflineSolver,
-        createdNode: res.createdNode
+        createdNode: res.createdNode,
+        ...(res.clarification ? { clarification: res.clarification } : {})
       };
 
       setChatHistory((prev) => [...prev, agentMsg]);
@@ -410,6 +443,41 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                 <span>• {msg.timestamp}</span>
               </div>
               <div>{msg.text}</div>
+
+              {msg.clarification && (
+                <div
+                  role="group"
+                  aria-label="Which equipment should be added?"
+                  style={{
+                    marginTop: 10,
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 6
+                  }}
+                >
+                  {msg.clarification.options.map((option) => (
+                    <button
+                      key={option.kind}
+                      onClick={() =>
+                        resolveClarification(msg.id, option, msg.clarification?.flowRateGpm)
+                      }
+                      title={`Add ${option.name}`}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: draftingRadius.soft,
+                        backgroundColor: 'transparent',
+                        color: OsakaJadePalette.text.primary,
+                        border: `1px solid ${OsakaJadePalette.border.default}`,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Add {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {msg.createdNode && (
                 <div

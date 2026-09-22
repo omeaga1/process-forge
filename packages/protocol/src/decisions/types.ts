@@ -124,11 +124,37 @@ export function isActionable(
   return answer.confidence >= threshold;
 }
 
+/**
+ * True when a choice carries real signal, as opposed to a distribution sitting
+ * at (or near) uniform.
+ *
+ * This is what separates two different low-confidence outcomes that call for
+ * different responses:
+ *
+ *   - Signal, but split -- "add a reactor with a feed pump" puts ~0.5 on each
+ *     of two options. The right move is to ASK which one.
+ *   - No signal -- "add a widget" spreads mass evenly across every option.
+ *     Asking the engineer to pick one of nine equally weighted kinds is
+ *     useless; the right move is to do nothing.
+ *
+ * A first-match ladder could express neither: it either picked a branch or
+ * fell through. Provider-agnostic, so it applies equally to a model's output.
+ */
+export function hasSignal(answer: ChoiceAnswer, margin = 0.05): boolean {
+  const n = Object.keys(answer.probabilities).length;
+  if (n <= 1) return answer.confidence > 0;
+  return answer.confidence > 1 / n + margin;
+}
+
 /** The options a caller should offer when a choice is too close to call. */
 export function runnersUp<T extends string>(answer: ChoiceAnswer<T>, limit = 2): T[] {
+  // Only options holding more than their uniform share are real candidates.
+  // Without this, a no-signal answer would "offer" arbitrary options.
+  const n = Object.keys(answer.probabilities).length;
+  const floor = n > 0 ? 1 / n : 0;
   return (Object.entries(answer.probabilities) as [T, number][])
+    .filter(([, p]) => p > floor)
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
-    .filter(([, p]) => p > 0)
     .map(([k]) => k);
 }

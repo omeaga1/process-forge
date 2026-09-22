@@ -63,7 +63,7 @@ describe('Equipment Factory & Node Generation', () => {
 });
 
 describe('Master Orchestrator Tool Calling & Action Execution', () => {
-  it('parses explicit JSON tool call blocks and creates the ProcessNode', () => {
+  it('parses explicit JSON tool call blocks and creates the ProcessNode', async () => {
     const rawResponse = `Here are the preliminary calculations for your pump.
 
 \`\`\`json:tool_call
@@ -77,7 +77,7 @@ describe('Master Orchestrator Tool Calling & Action Execution', () => {
 
 The pump has been prepared with suction and discharge connections.`;
 
-    const { cleanText, createdNode } = parseUnitOpToolCall(rawResponse, 'add a pump');
+    const { cleanText, createdNode } = await parseUnitOpToolCall(rawResponse, 'add a pump');
 
     assert.ok(createdNode);
     assert.strictEqual(createdNode.kind, 'PUMP');
@@ -90,11 +90,11 @@ The pump has been prepared with suction and discharge connections.`;
     assert.strictEqual(cleanText.includes('Here are the preliminary calculations'), true);
   });
 
-  it('heuristic fallback: detects pump creation intent from user prompt', () => {
+  it('heuristic fallback: detects pump creation intent from user prompt', async () => {
     const userPrompt = 'pump, pumping 100 GPM of water, 3, no connections for now. just input and output';
     const rawResponse = '### Flowsheet Update Summary\n**Unit Operation Added:** Centrifugal Pump (`P-003`)';
 
-    const { createdNode } = parseUnitOpToolCall(rawResponse, userPrompt);
+    const { createdNode } = await parseUnitOpToolCall(rawResponse, userPrompt);
 
     assert.ok(createdNode);
     assert.strictEqual(createdNode.kind, 'PUMP');
@@ -102,21 +102,21 @@ The pump has been prepared with suction and discharge connections.`;
     assert.strictEqual(cfg.designFlowRateGpm, 100);
   });
 
-  it('heuristic fallback: detects reactor creation intent', () => {
+  it('heuristic fallback: detects reactor creation intent', async () => {
     const userPrompt = 'Please add a new batch reactor with 50 gpm discharge rate';
     const rawResponse = 'I have designed a jacketed CSTR batch reactor for your line.';
 
-    const { createdNode } = parseUnitOpToolCall(rawResponse, userPrompt);
+    const { createdNode } = await parseUnitOpToolCall(rawResponse, userPrompt);
 
     assert.ok(createdNode);
     assert.strictEqual(createdNode.kind, 'BATCH_REACTOR');
   });
 
-  it('does not trigger node creation when user is simply asking questions', () => {
+  it('does not trigger node creation when user is simply asking questions', async () => {
     const userPrompt = 'What is the current bottleneck of my plant?';
     const rawResponse = 'The current active bottleneck is the High-Speed Rotary Labeler operating at 35 CPM.';
 
-    const { createdNode } = parseUnitOpToolCall(rawResponse, userPrompt);
+    const { createdNode } = await parseUnitOpToolCall(rawResponse, userPrompt);
 
     assert.strictEqual(createdNode, undefined);
   });
