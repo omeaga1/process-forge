@@ -26,6 +26,7 @@ interface HeaderBarProps {
   onSelectTemplate: (templateKey: string) => void;
   onOpenAiModal?: () => void;
   onOpenForgeHub: () => void;
+  onOpenUnitOpCreator?: () => void;
   onOpenSaveModal: () => void;
   onOpenGuestModal: () => void;
   onImportFile: (file: File) => void;
@@ -44,6 +45,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onSelectTemplate,
   onOpenAiModal,
   onOpenForgeHub,
+  onOpenUnitOpCreator,
   onOpenSaveModal,
   onOpenGuestModal,
   onImportFile,
@@ -453,6 +455,33 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <Cpu size={14} color={OsakaJadePalette.jade.glow} />
           <span>AI Tools</span>
         </button>
+
+        {/* Create a unit operation that does not exist yet */}
+        {onOpenUnitOpCreator && (
+          <button
+            onClick={onOpenUnitOpCreator}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              height: 32,
+              backgroundColor: 'rgba(113, 206, 173, 0.12)',
+              border: `1px solid ${OsakaJadePalette.jade[600]}`,
+              borderRadius: 6,
+              padding: '0 10px',
+              color: OsakaJadePalette.text.accent,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxSizing: 'border-box'
+            }}
+            title="New Unit Op — describe equipment that has no model yet; the engine checks it against your physics before it reaches the canvas"
+          >
+            <Sparkles size={14} />
+            <span>New Unit Op</span>
+          </button>
+        )}
 
         {/* Community UnitOp Library */}
         <button
