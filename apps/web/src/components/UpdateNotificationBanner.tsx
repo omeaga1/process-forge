@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { isDesktopRuntime } from '../runtime/desktop.js';
 import {
   Download,
   RefreshCw,
@@ -38,8 +39,14 @@ export interface UpdateBannerProps {
   onHardReload?: () => void;
 }
 
+/**
+ * Re-exported for the existing call sites. The definition lives in
+ * runtime/desktop.ts, which is also what decides the app's initial view.
+ * Two copies of this predicate could drift, and if they did the desktop app
+ * would disagree with itself about whether it is a desktop app.
+ */
 export function isTauriEnvironment(): boolean {
-  return typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
+  return isDesktopRuntime();
 }
 
 export async function invokeTauriCommand<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {

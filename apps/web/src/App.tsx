@@ -19,6 +19,7 @@ import {
 import { HeaderBar } from './components/HeaderBar.js';
 import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModal.js';
 import { StudioEntryGateModal } from './components/StudioEntryGateModal.js';
+import { initialViewMode, homeViewMode, isDesktopRuntime } from './runtime/desktop.js';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
 import { AccountModal } from './components/AccountModal.js';
@@ -67,7 +68,9 @@ const AppInner: React.FC = () => {
   // - 'landing': Clean Product Showcase Landing Page (what is ProcessForge, animated PFD tutorial, download .exe)
   // - 'portal': Engineering Project Portal & Hub (cloud projects, orchestrator, templates, quotas)
   // - 'studio': Interactive Flowsheet Canvas Studio (ReactFlow, equipment palette, live simulation)
-  const [viewMode, setViewMode] = useState<'landing' | 'portal' | 'studio'>('landing');
+  // Desktop opens on the portal; only the web build has a landing page.
+  // See runtime/desktop.ts for why these are different products.
+  const [viewMode, setViewMode] = useState<'landing' | 'portal' | 'studio'>(initialViewMode);
 
   // Initialize or restore active project
   const [project, setProject] = useState<SimulationProject>(() => {
@@ -276,7 +279,7 @@ const AppInner: React.FC = () => {
 
   const handleNavigateHome = useCallback(() => {
     saveLocalProject(project);
-    setViewMode('landing');
+    setViewMode(homeViewMode());
   }, [project]);
 
   const handleOpenPortal = useCallback(() => {
@@ -298,13 +301,13 @@ const AppInner: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', maxWidth: '100vw', maxHeight: '100vh', overflow: viewMode === 'landing' ? 'auto' : 'hidden', position: 'relative' }}>
-      {viewMode === 'landing' ? (
+      {viewMode === 'landing' && !isDesktopRuntime() ? (
         <ProductLandingPage
           onLaunchStudio={handleLaunchStudioFromLanding}
           onOpenPortal={handleOpenPortal}
           onSelectTemplate={handleSelectTemplateAndLaunch}
         />
-      ) : viewMode === 'portal' ? (
+      ) : viewMode === 'portal' || viewMode === 'landing' ? (
         <LandingPageHub
           currentProject={project}
           onNavigateLanding={handleNavigateHome}
