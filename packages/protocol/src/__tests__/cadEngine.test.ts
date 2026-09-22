@@ -229,3 +229,44 @@ describe('Unit-Op Dressing Zod Schema Validation', () => {
     });
   });
 });
+
+describe('Column internals: counts must be counts of trays', () => {
+  const lineCount = (prompt: string) =>
+    (synthesizeEquipmentDrawing(prompt).svgDetails.match(/<line/g) || []).length;
+
+  it('does not read a nozzle size as a tray count', () => {
+    // Was: p.includes('10') matched the bare digits in "10 inch" and rendered a
+    // ten-tray column. Plan 0001 section 2.3.
+    assert.equal(lineCount('distillation column with a 10 inch nozzle'), 5);
+  });
+
+  it('reads an explicit tray count', () => {
+    assert.equal(lineCount('distillation column with 8 sieve trays'), 8);
+    assert.equal(lineCount('fractionation tower with 4 valve trays'), 4);
+  });
+
+  it('lets an explicit tray count outrank a packing keyword', () => {
+    // Was: isPacked was tested first, so "absorption" won and an unambiguous
+    // "6 trays" was silently discarded in favour of cross-hatching.
+    const dwg = synthesizeEquipmentDrawing('absorption column with 6 trays');
+    assert.equal(dwg.label, 'Distillation Column');
+    assert.equal(lineCount('absorption column with 6 trays'), 6);
+  });
+
+  it('still renders packing when no tray count is given', () => {
+    const dwg = synthesizeEquipmentDrawing('packed absorption column');
+    assert.equal(dwg.label, 'Packed Absorption Column');
+  });
+
+  it('emits no control characters in template notes', () => {
+    // A shell heredoc once turned an intended \b escape into a literal
+    // backspace byte in this file, which silently disabled two regexes.
+    for (const p of ['distillation column', 'centrifugal pump', 'cyclone separator']) {
+      assert.ok(
+        // eslint-disable-next-line no-control-regex
+        !/[\x00-\x08\x0b\x0c]/.test(synthesizeEquipmentDrawing(p).templateNotes),
+        `${p} notes contain a control character`
+      );
+    }
+  });
+});

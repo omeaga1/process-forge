@@ -11,6 +11,9 @@ import {
   type UnitOpDressing,
   type NodeKind,
   synthesizeEquipmentDrawing,
+  heuristicProvider as decisions,
+  isDrawingRequest,
+  isActionable,
   type EquipmentCadDrawing
 } from '@process-forge/protocol';
 import { createDefaultProcessNode } from '../utils/nodeFactory.js';
@@ -75,21 +78,17 @@ export async function dispatchUnitOpMessage(
     mode = creds.provider;
   }
 
-  // 1. If user asks for CAD drawing or equipment modification, synthesize vector CAD
-  const lower = message.toLowerCase();
-  const isCadRequest =
-    lower.includes('draw') ||
-    lower.includes('sketch') ||
-    lower.includes('cad') ||
-    lower.includes('geometry') ||
-    lower.includes('draft') ||
-    lower.includes('nozzle') ||
-    lower.includes('jacket') ||
-    lower.includes('baffle') ||
-    lower.includes('reactor') ||
-    lower.includes('tank') ||
-    lower.includes('column') ||
-    lower.includes('filler');
+  // 1. Does the engineer actually want geometry drawn?
+  //
+  // This was twelve OR'd substring tests including bare 'reactor', 'tank' and
+  // 'column', so "the reactor feed pump is fine, don't change anything"
+  // synthesised a drawing and offered a dressing swap nobody asked for.
+  // Mentioning equipment is not asking to draw it. See plan 0001 section 2.1.
+  //
+  // The question is declared in protocol/decisions and has fixtures; the
+  // heuristic provider answers it offline, with no network and no key.
+  const drawingAnswer = await decisions.ask({ message }, { q: isDrawingRequest });
+  const isCadRequest = drawingAnswer.q.value > 0.5 && isActionable(drawingAnswer.q);
 
   let cadDrawing: EquipmentCadDrawing | undefined;
   let newDressing: UnitOpDressing | undefined;
