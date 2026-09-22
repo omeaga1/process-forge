@@ -89,6 +89,11 @@ jobs:
         working-directory: apps/desktop
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # The signing key is generated without a passphrase, so this resolves
+          # to an empty string. rsign still wraps the key, and an empty password
+          # is the correct one. The key's real protection is that it lives only
+          # as a repository secret; a passphrase would only guard the file on a
+          # developer's disk, and a mismatched one silently fails every release.
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         run: pnpm exec tauri build
 

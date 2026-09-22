@@ -61,7 +61,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFEQUZCQkI0QTREN0JDRTIKUldUaXZOZWt0THV2clpRakJvT2p4end5UjJZcnhsdHpTSHJEV09VbTJ1M1V2bTBHcytQcmJsNS8K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYwMTAwOEU5OUZDMDg4MDcKUldRSGlNQ2Y2UWdROEZ5bklSZCt1amlDR2lPaitYK0kyUVIwTVdtZzdYcTNBODR3U3g5dm9ZdzEK",
       "endpoints": [
         "https://github.com/omeaga1/process-forge/releases/latest/download/latest.json"
       ]
