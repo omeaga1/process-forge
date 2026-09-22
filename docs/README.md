@@ -29,13 +29,19 @@ Historical log of foundational engineering decisions, their context, and consequ
 
 ---
 
-### 3. How-To Guides (Practical Recipes)
+### 3. Plans (Proposed, Not Yet Accepted)
+Design proposals under consideration. A plan is not a decision — when one is adopted it graduates into an ADR:
+* [**Plan 0001: A Decision Layer for the Unit-Op Sub-Agents**](plans/0001-jev-decision-layer.md) — Replacing keyword-match routing with typed, confidence-scored decisions, optionally backed by the Jev decision model.
+
+---
+
+### 4. How-To Guides (Practical Recipes)
 Step-by-step solutions to concrete engineering workflows:
 * [**Diagnosing Plant Bottlenecks**](guides/diagnosing-bottlenecks.md) — Pinpointing buffer backpressure, machine starvation, and throughput throttling.
 
 ---
 
-### 4. Technical Reference (Specifications)
+### 5. Technical Reference (Specifications)
 Authoritative contracts, schemas, and API documentation:
 * [**Protocol Schemas & Machine Configs**](reference/protocol-schemas.md) — Zod schemas for nodes, ports, streams, and agent messages.
 
