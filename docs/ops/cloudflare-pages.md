@@ -4,11 +4,41 @@ The `process-forge` Pages project serves `apps/web` at
 https://process-forge.pages.dev/ and is connected to this repository, so a push
 to `main` publishes.
 
-## Required project settings
+## How deployment works
 
-These live in the Cloudflare dashboard (Workers & Pages -> process-forge ->
-Settings -> Builds & deployments). They are NOT in this repo and wrangler cannot
-set them, so they are recorded here.
+The build runs in **GitHub Actions** (`.github/workflows/deploy-pages.yml`), not
+in Cloudflare's build container. Cloudflare receives a finished directory and
+builds nothing.
+
+This is deliberate. Cloudflare's Git-connected build failed on every commit it
+attempted, and wrangler exposes neither the build configuration nor the build
+log, so the cause was not diagnosable from outside the dashboard. Moving the
+build into CI removes the opaque environment entirely: the deploy now uses the
+exact Node version, package manager and build ordering that the test workflow
+already runs green on every push, so a passing CI run and a good deploy cannot
+disagree.
+
+### One-time setup
+
+Two repository secrets are required (Settings -> Secrets and variables ->
+Actions):
+
+| Secret | Value |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | A Cloudflare API token with the **Cloudflare Pages: Edit** permission. Create it at https://dash.cloudflare.com/profile/api-tokens using the "Edit Cloudflare Workers" template, or a custom token scoped to Account -> Cloudflare Pages -> Edit. |
+| `CLOUDFLARE_ACCOUNT_ID` | The account id, shown by `npx.cmd wrangler whoami`. |
+
+### Disconnect the Git integration
+
+While the Pages project stays connected to GitHub it will keep running its own
+build in parallel, keep failing, and keep reporting a red check on every pull
+request. Disconnect it: Workers & Pages -> process-forge -> Settings -> Builds &
+deployments -> **Disconnect**. Deployments then come only from the workflow.
+
+## Legacy: Cloudflare-side build settings
+
+Kept for reference in case the Git integration is ever reconnected. They are
+NOT used while deployment runs through GitHub Actions.
 
 | Setting | Value |
 |---|---|
