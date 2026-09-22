@@ -1,6 +1,10 @@
 # Plan 0001: A Decision Layer for the Unit-Op Sub-Agents
 
-* **Status:** Proposed — not accepted, not started
+* **Status:** In progress. The interface and the heuristic provider are in
+  place, and all four seams are wired to it: drawing requests (PR #21),
+  creation and equipment kind (PR #22), and the drawing template (seam 4).
+  Every seam now reports a tie as a tie rather than taking the first match. The
+  Jev provider (§8) has not been started.
 * **Date:** 2026-09-22
 * **Scope:** `@process-forge/protocol`, `@process-forge/canvas-ui`, `@process-forge/mcp-server`
 * **Relates to:** [ADR-0002](../adr/0002-deterministic-sim-vs-llm.md), [ADR-0005](../adr/0005-zero-raw-keys-and-agent-driven-packages.md), [ADR-0006](../adr/0006-model-context-protocol-mcp.md)

@@ -5,8 +5,11 @@ import {
   type UnitOpDressing,
   type NozzleDressing,
   type InternalsDressing,
+  type TemplateFamily,
+  type TemplateRouting,
   synthesizeEquipmentDrawing
 } from '@process-forge/protocol';
+import { TemplateChoice } from './TemplateChoice.js';
 import { UnitAnim } from '../animations/EquipmentAnimations.js';
 import { Plus, Trash2, Sliders, Eye, Sparkles, Check, RotateCcw } from 'lucide-react';
 
@@ -64,6 +67,11 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
   );
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [aiPrompt, setAiPrompt] = useState<string>('');
+  const [lastForge, setLastForge] = useState<{
+    prompt: string;
+    routing: TemplateRouting;
+    current: TemplateFamily;
+  } | null>(null);
   const [isForging, setIsForging] = useState<boolean>(false);
 
   useEffect(() => {
@@ -79,15 +87,17 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
     }
   }, [node.id, node.dressing]);
 
-  const handleForgeDrawing = (promptToUse?: string) => {
+  const handleForgeDrawing = (promptToUse?: string, family?: TemplateFamily) => {
     const text = promptToUse || aiPrompt;
     if (!text.trim()) return;
     setIsForging(true);
     setTimeout(() => {
-      const dwg = synthesizeEquipmentDrawing(text, {
-        kind: node.kind,
-        machineName: node.name
-      });
+      const context = { kind: node.kind, machineName: node.name };
+      // The description's own routing is kept even after a pick, so the
+      // choice stays on offer and a second pick can undo the first.
+      const auto = synthesizeEquipmentDrawing(text, context);
+      const dwg = family ? synthesizeEquipmentDrawing(text, { ...context, family }) : auto;
+      setLastForge({ prompt: text, routing: auto.routing, current: family ?? auto.routing.family });
       const updated: UnitOpDressing = {
         ...dressing,
         customSvgShell: dwg.svgShell,
@@ -316,6 +326,13 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
               <span>{isForging ? 'Synthesizing...' : 'Forge CAD'}</span>
             </button>
           </div>
+          {lastForge && (
+            <TemplateChoice
+              routing={lastForge.routing}
+              current={lastForge.current}
+              onPick={(family) => handleForgeDrawing(lastForge.prompt, family)}
+            />
+          )}
         </div>
       </div>
 

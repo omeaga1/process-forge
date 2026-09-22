@@ -270,3 +270,76 @@ describe('Column internals: counts must be counts of trays', () => {
     }
   });
 });
+
+describe('Template routing (plan 0001, seam 4)', () => {
+  const route = (prompt: string, context?: Parameters<typeof synthesizeEquipmentDrawing>[1]) =>
+    synthesizeEquipmentDrawing(prompt, context).routing;
+
+  it('reports a tie instead of presenting the first match as settled', () => {
+    // Was: first-match. "column" was tested before "cyclone", so this drew a
+    // column and nothing downstream could tell that a cyclone was named too.
+    const r = route('absorption column feeding a cyclone');
+    assert.equal(r.family, 'column', 'declaration order is still the tie-break');
+    assert.equal(r.decided, false);
+    assert.deepEqual(r.alternatives, ['cyclone']);
+  });
+
+  it('is decided when one family is named', () => {
+    const r = route('jacketed CSTR with a Rushton turbine');
+    assert.equal(r.family, 'reactor');
+    assert.equal(r.decided, true);
+    assert.deepEqual(r.alternatives, []);
+  });
+
+  it('lets a named family outvote a modifier', () => {
+    // "horizontal" alone meant a drum in the ladder, which tested it last; as a
+    // plain keyword it would tie with every horizontal exchanger.
+    assert.equal(route('horizontal shell and tube heat exchanger').family, 'exchanger');
+    assert.equal(route('horizontal shell and tube heat exchanger').decided, true);
+    assert.equal(route('horizontal vessel on concrete piers').family, 'drum');
+    assert.equal(route('centrifugal pump, closed impeller').family, 'pump');
+    assert.equal(route('centrifugal pump, closed impeller').decided, true);
+  });
+
+  it('uses the node kind when the description names no family', () => {
+    assert.equal(route('jacketed, 2 m3 working volume', { kind: 'BATCH_REACTOR' }).family, 'reactor');
+    // MCP passes a free-form machine type rather than a node kind.
+    assert.equal(route('twin-fluid nozzle with compressed air', { kind: 'scrubber' }).family, 'spray');
+  });
+
+  it('lets the description outrank the node kind', () => {
+    const r = route('distillation column', { kind: 'BATCH_REACTOR' });
+    assert.equal(r.family, 'column');
+    assert.equal(r.decided, true);
+  });
+
+  it('draws the generic vessel when nothing is named, not the first family', () => {
+    // A uniform distribution's "winner" is whichever option was declared
+    // first -- a column. hasSignal is what keeps that from being drawn.
+    const r = route('two-phase separator');
+    assert.equal(r.family, 'generic');
+    assert.equal(r.source, 'default');
+  });
+
+  it('draws exactly what the caller asks for', () => {
+    // The path an engineer takes after picking one of `alternatives`.
+    const dwg = synthesizeEquipmentDrawing('absorption column feeding a cyclone', { family: 'cyclone' });
+    assert.equal(dwg.label, 'Cyclone Dust Separator');
+    assert.equal(dwg.routing.source, 'caller');
+    assert.equal(dwg.routing.decided, true);
+  });
+
+  it('treats a condenser on a column as part of the column', () => {
+    // The forge_equipment_drawing tool's own example description.
+    const r = route('Distillation column with 8 sieve trays and overhead reflux condenser');
+    assert.equal(r.family, 'column');
+    assert.equal(r.decided, true);
+    assert.equal(route('overhead condenser').family, 'exchanger');
+  });
+
+  it('does not tie a bullet with a sphere because the service is LPG', () => {
+    const r = route('horizontal bullet for LPG storage');
+    assert.equal(r.family, 'drum');
+    assert.equal(r.decided, true);
+  });
+});
