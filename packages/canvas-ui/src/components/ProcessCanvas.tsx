@@ -482,13 +482,11 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             gap: 8,
             padding: '5px 10px',
             borderRadius: draftingRadius.soft,
-            backgroundColor: `${OsakaJadePalette.background.surfaceElevated}f5`,
-            backdropFilter: 'blur(16px)',
+            backgroundColor: OsakaJadePalette.background.surfaceElevated,
+            // A ruled instrument band. The run state is carried by the rule
+            // colour, which is information; a glow would only be decoration.
             border: `1px solid ${isRunning ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
-            boxShadow: isRunning
-              ? `0 0 16px ${OsakaJadePalette.jade.glow}28, 0 8px 24px rgba(0,0,0,0.5)`
-              : '0 8px 24px rgba(0,0,0,0.45)',
-            transition: 'all 0.15s ease',
+            transition: 'border-color 0.15s ease',
             pointerEvents: 'auto',
             maxWidth: '92vw'
           }}
@@ -508,8 +506,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               fontSize: 12,
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: isRunning ? 'none' : `0 2px 8px ${OsakaJadePalette.jade.glow}44`,
-              transition: 'all 0.15s ease'
+              transition: 'background-color 0.15s ease'
             }}
             title="Press Spacebar to toggle simulation"
           >
@@ -613,9 +610,9 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                 style={{
                   width: 6,
                   height: 6,
-                  borderRadius: '50%',
-                  backgroundColor: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-                  boxShadow: isRunning ? `0 0 6px ${OsakaJadePalette.jade.glow}` : 'none'
+                  borderRadius: 0,
+                  backgroundColor: isRunning ? OsakaJadePalette.jade[400] : 'transparent',
+                  border: `1px solid ${isRunning ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted}`
                 }}
               />
               {isRunning ? 'RUNNING' : 'STANDBY'}
@@ -675,8 +672,10 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               backgroundColor: `${OsakaJadePalette.background.surfaceElevated}f2`,
               backdropFilter: 'blur(16px)',
               border: `1px solid ${OsakaJadePalette.border.glow}`,
-              borderRadius: 14,
+              borderRadius: draftingRadius.soft,
               padding: 24,
+              // Kept deliberately. A dialog genuinely floats above the sheet;
+              // this is the one place elevation is not decoration.
               boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
               textAlign: 'center',
               display: 'flex',
@@ -891,7 +890,6 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            boxShadow: `0 4px 20px rgba(0, 0, 0, 0.6), 0 0 12px ${OsakaJadePalette.jade.glow}66`,
             cursor: 'pointer'
           }}
         >

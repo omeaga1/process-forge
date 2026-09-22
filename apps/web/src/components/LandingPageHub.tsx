@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Plus,
   Cloud,
@@ -34,6 +34,9 @@ import {
   ProcessForgeEmblem
 } from '@process-forge/canvas-ui';
 import type { SimulationProject } from '@process-forge/protocol';
+import { SHERWIN_WILLIAMS_PAINT_LINE } from '@process-forge/canvas-ui';
+import { simulateProcess } from '@process-forge/simulation-core';
+import { draftingRadius } from '@process-forge/theme';
 import { useAccount } from '../auth/useAccount.js';
 import {
   listUserCloudProjects,
@@ -69,6 +72,24 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
   onOpenCloudProjectsModal
 }) => {
   const { palette, theme, toggleTheme } = useTheme();
+
+  /**
+   * The template card's figures, computed from the template itself.
+   *
+   * It previously read "6 Machines • 120 CPM". The machine count was right; the
+   * rate was not -- the engine gives roughly a third of that for this line. A
+   * number typed into a card is a number that will be wrong, so this one is
+   * derived: the node count from the graph, the throughput from an actual run.
+   */
+  const paintLineSummary = useMemo(() => {
+    const machines = SHERWIN_WILLIAMS_PAINT_LINE.nodes.length;
+    try {
+      const result = simulateProcess(SHERWIN_WILLIAMS_PAINT_LINE, 30);
+      return `${machines} machines • ${Math.round(result.averageLineThroughputUnitsPerMin)} CPM`;
+    } catch {
+      return `${machines} machines`;
+    }
+  }, []);
   const OsakaJadePalette = palette;
   const { user, isAuthenticated } = useAccount();
 
@@ -197,14 +218,10 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
         backgroundColor: OsakaJadePalette.background.base,
         backgroundImage: theme === 'dark'
           ? `
-            radial-gradient(ellipse at 50% 0%, rgba(45, 213, 183, 0.12) 0%, transparent 60%),
-            radial-gradient(circle at 10% 40%, rgba(84, 158, 106, 0.08) 0%, transparent 40%),
             linear-gradient(rgba(113, 206, 173, 0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(113, 206, 173, 0.05) 1px, transparent 1px),
-            repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.2) 3px, transparent 4px)
+            linear-gradient(90deg, rgba(113, 206, 173, 0.05) 1px, transparent 1px)
           `
           : `
-            radial-gradient(ellipse at 50% 0%, rgba(35, 148, 104, 0.08) 0%, transparent 60%),
             linear-gradient(rgba(35, 148, 104, 0.06) 1px, transparent 1px),
             linear-gradient(90deg, rgba(35, 148, 104, 0.06) 1px, transparent 1px)
           `,
@@ -250,7 +267,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               fontSize: 10,
               fontWeight: 700,
               padding: '2px 8px',
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               backgroundColor: 'rgba(45, 213, 183, 0.12)',
               border: `1px solid ${OsakaJadePalette.border.strong}`,
               color: OsakaJadePalette.jade[400],
@@ -267,7 +284,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 alignItems: 'center',
                 gap: 5,
                 padding: '4px 10px',
-                borderRadius: 4,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: 'rgba(255, 255, 255, 0.04)',
                 border: `1px solid ${OsakaJadePalette.border.default}`,
                 color: OsakaJadePalette.text.secondary,
@@ -294,7 +311,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 6,
               padding: '6px 12px',
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.jade[600],
               border: `1px solid ${OsakaJadePalette.jade[400]}`,
               color: '#ffffff',
@@ -320,7 +337,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 7,
               padding: '6px 12px',
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               backgroundColor: hasKey
                 ? (theme === 'dark' ? 'rgba(45, 213, 183, 0.08)' : 'rgba(35, 148, 104, 0.08)')
                 : (theme === 'dark' ? 'rgba(255, 83, 69, 0.08)' : 'rgba(220, 38, 38, 0.08)'),
@@ -355,7 +372,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 6,
               padding: '6px 12px',
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.primary,
@@ -385,7 +402,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             style={{
               width: 32,
               height: 32,
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -418,7 +435,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
           <span
             style={{
               padding: '4px 10px',
-              borderRadius: 16,
+              borderRadius: draftingRadius.soft,
               backgroundColor: 'rgba(16, 185, 129, 0.12)',
               border: `1px solid ${OsakaJadePalette.jade[600]}`,
               color: OsakaJadePalette.text.accent,
@@ -478,7 +495,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 8,
               padding: '11px 16px',
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.strong}`,
               color: OsakaJadePalette.text.primary,
@@ -504,7 +521,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 8,
               padding: '11px 20px',
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.jade[600],
               border: `1px solid ${OsakaJadePalette.jade[400]}`,
               color: '#ffffff',
@@ -534,7 +551,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 8,
               padding: '11px 16px',
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.strong}`,
               color: OsakaJadePalette.text.primary,
@@ -559,7 +576,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 8,
               padding: '11px 16px',
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.strong}`,
               color: OsakaJadePalette.text.primary,
@@ -584,7 +601,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 alignItems: 'center',
                 gap: 8,
                 padding: '11px 16px',
-                borderRadius: 4,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: theme === 'dark' ? 'rgba(45, 213, 183, 0.08)' : 'rgba(35, 148, 104, 0.08)',
                 border: `1px solid ${OsakaJadePalette.border.glow}`,
                 color: OsakaJadePalette.text.accent,
@@ -608,7 +625,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 8,
               padding: '11px 14px',
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.secondary,
@@ -631,7 +648,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 8,
               padding: '11px 14px',
-              borderRadius: 4,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.secondary,
@@ -667,7 +684,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               gap: 8,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               padding: '6px 12px',
               fontSize: '0.8rem',
               fontFamily: 'monospace'
@@ -703,7 +720,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 5,
               padding: '6px 12px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.secondary,
@@ -727,7 +744,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               alignItems: 'center',
               gap: 5,
               padding: '6px 12px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.muted,
@@ -764,7 +781,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             style={{
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 12,
+              borderRadius: draftingRadius.soft,
               padding: 20
             }}
           >
@@ -805,7 +822,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                   padding: 24,
                   textAlign: 'center',
                   backgroundColor: OsakaJadePalette.background.canvas,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   border: `1px dashed ${OsakaJadePalette.border.default}`
                 }}
               >
@@ -827,7 +844,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                       padding: '12px 14px',
                       backgroundColor: OsakaJadePalette.background.canvas,
                       border: `1px solid ${OsakaJadePalette.border.default}`,
-                      borderRadius: 8,
+                      borderRadius: draftingRadius.soft,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
@@ -855,7 +872,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                         style={{
                           fontSize: 10,
                           padding: '2px 6px',
-                          borderRadius: 4,
+                          borderRadius: draftingRadius.soft,
                           backgroundColor: 'rgba(16, 185, 129, 0.1)',
                           border: `1px solid rgba(16, 185, 129, 0.25)`,
                           color: OsakaJadePalette.text.accent,
@@ -892,7 +909,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             style={{
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 12,
+              borderRadius: draftingRadius.soft,
               padding: 20
             }}
           >
@@ -911,7 +928,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                   padding: 14,
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   cursor: 'pointer',
                   transition: 'border-color 0.15s ease'
                 }}
@@ -931,12 +948,12 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                       fontSize: 10,
                       fontWeight: 700,
                       padding: '2px 6px',
-                      borderRadius: 4,
+                      borderRadius: draftingRadius.soft,
                       backgroundColor: 'rgba(16, 185, 129, 0.15)',
                       color: OsakaJadePalette.text.accent
                     }}
                   >
-                    6 Machines • 120 CPM
+                    {paintLineSummary}
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
@@ -972,7 +989,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                   padding: 14,
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   cursor: 'pointer',
                   transition: 'border-color 0.15s ease'
                 }}
@@ -992,7 +1009,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                       fontSize: 10,
                       fontWeight: 700,
                       padding: '2px 6px',
-                      borderRadius: 4,
+                      borderRadius: draftingRadius.soft,
                       backgroundColor: 'rgba(14, 165, 233, 0.15)',
                       color: '#38bdf8'
                     }}
@@ -1036,7 +1053,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                   padding: 14,
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px dashed ${OsakaJadePalette.border.default}`,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   cursor: 'pointer',
                   transition: 'border-color 0.15s ease'
                 }}
@@ -1056,7 +1073,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                       fontSize: 10,
                       fontWeight: 700,
                       padding: '2px 6px',
-                      borderRadius: 4,
+                      borderRadius: draftingRadius.soft,
                       backgroundColor: 'rgba(255, 255, 255, 0.05)',
                       color: OsakaJadePalette.text.muted
                     }}
@@ -1103,7 +1120,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             style={{
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.glow}`,
-              borderRadius: 12,
+              borderRadius: draftingRadius.soft,
               padding: 20,
               display: 'flex',
               flexDirection: 'column',
@@ -1116,7 +1133,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                   style={{
                     width: 32,
                     height: 32,
-                    borderRadius: 6,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: `${OsakaJadePalette.jade[500]}1a`,
                     display: 'flex',
                     alignItems: 'center',
@@ -1150,7 +1167,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 style={{
                   background: 'none',
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 4,
+                  borderRadius: draftingRadius.soft,
                   padding: '4px 8px',
                   color: OsakaJadePalette.text.secondary,
                   fontSize: 11,
@@ -1171,7 +1188,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 style={{
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   padding: '24px 20px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -1214,7 +1231,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                     backgroundColor: OsakaJadePalette.jade[500],
                     color: OsakaJadePalette.text.inverse,
                     border: 'none',
-                    borderRadius: 6,
+                    borderRadius: draftingRadius.soft,
                     padding: '8px 14px',
                     fontSize: 12,
                     fontWeight: 600,
@@ -1236,7 +1253,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                     overflowY: 'auto',
                     backgroundColor: OsakaJadePalette.background.canvas,
                     border: `1px solid ${OsakaJadePalette.border.default}`,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     padding: 12,
                     display: 'flex',
                     flexDirection: 'column',
@@ -1256,7 +1273,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                             ? 'rgba(16, 185, 129, 0.15)'
                             : 'rgba(255, 255, 255, 0.03)',
                           border: `1px solid ${isUser ? OsakaJadePalette.jade[600] : OsakaJadePalette.border.default}`,
-                          borderRadius: 8,
+                          borderRadius: draftingRadius.soft,
                           padding: '8px 10px',
                           fontSize: 12,
                           color: OsakaJadePalette.text.primary,
@@ -1324,7 +1341,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                       style={{
                         backgroundColor: 'rgba(255, 255, 255, 0.04)',
                         border: `1px solid ${OsakaJadePalette.border.default}`,
-                        borderRadius: 4,
+                        borderRadius: draftingRadius.soft,
                         padding: '3px 8px',
                         color: OsakaJadePalette.text.secondary,
                         fontSize: 10,
@@ -1350,7 +1367,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                       flex: 1,
                       backgroundColor: OsakaJadePalette.background.canvas,
                       border: `1px solid ${OsakaJadePalette.border.default}`,
-                      borderRadius: 6,
+                      borderRadius: draftingRadius.soft,
                       padding: '8px 10px',
                       fontSize: 12,
                       color: OsakaJadePalette.text.primary,
@@ -1363,7 +1380,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                     style={{
                       backgroundColor: agentInput.trim() && !isAgentThinking ? OsakaJadePalette.jade[600] : 'rgba(255,255,255,0.05)',
                       border: 'none',
-                      borderRadius: 6,
+                      borderRadius: draftingRadius.soft,
                       padding: '0 12px',
                       color: '#fff',
                       cursor: agentInput.trim() && !isAgentThinking ? 'pointer' : 'default',
@@ -1384,7 +1401,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             style={{
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 12,
+              borderRadius: draftingRadius.soft,
               padding: 20
             }}
           >
@@ -1400,7 +1417,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                   fontSize: 10,
                   fontWeight: 700,
                   padding: '2px 8px',
-                  borderRadius: 12,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: isAuthenticated ? `${OsakaJadePalette.jade.glow}26` : `${OsakaJadePalette.status.blocked}26`,
                   color: isAuthenticated ? OsakaJadePalette.text.accent : OsakaJadePalette.status.blocked
                 }}
@@ -1448,7 +1465,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 width: '100%',
                 marginTop: 14,
                 padding: '9px 12px',
-                borderRadius: 4,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: OsakaJadePalette.background.canvas,
                 border: `1px solid ${OsakaJadePalette.border.default}`,
                 color: OsakaJadePalette.text.primary,
@@ -1474,7 +1491,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             style={{
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 12,
+              borderRadius: draftingRadius.soft,
               padding: 20
             }}
           >
@@ -1490,7 +1507,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                   fontSize: 10,
                   fontWeight: 700,
                   padding: '2px 8px',
-                  borderRadius: 12,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: hasKey ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.06)',
                   color: hasKey ? OsakaJadePalette.text.accent : OsakaJadePalette.text.muted
                 }}
@@ -1508,7 +1525,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               style={{
                 width: '100%',
                 padding: '9px 12px',
-                borderRadius: 4,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: theme === 'dark' ? 'rgba(45, 213, 183, 0.1)' : 'rgba(35, 148, 104, 0.1)',
                 border: `1px solid ${OsakaJadePalette.border.glow}`,
                 color: OsakaJadePalette.text.accent,
