@@ -106,10 +106,8 @@ describe('Engine invariant: determinism', () => {
   // the time. 50 runs makes a collision-only pass vanishingly unlikely.
   const RUNS = 50;
 
-  // SKIPPED - this documents a real defect, not a flaky test.
-  // 02-engine.md: Unseeded Math.random() at engine.ts:184 and :259; 50 runs give ~27 outcomes.
-  // See docs/audit/02-engine.md §5. To fix: un-skip once simulateProcess accepts a seed and threads a seeded PRNG.
-  it.skip('produces identical node reports across repeated runs of the same graph', () => {
+  // FIXED: simulateProcess now takes a seed and threads a seeded PRNG.
+  it('produces identical node reports across repeated runs of the same graph', () => {
     const outcomes = new Set<string>();
     for (let i = 0; i < RUNS; i++) {
       // wallClockExecutionTimeMs is measured, not simulated, so it is excluded.
@@ -128,10 +126,8 @@ describe('Engine invariant: determinism', () => {
     );
   });
 
-  // SKIPPED - this documents a real defect, not a flaky test.
-  // 02-engine.md: Same root cause as above.
-  // See docs/audit/02-engine.md §5. To fix: un-skip with the seeded PRNG.
-  it.skip('produces an identical total can count across repeated runs', () => {
+  // FIXED: same seeded PRNG.
+  it('produces an identical total can count across repeated runs', () => {
     const counts = new Set<string>();
     for (let i = 0; i < RUNS; i++) {
       const r = simulateProcess(buildLine(), 30);

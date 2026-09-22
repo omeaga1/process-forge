@@ -127,7 +127,16 @@ Two lesser instances of the same pattern:
 The existing `buildLine()` fixture never overflows, so a naive capacity test
 passes. The invariant test deliberately unbalances the line to take the path.
 
-### (5) Run-to-run reproducibility — the documented guarantee is false
+### (5) Run-to-run reproducibility — FIXED 2026-09-22
+
+> **Resolved.** `simulateProcess` and `SimulationEngine` now take an optional
+> `seed`, threaded through a mulberry32 generator in `simulation-core/src/rng.ts`.
+> With no seed supplied, one is derived from the graph id, so a graph is
+> reproducible by identity. The seed is reported on `SimulationResult` so a run
+> can be replayed by whoever receives the report. Both determinism tests are
+> un-skipped and passing. The original finding is kept below as the record.
+
+#### Original finding
 
 Two direct `Math.random()` calls, with no seed parameter anywhere in the package:
 
