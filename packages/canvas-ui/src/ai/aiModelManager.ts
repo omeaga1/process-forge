@@ -166,17 +166,42 @@ const SECRET_SERVICE: Record<(typeof SECRET_FIELDS)[number], string> = {
  * in a tab, and it is stated rather than papered over.
  */
 export function hasSecureVault(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    Boolean((window as unknown as { __TAURI__?: { core?: { invoke?: unknown } } }).__TAURI__?.core
-      ?.invoke)
-  );
+  return tauriInvoke() !== undefined;
 }
 
-/** Strips every secret field, leaving the non-sensitive settings. */
-function withoutSecrets(creds: LlmCredentials): LlmCredentials {
+type TauriInvoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+
+/**
+ * The Tauri IPC bridge.
+ *
+ * Tauri v2 always injects `__TAURI_INTERNALS__`. The friendlier
+ * `window.__TAURI__` global exists only when `app.withGlobalTauri` is set,
+ * and this app does not set it -- so the previous check, which looked only at
+ * `__TAURI__.core.invoke`, was false in every shipped desktop build. The
+ * keychain was never used and desktop keys sat in localStorage in plaintext.
+ */
+function tauriInvoke(): TauriInvoke | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const w = window as unknown as {
+    __TAURI_INTERNALS__?: { invoke?: TauriInvoke };
+    __TAURI__?: { core?: { invoke?: TauriInvoke } };
+  };
+  const fn = w.__TAURI_INTERNALS__?.invoke ?? w.__TAURI__?.core?.invoke;
+  return typeof fn === 'function' ? fn : undefined;
+}
+
+type SecretField = (typeof SECRET_FIELDS)[number];
+
+/**
+ * Strips every secret, recording which ones are in the keychain so that
+ * synchronous checks (is chat unlocked? which provider?) still know a key
+ * exists without it being readable here.
+ */
+function withoutSecrets(creds: LlmCredentials, vaulted: SecretField[]): LlmCredentials {
   const copy: LlmCredentials = { ...creds };
   for (const f of SECRET_FIELDS) delete copy[f];
+  if (vaulted.length > 0) copy.vaulted = [...new Set(vaulted)];
+  else delete copy.vaulted;
   return copy;
 }
 
@@ -227,7 +252,14 @@ export function saveLlmCredentials(creds: Partial<LlmCredentials>): LlmCredentia
   // providers, and nothing ever read it back -- so the keychain was decoration
   // and every key sat in plaintext regardless. See docs/audit/01-claims.md.
   const secure = hasSecureVault();
-  const persisted = secure ? withoutSecrets(updated) : updated;
+  // A field passed as '' is a request to forget that key.
+  const cleared = SECRET_FIELDS.filter((f) => f in creds && !creds[f]);
+  const vaulted = [
+    ...(current.vaulted ?? []).filter((f) => !cleared.includes(f)),
+    ...SECRET_FIELDS.filter((f) => Boolean(updated[f]))
+  ];
+  const persisted = secure ? withoutSecrets(updated, vaulted) : updated;
+  if (secure) updated.vaulted = [...new Set(vaulted)];
 
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -245,6 +277,7 @@ export function saveLlmCredentials(creds: Partial<LlmCredentials>): LlmCredentia
         void saveTauriSecureToken(SECRET_SERVICE[field], 'api_key', value);
       }
     }
+    for (const field of cleared) void deleteTauriSecureToken(SECRET_SERVICE[field], 'api_key');
   }
 
   // Automatically switch connection mode to the authenticated provider
@@ -262,13 +295,14 @@ export function saveLlmCredentials(creds: Partial<LlmCredentials>): LlmCredentia
 
 export function hasValidCredentials(creds?: LlmCredentials | null): boolean {
   if (!creds) return false;
+  const has = (f: SecretField) => Boolean(creds[f]?.trim()) || Boolean(creds.vaulted?.includes(f));
   switch (creds.provider) {
     case 'gemini':
-      return Boolean(creds.geminiApiKey?.trim());
+      return has('geminiApiKey');
     case 'claude':
-      return Boolean(creds.claudeApiKey?.trim());
+      return has('claudeApiKey');
     case 'openai':
-      return Boolean(creds.openaiApiKey?.trim());
+      return has('openaiApiKey');
     case 'ollama':
       return Boolean(creds.ollamaEndpoint?.trim() || true);
     default:
@@ -350,12 +384,10 @@ export async function purgeAllCredentials(): Promise<void> {
  * that missing half.
  */
 async function getTauriSecureToken(service: string, account: string): Promise<string | undefined> {
-  if (!hasSecureVault()) return undefined;
+  const invoke = tauriInvoke();
+  if (!invoke) return undefined;
   try {
-    const value = await (window as any).__TAURI__.core.invoke('get_secure_token', {
-      service,
-      account
-    });
+    const value = await invoke('get_secure_token', { service, account });
     return typeof value === 'string' && value.length > 0 ? value : undefined;
   } catch {
     // A miss is normal: nothing has been stored for this provider yet.
@@ -394,34 +426,41 @@ export async function migratePlaintextCredentialsToVault(): Promise<boolean> {
   const secrets = SECRET_FIELDS.filter((f) => Boolean(existing[f]));
   if (secrets.length === 0) return false;
 
+  // Scrub only what the keychain confirmed. A key whose write failed stays in
+  // localStorage rather than being deleted from the one place it exists.
+  const moved: SecretField[] = [];
   for (const field of secrets) {
-    await saveTauriSecureToken(SECRET_SERVICE[field], 'api_key', existing[field] as string);
+    if (await saveTauriSecureToken(SECRET_SERVICE[field], 'api_key', existing[field] as string)) moved.push(field);
   }
+  if (moved.length === 0) return false;
+  const kept: LlmCredentials = withoutSecrets(existing, [...(existing.vaulted ?? []), ...moved]);
+  for (const field of secrets) if (!moved.includes(field)) kept[field] = existing[field];
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      window.localStorage.setItem(
-        STORAGE_KEY_LLM_CREDS,
-        JSON.stringify(withoutSecrets(existing))
-      );
+      window.localStorage.setItem(STORAGE_KEY_LLM_CREDS, JSON.stringify(kept));
     } catch (e) {}
   }
   return true;
 }
 
-async function saveTauriSecureToken(service: string, account: string, secret: string): Promise<void> {
-  if (typeof window !== 'undefined' && (window as any).__TAURI__?.core?.invoke) {
-    try {
-      await (window as any).__TAURI__.core.invoke('save_secure_token', { service, account, secret });
-    } catch (e) {
-      console.warn('Could not save to native secure token vault:', e);
-    }
+/** Resolves true only when the keychain accepted the secret. */
+async function saveTauriSecureToken(service: string, account: string, secret: string): Promise<boolean> {
+  const invoke = tauriInvoke();
+  if (!invoke) return false;
+  try {
+    await invoke('save_secure_token', { service, account, secret });
+    return true;
+  } catch (e) {
+    console.warn('Could not save to native secure token vault:', e);
+    return false;
   }
 }
 
 async function deleteTauriSecureToken(service: string, account: string): Promise<void> {
-  if (typeof window !== 'undefined' && (window as any).__TAURI__?.core?.invoke) {
+  const invoke = tauriInvoke();
+  if (invoke) {
     try {
-      await (window as any).__TAURI__.core.invoke('delete_secure_token', { service, account });
+      await invoke('delete_secure_token', { service, account });
     } catch (e) {
       console.warn('Could not delete from native secure token vault:', e);
     }

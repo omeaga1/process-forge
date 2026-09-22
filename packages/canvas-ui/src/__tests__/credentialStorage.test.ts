@@ -16,7 +16,9 @@ import {
   getLlmCredentials,
   loadLlmCredentials,
   migratePlaintextCredentialsToVault,
-  hasSecureVault
+  hasSecureVault,
+  hasValidCredentials,
+  isAgentChatUnlocked
 } from '../ai/aiModelManager.js';
 
 const STORAGE_KEY_LLM_CREDS = 'pf_ai_credentials';
@@ -64,7 +66,11 @@ const g = globalThis as unknown as { window?: Record<string, unknown> };
 
 function asDesktop() {
   const vault = makeVault();
-  g.window = { localStorage: makeStorage(), __TAURI__: { core: { invoke: vault.invoke } } };
+  // __TAURI_INTERNALS__ is what Tauri v2 injects. window.__TAURI__ only exists
+  // with app.withGlobalTauri, which this app does not set; the previous
+  // harness simulated it, so these tests passed against an environment that
+  // no shipped build had.
+  g.window = { localStorage: makeStorage(), __TAURI_INTERNALS__: { invoke: vault.invoke } };
   return vault;
 }
 function asBrowser() {
@@ -197,5 +203,61 @@ describe('Migration off plaintext', () => {
     asBrowser();
     saveLlmCredentials({ provider: 'gemini', modelId: 'gemini-2.5-flash', geminiApiKey: 'k' });
     assert.equal(await migratePlaintextCredentialsToVault(), false);
+  });
+});
+
+describe('Desktop: knowing a key exists without holding it', () => {
+  it('keeps chat unlocked after a save, though localStorage has no key', async () => {
+    asDesktop();
+    saveLlmCredentials({ provider: 'claude', modelId: 'claude-opus-5', claudeApiKey: 'sk-ant-secret' });
+    assert.ok(!rawStored().includes('sk-ant-secret'));
+
+    const sync = getLlmCredentials();
+    assert.equal(sync.claudeApiKey, undefined);
+    assert.deepEqual(sync.vaulted, ['claudeApiKey']);
+    // Without the marker these read the key as missing and locked the chat on
+    // desktop the moment keys moved to the keychain.
+    assert.equal(hasValidCredentials(sync), true);
+    assert.equal(isAgentChatUnlocked(undefined, sync).unlocked, true);
+  });
+
+  it('does not forget one provider\'s key when another is saved', async () => {
+    const vault = asDesktop();
+    saveLlmCredentials({ provider: 'gemini', geminiApiKey: 'g-key' });
+    saveLlmCredentials({ provider: 'claude', claudeApiKey: 'c-key' });
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual([...(getLlmCredentials().vaulted ?? [])].sort(), ['claudeApiKey', 'geminiApiKey']);
+    assert.equal(vault.store.get('com.processforge.studio:gemini:api_key') ?? vault.store.get('gemini:api_key'), 'g-key');
+  });
+
+  it('forgets a key cleared with an empty string, in both places', async () => {
+    const vault = asDesktop();
+    saveLlmCredentials({ provider: 'openai', openaiApiKey: 'o-key' });
+    await new Promise((r) => setTimeout(r, 0));
+    saveLlmCredentials({ openaiApiKey: '' });
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(getLlmCredentials().vaulted, undefined);
+    assert.equal([...vault.store.keys()].some((k) => k.includes('openai')), false);
+  });
+
+  it('detects the vault from __TAURI_INTERNALS__ alone', () => {
+    asDesktop();
+    assert.equal('__TAURI__' in (g.window as object), false);
+    assert.equal(hasSecureVault(), true);
+  });
+});
+
+describe('Migration never loses a key', () => {
+  it('keeps a plaintext key whose keychain write failed', async () => {
+    asDesktop();
+    (g.window as any).__TAURI_INTERNALS__.invoke = async () => {
+      throw new Error('keychain locked');
+    };
+    (g.window!.localStorage as ReturnType<typeof makeStorage>).setItem(
+      STORAGE_KEY_LLM_CREDS,
+      JSON.stringify({ provider: 'openai', modelId: 'gpt', openaiApiKey: 'only-copy' })
+    );
+    assert.equal(await migratePlaintextCredentialsToVault(), false);
+    assert.ok(rawStored().includes('only-copy'), 'the only copy of the key must survive');
   });
 });

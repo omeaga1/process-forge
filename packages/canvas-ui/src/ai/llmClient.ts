@@ -13,6 +13,12 @@ export interface LlmCredentials {
   claudeApiKey?: string;
   openaiApiKey?: string;
   ollamaEndpoint?: string;
+  /**
+   * Desktop only: which key fields are held in the OS keychain. Lets
+   * synchronous code know a key EXISTS without the key itself being in
+   * localStorage. The value is loaded with loadLlmCredentials().
+   */
+  vaulted?: ('geminiApiKey' | 'claudeApiKey' | 'openaiApiKey')[];
 }
 
 export interface LlmChatMessage {
