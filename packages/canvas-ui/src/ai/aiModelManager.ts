@@ -94,7 +94,7 @@ export const CONNECTION_METADATA: Record<
 > = {
   gemini: {
     name: 'Google Gemini',
-    badgeName: 'Gemini 3.6',
+    badgeName: 'Gemini',
     description: 'Direct browser connection using your Google AI Studio subscription / API key.',
     isOnline: true
   },
@@ -182,25 +182,39 @@ function withoutSecrets(creds: LlmCredentials): LlmCredentials {
 
 export function getLlmCredentials(): LlmCredentials {
   if (typeof window === 'undefined' || !window.localStorage) {
-    return { provider: 'gemini', modelId: 'gemini-3.6-flash' };
+    return { provider: 'gemini', modelId: 'gemini-2.5-flash' };
   }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY_LLM_CREDS);
     if (raw) {
       const parsed = JSON.parse(raw) as LlmCredentials;
-      if (
-        parsed.provider === 'gemini' &&
-        (!parsed.modelId ||
-          parsed.modelId === 'gemini-2.0-flash' ||
-          parsed.modelId === 'gemini-1.5-flash' ||
-          parsed.modelId === 'gemini-1.5-pro')
-      ) {
-        parsed.modelId = 'gemini-3.6-flash';
+      // Migrate stored model ids that no longer exist. gemini-3.6-flash and
+      // gemini-3.8-flash were never real models; they were the app-wide default
+      // AND the migration target, so a user with a valid legacy id had it
+      // rewritten into a fictional one. Retired Gemini ids move to the current
+      // flash model; the fictional ones move there too.
+      const RETIRED_GEMINI = new Set([
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+        'gemini-3.6-flash',
+        'gemini-3.8-flash'
+      ]);
+      const RETIRED_CLAUDE = new Set([
+        'claude-3-7-sonnet-latest',
+        'claude-3-5-haiku-latest',
+        'claude-3-opus-latest'
+      ]);
+      if (parsed.provider === 'gemini' && (!parsed.modelId || RETIRED_GEMINI.has(parsed.modelId))) {
+        parsed.modelId = 'gemini-2.5-flash';
+      }
+      if (parsed.provider === 'claude' && (!parsed.modelId || RETIRED_CLAUDE.has(parsed.modelId))) {
+        parsed.modelId = 'claude-opus-5';
       }
       return parsed;
     }
   } catch (e) {}
-  return { provider: 'gemini', modelId: 'gemini-3.6-flash' };
+  return { provider: 'gemini', modelId: 'gemini-2.5-flash' };
 }
 
 export function saveLlmCredentials(creds: Partial<LlmCredentials>): LlmCredentials {

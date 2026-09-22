@@ -16,7 +16,7 @@ import '@xyflow/react/dist/style.css';
 import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus } from 'lucide-react';
 
 import { validateProcessGraph, type ProcessGraph, type ProcessNode, type ProcessEdge } from '@process-forge/protocol';
-import { SimulationEngine } from '@process-forge/simulation-core';
+import { SimulationEngine, type SimulationResult, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 
 import { IndustrialNode } from './nodes/IndustrialNode.js';
 import { AnimatedStreamEdge } from './edges/AnimatedStreamEdge.js';
@@ -112,12 +112,45 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     totalPackaged: 0,
     totalScrapped: 0,
     averageRatePerMin: 0,
-    activeBottleneck: 'labeler-500',
+    activeBottleneck: null,
     diagnostics: [],
     bottlenecks: validateProcessGraph(graph).bottlenecks
   }));
 
   const animTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  /**
+   * The engine's own result, and a playhead into the telemetry it recorded.
+   *
+   * Playback replays what the engine computed. It previously animated a random
+   * walk -- `Math.floor(Math.random() * 3) + 2` units per tick with a rate
+   * pinned to `35 * simSpeed` -- which overwrote the real result within one
+   * interval and drifted further from it every tick. Per-node values were
+   * constants keyed to one demo graph's node ids, so every other flowsheet
+   * displayed another line's numbers.
+   *
+   * Nothing on this canvas is invented now: every figure comes from
+   * SimulationResult.
+   */
+  const [simResult, setSimResult] = useState<SimulationResult | null>(null);
+  const [playheadIndex, setPlayheadIndex] = useState(0);
+
+  /** Distinct sample times in the recorded telemetry, ascending. */
+  const sampleTimes = useMemo(() => {
+    if (!simResult) return [] as number[];
+    return [...new Set(simResult.telemetryLog.map((t) => t.timeSeconds))].sort((a, b) => a - b);
+  }, [simResult]);
+
+  /** Every node's recorded state at the current playhead. */
+  const snapshotByNode = useMemo(() => {
+    const map = new Map<string, NodeTelemetrySnapshot>();
+    if (!simResult || sampleTimes.length === 0) return map;
+    const t = sampleTimes[Math.min(playheadIndex, sampleTimes.length - 1)];
+    for (const entry of simResult.telemetryLog) {
+      if (entry.timeSeconds === t) map.set(entry.nodeId, entry);
+    }
+    return map;
+  }, [simResult, sampleTimes, playheadIndex]);
 
   const [nodes, setNodes] = useState<Node[]>(() =>
     graph.nodes.map((pNode) => ({
@@ -129,8 +162,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         state: 'IDLE',
         unitsProduced: 0,
         unitsScrapped: 0,
-        bufferLevel: pNode.id === 'conveyor-400' ? 38 : 0,
-        instantaneousRate: pNode.id === 'labeler-500' ? 35 : 45,
+        bufferLevel: 0,
+        instantaneousRate: 0,
         activeSubAgentId: pNode.assignedSubAgentId || `subagent-${pNode.id}`,
         subAgentChatHistory: [],
         onOpenPopOutStudio: (id: string) => setPopOutNodeId(id)
@@ -166,11 +199,11 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           position,
           data: {
             processNode: pNode,
-            state: isRunning ? 'BUSY' : 'IDLE',
-            unitsProduced: pNode.id === 'palletizer-600' ? telemetry.totalPackaged : telemetry.totalPackaged + 40,
-            unitsScrapped: 0,
-            bufferLevel: pNode.id === 'conveyor-400' ? (isRunning ? 38 : 0) : 0,
-            instantaneousRate: isRunning ? (pNode.id === 'labeler-500' ? 35 : 45) : 0,
+            state: snapshotByNode.get(pNode.id)?.state ?? 'IDLE',
+            unitsProduced: snapshotByNode.get(pNode.id)?.unitsProduced ?? 0,
+            unitsScrapped: snapshotByNode.get(pNode.id)?.unitsScrapped ?? 0,
+            bufferLevel: snapshotByNode.get(pNode.id)?.bufferLevel ?? 0,
+            instantaneousRate: snapshotByNode.get(pNode.id)?.instantaneousRatePerMin ?? 0,
             activeSubAgentId: pNode.assignedSubAgentId || `subagent-${pNode.id}`,
             subAgentChatHistory: [],
             onOpenPopOutStudio: (id: string) => setPopOutNodeId(id)
@@ -189,8 +222,10 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         type: 'animatedStreamEdge',
         data: {
           processEdge: pEdge,
-          isBackpressureBlocked: isRunning && pEdge.id === 'e-filler-conveyor',
-          activeFlowRate: 45
+          // Blocked upstream is a real state the engine reports, not a
+          // decoration pinned to one demo edge.
+          isBackpressureBlocked: snapshotByNode.get(pEdge.sourceNodeId)?.state === 'BLOCKED',
+          activeFlowRate: snapshotByNode.get(pEdge.sourceNodeId)?.instantaneousRatePerMin ?? 0
         } satisfies CanvasEdgeData
       }))
     );
@@ -205,10 +240,11 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           ...n,
           data: {
             ...n.data,
-            state: isRunning ? 'BUSY' : 'IDLE',
-            unitsProduced: pNode.id === 'palletizer-600' ? telemetry.totalPackaged : telemetry.totalPackaged + 40,
-            bufferLevel: pNode.id === 'conveyor-400' ? (isRunning ? 38 : 0) : 0,
-            instantaneousRate: isRunning ? (pNode.id === 'labeler-500' ? 35 : 45) : 0
+            state: snapshotByNode.get(pNode.id)?.state ?? 'IDLE',
+            unitsProduced: snapshotByNode.get(pNode.id)?.unitsProduced ?? 0,
+            unitsScrapped: snapshotByNode.get(pNode.id)?.unitsScrapped ?? 0,
+            bufferLevel: snapshotByNode.get(pNode.id)?.bufferLevel ?? 0,
+            instantaneousRate: snapshotByNode.get(pNode.id)?.instantaneousRatePerMin ?? 0
           }
         };
       })
@@ -219,11 +255,16 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         ...e,
         data: {
           ...e.data,
-          isBackpressureBlocked: isRunning && e.id === 'e-filler-conveyor'
+          isBackpressureBlocked:
+            snapshotByNode.get((e.data as CanvasEdgeData).processEdge.sourceNodeId)?.state ===
+            'BLOCKED',
+          activeFlowRate:
+            snapshotByNode.get((e.data as CanvasEdgeData).processEdge.sourceNodeId)
+              ?.instantaneousRatePerMin ?? 0
         }
       }))
     );
-  }, [telemetry.totalPackaged, isRunning]);
+  }, [snapshotByNode, isRunning]);
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
@@ -305,17 +346,11 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   useEffect(() => {
     if (isRunning) {
       const intervalMs = Math.max(200, Math.round(1000 / simSpeed));
+      // Advance the playhead through the engine's recorded samples. simSpeed
+      // changes how fast the recording is replayed; it does not change the
+      // numbers, because the run already happened.
       animTimerRef.current = setInterval(() => {
-        setTelemetry((prev) => {
-          const added = Math.floor(Math.random() * 3) + 2;
-          const newTotal = prev.totalPackaged + added * simSpeed;
-          return {
-            ...prev,
-            simulatedTimeSeconds: prev.simulatedTimeSeconds + 5 * simSpeed,
-            totalPackaged: newTotal,
-            averageRatePerMin: Math.min(120, 35 * simSpeed)
-          };
-        });
+        setPlayheadIndex((i) => (sampleTimes.length === 0 ? 0 : Math.min(i + 1, sampleTimes.length - 1)));
       }, intervalMs);
     } else {
       if (animTimerRef.current) {
@@ -333,6 +368,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       const sim = new SimulationEngine(graph);
       const res = sim.run(30); // 30 minutes
       const validation = validateProcessGraph(graph);
+      setSimResult(res);
+      setPlayheadIndex(0);
 
       setTelemetry({
         simulatedTimeSeconds: res.simulatedTimeSeconds,
@@ -356,10 +393,12 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       totalPackaged: 0,
       totalScrapped: 0,
       averageRatePerMin: 0,
-      activeBottleneck: 'labeler-500',
+      activeBottleneck: null,
       diagnostics: [],
       bottlenecks: validateProcessGraph(graph).bottlenecks
     });
+    setSimResult(null);
+    setPlayheadIndex(0);
   };
 
   const handleInsertNodeFromForgeHub = (newNode: ProcessNode) => {
@@ -586,7 +625,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
               <span style={{ color: OsakaJadePalette.text.muted, fontSize: 10, fontWeight: 600 }}>RATE</span>
               <span style={{ color: OsakaJadePalette.text.primary, fontFamily: 'monospace', fontWeight: 600 }}>
-                {telemetry.averageRatePerMin || 35} CPM
+                {Math.round(telemetry.averageRatePerMin)} CPM
               </span>
             </span>
 
