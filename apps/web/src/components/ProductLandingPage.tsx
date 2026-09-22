@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { fetchLatestInstaller, RELEASES_PAGE, formatSize, type DesktopOs } from '../downloads/latestRelease.js';
 import { OsakaJadePalette } from '@process-forge/theme';
 import {
   ReactorAnim,
@@ -104,7 +105,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
     name: 'Windows',
     os: 'windows',
     extension: '.exe',
-    downloadUrl: '/ProcessForge-Setup-x64.exe',
+    downloadUrl: RELEASES_PAGE,
     fileLabel: 'Windows Installer (64-bit .exe)'
   });
 
@@ -124,7 +125,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
         name: 'macOS',
         os: 'macos',
         extension: '.dmg',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_aarch64.dmg',
+        downloadUrl: RELEASES_PAGE,
         fileLabel: 'macOS Installer (.dmg)'
       });
     } else if (platformStr.includes('linux') || userAgent.includes('linux')) {
@@ -132,11 +133,32 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
         name: 'Linux',
         os: 'linux',
         extension: '.AppImage',
-        downloadUrl: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_amd64.AppImage',
+        downloadUrl: RELEASES_PAGE,
         fileLabel: 'Linux AppImage (.AppImage)'
       });
     }
   }, []);
+
+  // Resolve the actual installer for this platform from the latest GitHub
+  // release. Until it answers, the button points at the releases page, which is
+  // never wrong. Nothing here is version-pinned: the previous page shipped a
+  // committed v0.1.3 binary that panicked on startup and was superseded the
+  // next day, and hardcoded v0.1.3 URLs for macOS and Linux.
+  useEffect(() => {
+    let cancelled = false;
+    void fetchLatestInstaller(platform.os === 'unknown' ? 'windows' : (platform.os as DesktopOs))
+      .then((found) => {
+        if (cancelled || !found) return;
+        setPlatform((prev) => ({
+          ...prev,
+          downloadUrl: found.url,
+          fileLabel: `${prev.fileLabel} — ${found.version} · ${formatSize(found.sizeBytes)}`
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [platform.os]);
 
   // Auto-advance tutorial steps
   useEffect(() => {
@@ -234,7 +256,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
                 border: `1px solid ${OsakaJadePalette.jade[700]}`
               }}
             >
-              v0.1.3
+              Desktop
             </span>
           </div>
         </div>
@@ -411,7 +433,7 @@ gemini mcp add process-forge -- npx -y @process-forge/mcp-server`;
             {/* Primary Action: Download Native Desktop App */}
             <a
               href={platform.downloadUrl}
-              download={platform.os === 'windows' ? 'ProcessForge-Setup-x64.exe' : undefined}
+              rel="noopener noreferrer"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1149,12 +1171,12 @@ Describe equipment we never shipped a model for. A sub-agent writes it as a decl
               GitHub
             </a>
             <a
-              href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.3"
+              href={RELEASES_PAGE}
               target="_blank"
               rel="noreferrer"
               style={{ color: OsakaJadePalette.text.secondary, textDecoration: 'none' }}
             >
-              Releases (v0.1.3)
+              Releases
             </a>
             <a
               href="https://github.com/omeaga1/process-forge/blob/main/LICENSE"
@@ -1202,7 +1224,7 @@ Describe equipment we never shipped a model for. A sub-agent writes it as a decl
                   <Download size={18} color={OsakaJadePalette.jade[400]} /> ProcessForge Desktop Downloads
                 </h3>
                 <span style={{ fontSize: '0.78rem', color: OsakaJadePalette.text.muted }}>
-                  Official Release v0.1.3 &bull; Native 64-bit binaries
+                  Latest release &bull; Native 64-bit binaries
                 </span>
               </div>
               <button
@@ -1217,43 +1239,37 @@ Describe equipment we never shipped a model for. A sub-agent writes it as a decl
               {[
                 {
                   label: 'Windows Setup Installer (.exe)',
-                  url: '/ProcessForge-Setup-x64.exe',
-                  download: 'ProcessForge-Setup-x64.exe',
+                  url: RELEASES_PAGE,
                   tag: 'Recommended (Windows)',
                   sub: 'Native NSIS 64-bit installer with automatic updates'
                 },
                 {
                   label: 'Windows MSI Enterprise Package (.msi)',
-                  url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_x64_en-US.msi',
-                  download: 'ProcessForge_0.1.3_x64_en-US.msi',
+                  url: RELEASES_PAGE,
                   tag: 'Enterprise MSI',
                   sub: 'Standard Windows Installer package for managed deployments'
                 },
                 {
                   label: 'Windows Portable Bundle (.zip)',
-                  url: '/process-forge-windows-portable-x64.zip',
-                  download: 'process-forge-windows-portable-x64.zip',
+                  url: RELEASES_PAGE,
                   tag: 'Zero Install',
                   sub: 'Standalone executable archive — runs without administrative installation'
                 },
                 {
                   label: 'macOS Disk Image (.dmg)',
-                  url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_aarch64.dmg',
-                  download: 'ProcessForge_0.1.3_aarch64.dmg',
+                  url: RELEASES_PAGE,
                   tag: 'macOS Apple Silicon',
                   sub: 'Apple Silicon (M1/M2/M3/M4) native universal app'
                 },
                 {
                   label: 'Linux AppImage (.AppImage)',
-                  url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_amd64.AppImage',
-                  download: 'ProcessForge_0.1.3_amd64.AppImage',
+                  url: RELEASES_PAGE,
                   tag: 'Linux Standalone',
                   sub: 'Compatible with Ubuntu, Debian, Fedora, Arch Linux'
                 },
                 {
                   label: 'Linux Debian Package (.deb)',
-                  url: 'https://github.com/omeaga1/process-forge/releases/download/v0.1.3/ProcessForge_0.1.3_amd64.deb',
-                  download: 'ProcessForge_0.1.3_amd64.deb',
+                  url: RELEASES_PAGE,
                   tag: 'Ubuntu / Debian',
                   sub: 'Native Debian package with apt integration'
                 }
@@ -1261,9 +1277,8 @@ Describe equipment we never shipped a model for. A sub-agent writes it as a decl
                 <a
                   key={item.label}
                   href={item.url}
-                  download={item.download}
-                  target={item.url.startsWith('http') ? '_blank' : undefined}
-                  rel="noreferrer"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
