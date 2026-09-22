@@ -153,6 +153,33 @@ describe('Seam 4: which drawing template?', () => {
   });
 });
 
+describe('Evidence is presence, not keyword count', () => {
+  it('a multi-word name does not outweigh a single-word one', async () => {
+    // "surge tank" matches two keywords; "pump" matches one. Counting them made
+    // this 2:1, which cleared the threshold and silently picked the tank.
+    const a = await heuristicProvider.ask(
+      { message: 'add a surge tank and a pump' },
+      { q: equipmentKind }
+    );
+    assert.ok(!isActionable(a.q), `picked ${a.q.value} at ${a.q.confidence.toFixed(2)}`);
+    assert.deepEqual(runnersUp(a.q).sort(), ['PUMP', 'SURGE_TANK']);
+  });
+
+  it('the template question is not swayed by synonyms piling up', async () => {
+    const a = await heuristicProvider.ask(
+      { message: 'distillation fractionation column feeding a cyclone' },
+      { q: templateFamily }
+    );
+    assert.ok(!isActionable(a.q), 'three column synonyms against one cyclone is still two families');
+  });
+
+  it('matches whole words, so stems are not silently dead', async () => {
+    const a = await heuristicProvider.ask({ message: 'a fractionator' }, { q: templateFamily });
+    assert.equal(a.q.value, 'column');
+    assert.ok(isActionable(a.q));
+  });
+});
+
 describe('Thresholding', () => {
   it('the default sits above a two-way tie', () => {
     assert.ok(DEFAULT_CONFIDENCE_THRESHOLD > 0.5, 'a coin toss must not be actionable');

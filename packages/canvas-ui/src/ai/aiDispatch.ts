@@ -13,7 +13,11 @@ import {
   synthesizeEquipmentDrawing,
   heuristicProvider as decisions,
   isDrawingRequest,
+  isCreationRequest,
+  equipmentKind,
   isActionable,
+  hasSignal,
+  runnersUp,
   type EquipmentCadDrawing
 } from '@process-forge/protocol';
 import { createDefaultProcessNode } from '../utils/nodeFactory.js';
@@ -27,6 +31,59 @@ export interface AiAgentResponse {
   proposedConfigUpdate?: Record<string, unknown> | null;
   errorNotice?: string;
   createdNode?: ProcessNode;
+  /**
+   * Set instead of `createdNode` when the request named more than one kind of
+   * equipment and the decision was too close to act on. The dispatcher has
+   * never had this outcome before: the ladder it replaces always picked
+   * whichever branch it tested first, so "add a reactor with a feed pump"
+   * silently became a pump. Now the engineer is asked.
+   */
+  clarification?: KindClarification;
+}
+
+/** A question back to the engineer when a creation request is ambiguous. */
+export interface KindClarification {
+  question: string;
+  options: {
+    kind: NodeKind;
+    label: string;
+    /** Default tag-style name the node is created with if this option is chosen. */
+    name: string;
+    probability: number;
+  }[];
+  /** Carried through so the chosen node is created with what was asked for. */
+  flowRateGpm?: number;
+}
+
+/** Default names, as the ladder assigned them. */
+const DEFAULT_NODE_NAMES: Partial<Record<NodeKind, string>> = {
+  PUMP: 'Centrifugal Pump P-003',
+  BATCH_REACTOR: 'Batch Reactor R-101',
+  SURGE_TANK: 'Surge Buffer Tank T-200',
+  HEAT_EXCHANGER: 'Shell & Tube Exchanger E-100',
+  SEPARATOR: 'Flash Separation Drum V-100',
+  DISTILLATION_COLUMN: 'Distillation Column C-100',
+  ROTARY_FILLER: 'Rotary Container Filler F-300',
+  CONVEYOR: 'Accumulation Conveyor CV-400',
+  LABELER: 'High-Speed Labeler L-500',
+  PALLETIZER: 'Automated Palletizer PZ-600'
+};
+
+const KIND_LABELS: Partial<Record<NodeKind, string>> = {
+  PUMP: 'a pump',
+  BATCH_REACTOR: 'a batch reactor',
+  SURGE_TANK: 'a surge tank',
+  HEAT_EXCHANGER: 'a heat exchanger',
+  SEPARATOR: 'a separator',
+  DISTILLATION_COLUMN: 'a distillation column',
+  ROTARY_FILLER: 'a rotary filler',
+  CONVEYOR: 'a conveyor',
+  LABELER: 'a labeler',
+  PALLETIZER: 'a palletizer'
+};
+
+export function defaultNodeName(kind: NodeKind): string | undefined {
+  return DEFAULT_NODE_NAMES[kind];
 }
 
 export interface UnitOpContext {
@@ -245,12 +302,35 @@ export async function dispatchMasterOrchestratorMessage(
   }
 
   // 1. Offline Mode
+  //
+  // This used to refuse every message, including "add a pump" -- which needs no
+  // model at all. Offline is the DEFAULT with no key configured, so the product
+  // claimed "100% offline and local execution" while declining to place a
+  // standard pump without a connection. Adding catalogue equipment is decided by
+  // the declared questions in protocol/decisions, which run offline with no
+  // network and no key; only genuinely generative work needs a model.
   if (mode === 'offline') {
+    const { createdNode, clarification } = await parseUnitOpToolCall('', message);
+    if (clarification) {
+      return {
+        text: clarification.question,
+        senderBadge: 'Offline (Local Only)',
+        isOfflineSolver: true,
+        clarification
+      };
+    }
+    if (createdNode) {
+      return {
+        text: `Added ${createdNode.name} (${createdNode.kind.replace(/_/g, ' ').toLowerCase()}) with default sizing.`,
+        senderBadge: 'Offline (Local Only)',
+        isOfflineSolver: true,
+        createdNode
+      };
+    }
     return {
-      text: `Flowsheet Engine is in local offline mode for "${ctx.graphName}". Connect via MCP or OAuth to generate new unit operations or run cloud simulations.`,
+      text: `Working offline on "${ctx.graphName}". Standard equipment can be added from a plain request ("add a surge tank"), and custom unit operations from New Unit Op. Connecting a model via MCP or an API key adds free-form engineering advice.`,
       senderBadge: 'Offline (Local Only)',
-      isOfflineSolver: true,
-      errorNotice: 'Flowsheet Engine offline.'
+      isOfflineSolver: true
     };
   }
 
@@ -285,7 +365,16 @@ export async function dispatchMasterOrchestratorMessage(
 
   // 4. Direct LLM Provider (Offline Heuristic / Solver Fallback)
   if (!hasValidCredentials(creds)) {
-    const { createdNode } = parseUnitOpToolCall('', message);
+    const { createdNode, clarification } = await parseUnitOpToolCall('', message);
+
+    if (clarification) {
+      return {
+        text: clarification.question,
+        senderBadge: 'Offline Solver',
+        isOfflineSolver: true,
+        clarification
+      };
+    }
 
     if (createdNode) {
       return {
@@ -345,12 +434,13 @@ Be concise, technical, and executive-ready.`;
 
   try {
     const res = await callLlmModel(creds, [{ role: 'user', content: message }], systemPrompt);
-    const { cleanText, createdNode } = parseUnitOpToolCall(res.text, message);
+    const { cleanText, createdNode, clarification } = await parseUnitOpToolCall(res.text, message);
     return {
-      text: cleanText,
+      text: clarification ? `${cleanText}\n\n${clarification.question}`.trim() : cleanText,
       senderBadge: `${creds.provider.toUpperCase()} (${res.model})`,
       isOfflineSolver: false,
-      createdNode
+      createdNode,
+      ...(clarification ? { clarification } : {})
     };
   } catch (err: any) {
     return {
@@ -366,12 +456,13 @@ Be concise, technical, and executive-ready.`;
  * Parses tool calls (e.g. ADD_UNIT_OP) emitted by the Master Orchestrator,
  * with fallback heuristic extraction if the model used conversational phrasing.
  */
-export function parseUnitOpToolCall(
+export async function parseUnitOpToolCall(
   responseText: string,
   userMessage: string
-): { cleanText: string; createdNode?: ProcessNode } {
+): Promise<{ cleanText: string; createdNode?: ProcessNode; clarification?: KindClarification }> {
   let cleanText = responseText;
   let createdNode: ProcessNode | undefined;
+  let clarification: KindClarification | undefined;
 
   // 1. Explicit JSON tool call block: ```json:tool_call { ... } ``` or ```json { "action": "ADD_UNIT_OP" ... } ```
   const toolCallRegex = /```(?:json:tool_call|json)\s*([\s\S]*?)\s*```/gi;
@@ -398,69 +489,61 @@ export function parseUnitOpToolCall(
     }
   }
 
-  // 2. Heuristic fallback: If user asked to add/make a unit or the model confirmed adding a unit
+  // 2. No explicit tool call. Decide from the conversation.
+  //
+  // This was two first-match ladders (plan 0001 sections 2.2 and 2.4). Creation
+  // intent fired on a bare 'add' or 'make' anywhere in the message, so "how do
+  // I add a surge tank?" created one. Kind detection tested 'pump' before
+  // 'reactor', so "add a reactor with a feed pump" silently became a pump.
+  //
+  // Both are now declared questions with fixtures, asked together in one call
+  // -- the batch shape the real decision-model API uses.
   if (!createdNode) {
-    const lowerUser = userMessage.toLowerCase();
-    const lowerResp = responseText.toLowerCase();
+    const answers = await decisions.ask(
+      { message: userMessage, response: responseText },
+      { create: isCreationRequest, kind: equipmentKind }
+    );
 
-    const isCreationIntent =
-      lowerUser.includes('add') ||
-      lowerUser.includes('create') ||
-      lowerUser.includes('make') ||
-      lowerUser.includes('put a') ||
-      lowerUser.includes('want a') ||
-      lowerUser.includes('want to make') ||
-      lowerUser.includes('pumping') ||
-      lowerResp.includes('unit operation added') ||
-      lowerResp.includes('flowsheet update summary');
+    // A model that has already confirmed an add is evidence of creation in its
+    // own right; the engineer may have said something vague that the model
+    // correctly interpreted.
+    const modelConfirmedAdd = /unit operation added|flowsheet update summary/i.test(responseText);
+    const wantsCreate =
+      modelConfirmedAdd || (answers.create.value > 0.5 && isActionable(answers.create));
 
-    if (isCreationIntent) {
-      let detectedKind: NodeKind | null = null;
-      let detectedName: string | undefined;
+    // No kind signal at all means there is nothing to create and nothing
+    // worth asking about -- the ladder's fall-through, preserved.
+    if (wantsCreate && hasSignal(answers.kind)) {
+      const flowMatch = (userMessage + ' ' + responseText).match(
+        /(\d+(?:\.\d+)?)\s*(?:gpm|gal\/min|gallons per minute)/i
+      );
+      const flowRateGpm = flowMatch ? parseFloat(flowMatch[1]!) : undefined;
 
-      if (lowerUser.includes('pump') || lowerResp.includes('pump')) {
-        detectedKind = 'PUMP';
-        detectedName = 'Centrifugal Pump P-003';
-      } else if (lowerUser.includes('reactor') || lowerUser.includes('cstr') || lowerResp.includes('reactor')) {
-        detectedKind = 'BATCH_REACTOR';
-        detectedName = 'Batch Reactor R-101';
-      } else if (lowerUser.includes('tank') || lowerUser.includes('surge') || lowerResp.includes('surge tank')) {
-        detectedKind = 'SURGE_TANK';
-        detectedName = 'Surge Buffer Tank T-200';
-      } else if (lowerUser.includes('heat exchanger') || lowerUser.includes('exchanger') || lowerResp.includes('exchanger')) {
-        detectedKind = 'HEAT_EXCHANGER';
-        detectedName = 'Shell & Tube Exchanger E-100';
-      } else if (lowerUser.includes('separator') || lowerResp.includes('separator')) {
-        detectedKind = 'SEPARATOR';
-        detectedName = 'Flash Separation Drum V-100';
-      } else if (lowerUser.includes('filler') || lowerResp.includes('rotary filler')) {
-        detectedKind = 'ROTARY_FILLER';
-        detectedName = 'Rotary Container Filler F-300';
-      } else if (lowerUser.includes('conveyor') || lowerResp.includes('conveyor')) {
-        detectedKind = 'CONVEYOR';
-        detectedName = 'Accumulation Conveyor CV-400';
-      } else if (lowerUser.includes('labeler') || lowerResp.includes('labeler')) {
-        detectedKind = 'LABELER';
-        detectedName = 'High-Speed Labeler L-500';
-      } else if (lowerUser.includes('palletizer') || lowerResp.includes('palletizer')) {
-        detectedKind = 'PALLETIZER';
-        detectedName = 'Automated Palletizer PZ-600';
-      }
-
-      if (detectedKind) {
-        // Extract flow rate in GPM if specified
-        const flowMatch = (userMessage + ' ' + responseText).match(/(\d+(?:\.\d+)?)\s*(?:gpm|gal\/min|gallons per minute)/i);
-        const flowRateGpm = flowMatch ? parseFloat(flowMatch[1]!) : undefined;
-
-        createdNode = createDefaultProcessNode(detectedKind, {
-          name: detectedName,
+      if (isActionable(answers.kind)) {
+        const kind = answers.kind.value as NodeKind;
+        createdNode = createDefaultProcessNode(kind, {
+          name: DEFAULT_NODE_NAMES[kind],
           flowRateGpm
         });
+      } else {
+        // Signal, but split. Ask rather than guess.
+        const candidates = runnersUp(answers.kind, 3) as NodeKind[];
+        const options = candidates.map((kind) => ({
+          kind,
+          label: KIND_LABELS[kind] ?? kind.replace(/_/g, ' ').toLowerCase(),
+          name: DEFAULT_NODE_NAMES[kind] ?? kind.replace(/_/g, ' '),
+          probability: answers.kind.probabilities[kind as keyof typeof answers.kind.probabilities] ?? 0
+        }));
+        clarification = {
+          question: `That names ${options.map((o) => o.label).join(' and ')}. Which should I add?`,
+          options,
+          ...(flowRateGpm !== undefined ? { flowRateGpm } : {})
+        };
       }
     }
   }
 
-  return { cleanText, createdNode };
+  return { cleanText, createdNode, clarification };
 }
 
 

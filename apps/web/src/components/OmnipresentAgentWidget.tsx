@@ -14,22 +14,31 @@ import {
   getLlmCredentials,
   hasValidCredentials,
   dispatchMasterOrchestratorMessage,
+  createDefaultProcessNode,
   type ChatMessage
 } from '@process-forge/canvas-ui';
-import type { SimulationProject } from '@process-forge/protocol';
+import type { SimulationProject, ProcessNode } from '@process-forge/protocol';
+import { draftingRadius } from '@process-forge/theme';
 
 interface OmnipresentAgentWidgetProps {
   currentProject: SimulationProject;
   onOpenStudio?: () => void;
   onOpenAiModal: () => void;
   isInStudioView?: boolean;
+  /**
+   * Places a node on the flowsheet. Without this the widget could only DESCRIBE
+   * a placement: it used to reply "Instantiated Centrifugal Pump P-003 on
+   * flowsheet canvas" and never read res.createdNode, so nothing was placed.
+   */
+  onAddNode?: (node: ProcessNode) => void;
 }
 
 export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
   currentProject,
   onOpenStudio,
   onOpenAiModal,
-  isInStudioView = false
+  isInStudioView = false,
+  onAddNode
 }) => {
   const { palette } = useTheme();
   const OsakaJadePalette = palette;
@@ -56,6 +65,34 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
 
   const hasKey = hasValidCredentials(creds);
 
+  /**
+   * The engineer picked one of the options offered for an ambiguous request.
+   * Create exactly that, and clear the question so it cannot be answered twice.
+   */
+  const resolveClarification = (
+    messageId: string,
+    option: NonNullable<ChatMessage['clarification']>['options'][number],
+    flowRateGpm?: number
+  ) => {
+    const node = createDefaultProcessNode(option.kind, {
+      name: option.name,
+      ...(flowRateGpm !== undefined ? { flowRateGpm } : {})
+    });
+    onAddNode?.(node);
+    setMessages((prev) => [
+      ...prev.map((m) => (m.id === messageId ? { ...m, clarification: undefined } : m)),
+      {
+        id: `agent-${Date.now()}`,
+        sender: 'master_orchestrator',
+        senderTitle: 'Plant Orchestrator',
+        text: `Added ${option.name}.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        modelBadge: 'Engineer choice',
+        createdNode: node
+      }
+    ]);
+  };
+
   const handleSendMessage = async (customPrompt?: string) => {
     const text = customPrompt || inputText;
     if (!text.trim() || isProcessing) return;
@@ -80,13 +117,19 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
         averageRatePerMin: 0
       });
 
+      if (res.createdNode) {
+        onAddNode?.(res.createdNode);
+      }
+
       const agentMsg: ChatMessage = {
         id: `agent-${Date.now()}`,
         sender: 'master_orchestrator',
         senderTitle: 'Plant Orchestrator',
         text: res.text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        modelBadge: res.senderBadge
+        modelBadge: res.senderBadge,
+        ...(res.createdNode ? { createdNode: res.createdNode } : {}),
+        ...(res.clarification ? { clarification: res.clarification } : {})
       };
 
       setMessages((prev) => [...prev, agentMsg]);
@@ -317,6 +360,33 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
                     )}
                   </div>
                   <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
+                  {m.clarification && (
+                    <div
+                      role="group"
+                      aria-label="Which equipment should be added?"
+                      style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}
+                    >
+                      {m.clarification.options.map((option) => (
+                        <button
+                          key={option.kind}
+                          onClick={() => resolveClarification(m.id, option, m.clarification?.flowRateGpm)}
+                          title={`Add ${option.name}`}
+                          style={{
+                            padding: '4px 9px',
+                            borderRadius: draftingRadius.soft,
+                            backgroundColor: 'transparent',
+                            color: OsakaJadePalette.text.primary,
+                            border: `1px solid ${OsakaJadePalette.border.default}`,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Add {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}

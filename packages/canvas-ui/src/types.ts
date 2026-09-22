@@ -19,6 +19,15 @@ export interface ChatMessage {
   modelBadge?: string;
   isOffline?: boolean;
   createdNode?: ProcessNode;
+  /**
+   * An unresolved choice the engineer is being asked to make. Cleared once they
+   * pick an option, so the same question cannot be answered twice.
+   */
+  clarification?: {
+    question: string;
+    options: { kind: ProcessNode['kind']; label: string; name: string; probability: number }[];
+    flowRateGpm?: number;
+  };
 }
 
 export interface CanvasNodeData extends Record<string, unknown> {

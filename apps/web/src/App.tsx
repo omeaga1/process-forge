@@ -389,6 +389,7 @@ const AppInner: React.FC = () => {
           isInStudioView={false}
           onOpenStudio={handleOpenStudio}
           onOpenAiModal={() => setIsAiModalOpen(true)}
+          onAddNode={handleInsertCommunityNode}
         />
       )}
 
