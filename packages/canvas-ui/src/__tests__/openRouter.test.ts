@@ -18,7 +18,8 @@ import {
   hasValidCredentials,
   DEFAULT_PROVIDER_MODELS
 } from '../ai/aiModelManager.js';
-import { callLlmModel } from '../ai/llmClient.js';
+import { callLlmModel, openRouterErrorMessage } from '../ai/llmClient.js';
+import { purgeAllCredentials } from '../ai/aiModelManager.js';
 
 function makeStorage() {
   const map = new Map<string, string>();
@@ -133,6 +134,51 @@ describe('OpenRouter provider', () => {
   it('offers a default that is in its own list', () => {
     const p = DEFAULT_PROVIDER_MODELS.openrouter;
     assert.ok(p.models.some((m) => m.id === p.defaultModel));
+  });
+});
+
+describe('OpenRouter errors, said plainly', () => {
+  it('tells a new account how to get going when it has no credit', () => {
+    assert.match(openRouterErrorMessage(402), /credit/);
+    assert.match(openRouterErrorMessage(402), /Free models/);
+  });
+  it('points a revoked key at signing in again', () => {
+    assert.match(openRouterErrorMessage(401), /sign in with OpenRouter again/);
+  });
+  it("keeps OpenRouter's own detail for anything else", () => {
+    assert.equal(openRouterErrorMessage(400, 'Invalid model'), 'Invalid model');
+  });
+  it('surfaces a 402 from a real call as that message', async () => {
+    g.fetch = (async () =>
+      new Response(JSON.stringify({ error: { message: 'Insufficient credits' } }), { status: 402 })) as unknown as typeof fetch;
+    await assert.rejects(
+      callLlmModel({ provider: 'openrouter', modelId: 'anthropic/claude-opus-5.5', openrouterApiKey: 'k' }, [], 's'),
+      /openrouter\.ai\/credits/
+    );
+  });
+  it('offers a free model, so a new account can test without credit', () => {
+    assert.ok(DEFAULT_PROVIDER_MODELS.openrouter.models.some((m) => m.id === 'openrouter/free'));
+  });
+});
+
+describe('Purge all keys', () => {
+  it('removes the OpenRouter key from the keychain too', async () => {
+    const vault = new Map<string, string>([
+      ['com.processforge.studio:openrouter:api_key', 'sk-or'],
+      ['com.processforge.studio:claude:api_key', 'sk-ant']
+    ]);
+    g.window = {
+      localStorage: makeStorage(),
+      __TAURI_INTERNALS__: {
+        invoke: async (cmd: string, a: Record<string, string>) => {
+          const svc = (a.service ?? '').startsWith('com.processforge.studio:') ? a.service : `com.processforge.studio:${a.service}`;
+          if (cmd === 'delete_secure_token') return void vault.delete(`${svc}:${a.account}`);
+          throw new Error(cmd);
+        }
+      }
+    };
+    await purgeAllCredentials();
+    assert.deepEqual([...vault.keys()], []);
   });
 });
 

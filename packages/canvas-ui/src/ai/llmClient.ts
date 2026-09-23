@@ -1,7 +1,9 @@
 /**
- * ProcessForge Multi-Provider LLM Client (Bring-Your-Own-Subscription)
- * Connects directly to Google Gemini, Anthropic Claude, OpenAI, or Local Ollama.
- * Zero middleman servers: your API keys and prompts stay 100% in your browser.
+ * ProcessForge multi-provider LLM client, on the user's own key.
+ * Calls Google Gemini, Anthropic Claude, OpenAI, OpenRouter or a local Ollama
+ * straight from the user's device. No ProcessForge server is in the path; the
+ * key and prompts go only to the provider chosen (OpenRouter then routes to
+ * the model's own provider, under OpenRouter's terms).
  */
 
 export type LlmProvider = 'gemini' | 'claude' | 'openai' | 'ollama' | 'openrouter';
@@ -77,7 +79,9 @@ export const DEFAULT_PROVIDER_MODELS: Record<LlmProvider, { defaultModel: string
       { id: 'google/gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
       { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
       { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick' },
-      { id: 'openrouter/auto', name: 'Auto (OpenRouter picks)' }
+      { id: 'openrouter/auto', name: 'Auto (OpenRouter picks)' },
+      // Needs no credit, so a brand-new account can test the connection.
+      { id: 'openrouter/free', name: 'Free models (rate-limited)' }
     ]
   },
   ollama: {
@@ -96,6 +100,26 @@ export const DEFAULT_PROVIDER_MODELS: Record<LlmProvider, { defaultModel: string
  * and are optional.
  */
 export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+/**
+ * OpenRouter's status codes, said plainly. A new account has no credit (402)
+ * and a key revoked in OpenRouter's settings fails with 401; both are normal
+ * and both need something different from the user.
+ */
+export function openRouterErrorMessage(status: number, detail?: string): string {
+  switch (status) {
+    case 401:
+      return 'OpenRouter rejected the key. It may have been revoked; sign in with OpenRouter again.';
+    case 402:
+      return 'Your OpenRouter account has no credit for this model. Add credit at openrouter.ai/credits, or choose "Free models".';
+    case 403:
+      return `OpenRouter refused this request${detail ? `: ${detail}` : ''}.`;
+    case 429:
+      return 'OpenRouter is rate-limiting this key (free models especially). Wait a minute and try again.';
+    default:
+      return detail || `OpenRouter error (HTTP ${status}).`;
+  }
+}
 function openRouterHeaders(key: string): Record<string, string> {
   return {
     Authorization: `Bearer ${key.trim()}`,
@@ -218,7 +242,7 @@ export async function testLlmConnection(creds: LlmCredentials): Promise<Connecti
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+          throw new Error(openRouterErrorMessage(res.status, errData.error?.message));
         }
         return { ok: true, latencyMs: Math.round(performance.now() - start), modelName: model };
       }
@@ -405,7 +429,7 @@ export async function callLlmModel(
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `OpenRouter error (${res.status})`);
+        throw new Error(openRouterErrorMessage(res.status, err.error?.message));
       }
       const data = await res.json();
       return {

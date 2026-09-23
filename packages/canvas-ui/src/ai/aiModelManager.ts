@@ -1,8 +1,12 @@
 /**
- * ProcessForge AI Connection Manager (ADR-0005 Compliant)
- * Strictly supports Model Context Protocol (MCP) and OAuth 2.0 PKCE.
- * Zero raw API keys: no sk-... or AIza... key inputs are requested or accepted.
- * In Offline mode, users have full access to their created and installed Unit-Ops.
+ * ProcessForge AI connection manager: which assistant route is in use (an AI
+ * provider inside the app, an MCP client, or none) and the provider
+ * credentials.
+ *
+ * Keys are the user's own. On desktop they are stored in the OS keychain and
+ * never in localStorage; in a browser there is no keychain, so localStorage is
+ * the only store (stated in the UI, not hidden). Without any AI, users keep
+ * full access to their created and installed unit ops.
  */
 
 export type AiConnectionMode = 'gemini' | 'claude' | 'openai' | 'ollama' | 'openrouter' | 'mcp' | 'oauth' | 'offline';
@@ -100,13 +104,13 @@ export const CONNECTION_METADATA: Record<
   },
   claude: {
     name: 'Anthropic Claude',
-    badgeName: 'Claude 3.7',
+    badgeName: 'Claude',
     description: 'Direct browser connection using your Anthropic Console subscription / API key.',
     isOnline: true
   },
   openai: {
     name: 'OpenAI',
-    badgeName: 'GPT-4o',
+    badgeName: 'GPT',
     description: 'Direct browser connection using your OpenAI Platform subscription / API key.',
     isOnline: true
   },
@@ -118,7 +122,7 @@ export const CONNECTION_METADATA: Record<
   },
   ollama: {
     name: 'Local Ollama',
-    badgeName: 'Ollama Local',
+    badgeName: 'Ollama',
     description: 'Free, local offline model running on your local machine / GPU.',
     isOnline: true
   },
@@ -126,7 +130,7 @@ export const CONNECTION_METADATA: Record<
     name: 'No Model Connected',
     badgeName: 'No Model',
     description:
-      'Connect your Gemini, Claude, or OpenAI subscription key in Settings to activate live AI engineering agents.',
+      'Sign in with OpenRouter, add a Claude, GPT or Gemini key, or use a local Ollama model, in AI model settings.',
     isOnline: false
   },
   mcp: {
@@ -152,6 +156,7 @@ const STORAGE_KEY = 'pf_ai_connection_state';
 const STORAGE_KEY_LLM_CREDS = 'pf_ai_credentials';
 
 import type { LlmCredentials } from './llmClient.js';
+import { DEFAULT_PROVIDER_MODELS } from './llmClient.js';
 
 /** Credential fields that are secrets and must never reach localStorage on desktop. */
 const SECRET_FIELDS = ['geminiApiKey', 'claudeApiKey', 'openaiApiKey', 'openrouterApiKey'] as const;
@@ -220,11 +225,10 @@ export function getLlmCredentials(): LlmCredentials {
     const raw = window.localStorage.getItem(STORAGE_KEY_LLM_CREDS);
     if (raw) {
       const parsed = JSON.parse(raw) as LlmCredentials;
-      // Migrate stored model ids that no longer exist. gemini-3.6-flash and
-      // gemini-3.8-flash were never real models; they were the app-wide default
-      // AND the migration target, so a user with a valid legacy id had it
-      // rewritten into a fictional one. Retired Gemini ids move to the current
-      // flash model; the fictional ones move there too.
+      // Migrate stored model ids that the provider has retired to the
+      // provider's current default. Only ids known to be retired belong here:
+      // an earlier version also listed real models (gemini-3.6/3.8-flash,
+      // claude-opus-5) and silently switched people off them.
       const RETIRED_GEMINI = new Set([
         'gemini-2.0-flash',
         'gemini-1.5-flash',
@@ -241,7 +245,7 @@ export function getLlmCredentials(): LlmCredentials {
         // one (Claude Opus 5); an earlier change was wrong.
       ]);
       if (parsed.provider === 'gemini' && (!parsed.modelId || RETIRED_GEMINI.has(parsed.modelId))) {
-        parsed.modelId = 'gemini-2.5-flash';
+        parsed.modelId = DEFAULT_PROVIDER_MODELS.gemini.defaultModel;
       }
       if (parsed.provider === 'claude' && (!parsed.modelId || RETIRED_CLAUDE.has(parsed.modelId))) {
         parsed.modelId = 'claude-opus-5-5';
@@ -380,9 +384,9 @@ export async function purgeAllCredentials(): Promise<void> {
       window.localStorage.removeItem(STORAGE_KEY);
     } catch (e) {}
   }
-  await deleteTauriSecureToken('gemini', 'api_key');
-  await deleteTauriSecureToken('claude', 'api_key');
-  await deleteTauriSecureToken('openai', 'api_key');
+  // Every provider secret, from the one list: this used to name three
+  // providers by hand, so a fourth (OpenRouter) survived "purge all keys".
+  for (const field of SECRET_FIELDS) await deleteTauriSecureToken(SECRET_SERVICE[field], 'api_key');
   await deleteTauriSecureToken('oauth', 'token');
   resetToOfflineConfig();
 }
