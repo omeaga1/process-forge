@@ -380,9 +380,9 @@ export async function purgeAllCredentials(): Promise<void> {
       window.localStorage.removeItem(STORAGE_KEY);
     } catch (e) {}
   }
-  await deleteTauriSecureToken('gemini', 'api_key');
-  await deleteTauriSecureToken('claude', 'api_key');
-  await deleteTauriSecureToken('openai', 'api_key');
+  // Every provider secret, from the one list: this used to name three
+  // providers by hand, so a fourth (OpenRouter) survived "purge all keys".
+  for (const field of SECRET_FIELDS) await deleteTauriSecureToken(SECRET_SERVICE[field], 'api_key');
   await deleteTauriSecureToken('oauth', 'token');
   resetToOfflineConfig();
 }

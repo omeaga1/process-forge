@@ -26,6 +26,7 @@ import {
 import { useTheme } from '../../hooks/useTheme.js';
 import {
   getLlmCredentials,
+  loadLlmCredentials,
   saveLlmCredentials,
   testLlmConnection,
   purgeAllCredentials,
@@ -60,6 +61,8 @@ interface ProviderMeta {
   description: string;
 }
 
+type SecretKeyField = NonNullable<LlmCredentials['vaulted']>[number];
+
 const PROVIDERS: ProviderMeta[] = [
   {
     id: 'gemini',
@@ -72,7 +75,7 @@ const PROVIDERS: ProviderMeta[] = [
     keyPlaceholder: 'AIzaSy...',
     keyDocsUrl: 'https://aistudio.google.com/app/apikey',
     docsLabel: 'Get Gemini API Key',
-    description: 'Connect directly to Google AI Studio with high multimodal throughput and long context windows.'
+    description: 'Connect to Google AI Studio with your own key, billed to your Google account (AI Studio has a free tier).'
   },
   {
     id: 'claude',
@@ -85,7 +88,7 @@ const PROVIDERS: ProviderMeta[] = [
     keyPlaceholder: 'sk-ant-api...',
     keyDocsUrl: 'https://console.anthropic.com/settings/keys',
     docsLabel: 'Get Anthropic API Key',
-    description: 'Connect to Anthropic Console for complex P&ID synthesis and rigorous engineering reasoning.'
+    description: 'Connect to the Anthropic Console with your own key, billed to your Anthropic account.'
   },
   {
     id: 'openai',
@@ -98,7 +101,7 @@ const PROVIDERS: ProviderMeta[] = [
     keyPlaceholder: 'sk-proj-...',
     keyDocsUrl: 'https://platform.openai.com/api-keys',
     docsLabel: 'Get OpenAI API Key',
-    description: 'Connect to OpenAI Platform with standard GPT-4o models and reliable tool execution.'
+    description: 'Connect to the OpenAI Platform with your own key, billed to your OpenAI account.'
   },
   {
     id: 'openrouter',
@@ -181,6 +184,11 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
   if (!isOpen) return null;
 
   const currentProviderMeta: ProviderMeta = PROVIDERS.find((p) => p.id === activeProvider) ?? (PROVIDERS[0] as ProviderMeta);
+  const keyField = currentProviderMeta.apiKeyField as SecretKeyField | undefined;
+  // On desktop a saved key is not in `creds` (it is in the keychain); `vaulted`
+  // records that it exists.
+  const keyIsVaulted = Boolean(keyField && creds.vaulted?.includes(keyField) && !creds[keyField]);
+  const hasKeyForTest = !keyField || Boolean(creds[keyField]) || keyIsVaulted;
 
   const handleProviderSelect = (provider: LlmProvider | 'mcp') => {
     setActiveProvider(provider);
@@ -201,8 +209,15 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     setIsTesting(true);
     setTestResult(null);
     try {
+      // On desktop a saved key is in the OS keychain, not in `creds`, so the
+      // test used to run without it ("key is missing") -- or the button was
+      // disabled outright. Load it only now, for the call; a key typed into
+      // the field takes precedence over the saved one.
+      const stored = await loadLlmCredentials();
+      const typed = Object.fromEntries(Object.entries(creds).filter(([, v]) => v !== '' && v !== undefined));
       const result = await testLlmConnection({
-        ...creds,
+        ...stored,
+        ...typed,
         provider: activeProvider
       });
       setTestResult(result);
@@ -714,7 +729,11 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
 
                   <input
                     type={showApiKey ? 'text' : 'password'}
-                    placeholder={currentProviderMeta.keyPlaceholder}
+                    placeholder={
+                      keyIsVaulted
+                        ? 'Saved in your OS keychain. Type to replace it.'
+                        : currentProviderMeta.keyPlaceholder
+                    }
                     value={
                       currentProviderMeta.apiKeyField
                         ? String(creds[currentProviderMeta.apiKeyField] ?? '')
@@ -834,6 +853,11 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                       WebkitAppearance: 'none'
                     }}
                   >
+                    {activeProvider === 'openrouter' &&
+                      creds.modelId &&
+                      !DEFAULT_PROVIDER_MODELS.openrouter.models.some((m) => m.id === creds.modelId) && (
+                        <option value={creds.modelId}>{creds.modelId}</option>
+                      )}
                     {DEFAULT_PROVIDER_MODELS[activeProvider as LlmProvider].models.map((m) => (
                       <option
                         key={m.id}
@@ -864,6 +888,38 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     <ChevronDown size={14} />
                   </div>
                 </div>
+                {activeProvider === 'openrouter' && (
+                  <div style={{ marginTop: 8 }}>
+                    <input
+                      type="text"
+                      aria-label="OpenRouter model ID"
+                      placeholder="Or any model ID, e.g. qwen/qwen3.8-27b:free"
+                      value={DEFAULT_PROVIDER_MODELS.openrouter.models.some((m) => m.id === creds.modelId) ? '' : creds.modelId || ''}
+                      onChange={(e) =>
+                        setCreds({ ...creds, modelId: e.target.value.trim() || DEFAULT_PROVIDER_MODELS.openrouter.defaultModel })
+                      }
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        backgroundColor: inputBg,
+                        border: `1px solid ${borderColor}`,
+                        borderRadius: draftingRadius.soft,
+                        outline: 'none',
+                        padding: '8px 12px',
+                        color: textColor,
+                        fontSize: 12,
+                        fontFamily: font.mono
+                      }}
+                    />
+                    <div style={{ marginTop: 6, fontSize: 11, color: textMuted, lineHeight: 1.45 }}>
+                      Browse every model and its price at{' '}
+                      <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer" style={{ color: currentProviderMeta.accentColor }}>
+                        openrouter.ai/models
+                      </a>
+                      . "Free models" needs no credit but is rate-limited.
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons Row */}
@@ -871,12 +927,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 <button
                   type="button"
                   onClick={handleTestConnection}
-                  disabled={
-                    isTesting ||
-                    (activeProvider === 'gemini' && !creds.geminiApiKey) ||
-                    (activeProvider === 'claude' && !creds.claudeApiKey) ||
-                    (activeProvider === 'openai' && !creds.openaiApiKey)
-                  }
+                  disabled={isTesting || !hasKeyForTest}
                   style={{
                     padding: '9px 16px',
                     borderRadius: draftingRadius.soft,
@@ -885,19 +936,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     color: textColor,
                     fontSize: 12,
                     fontWeight: 600,
-                    cursor:
-                      isTesting ||
-                      (activeProvider === 'gemini' && !creds.geminiApiKey) ||
-                      (activeProvider === 'claude' && !creds.claudeApiKey) ||
-                      (activeProvider === 'openai' && !creds.openaiApiKey)
-                        ? 'not-allowed'
-                        : 'pointer',
-                    opacity:
-                      (activeProvider === 'gemini' && !creds.geminiApiKey) ||
-                      (activeProvider === 'claude' && !creds.claudeApiKey) ||
-                      (activeProvider === 'openai' && !creds.openaiApiKey)
-                        ? 0.5
-                        : 1,
+                    cursor: isTesting || !hasKeyForTest ? 'not-allowed' : 'pointer',
+                    opacity: hasKeyForTest ? 1 : 0.5,
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 7,
