@@ -1,7 +1,9 @@
 /**
- * ProcessForge Multi-Provider LLM Client (Bring-Your-Own-Subscription)
- * Connects directly to Google Gemini, Anthropic Claude, OpenAI, or Local Ollama.
- * Zero middleman servers: your API keys and prompts stay 100% in your browser.
+ * ProcessForge multi-provider LLM client, on the user's own key.
+ * Calls Google Gemini, Anthropic Claude, OpenAI, OpenRouter or a local Ollama
+ * straight from the user's device. No ProcessForge server is in the path; the
+ * key and prompts go only to the provider chosen (OpenRouter then routes to
+ * the model's own provider, under OpenRouter's terms).
  */
 
 export type LlmProvider = 'gemini' | 'claude' | 'openai' | 'ollama' | 'openrouter';
