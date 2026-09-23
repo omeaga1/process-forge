@@ -110,6 +110,8 @@ function hasValidCredentials(creds: LlmCredentials): boolean {
       return Boolean(creds.claudeApiKey?.trim());
     case 'openai':
       return Boolean(creds.openaiApiKey?.trim());
+    case 'openrouter':
+      return Boolean(creds.openrouterApiKey?.trim());
     case 'ollama':
       return Boolean(creds.ollamaEndpoint?.trim() || true);
     default:

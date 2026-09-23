@@ -148,7 +148,8 @@ fn main() {
             delete_secure_token,
             check_for_updates,
             install_and_restart_update,
-            oauth_loopback::google_loopback_sign_in
+            oauth_loopback::google_loopback_sign_in,
+            oauth_loopback::openrouter_loopback_sign_in
         ])
         .run(tauri::generate_context!())
         .expect("error while running ProcessForge desktop application");

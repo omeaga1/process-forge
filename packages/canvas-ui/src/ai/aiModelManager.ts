@@ -5,7 +5,7 @@
  * In Offline mode, users have full access to their created and installed Unit-Ops.
  */
 
-export type AiConnectionMode = 'gemini' | 'claude' | 'openai' | 'ollama' | 'mcp' | 'oauth' | 'offline';
+export type AiConnectionMode = 'gemini' | 'claude' | 'openai' | 'ollama' | 'openrouter' | 'mcp' | 'oauth' | 'offline';
 // Backwards compatibility alias for components expecting AiProvider
 export type AiProvider = AiConnectionMode;
 
@@ -110,6 +110,12 @@ export const CONNECTION_METADATA: Record<
     description: 'Direct browser connection using your OpenAI Platform subscription / API key.',
     isOnline: true
   },
+  openrouter: {
+    name: 'OpenRouter',
+    badgeName: 'OpenRouter',
+    description: 'One sign-in, many models (Claude, GPT, Gemini, open-weight), billed to your OpenRouter account.',
+    isOnline: true
+  },
   ollama: {
     name: 'Local Ollama',
     badgeName: 'Ollama Local',
@@ -148,13 +154,14 @@ const STORAGE_KEY_LLM_CREDS = 'pf_ai_credentials';
 import type { LlmCredentials } from './llmClient.js';
 
 /** Credential fields that are secrets and must never reach localStorage on desktop. */
-const SECRET_FIELDS = ['geminiApiKey', 'claudeApiKey', 'openaiApiKey'] as const;
+const SECRET_FIELDS = ['geminiApiKey', 'claudeApiKey', 'openaiApiKey', 'openrouterApiKey'] as const;
 
 /** Keychain service name per provider secret. */
 const SECRET_SERVICE: Record<(typeof SECRET_FIELDS)[number], string> = {
   geminiApiKey: 'gemini',
   claudeApiKey: 'claude',
-  openaiApiKey: 'openai'
+  openaiApiKey: 'openai',
+  openrouterApiKey: 'openrouter'
 };
 
 /**
@@ -221,16 +228,17 @@ export function getLlmCredentials(): LlmCredentials {
       const RETIRED_GEMINI = new Set([
         'gemini-2.0-flash',
         'gemini-1.5-flash',
-        'gemini-1.5-pro',
-        'gemini-3.6-flash',
-        'gemini-3.8-flash'
+        'gemini-1.5-pro'
+        // gemini-3.6-flash and gemini-3.8-flash used to be listed here as
+        // "never real models". They are real (OpenRouter's catalogue lists
+        // both), and this migration was silently downgrading people to 2.5.
       ]);
       const RETIRED_CLAUDE = new Set([
         'claude-3-7-sonnet-latest',
         'claude-3-5-haiku-latest',
-        'claude-3-opus-latest',
-        // Was the app's own default, and never a real model ID.
-        'claude-opus-5'
+        'claude-3-opus-latest'
+        // claude-opus-5 was briefly listed here as not a real model ID. It is
+        // one (Claude Opus 5); an earlier change was wrong.
       ]);
       if (parsed.provider === 'gemini' && (!parsed.modelId || RETIRED_GEMINI.has(parsed.modelId))) {
         parsed.modelId = 'gemini-2.5-flash';
@@ -305,6 +313,8 @@ export function hasValidCredentials(creds?: LlmCredentials | null): boolean {
       return has('claudeApiKey');
     case 'openai':
       return has('openaiApiKey');
+    case 'openrouter':
+      return has('openrouterApiKey');
     case 'ollama':
       return Boolean(creds.ollamaEndpoint?.trim() || true);
     default:

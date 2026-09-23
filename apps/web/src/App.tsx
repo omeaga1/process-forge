@@ -260,7 +260,7 @@ const AppInner: React.FC = () => {
         'Add an API key in AI settings (Claude, GPT or Gemini), or connect a local Ollama model, to have AI design this. Or paste a contract below.'
       );
     }
-    const providerName = { claude: 'Claude', openai: 'GPT', gemini: 'Gemini', ollama: 'your local model' }[creds.provider] ?? creds.provider;
+    const providerName = { claude: 'Claude', openai: 'GPT', gemini: 'Gemini', ollama: 'your local model', openrouter: 'your OpenRouter model' }[creds.provider] ?? creds.provider;
     onProgress?.(`Asking ${providerName} to write the contract…`);
     const result = await authorUnitOpContract(description, {
       creds,

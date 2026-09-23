@@ -19,7 +19,9 @@ import {
   Trash2,
   Key,
   ChevronDown,
-  Lock
+  Lock,
+  Route,
+  LogIn
 } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
 import {
@@ -36,6 +38,7 @@ import {
 } from '../../ai/aiModelManager.js';
 import { draftingRadius } from '@process-forge/theme';
 import { setAssistantRoute, useAssistantRoute, ROUTE_LABELS } from '../../ai/assistantRoute.js';
+import { signInWithOpenRouter } from '../../ai/openRouterAuth.js';
 
 export interface AiModelModalProps {
   isOpen: boolean;
@@ -98,6 +101,20 @@ const PROVIDERS: ProviderMeta[] = [
     description: 'Connect to OpenAI Platform with standard GPT-4o models and reliable tool execution.'
   },
   {
+    id: 'openrouter',
+    label: 'OpenRouter',
+    badge: 'Any model, one sign-in',
+    icon: Route,
+    accentColor: '#6366f1',
+    accentGlow: 'rgba(99, 102, 241, 0.25)',
+    apiKeyField: 'openrouterApiKey',
+    keyPlaceholder: 'sk-or-v1-...',
+    keyDocsUrl: 'https://openrouter.ai/settings/keys',
+    docsLabel: 'Manage OpenRouter keys',
+    description:
+      'Sign in once and use Claude, GPT, Gemini, DeepSeek, Llama and more, billed to your OpenRouter account. Sign-in issues a key for this app only; you can set a spending limit on it or revoke it in your OpenRouter settings.'
+  },
+  {
     id: 'ollama',
     label: 'Local Ollama',
     badge: 'Offline & Free',
@@ -138,6 +155,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
   const [purgeFeedback, setPurgeFeedback] = useState<boolean>(false);
   const [inputFocused, setInputFocused] = useState<boolean>(false);
+  const [orSignIn, setOrSignIn] = useState<{ busy: boolean; error?: string }>({ busy: false });
 
   useEffect(() => {
     if (isOpen) {
@@ -214,6 +232,26 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     }
   };
 
+  /** OAuth PKCE: OpenRouter issues a key for this app; it is saved like a pasted one. */
+  const handleOpenRouterSignIn = async () => {
+    setOrSignIn({ busy: true });
+    setTestResult(null);
+    try {
+      const key = await signInWithOpenRouter();
+      const models = DEFAULT_PROVIDER_MODELS.openrouter;
+      const modelId = models.models.some((m) => m.id === creds.modelId) ? creds.modelId : models.defaultModel;
+      const updated = saveLlmCredentials({ ...creds, provider: 'openrouter', modelId, openrouterApiKey: key });
+      setCreds(updated);
+      setAssistantRoute('api-key');
+      setOrSignIn({ busy: false });
+      setSaveFeedback(true);
+      setTimeout(() => setSaveFeedback(false), 2200);
+      onConfigChanged?.({ provider: 'openrouter' as any, mode: 'openrouter' as any, modelId });
+    } catch (err: any) {
+      setOrSignIn({ busy: false, error: err?.message || String(err) });
+    }
+  };
+
   const handlePurgeCredentials = async () => {
     if (
       typeof window !== 'undefined' &&
@@ -254,6 +292,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
         return Boolean(creds.claudeApiKey?.trim());
       case 'openai':
         return Boolean(creds.openaiApiKey?.trim());
+      case 'openrouter':
+        return Boolean(creds.openrouterApiKey?.trim());
       case 'ollama':
         return Boolean(creds.ollamaEndpoint?.trim());
       case 'mcp':
@@ -562,6 +602,46 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 {currentProviderMeta.description}
               </div>
 
+              {activeProvider === 'openrouter' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={handleOpenRouterSignIn}
+                    disabled={orSignIn.busy}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      padding: '10px 14px',
+                      borderRadius: draftingRadius.soft,
+                      border: 'none',
+                      background: currentProviderMeta.accentColor,
+                      color: '#ffffff',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: orSignIn.busy ? 'progress' : 'pointer',
+                      opacity: orSignIn.busy ? 0.7 : 1
+                    }}
+                  >
+                    <LogIn size={14} />
+                    {orSignIn.busy
+                      ? 'Waiting for OpenRouter in your browser...'
+                      : creds.openrouterApiKey || creds.vaulted?.includes('openrouterApiKey')
+                        ? 'Signed in. Sign in again'
+                        : 'Sign in with OpenRouter'}
+                  </button>
+                  {orSignIn.error && (
+                    <div role="alert" style={{ fontSize: 12, color: '#ef4444', lineHeight: 1.45 }}>
+                      {orSignIn.error}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: textMuted, lineHeight: 1.45 }}>
+                    Or paste a key you created yourself. Either way, give it a spending limit in OpenRouter.
+                  </div>
+                </div>
+              )}
+
               {/* API Key Input Field */}
               <div>
                 <div
@@ -636,21 +716,13 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     type={showApiKey ? 'text' : 'password'}
                     placeholder={currentProviderMeta.keyPlaceholder}
                     value={
-                      activeProvider === 'gemini'
-                        ? creds.geminiApiKey || ''
-                        : activeProvider === 'claude'
-                          ? creds.claudeApiKey || ''
-                          : creds.openaiApiKey || ''
+                      currentProviderMeta.apiKeyField
+                        ? String(creds[currentProviderMeta.apiKeyField] ?? '')
+                        : ''
                     }
                     onChange={(e) => {
-                      const val = e.target.value.trim();
-                      if (activeProvider === 'gemini') {
-                        setCreds({ ...creds, geminiApiKey: val });
-                      } else if (activeProvider === 'claude') {
-                        setCreds({ ...creds, claudeApiKey: val });
-                      } else if (activeProvider === 'openai') {
-                        setCreds({ ...creds, openaiApiKey: val });
-                      }
+                      const field = currentProviderMeta.apiKeyField;
+                      if (field) setCreds({ ...creds, [field]: e.target.value.trim() });
                     }}
                     onFocus={() => setInputFocused(true)}
                     onBlur={() => setInputFocused(false)}
