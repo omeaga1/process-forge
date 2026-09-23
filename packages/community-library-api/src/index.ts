@@ -108,6 +108,19 @@ async function readJson<T>(request: Request): Promise<T> {
 
 /** Creates the user row on first sign-in, refreshes the profile after that. */
 async function upsertUser(env: Env, s: Session, picture: string | null): Promise<void> {
+  // users.email is UNIQUE. A profile written by the old, unverified session
+  // endpoint (usr_google_<sub>), or an older account Google has since given
+  // this address to, would make the insert below fail -- the first desktop
+  // sign-in returned 500 for exactly this reason. Google has just proven this
+  // account holds the address, so free it from any other row. Those rows keep
+  // their ids, and anything that references them, unchanged.
+  await env.DB.prepare(
+    `UPDATE users SET email = email || '#superseded-by:' || ?, updated_at = CURRENT_TIMESTAMP
+     WHERE email = ? AND id <> ?`
+  )
+    .bind(s.uid, s.email, s.uid)
+    .run();
+
   await env.DB.prepare(
     `INSERT INTO users (id, username, display_name, email, avatar_url, provider, organization)
      VALUES (?, ?, ?, ?, ?, 'google', NULL)
