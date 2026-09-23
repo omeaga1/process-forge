@@ -92,4 +92,33 @@ describe('Simulation Project Storage & Serialization', () => {
       importSimulationProject(JSON.stringify({ id: 'bad-proj', name: 'missing-graph' }));
     });
   });
+
+  it('keeps nozzle placements and their port links through export and import', () => {
+    const graph: ProcessGraph = {
+      ...sampleGraph,
+      nodes: sampleGraph.nodes.map((n, i) =>
+        i === 0
+          ? {
+              ...n,
+              dressing: {
+                nozzles: [
+                  { id: 'N1', name: 'Discharge', role: 'outlet', x: 15.8, y: 54.2, position: 'left', sizeInches: 3, ratingPsi: 150, portId: 'out-1' },
+                  { id: 'N2', name: 'Vent', role: 'vent', x: 50, y: 0, position: 'top', sizeInches: 2, ratingPsi: 150 }
+                ],
+                internals: {} as never
+              }
+            }
+          : n
+      )
+    } as ProcessGraph;
+    const imported = importSimulationProject(exportSimulationProject(createSimulationProject('Nozzles', graph)));
+    const nozzles = imported.graph.nodes[0]?.dressing?.nozzles ?? [];
+    assert.deepStrictEqual(
+      nozzles.map((z) => [z.id, z.x, z.y, z.position, z.portId]),
+      [
+        ['N1', 15.8, 54.2, 'left', 'out-1'],
+        ['N2', 50, 0, 'top', undefined]
+      ]
+    );
+  });
 });

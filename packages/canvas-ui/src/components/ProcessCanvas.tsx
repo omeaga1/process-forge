@@ -10,7 +10,9 @@ import {
   type OnNodesChange,
   type OnEdgesChange,
   type OnConnect,
-  type Connection
+  type Connection,
+  type IsValidConnection,
+  ConnectionLineType
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles } from 'lucide-react';
@@ -216,7 +218,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       data: {
         processEdge: pEdge,
         isBackpressureBlocked: false,
-        activeFlowRate: 45
+        // Nothing flows until the simulation says so; pipes animate on flow.
+        activeFlowRate: 0
       } satisfies CanvasEdgeData
     }))
   );
@@ -473,6 +476,42 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       };
       return nextGraph;
     });
+  };
+
+  /**
+   * A pipe runs from an outlet nozzle to an inlet nozzle of another unit, and
+   * carries one kind of stream: fluid cannot be piped into a conveyor. The
+   * handles already make outlets sources and inlets targets; this also stops
+   * duplicate pipes and loops back into the same unit.
+   */
+  const isValidConnection: IsValidConnection = useCallback((c) => {
+    if (!c.source || !c.target || c.source === c.target) return false;
+    const g = graphRef.current;
+    const from = g.nodes.find((n) => n.id === c.source)?.outputs.find((p) => p.id === c.sourceHandle);
+    const to = g.nodes.find((n) => n.id === c.target)?.inputs.find((p) => p.id === c.targetHandle);
+    if (!from || !to) return false;
+    const discrete = (d: string) => d === 'DISCRETE_CONTAINER';
+    if (discrete(from.flowDimension) !== discrete(to.flowDimension)) return false;
+    return !g.edges.some(
+      (e) =>
+        e.sourceNodeId === c.source &&
+        e.targetNodeId === c.target &&
+        e.sourcePortId === c.sourceHandle &&
+        e.targetPortId === c.targetHandle
+    );
+  }, []);
+
+  /** The nozzle editor adds and removes ports along with nozzles. */
+  const handleUpdateNodeShape = (
+    nodeId: string,
+    shape: { dressing: ProcessNode['dressing']; inputs: ProcessNode['inputs']; outputs: ProcessNode['outputs'] }
+  ) => {
+    updateGraph((prev) => ({
+      ...prev,
+      nodes: prev.nodes.map((n) =>
+        n.id === nodeId ? { ...n, dressing: shape.dressing, inputs: shape.inputs, outputs: shape.outputs } : n
+      )
+    }));
   };
 
   const handleUpdateNodeDressing = (nodeId: string, updatedDressing: any) => {
@@ -902,6 +941,10 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          isValidConnection={isValidConnection}
+          connectionLineType={ConnectionLineType.SmoothStep}
+          connectionLineStyle={{ stroke: OsakaJadePalette.jade[300], strokeWidth: 2, strokeDasharray: '6 4' }}
+          connectionRadius={28}
           onNodeClick={(_event, n) => setPopOutNodeId(n.id)}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
@@ -945,6 +988,17 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         onClose={() => setPopOutNodeId(null)}
         onUpdateConfig={handleUpdateNodeConfig}
         onUpdateDressing={handleUpdateNodeDressing}
+        onUpdateShape={handleUpdateNodeShape}
+        connectedPortIds={
+          popOutNode
+            ? new Set(
+                graph.edges.flatMap((e) => [
+                  ...(e.sourceNodeId === popOutNode.id ? [e.sourcePortId] : []),
+                  ...(e.targetNodeId === popOutNode.id ? [e.targetPortId] : [])
+                ])
+              )
+            : undefined
+        }
         onPublishToForgeHub={async (n) => {
           // Category from what the unit handles, not "reactor, else packaging";
           // description from the contract when the unit has one.

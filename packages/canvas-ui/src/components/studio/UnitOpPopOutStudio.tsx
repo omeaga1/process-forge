@@ -26,6 +26,13 @@ interface UnitOpPopOutStudioProps {
   onClose: () => void;
   onUpdateConfig: (nodeId: string, updatedConfig: Record<string, unknown>) => void;
   onUpdateDressing?: (nodeId: string, updatedDressing: UnitOpDressing) => void;
+  /** Dressing plus ports: adding an inlet/outlet nozzle can add a port. */
+  onUpdateShape?: (
+    nodeId: string,
+    shape: { dressing: UnitOpDressing; inputs: ProcessNode['inputs']; outputs: ProcessNode['outputs'] }
+  ) => void;
+  /** Ports of this node that have a pipe on them. */
+  connectedPortIds?: ReadonlySet<string>;
   onPublishToForgeHub: (node: ProcessNode) => void;
   upstreamContext?: string;
   downstreamContext?: string;
@@ -37,6 +44,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   onClose,
   onUpdateConfig,
   onUpdateDressing,
+  onUpdateShape,
+  connectedPortIds,
   onPublishToForgeHub,
   upstreamContext = 'Nothing feeds this unit: it is a source.',
   downstreamContext = 'Nothing downstream: its output leaves the line.'
@@ -639,6 +648,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           <UnitOpDressingTab
             node={node}
             onUpdateDressing={(updatedDressing) => onUpdateDressing?.(node.id, updatedDressing)}
+            onUpdateShape={onUpdateShape ? (shape) => onUpdateShape(node.id, shape) : undefined}
+            connectedPortIds={connectedPortIds}
           />
         </div>
       )}

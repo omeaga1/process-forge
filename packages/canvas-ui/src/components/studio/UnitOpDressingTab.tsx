@@ -3,23 +3,26 @@ import { useTheme } from '../../hooks/useTheme.js';
 import {
   type ProcessNode,
   type UnitOpDressing,
-  type NozzleDressing,
   type InternalsDressing,
   type TemplateFamily,
   type TemplateRouting,
   synthesizeEquipmentDrawing
 } from '@process-forge/protocol';
 import { TemplateChoice } from './TemplateChoice.js';
-import { UnitAnim } from '../animations/EquipmentAnimations.js';
-import { Plus, Trash2, Sliders, Eye, Sparkles, Check, RotateCcw } from 'lucide-react';
+import { NozzlePlacementEditor } from '../../nozzles/NozzlePlacementEditor.js';
+import type { NodeShape } from '../../nozzles/nozzleLayout.js';
+import { Sliders, Sparkles, RotateCcw } from 'lucide-react';
 
 interface UnitOpDressingTabProps {
   node: ProcessNode;
   onUpdateDressing: (updatedDressing: UnitOpDressing) => void;
+  /** Dressing and ports together: an inlet/outlet nozzle may add a port. */
+  onUpdateShape?: (shape: NodeShape) => void;
+  connectedPortIds?: ReadonlySet<string>;
 }
 
-export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUpdateDressing }) => {
-  const { palette, size, weight, space, radius: r } = useTheme();
+export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUpdateDressing, onUpdateShape, connectedPortIds }) => {
+  const { palette } = useTheme();
   const OsakaJadePalette = palette;
   const defaultInternals = {
     agitatorType: node.kind === 'BATCH_REACTOR' ? ('pitched_blade' as const) : ('none' as const),
@@ -33,28 +36,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
 
   const initialDressing: UnitOpDressing = {
     ...node.dressing,
-    nozzles: node.dressing?.nozzles || [
-      {
-        id: 'N1',
-        name: 'Primary Infeed',
-        role: 'inlet',
-        x: 15,
-        y: 20,
-        position: 'top',
-        sizeInches: 3,
-        ratingPsi: 150
-      },
-      {
-        id: 'N2',
-        name: 'Discharge Drain',
-        role: 'outlet',
-        x: 50,
-        y: 95,
-        position: 'bottom',
-        sizeInches: 2,
-        ratingPsi: 150
-      }
-    ],
+    nozzles: node.dressing?.nozzles || [],
     internals: {
       ...defaultInternals,
       ...(node.dressing?.internals || {})
@@ -62,10 +44,6 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
   };
 
   const [dressing, setDressing] = useState<UnitOpDressing>(initialDressing);
-  const [selectedNozzleId, setSelectedNozzleId] = useState<string | null>(
-    initialDressing.nozzles[0]?.id || null
-  );
-  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [aiPrompt, setAiPrompt] = useState<string>('');
   const [lastForge, setLastForge] = useState<{
     prompt: string;
@@ -120,10 +98,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
         }
       };
       setDressing(updated);
-      setSelectedNozzleId(dwg.nozzles[0]?.id || null);
       onUpdateDressing(updated);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2500);
     }
   };
 
@@ -139,8 +114,6 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
     };
     setDressing(updated);
     onUpdateDressing(updated);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2000);
   };
 
   const handleUpdateInternals = (updates: Partial<InternalsDressing>) => {
@@ -155,52 +128,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
     onUpdateDressing(updated);
   };
 
-  const handleAddNozzle = (presetRole: 'inlet' | 'outlet' | 'vent' | 'drain' | 'utility') => {
-    const newIndex = dressing.nozzles.length + 1;
-    const newNozzle: NozzleDressing = {
-      id: `N${newIndex}`,
-      name: `Nozzle ${newIndex} (${presetRole.toUpperCase()})`,
-      role: presetRole,
-      x: presetRole === 'vent' ? 50 : presetRole === 'drain' ? 50 : 20,
-      y: presetRole === 'vent' ? 5 : presetRole === 'drain' ? 95 : 50,
-      position: presetRole === 'vent' ? 'top' : presetRole === 'drain' ? 'bottom' : 'left',
-      sizeInches: 2,
-      ratingPsi: 150
-    };
-    const updated: UnitOpDressing = {
-      ...dressing,
-      nozzles: [...dressing.nozzles, newNozzle]
-    };
-    setDressing(updated);
-    setSelectedNozzleId(newNozzle.id);
-    onUpdateDressing(updated);
-  };
 
-  const handleUpdateSelectedNozzle = (updates: Partial<NozzleDressing>) => {
-    if (!selectedNozzleId) return;
-    const updatedNozzles = dressing.nozzles.map((n) => (n.id === selectedNozzleId ? { ...n, ...updates } : n));
-    const updated: UnitOpDressing = { ...dressing, nozzles: updatedNozzles };
-    setDressing(updated);
-    onUpdateDressing(updated);
-  };
-
-  const handleDeleteNozzle = (id: string) => {
-    const updatedNozzles = dressing.nozzles.filter((n) => n.id !== id);
-    const updated: UnitOpDressing = { ...dressing, nozzles: updatedNozzles };
-    setDressing(updated);
-    if (selectedNozzleId === id) {
-      setSelectedNozzleId(updatedNozzles[0]?.id || null);
-    }
-    onUpdateDressing(updated);
-  };
-
-  const handleSaveExplicit = () => {
-    onUpdateDressing(dressing);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2000);
-  };
-
-  const selectedNozzle = dressing.nozzles.find((n) => n.id === selectedNozzleId);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', height: '100%', overflowY: 'auto', padding: '16px' }}>
@@ -338,144 +266,15 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
 
       {/* CAD Dressing Studio Sections - Vertically stacked for clean drawer layout */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-        {/* Card 1: Live Animated SVG Preview with Interactive Nozzle Pins */}
-        <div
-          style={{
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            backgroundColor: OsakaJadePalette.background.surfaceElevated,
-            borderRadius: '10px',
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            overflow: 'hidden'
+        {/* Nozzles: placed on the drawing, in canvas proportions. */}
+        <NozzlePlacementEditor
+          node={node}
+          connectedPortIds={connectedPortIds}
+          onChange={(shape) => {
+            if (onUpdateShape) onUpdateShape(shape);
+            else onUpdateDressing(shape.dressing);
           }}
-        >
-          <div
-            style={{
-              padding: '12px 16px',
-              backgroundColor: OsakaJadePalette.background.surface,
-              borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Eye size={16} color={OsakaJadePalette.jade[400]} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                Dressed Unit Preview ({node.name})
-              </span>
-            </div>
-            <span
-              style={{
-                fontSize: '0.7rem',
-                color: OsakaJadePalette.jade[300],
-                padding: '2px 8px',
-                borderRadius: '4px',
-                backgroundColor: OsakaJadePalette.jade.muted,
-                border: `1px solid ${OsakaJadePalette.jade[700]}`
-              }}
-            >
-              {dressing.nozzles.length} Nozzles Attached
-            </span>
-          </div>
-
-          {/* Viewport Canvas with Nozzle Markers */}
-          <div
-            style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '24px',
-              backgroundColor: OsakaJadePalette.background.canvas,
-              minHeight: '260px'
-            }}
-          >
-            {/* Machine Animated Illustration */}
-            <div style={{ width: '220px', height: '220px', position: 'relative' }}>
-              <UnitAnim kind={node.kind} dressing={dressing} isRunning={true} />
-
-              {/* Render Nozzle Pins around perimeter */}
-              {dressing.nozzles.map((nozzle) => {
-                const isSelected = nozzle.id === selectedNozzleId;
-                return (
-                  <div
-                    key={nozzle.id}
-                    onClick={() => setSelectedNozzleId(nozzle.id)}
-                    style={{
-                      position: 'absolute',
-                      left: `${nozzle.x}%`,
-                      top: `${nozzle.y}%`,
-                      transform: 'translate(-50%, -50%)',
-                      cursor: 'pointer',
-                      zIndex: 20
-                    }}
-                    title={`${nozzle.name} [${nozzle.sizeInches}" / ${nozzle.ratingPsi}#]`}
-                  >
-                    <div
-                      style={{
-                        padding: '3px 6px',
-                        borderRadius: '4px',
-                        fontSize: '0.65rem',
-                        fontWeight: 700,
-                        backgroundColor: isSelected ? OsakaJadePalette.jade[500] : OsakaJadePalette.background.surface,
-                        color: isSelected ? OsakaJadePalette.text.inverse : OsakaJadePalette.text.primary,
-                        border: `1px solid ${isSelected ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
-                        boxShadow: isSelected ? `0 0 10px ${OsakaJadePalette.jade.glow}` : 'none',
-                        whiteSpace: 'nowrap',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                    >
-                      <span style={{ width: '6px', height: '6px', borderRadius: r.full, backgroundColor: nozzle.role === 'inlet' ? OsakaJadePalette.status.starved : nozzle.role === 'outlet' ? OsakaJadePalette.jade.glow : OsakaJadePalette.status.blocked }} />
-                      {nozzle.id}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Quick Dressing Summary Banner */}
-          <div
-            style={{
-              padding: '12px 16px',
-              backgroundColor: OsakaJadePalette.background.surface,
-              borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
-              fontSize: '0.78rem',
-              color: OsakaJadePalette.text.secondary,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}
-          >
-            <div>
-              Agitator: <strong style={{ color: OsakaJadePalette.text.primary }}>{dressing.internals.agitatorType}</strong> • Jacket:{' '}
-              <strong style={{ color: OsakaJadePalette.text.primary }}>{dressing.internals.hasJacket ? dressing.internals.jacketType : 'None'}</strong>
-            </div>
-            <button
-              onClick={handleSaveExplicit}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
-                borderRadius: '4px',
-                backgroundColor: OsakaJadePalette.jade[500],
-                color: OsakaJadePalette.text.inverse,
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.75rem',
-                cursor: 'pointer'
-              }}
-            >
-              {saveSuccess ? <Check size={12} /> : <Sparkles size={12} />}
-              {saveSuccess ? 'Saved!' : 'Apply Dressing'}
-            </button>
-          </div>
-        </div>
+        />
 
         {/* Card 2: Vessel Internals & Jacket Dressing */}
         <div
@@ -603,288 +402,6 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
           </div>
         </div>
 
-        {/* Section 2: Nozzle Dressing Manager */}
-        <div
-          style={{
-            padding: '16px',
-            borderRadius: '8px',
-            backgroundColor: OsakaJadePalette.background.surface,
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: OsakaJadePalette.text.primary }}>
-              Nozzle Ports & Flanges
-            </span>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              <button
-                onClick={() => handleAddNozzle('inlet')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: space[1],
-                  padding: `${space[1]}px ${space[2]}px`,
-                  borderRadius: r.md,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: OsakaJadePalette.status.starved,
-                  fontSize: size.xs,
-                  fontWeight: weight.semibold,
-                  cursor: 'pointer'
-                }}
-              >
-                <Plus size={11} /> + Inlet
-              </button>
-              <button
-                onClick={() => handleAddNozzle('outlet')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: space[1],
-                  padding: `${space[1]}px ${space[2]}px`,
-                  borderRadius: r.md,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: OsakaJadePalette.jade.glow,
-                  fontSize: size.xs,
-                  fontWeight: weight.semibold,
-                  cursor: 'pointer'
-                }}
-              >
-                <Plus size={11} /> + Outlet
-              </button>
-              <button
-                onClick={() => handleAddNozzle('vent')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: space[1],
-                  padding: `${space[1]}px ${space[2]}px`,
-                  borderRadius: r.md,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: OsakaJadePalette.status.blocked,
-                  fontSize: size.xs,
-                  fontWeight: weight.semibold,
-                  cursor: 'pointer'
-                }}
-              >
-                <Plus size={11} /> + Vent
-              </button>
-              <button
-                onClick={() => handleAddNozzle('drain')}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: space[1],
-                  padding: `${space[1]}px ${space[2]}px`,
-                  borderRadius: r.md,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: OsakaJadePalette.status.failed,
-                  fontSize: size.xs,
-                  fontWeight: weight.semibold,
-                  cursor: 'pointer'
-                }}
-              >
-                <Plus size={11} /> + Drain
-              </button>
-            </div>
-          </div>
-
-          {/* Nozzle Chips List */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {dressing.nozzles.map((nozzle) => {
-              const isSelected = nozzle.id === selectedNozzleId;
-              return (
-                <div
-                  key={nozzle.id}
-                  onClick={() => setSelectedNozzleId(nozzle.id)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    backgroundColor: isSelected ? OsakaJadePalette.background.surfaceActive : OsakaJadePalette.background.surfaceElevated,
-                    border: `1px solid ${isSelected ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.subtle}`,
-                    cursor: 'pointer',
-                    fontSize: '0.78rem'
-                  }}
-                >
-                  <span style={{ fontWeight: 700, color: isSelected ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.primary }}>
-                    {nozzle.id}
-                  </span>
-                  <span style={{ color: OsakaJadePalette.text.muted, fontSize: '0.72rem' }}>
-                    {nozzle.sizeInches}&quot; {nozzle.role}
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteNozzle(nozzle.id);
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: OsakaJadePalette.text.muted,
-                      cursor: 'pointer',
-                      padding: '2px',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Selected Nozzle Configuration Properties */}
-          {selectedNozzle && (
-            <div
-              style={{
-                marginTop: '8px',
-                padding: '14px',
-                borderRadius: '6px',
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: '12px'
-              }}
-            >
-              <div>
-                <label style={{ display: 'block', fontSize: '0.72rem', color: OsakaJadePalette.text.muted, marginBottom: '2px' }}>
-                  Nozzle Label / Name
-                </label>
-                <input
-                  type="text"
-                  value={selectedNozzle.name}
-                  onChange={(e) => handleUpdateSelectedNozzle({ name: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '6px 8px',
-                    borderRadius: '4px',
-                    backgroundColor: OsakaJadePalette.background.surface,
-                    border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                    color: OsakaJadePalette.text.primary,
-                    fontSize: '0.8rem'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.72rem', color: OsakaJadePalette.text.muted, marginBottom: '2px' }}>
-                  Process Role
-                </label>
-                <select
-                  value={selectedNozzle.role}
-                  onChange={(e) => handleUpdateSelectedNozzle({ role: e.target.value as any })}
-                  style={{
-                    width: '100%',
-                    padding: '6px 8px',
-                    borderRadius: '4px',
-                    backgroundColor: OsakaJadePalette.background.surface,
-                    border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                    color: OsakaJadePalette.text.primary,
-                    fontSize: '0.8rem'
-                  }}
-                >
-                  <option value="inlet">Inlet (Feed Stream)</option>
-                  <option value="outlet">Outlet (Product Stream)</option>
-                  <option value="vent">Vent (Top Vapor / Off-gas)</option>
-                  <option value="drain">Drain (Bottom Slurry / Liquid)</option>
-                  <option value="utility">Utility (Steam / Cooling)</option>
-                  <option value="relief">Relief (PSV / Rupture Disc)</option>
-                  <option value="tap">Tap (Sensor / Sample Port)</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.72rem', color: OsakaJadePalette.text.muted, marginBottom: '2px' }}>
-                  Nominal Pipe Diameter
-                </label>
-                <select
-                  value={selectedNozzle.sizeInches}
-                  onChange={(e) => handleUpdateSelectedNozzle({ sizeInches: parseFloat(e.target.value) })}
-                  style={{
-                    width: '100%',
-                    padding: '6px 8px',
-                    borderRadius: '4px',
-                    backgroundColor: OsakaJadePalette.background.surface,
-                    border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                    color: OsakaJadePalette.text.primary,
-                    fontSize: '0.8rem'
-                  }}
-                >
-                  <option value="1">1.0&quot; (DN25)</option>
-                  <option value="1.5">1.5&quot; (DN40)</option>
-                  <option value="2">2.0&quot; (DN50)</option>
-                  <option value="3">3.0&quot; (DN80)</option>
-                  <option value="4">4.0&quot; (DN100)</option>
-                  <option value="6">6.0&quot; (DN150)</option>
-                  <option value="8">8.0&quot; (DN200)</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.72rem', color: OsakaJadePalette.text.muted, marginBottom: '2px' }}>
-                  ASME Flange Class
-                </label>
-                <select
-                  value={selectedNozzle.ratingPsi}
-                  onChange={(e) => handleUpdateSelectedNozzle({ ratingPsi: parseInt(e.target.value, 10) })}
-                  style={{
-                    width: '100%',
-                    padding: '6px 8px',
-                    borderRadius: '4px',
-                    backgroundColor: OsakaJadePalette.background.surface,
-                    border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                    color: OsakaJadePalette.text.primary,
-                    fontSize: '0.8rem'
-                  }}
-                >
-                  <option value="150">Class 150# (PN20)</option>
-                  <option value="300">Class 300# (PN50)</option>
-                  <option value="600">Class 600# (PN100)</option>
-                </select>
-              </div>
-
-              {/* X / Y Position Sliders */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.72rem', color: OsakaJadePalette.text.muted, marginBottom: '2px' }}>
-                  Position X ({selectedNozzle.x}%)
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={selectedNozzle.x}
-                  onChange={(e) => handleUpdateSelectedNozzle({ x: parseInt(e.target.value, 10) })}
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.72rem', color: OsakaJadePalette.text.muted, marginBottom: '2px' }}>
-                  Position Y ({selectedNozzle.y}%)
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={selectedNozzle.y}
-                  onChange={(e) => handleUpdateSelectedNozzle({ y: parseInt(e.target.value, 10) })}
-                  style={{ width: '100%' }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

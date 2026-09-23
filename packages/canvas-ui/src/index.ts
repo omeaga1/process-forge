@@ -23,3 +23,6 @@ export * from './hooks/useMobileViewport.js';
 export * from './hooks/useTheme.js';
 export * from './utils/nodeFactory.js';
 export * from './components/palette/EquipmentPaletteModal.js';
+export * from './nozzles/nozzleLayout.js';
+export * from './nozzles/EquipmentFigure.js';
+export * from './nozzles/NozzlePlacementEditor.js';

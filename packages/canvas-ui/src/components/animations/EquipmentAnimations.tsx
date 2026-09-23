@@ -15,6 +15,9 @@ export const EQUIPMENT_ANIM_CSS = `
   @keyframes pf-spin   { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
   @keyframes pf-col-v  { 0%{cy:80px;opacity:.8;r:3px} 100%{cy:10px;opacity:0;r:5px} }
   @keyframes pf-fade   { 0%,100%{opacity:.3} 50%{opacity:1} }
+  @keyframes pf-pipe-flow { from{stroke-dashoffset:32} to{stroke-dashoffset:0} }
+  .pf-nozzle-handle { transition: box-shadow 120ms ease-out, transform 120ms ease-out; }
+  .react-flow__handle.pf-nozzle-handle.connectingto.valid, .react-flow__handle.pf-nozzle-handle.valid { transform: translate(-50%, -50%) scale(1.45) !important; }
   @keyframes pf-glow-pulse { 0%,100%{filter:drop-shadow(0 0 2px ${OsakaJadePalette.jade.glow})} 50%{filter:drop-shadow(0 0 8px ${OsakaJadePalette.streams.continuousFluid})} }
   @keyframes pf-conveyor-travel { 0% { transform: translateX(0); } 100% { transform: translateX(36px); } }
   @keyframes pf-sensor-blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; filter: drop-shadow(0 0 4px ${OsakaJadePalette.jade.glow}); } }

@@ -1,246 +1,195 @@
-import React from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Handle, Position, useEdges, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
-import { UnitAnim } from '../animations/EquipmentAnimations.js';
+import { EquipmentFigure, flangePoint } from '../../nozzles/EquipmentFigure.js';
+import { drawingSize, layoutNozzles, type Side } from '../../nozzles/nozzleLayout.js';
 
+const POSITION: Record<Side, Position> = {
+  left: Position.Left,
+  right: Position.Right,
+  top: Position.Top,
+  bottom: Position.Bottom
+};
+
+/** Room around the drawing for stubs, flanges and handles. */
+const PAD = 18;
+
+/**
+ * A unit op on the canvas: its equipment drawing, with a stub and flange at
+ * each nozzle and the pipe connection (a React Flow handle) on the flange
+ * face. Inputs are targets and outputs are sources, so a pipe always runs
+ * from an outlet to an inlet. Handle ids are the port ids, as before, so
+ * existing pipes stay attached.
+ */
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
-  const { palette, machineVisuals, elevation, font, size, weight, space, radius: r, motion } = useTheme();
-  const OsakaJadePalette = palette;
+  const { palette, machineVisuals, font, size, weight, radius: r, motion } = useTheme();
   const nodeData = data as unknown as CanvasNodeData;
-  const { processNode, state, unitsProduced, bufferLevel, instantaneousRate, onOpenPopOutStudio } =
-    nodeData;
+  const { processNode, state, instantaneousRate, bufferLevel, onOpenPopOutStudio } = nodeData;
+  const [hovered, setHovered] = useState(false);
+  const updateNodeInternals = useUpdateNodeInternals();
+  const edges = useEdges();
 
   const visualState = machineVisuals[state] ?? machineVisuals['IDLE']!;
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onOpenPopOutStudio) {
-      onOpenPopOutStudio(id);
-    }
-  };
-
   const isBlocked = state === 'BLOCKED';
+  const isRunning = state === 'BUSY';
+
+  const layout = useMemo(() => layoutNozzles(processNode), [processNode]);
+  const { width, height } = drawingSize(processNode.kind, processNode.dressing);
+
+  const connected = useMemo(() => {
+    const s = new Set<string>();
+    for (const e of edges) {
+      if (e.source === id && e.sourceHandle) s.add(e.sourceHandle);
+      if (e.target === id && e.targetHandle) s.add(e.targetHandle);
+    }
+    return s;
+  }, [edges, id]);
+
+  // Handles move when nozzles move: React Flow caches handle bounds, so tell
+  // it to measure again, or pipes stay attached to the old positions.
+  const anchorKey = layout.anchors.map((a) => `${a.port.id}:${a.x}:${a.y}:${a.side}`).join('|');
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, anchorKey, width, height, updateNodeInternals]);
+
+  const streamColor = (dim: string) =>
+    dim === 'DISCRETE_CONTAINER' ? palette.streams.discreteContainer : palette.streams.continuousFluid;
+  const showLabels = hovered || selected;
+
+  const outline = isBlocked ? palette.status.blocked : selected ? palette.border.glow : 'transparent';
+  const figureStubs = [
+    ...layout.anchors
+      .filter((a) => a.nozzle)
+      .map((a) => ({ nozzle: a.nozzle!, color: streamColor(a.port.flowDimension), emphasis: connected.has(a.port.id) })),
+    ...layout.decorative.map((z) => ({ nozzle: z, color: palette.text.muted }))
+  ];
+
+  const tag = processNode.name.match(/\b[A-Z]{1,3}-\d{2,4}\b/)?.[0];
+  const title = tag ? processNode.name.replace(tag, '').trim() : processNode.name;
 
   return (
     <div
-      onClick={handleClick}
-      onDoubleClick={handleClick}
-      title="Click to open Unit-Op Studio"
+      onClick={(e) => {
+        e.stopPropagation();
+        onOpenPopOutStudio?.(id);
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      title={`${processNode.name}. Click to open the unit op studio.`}
       style={{
-        width: 260,
-        position: 'relative',
-        backgroundColor: OsakaJadePalette.background.surface,
-        borderRadius: r.lg,
-        border: selected
-          ? `2px solid ${OsakaJadePalette.border.glow}`
-          : isBlocked
-            ? `2px solid ${OsakaJadePalette.status.blocked}`
-            : `1px solid ${OsakaJadePalette.border.default}`,
-        boxShadow: isBlocked
-          ? elevation.glowWarning
-          : selected
-            ? elevation.glow
-            : elevation.low,
-        color: OsakaJadePalette.text.primary,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
         fontFamily: font.sans,
-        padding: `${space[3]}px`,
+        color: palette.text.primary,
         cursor: 'pointer',
-        transition: `all ${motion.normal}`,
-        userSelect: 'none'
+        userSelect: 'none',
+        minWidth: width + PAD * 2
       }}
     >
-      {/* Input Ports (Left) */}
-      {processNode.inputs.map((port, idx) => {
-        const topPercent = ((idx + 1) / (processNode.inputs.length + 1)) * 100;
-        const isFluid = port.flowDimension === 'CONTINUOUS_VOLUME';
-        return (
-          <Handle
-            key={port.id}
-            type="target"
-            position={Position.Left}
-            id={port.id}
-            style={{
-              top: `${topPercent}%`,
-              width: 10,
-              height: 10,
-              backgroundColor: isFluid
-                ? OsakaJadePalette.streams.continuousFluid
-                : OsakaJadePalette.streams.discreteContainer,
-              border: `2px solid ${OsakaJadePalette.background.base}`,
-              borderRadius: isFluid ? '50%' : 2
-            }}
-          />
-        );
-      })}
-
-      {/* Output Ports (Right) */}
-      {processNode.outputs.map((port, idx) => {
-        const topPercent = ((idx + 1) / (processNode.outputs.length + 1)) * 100;
-        const isFluid = port.flowDimension === 'CONTINUOUS_VOLUME';
-        return (
-          <Handle
-            key={port.id}
-            type="source"
-            position={Position.Right}
-            id={port.id}
-            style={{
-              top: `${topPercent}%`,
-              width: 10,
-              height: 10,
-              backgroundColor: isFluid
-                ? OsakaJadePalette.streams.continuousFluid
-                : OsakaJadePalette.streams.discreteContainer,
-              border: `2px solid ${OsakaJadePalette.background.base}`,
-              borderRadius: isFluid ? '50%' : 2
-            }}
-          />
-        );
-      })}
-
-      {/* Node Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: space[2] }}>
-        <span
-          style={{
-            fontSize: size['2xs'],
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            color: OsakaJadePalette.jade[400],
-            fontWeight: weight.bold
-          }}
-        >
-          {processNode.kind.replace(/_/g, ' ')}
-        </span>
-
-        {/* State Status Badge */}
-        <span
-          style={{
-            fontSize: size['2xs'],
-            fontWeight: weight.semibold,
-            padding: `${space[0.5]}px ${space[1.5]}px`,
-            borderRadius: r.full,
-            backgroundColor: visualState.badgeBg,
-            color: visualState.badgeText,
-            border: `1px solid ${visualState.badgeText}40`
-          }}
-        >
-          {visualState.label}
-        </span>
-      </div>
-
-      {/* Machine Title */}
       <div
         style={{
-          fontSize: size.base,
-          fontWeight: weight.semibold,
-          color: OsakaJadePalette.text.primary,
-          marginBottom: space[2],
-          lineHeight: '1.3'
-        }}
-      >
-        {processNode.name}
-      </div>
-
-      {/* Live Animated Machine Visual & Physical Dressing */}
-      <div
-        style={{
-          width: '100%',
-          height: 90,
-          marginBottom: space[2],
-          borderRadius: r.md,
-          backgroundColor: OsakaJadePalette.background.canvas,
-          border: `1px solid ${OsakaJadePalette.border.subtle}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           position: 'relative',
-          overflow: 'hidden'
+          padding: PAD,
+          borderRadius: r.lg,
+          outline: `1.5px ${selected ? 'solid' : 'dashed'} ${outline}`,
+          outlineOffset: -4,
+          backgroundColor: selected || hovered ? `${palette.background.surface}99` : 'transparent',
+          boxShadow: isBlocked ? `0 0 18px ${palette.status.blocked}55` : selected ? `0 0 18px ${palette.border.glow}33` : 'none',
+          transition: `background-color ${motion.fast}, box-shadow ${motion.normal}`
         }}
       >
-        <div style={{ width: 80, height: 80, position: 'relative' }}>
-          <UnitAnim
-            kind={processNode.kind}
-            dressing={processNode.dressing}
-            isRunning={state === 'BUSY'}
-          />
-        </div>
+        <EquipmentFigure kind={processNode.kind} dressing={processNode.dressing} isRunning={isRunning} stubs={figureStubs}>
+          {layout.anchors.map((a) => {
+            const at = a.nozzle ? flangePoint(a.x, a.y, a.side, width, height) : { x: (a.x / 100) * width, y: (a.y / 100) * height };
+            const color = streamColor(a.port.flowDimension);
+            const isConnected = connected.has(a.port.id);
+            const discrete = a.port.flowDimension === 'DISCRETE_CONTAINER';
+            const label = a.nozzle?.name ?? a.port.name;
+            const horizontal = a.side === 'left' || a.side === 'right';
+            return (
+              <React.Fragment key={a.port.id}>
+                <Handle
+                  type={a.direction === 'in' ? 'target' : 'source'}
+                  position={POSITION[a.side]}
+                  id={a.port.id}
+                  title={`${a.direction === 'in' ? 'Inlet' : 'Outlet'}: ${label}`}
+                  className="pf-nozzle-handle"
+                  style={{
+                    left: at.x,
+                    top: at.y,
+                    right: 'auto',
+                    bottom: 'auto',
+                    transform: 'translate(-50%, -50%)',
+                    width: 11,
+                    height: 11,
+                    borderRadius: discrete ? 2 : '50%',
+                    backgroundColor: isConnected ? color : palette.background.base,
+                    border: `2px solid ${color}`,
+                    boxShadow: showLabels && !isConnected ? `0 0 0 3px ${color}33` : 'none',
+                    zIndex: 3
+                  }}
+                />
+                {showLabels && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: at.x,
+                      top: at.y,
+                      transform: horizontal
+                        ? `translate(${a.side === 'left' ? 'calc(-100% - 10px)' : '10px'}, -50%)`
+                        : `translate(-50%, ${a.side === 'top' ? 'calc(-100% - 9px)' : '9px'})`,
+                      fontSize: 9.5,
+                      fontFamily: font.mono,
+                      lineHeight: 1.2,
+                      whiteSpace: 'nowrap',
+                      padding: '1px 4px',
+                      borderRadius: r.sm,
+                      color: palette.text.secondary,
+                      backgroundColor: `${palette.background.base}d9`,
+                      pointerEvents: 'none',
+                      zIndex: 4
+                    }}
+                  >
+                    {a.direction === 'in' ? '▸ ' : ''}
+                    {label}
+                    {a.direction === 'out' ? ' ▸' : ''}
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </EquipmentFigure>
+      </div>
 
-        {/* Dressed Nozzle Badges (if configured) */}
-        {processNode.dressing?.nozzles?.length ? (
+      {/* Tag, name and state, under the drawing like a P&ID label. */}
+      <div style={{ marginTop: -6, textAlign: 'center', maxWidth: Math.max(180, width + PAD * 2), lineHeight: 1.25 }}>
+        <div style={{ fontFamily: font.mono, fontSize: size['2xs'], letterSpacing: '0.08em', color: palette.jade[400], fontWeight: weight.bold }}>
+          {tag ?? processNode.kind.replace(/_/g, ' ')}
+        </div>
+        <div style={{ fontSize: size.sm, fontWeight: weight.semibold, color: palette.text.primary }}>{title}</div>
+        {(state !== 'IDLE' || instantaneousRate > 0) && (
           <div
             style={{
-              position: 'absolute',
-              bottom: space[1],
-              right: space[1.5],
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 4,
+              padding: '1px 7px',
+              borderRadius: r.full,
               fontSize: size['2xs'],
-              fontWeight: weight.bold,
-              color: OsakaJadePalette.jade[300],
-              backgroundColor: `${OsakaJadePalette.background.surfaceElevated}cc`,
-              padding: `1px ${space[1]}px`,
-              borderRadius: r.sm,
-              border: `1px solid ${OsakaJadePalette.border.subtle}`
+              fontWeight: weight.semibold,
+              backgroundColor: visualState.badgeBg,
+              color: visualState.badgeText,
+              border: `1px solid ${visualState.badgeText}40`
             }}
           >
-            {processNode.dressing.nozzles.length} NOZZLES
+            <span>{visualState.label}</span>
+            {instantaneousRate > 0 && <span style={{ fontFamily: font.mono }}>{Math.round(instantaneousRate)}/min</span>}
+            {bufferLevel > 0 && <span style={{ fontFamily: font.mono }}>{bufferLevel} queued</span>}
           </div>
-        ) : null}
-      </div>
-
-      {/* Telemetry Readout Grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: space[1.5],
-          backgroundColor: OsakaJadePalette.background.surfaceElevated,
-          padding: `${space[2]}px ${space[2.5]}px`,
-          borderRadius: r.md,
-          fontSize: size.xs,
-          fontFamily: font.mono,
-          border: `1px solid ${OsakaJadePalette.border.subtle}`
-        }}
-      >
-        <div>
-          <div style={{ color: OsakaJadePalette.text.muted, fontSize: size['2xs'] }}>RATE</div>
-          <div style={{ fontWeight: weight.semibold, color: OsakaJadePalette.text.primary }}>
-            {instantaneousRate > 0 ? `${Math.round(instantaneousRate)}/min` : '0/min'}
-          </div>
-        </div>
-
-        <div>
-          <div style={{ color: OsakaJadePalette.text.muted, fontSize: size['2xs'] }}>BUFFER / PACKED</div>
-          <div style={{ fontWeight: weight.semibold, color: OsakaJadePalette.text.primary }}>
-            {bufferLevel > 0 ? `${bufferLevel} in queue` : `${unitsProduced} units`}
-          </div>
-        </div>
-      </div>
-
-      {/* Industrial Unit Identifier & Port Metadata */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginTop: space[2],
-          fontSize: size['2xs'],
-          color: OsakaJadePalette.text.muted,
-          fontFamily: font.mono
-        }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: space[1] }}>
-          <span
-            style={{
-              width: 5,
-              height: 5,
-              borderRadius: r.full,
-              backgroundColor: OsakaJadePalette.jade.glow
-            }}
-          />
-          TAG: {processNode.id.toUpperCase()}
-        </span>
-        <span style={{ fontSize: size['2xs'], color: OsakaJadePalette.text.muted, letterSpacing: '0.04em' }}>
-          {processNode.inputs.length + processNode.outputs.length} PORTS
-        </span>
+        )}
       </div>
     </div>
   );
