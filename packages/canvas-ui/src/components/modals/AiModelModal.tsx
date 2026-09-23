@@ -28,6 +28,7 @@ import {
   testLlmConnection,
   purgeAllCredentials,
   DEFAULT_PROVIDER_MODELS,
+  hasValidCredentials,
   type AiModelConfig,
   type LlmProvider,
   type LlmCredentials,
@@ -142,7 +143,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     if (isOpen) {
       const loaded = getLlmCredentials();
       setCreds(loaded);
-      setActiveProvider(loaded.provider || 'gemini');
+      // Open on the provider in use; with no key saved yet, on Claude.
+      setActiveProvider(hasValidCredentials(loaded) ? loaded.provider : 'claude');
       setTestResult(null);
       setSaveFeedback(false);
     }
@@ -166,18 +168,13 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     setActiveProvider(provider);
     setTestResult(null);
     setShowApiKey(false);
+    // Selecting a tab shows that provider's settings; only Save changes what
+    // the app uses. It used to switch the active provider on click, keeping
+    // the previous provider's model id (a Claude model under Gemini).
     if (provider !== 'mcp') {
-      const defaultModel = DEFAULT_PROVIDER_MODELS[provider].defaultModel;
-      const updated = saveLlmCredentials({
-        provider,
-        modelId: creds.modelId || defaultModel
-      });
-      setCreds(updated);
-      onConfigChanged?.({
-        provider: provider as any,
-        mode: provider as any,
-        modelId: updated.modelId
-      });
+      const models = DEFAULT_PROVIDER_MODELS[provider];
+      const keepModel = models.models.some((m) => m.id === creds.modelId);
+      setCreds({ ...creds, provider, modelId: keepModel ? creds.modelId : models.defaultModel });
     }
   };
 
@@ -552,7 +549,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
             </div>
             <div style={{ flex: 1, fontSize: 11, lineHeight: 1.45, color: textMuted }}>
               <span style={{ fontWeight: 600, color: textColor }}>Direct TLS Architecture:</span>{' '}
-              API credentials are held in your local browser session and sent straight to provider endpoints.
+              Your key stays on this device (the OS keychain in the desktop app, local storage in a browser) and is sent only to this provider.
               No proxy or intermediary telemetry servers.
             </div>
           </div>

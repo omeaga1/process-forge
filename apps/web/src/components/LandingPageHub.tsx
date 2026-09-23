@@ -8,28 +8,20 @@ import {
   Upload,
   Trash2,
   ExternalLink,
-  Send,
   Loader2,
   Sun,
   Moon,
   ChevronRight,
   Database,
   Workflow,
-  Lock,
-  KeyRound,
   Terminal,
-  Sliders,
-  Download,
-  Check,
-  Copy
+  Sliders
 } from 'lucide-react';
 import {
   useTheme,
   getLlmCredentials,
   getAiConnection,
   isAgentChatUnlocked,
-  dispatchMasterOrchestratorMessage,
-  type ChatMessage,
   ProcessForgeLogo,
   ProcessForgeEmblem
 } from '@process-forge/canvas-ui';
@@ -38,6 +30,7 @@ import { SHERWIN_WILLIAMS_PAINT_LINE } from '@process-forge/canvas-ui';
 import { simulateProcess } from '@process-forge/simulation-core';
 import { draftingRadius } from '@process-forge/theme';
 import { useAccount } from '../auth/useAccount.js';
+import { hasCloudSession } from '../auth/accountManager.js';
 import {
   listUserCloudProjects,
   deleteProjectFromCloud,
@@ -102,17 +95,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
   const lockStatus = isAgentChatUnlocked(aiConn, creds);
   const hasKey = lockStatus.unlocked;
 
-  // Agent Chat State on Landing Page
-  const [agentInput, setAgentInput] = useState<string>('');
-  const [isAgentThinking, setIsAgentThinking] = useState<boolean>(false);
-  const [agentConversation, setAgentConversation] = useState<ChatMessage[]>([]);
-  const [copiedSnippet, setCopiedSnippet] = useState<boolean>(false);
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedSnippet(true);
-    setTimeout(() => setCopiedSnippet(false), 2000);
-  };
 
   // Fetch Cloud Projects
   useEffect(() => {
@@ -142,60 +124,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
     if (file) {
       onImportFile(file);
       e.target.value = '';
-    }
-  };
-
-  const handleAgentSend = async (promptToSend?: string) => {
-    if (!lockStatus.unlocked) {
-      onOpenAiModal();
-      return;
-    }
-    const text = promptToSend || agentInput;
-    if (!text.trim() || isAgentThinking) return;
-
-    const userMsg: ChatMessage = {
-      id: `usr-${Date.now()}`,
-      sender: 'user',
-      senderTitle: user?.name || 'Process Engineer',
-      text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setAgentConversation((prev) => [...prev, userMsg]);
-    if (!promptToSend) setAgentInput('');
-    setIsAgentThinking(true);
-
-    try {
-      const res = await dispatchMasterOrchestratorMessage(text, {
-        graphName: currentProject.graph.name,
-        nodeCount: currentProject.graph.nodes.length,
-        totalPackaged: 0,
-        averageRatePerMin: 0
-      });
-
-      const agentMsg: ChatMessage = {
-        id: `orch-${Date.now()}`,
-        sender: 'master_orchestrator',
-        senderTitle: 'Plant Orchestrator',
-        text: res.text,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        modelBadge: res.senderBadge
-      };
-
-      setAgentConversation((prev) => [...prev, agentMsg]);
-    } catch (err: any) {
-      setAgentConversation((prev) => [
-        ...prev,
-        {
-          id: `err-${Date.now()}`,
-          sender: 'master_orchestrator',
-          senderTitle: 'Error',
-          text: `[Error]: ${err.message || 'Failed to call model provider'}`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }
-      ]);
-    } finally {
-      setIsAgentThinking(false);
     }
   };
 
@@ -303,32 +231,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
 
         {/* Right Nav Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Download Windows Desktop App (.exe) */}
-          <a
-            href="/ProcessForge-Setup-x64.exe"
-            download="ProcessForge-Setup-x64.exe"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 12px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.jade[600],
-              border: `1px solid ${OsakaJadePalette.jade[400]}`,
-              color: '#ffffff',
-              fontSize: 11,
-              fontWeight: 700,
-              fontFamily: '"JetBrains Mono", monospace',
-              textDecoration: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.12s ease'
-            }}
-            title="Download ProcessForge for Windows (Native .exe Setup)"
-          >
-            <Download size={13} strokeWidth={2.5} />
-            <span>DOWNLOAD (.EXE)</span>
-          </a>
-
           {/* AI Model Status */}
           <button
             onClick={onOpenAiModal}
@@ -453,7 +355,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 backgroundColor: OsakaJadePalette.jade[500],
               }}
             />
-            CONTINUOUS & DISCRETE PROCESS SIMULATION
+            PROJECTS
           </span>
         </div>
 
@@ -467,7 +369,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             color: OsakaJadePalette.text.primary
           }}
         >
-          Design, Simulate & Orchestrate Industrial Plants
+          Your flowsheets
         </h1>
 
         <p
@@ -479,38 +381,11 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             margin: 0
           }}
         >
-          Continuous fluid mechanics, discrete line flow contracts, automated ASME equipment solvers, and real-time process optimization.
+          Open a project, start from a template, or design a unit operation of your own. Every result on the canvas comes from the simulation engine.
         </p>
 
         {/* Primary Action Buttons */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
-          {/* Secondary Action: Download Native Desktop App */}
-          <a
-            href="/ProcessForge-Setup-x64.exe"
-            download="ProcessForge-Setup-x64.exe"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '11px 16px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.strong}`,
-              color: OsakaJadePalette.text.primary,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: '"JetBrains Mono", monospace',
-              letterSpacing: '0.02em',
-              textDecoration: 'none',
-              transition: 'all 0.12s ease'
-            }}
-            title="Download ProcessForge Windows Setup (.exe Installer)"
-          >
-            <Download size={14} />
-            <span>Desktop App (.exe)</span>
-          </a>
-
           {/* Primary Action: Open Studio */}
           <button
             onClick={onOpenStudio}
@@ -568,31 +443,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             <span>Blank Canvas</span>
           </button>
 
-          {/* Secondary Action: Load Paint Canning Line */}
-          <button
-            onClick={() => onSelectTemplate('sherwin-williams-paint-line')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '11px 16px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.strong}`,
-              color: OsakaJadePalette.text.primary,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: '"JetBrains Mono", monospace',
-              letterSpacing: '0.02em',
-              transition: 'all 0.12s ease'
-            }}
-            title="Load reference 6-machine industrial packaging line"
-          >
-            <Workflow size={15} color={OsakaJadePalette.jade.glow} />
-            <span>Paint Canning Line</span>
-          </button>
-
           {onOpenForgeHub && (
             <button
               onClick={onOpenForgeHub}
@@ -614,7 +464,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               }}
             >
               <ProcessForgeEmblem size={15} glow={false} />
-              <span>ProcessForge Hub</span>
+              <span>Community library</span>
             </button>
           )}
 
@@ -665,101 +515,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
           </button>
         </div>
 
-        {/* Quick Install Bar & PowerShell One-Liner */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            flexWrap: 'wrap',
-            marginTop: 4,
-            paddingTop: 14,
-            borderTop: `1px solid ${OsakaJadePalette.border.subtle}`
-          }}
-        >
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: draftingRadius.soft,
-              padding: '6px 12px',
-              fontSize: '0.8rem',
-              fontFamily: 'monospace'
-            }}
-          >
-            <Terminal size={14} color={OsakaJadePalette.jade[400]} />
-            <span style={{ color: OsakaJadePalette.text.secondary }}>
-              irm https://process-forge.pages.dev/install.ps1 | iex
-            </span>
-            <button
-              onClick={() => copyToClipboard('irm https://process-forge.pages.dev/install.ps1 | iex')}
-              title="Copy PowerShell 1-Click Install Command"
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: OsakaJadePalette.jade[400],
-                display: 'flex',
-                alignItems: 'center',
-                padding: '2px',
-                marginLeft: '4px'
-              }}
-            >
-              {copiedSnippet ? <Check size={14} /> : <Copy size={14} />}
-            </button>
-          </div>
-
-          <a
-            href="/install.cmd"
-            download="install.cmd"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 12px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              color: OsakaJadePalette.text.secondary,
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              textDecoration: 'none',
-              fontFamily: '"JetBrains Mono", monospace'
-            }}
-            title="Download 1-Click Install Script (.cmd)"
-          >
-            <Download size={12} />
-            <span>1-Click Script (.cmd)</span>
-          </a>
-
-          <a
-            href="https://github.com/omeaga1/process-forge/releases/tag/v0.1.1"
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 12px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              color: OsakaJadePalette.text.muted,
-              fontSize: '0.78rem',
-              textDecoration: 'none'
-            }}
-          >
-            <span>All Releases (.exe, macOS, Linux)</span>
-            <ExternalLink size={12} />
-          </a>
-
-          <span style={{ fontSize: '0.72rem', color: OsakaJadePalette.text.muted }}>
-            1-Click automated setup &bull; Antivirus-safe &bull; Offline native desktop support &bull; Zero login required
-          </span>
-        </div>
       </section>
 
       {/* Main Grid: Projects & Templates (Left) + Overarching Agent & Subscriptions (Right) */}
@@ -831,7 +586,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                   No Cloud Projects Yet
                 </div>
                 <div style={{ fontSize: 12, color: OsakaJadePalette.text.muted, marginTop: 4 }}>
-                  Create a new process forge and save it to the cloud to access it from any browser.
+                  Projects you save to ProcessForge Cloud appear here, on any device you sign in on.
                 </div>
               </div>
             ) : (
@@ -879,7 +634,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                           fontWeight: 600
                         }}
                       >
-                        Cloud Synced
+                        {cp.syncStatus === 'synced' ? 'In the cloud' : cp.syncStatus === 'failed' ? 'Cloud save failed' : 'This device'}
                       </span>
                       <button
                         onClick={(e) => handleDeleteCloudProject(e, cp.id)}
@@ -921,7 +676,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Template 1: Sherwin-Williams */}
+              {/* Template 1: architectural paint line */}
               <div
                 onClick={() => onSelectTemplate('sherwin-williams-paint-line')}
                 style={{
@@ -941,7 +696,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                    Sherwin-Williams Architectural Paint Canning Line
+                    Architectural Paint Canning Line
                   </div>
                   <span
                     style={{
@@ -958,7 +713,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
                   <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: OsakaJadePalette.text.muted }}>
-                    SYS // LINE-CAN-01
                   </span>
                   <div
                     style={{
@@ -1014,7 +768,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                       color: '#38bdf8'
                     }}
                   >
-                    5 Machines • 300 BPM
+                    5 machines
                   </span>
                 </div>
                 <p style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, margin: '6px 0 10px 0', lineHeight: 1.4 }}>
@@ -1022,7 +776,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
                   <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: OsakaJadePalette.text.muted }}>
-                    SYS // LINE-BOT-02
                   </span>
                   <div
                     style={{
@@ -1066,7 +819,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                    Custom Blank Process Forge
+                    Blank flowsheet
                   </div>
                   <span
                     style={{
@@ -1082,11 +835,10 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                   </span>
                 </div>
                 <p style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, margin: '6px 0 10px 0', lineHeight: 1.4 }}>
-                  A clean grid ready for your custom process equipment, ASME nozzles, instrument loops, and unit-op CAD configurations.
+                  An empty flowsheet. Add standard equipment, or design your own unit operation.
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
                   <span style={{ fontSize: 10, fontFamily: '"JetBrains Mono", monospace', color: OsakaJadePalette.text.muted }}>
-                    SYS // SCRATCH-CANVAS
                   </span>
                   <div
                     style={{
@@ -1115,284 +867,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
 
         {/* Right Column: Overarching Agent Command Center, Account & Subscriptions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Overarching Agent Command Center */}
-          <div
-            style={{
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.glow}`,
-              borderRadius: draftingRadius.soft,
-              padding: 20,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: draftingRadius.soft,
-                    backgroundColor: `${OsakaJadePalette.jade[500]}1a`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    border: `1px solid ${OsakaJadePalette.jade[500]}44`
-                  }}
-                >
-                  <ProcessForgeEmblem size={20} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: OsakaJadePalette.text.primary, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>Plant Orchestrator</span>
-                    <span
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: '50%',
-                        backgroundColor: hasKey ? OsakaJadePalette.jade[500] : OsakaJadePalette.status.failed,
-                      }}
-                    />
-                  </div>
-                  <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, fontFamily: '"JetBrains Mono", monospace' }}>
-                    Plant Orchestrator • {hasKey ? creds.provider.toUpperCase() : 'Locked (Add API Key)'}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={onOpenAiModal}
-                style={{
-                  background: 'none',
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: draftingRadius.soft,
-                  padding: '4px 8px',
-                  color: OsakaJadePalette.text.secondary,
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}
-              >
-                <Cpu size={12} />
-                <span>Config</span>
-              </button>
-            </div>
-
-            {/* Agent Conversation Box or Security Lockout Gate */}
-            {!lockStatus.unlocked ? (
-              <div
-                style={{
-                  backgroundColor: OsakaJadePalette.background.canvas,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: draftingRadius.soft,
-                  padding: '24px 20px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  textAlign: 'center',
-                  gap: 12,
-                  marginBottom: 10
-                }}
-              >
-                <div
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: '50%',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: OsakaJadePalette.status.failed
-                  }}
-                >
-                  <Lock size={20} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary, marginBottom: 4 }}>
-                    Plant Orchestrator Locked
-                  </div>
-                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary, maxWidth: 320, lineHeight: 1.5 }}>
-                    For your security and privacy, agent orchestration is locked until credentials (API key or active local MCP connection) are detected.
-                  </div>
-                </div>
-                <button
-                  onClick={onOpenAiModal}
-                  style={{
-                    marginTop: 4,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    backgroundColor: OsakaJadePalette.jade[500],
-                    color: OsakaJadePalette.text.inverse,
-                    border: 'none',
-                    borderRadius: draftingRadius.soft,
-                    padding: '8px 14px',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <KeyRound size={13} />
-                  <span>Unlock Agent / Add Credentials</span>
-                </button>
-              </div>
-            ) : (
-              <>
-                {/* Agent Conversation Box */}
-                <div
-                  style={{
-                    height: 220,
-                    overflowY: 'auto',
-                    backgroundColor: OsakaJadePalette.background.canvas,
-                    border: `1px solid ${OsakaJadePalette.border.default}`,
-                    borderRadius: draftingRadius.soft,
-                    padding: 12,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 10,
-                    marginBottom: 10
-                  }}
-                >
-                  {agentConversation.map((m) => {
-                    const isUser = m.sender === 'user';
-                    return (
-                      <div
-                        key={m.id}
-                        style={{
-                          alignSelf: isUser ? 'flex-end' : 'flex-start',
-                          maxWidth: '88%',
-                          backgroundColor: isUser
-                            ? 'rgba(16, 185, 129, 0.15)'
-                            : 'rgba(255, 255, 255, 0.03)',
-                          border: `1px solid ${isUser ? OsakaJadePalette.jade[600] : OsakaJadePalette.border.default}`,
-                          borderRadius: draftingRadius.soft,
-                          padding: '8px 10px',
-                          fontSize: 12,
-                          color: OsakaJadePalette.text.primary,
-                          lineHeight: 1.45
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 600,
-                            color: isUser ? OsakaJadePalette.text.accent : OsakaJadePalette.text.secondary,
-                            marginBottom: 3,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 6
-                          }}
-                        >
-                          <span>{m.senderTitle}</span>
-                          {m.modelBadge && (
-                            <span
-                              style={{
-                                fontSize: 9,
-                                backgroundColor: 'rgba(255,255,255,0.06)',
-                                padding: '1px 4px',
-                                borderRadius: draftingRadius.soft,
-                                color: OsakaJadePalette.text.muted
-                              }}
-                            >
-                              {m.modelBadge}
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div>
-                      </div>
-                    );
-                  })}
-                  {isAgentThinking && (
-                    <div
-                      style={{
-                        alignSelf: 'flex-start',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontSize: 12,
-                        color: OsakaJadePalette.text.muted
-                      }}
-                    >
-                      <Loader2 size={14} className="animate-spin" color={OsakaJadePalette.jade.glow} />
-                      <span>Orchestrator reasoning...</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Quick Prompts */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                  {[
-                    'Audit line bottleneck',
-                    'Design 120 cpm canning line',
-                    'ASME B16.5 nozzle sizing'
-                  ].map((p, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleAgentSend(p)}
-                      disabled={isAgentThinking}
-                      style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                        border: `1px solid ${OsakaJadePalette.border.default}`,
-                        borderRadius: draftingRadius.soft,
-                        padding: '3px 8px',
-                        color: OsakaJadePalette.text.secondary,
-                        fontSize: 10,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Prompt Input */}
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input
-                    type="text"
-                    value={agentInput}
-                    onChange={(e) => setAgentInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAgentSend();
-                    }}
-                    placeholder="Query plant solver or specify equipment parameters..."
-                    style={{
-                      flex: 1,
-                      backgroundColor: OsakaJadePalette.background.canvas,
-                      border: `1px solid ${OsakaJadePalette.border.default}`,
-                      borderRadius: draftingRadius.soft,
-                      padding: '8px 10px',
-                      fontSize: 12,
-                      color: OsakaJadePalette.text.primary,
-                      outline: 'none'
-                    }}
-                  />
-                  <button
-                    onClick={() => handleAgentSend()}
-                    disabled={!agentInput.trim() || isAgentThinking}
-                    style={{
-                      backgroundColor: agentInput.trim() && !isAgentThinking ? OsakaJadePalette.jade[600] : 'rgba(255,255,255,0.05)',
-                      border: 'none',
-                      borderRadius: draftingRadius.soft,
-                      padding: '0 12px',
-                      color: '#fff',
-                      cursor: agentInput.trim() && !isAgentThinking ? 'pointer' : 'default',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    <Send size={14} />
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
           {/* Account & Cloud Sync Hub Card */}
           <div
             style={{
@@ -1419,7 +893,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                   color: isAuthenticated ? OsakaJadePalette.text.accent : OsakaJadePalette.status.blocked
                 }}
               >
-                {isAuthenticated ? `${user?.plan || 'Professional'} Plan` : 'Guest Mode'}
+                {isAuthenticated ? (hasCloudSession(user) ? 'Google account' : 'Profile on this device') : 'Not signed in'}
               </span>
             </div>
 
@@ -1428,32 +902,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             </div>
             <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted, marginTop: 2 }}>
               {isAuthenticated ? `${user?.email} • ${user?.organization || 'Process Engineering'}` : 'Sign in with Google to keep a copy of your projects in ProcessForge Cloud.'}
-            </div>
-
-            {/* Quota Bar */}
-            <div style={{ marginTop: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
-                <span>Cloud Simulation Quota</span>
-                <span>{cloudProjects.length} / {user?.cloudStorageQuota?.maxProjects || 25} Projects</span>
-              </div>
-              <div
-                style={{
-                  width: '100%',
-                  height: 6,
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                  overflow: 'hidden'
-                }}
-              >
-                <div
-                  style={{
-                    width: `${Math.min(100, ((cloudProjects.length) / (user?.cloudStorageQuota?.maxProjects || 25)) * 100)}%`,
-                    height: '100%',
-                    backgroundColor: OsakaJadePalette.jade[500],
-                    borderRadius: draftingRadius.soft
-                  }}
-                />
-              </div>
             </div>
 
             <button
@@ -1478,7 +926,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 transition: 'all 0.12s ease'
               }}
             >
-              <span>{isAuthenticated ? 'MANAGE ACCOUNT & QUOTAS' : 'SIGN IN WITH GOOGLE'}</span>
+              <span>{isAuthenticated ? 'Account' : 'Sign in with Google'}</span>
               <ExternalLink size={12} />
             </button>
           </div>
@@ -1496,7 +944,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Cpu size={18} color={OsakaJadePalette.jade[400]} />
                 <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: OsakaJadePalette.text.primary }}>
-                  Model Providers & Subscriptions
+                  AI model
                 </h2>
               </div>
               <span
@@ -1514,7 +962,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             </div>
 
             <p style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, margin: '0 0 14px 0', lineHeight: 1.4 }}>
-              Bring your existing subscription from <strong>Anthropic Claude</strong>, <strong>Google Gemini</strong>, <strong>OpenAI</strong>, or run locally on <strong>Ollama</strong>. Keys are stored only on this device — in the OS keychain in the desktop app, in local storage in a browser — and sent only to the provider they belong to.
+              Use Claude in the app with your own API key (or Gemini, OpenAI, or a local Ollama model), or from Claude Desktop on your Claude subscription. Keys are stored only on this device — in the OS keychain in the desktop app, in local storage in a browser — and sent only to the provider they belong to.
             </p>
 
             <button
@@ -1539,7 +987,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               }}
             >
               <Sliders size={13} />
-              <span>CONFIGURE AI SUBSCRIPTIONS</span>
+              <span>Choose how to use Claude</span>
             </button>
           </div>
         </div>

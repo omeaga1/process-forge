@@ -5,10 +5,8 @@ import {
   X,
   Bot,
   Activity,
-  Wrench,
-  ShieldCheck
+  Wrench
 } from 'lucide-react';
-import { getAiConfig } from '../../ai/aiModelManager.js';
 import { draftingRadius } from '@process-forge/theme';
 
 export interface MobileUnitOpSheetProps {
@@ -23,15 +21,11 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
   node,
   isOpen,
   onClose,
-  onUpdateConfig,
   onUpdateDressing
 }) => {
   const { palette } = useTheme();
   const OsakaJadePalette = palette;
   const [activeTab, setActiveTab] = useState<'TELEMETRY' | 'DRESSING' | 'AGENT'>('TELEMETRY');
-  const [rpmValue, setRpmValue] = useState<number>(180);
-  const [tempTarget, setTempTarget] = useState<number>(24.5);
-  const aiConfig = getAiConfig();
 
   if (!isOpen || !node) return null;
 
@@ -192,7 +186,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
               cursor: 'pointer'
             }}
           >
-            <Wrench size={14} /> ASME Dressing
+            <Wrench size={14} /> Nozzles
           </button>
           <button
             onClick={() => setActiveTab('AGENT')}
@@ -212,7 +206,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
               cursor: 'pointer'
             }}
           >
-            <Bot size={14} /> CAD Spec
+            <Bot size={14} /> Definition
           </button>
         </div>
 
@@ -221,158 +215,40 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
           {/* TAB 1: TELEMETRY & CONTROLS */}
           {activeTab === 'TELEMETRY' && (
             <>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: 10
-                }}
-              >
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: draftingRadius.soft,
-                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                    border: `1px solid ${OsakaJadePalette.border.subtle}`
-                  }}
-                >
-                  <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Viscosity</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: OsakaJadePalette.jade.glow, marginTop: 2 }}>1,200 cP</div>
-                  <div style={{ fontSize: 10, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>Non-Newtonian shear</div>
-                </div>
-
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: draftingRadius.soft,
-                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                    border: `1px solid ${OsakaJadePalette.border.subtle}`
-                  }}
-                >
-                  <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Temperature</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>{tempTarget.toFixed(1)} °C</div>
-                  <div style={{ fontSize: 10, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>Jacket ΔT: 4.2 K</div>
-                </div>
-
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: draftingRadius.soft,
-                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                    border: `1px solid ${OsakaJadePalette.border.subtle}`
-                  }}
-                >
-                  <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Mass Balance Δm</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: OsakaJadePalette.jade.glow, marginTop: 2 }}>0.000 kg/s</div>
-                  <div style={{ fontSize: 10, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>Continuity verified</div>
-                </div>
-
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: draftingRadius.soft,
-                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                    border: `1px solid ${OsakaJadePalette.border.subtle}`
-                  }}
-                >
-                  <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Operating Head</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>18.2 m</div>
-                  <div style={{ fontSize: 10, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>NPSH margin 2.8m</div>
-                </div>
+              <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>
+                Configured values. Run the simulation on the full studio to see results.
               </div>
-
-              {/* Touch Operational Setpoint Sliders */}
-              <div
-                style={{
-                  padding: 14,
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>Impeller Agitator Speed</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.jade.glow }}>{rpmValue} RPM</span>
-                </div>
-                <input
-                  type="range"
-                  min={60}
-                  max={300}
-                  step={5}
-                  value={rpmValue}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setRpmValue(val);
-                    onUpdateConfig?.(node.id, { ...node.config, agitatorSpeedRpm: val });
-                  }}
-                  style={{ width: '100%', accentColor: OsakaJadePalette.jade[500], cursor: 'pointer' }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: OsakaJadePalette.text.muted }}>
-                  <span>60 RPM</span>
-                  <span>180 RPM</span>
-                  <span>300 RPM</span>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  padding: 14,
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 12
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>Jacket Setpoint Temp</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.jade.glow }}>{tempTarget.toFixed(1)} °C</span>
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button
-                    onClick={() => setTempTarget((t) => Math.max(15, t - 0.5))}
-                    style={{
-                      flex: 1,
-                      padding: '8px',
-                      borderRadius: draftingRadius.soft,
-                      backgroundColor: OsakaJadePalette.background.surface,
-                      border: `1px solid ${OsakaJadePalette.border.default}`,
-                      color: OsakaJadePalette.text.primary,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    - 0.5 °C
-                  </button>
-                  <button
-                    onClick={() => setTempTarget((t) => Math.min(60, t + 0.5))}
-                    style={{
-                      flex: 1,
-                      padding: '8px',
-                      borderRadius: draftingRadius.soft,
-                      backgroundColor: OsakaJadePalette.background.surface,
-                      border: `1px solid ${OsakaJadePalette.border.default}`,
-                      color: OsakaJadePalette.text.primary,
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    + 0.5 °C
-                  </button>
-                </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {Object.entries(node.config as Record<string, unknown>)
+                  .filter(([k, v]) => typeof v === 'number' && k !== 'meanTimeBetweenFailuresMinutes' && k !== 'meanTimeToRepairMinutes')
+                  .slice(0, 8)
+                  .map(([k, v]) => (
+                    <div
+                      key={k}
+                      style={{
+                        padding: 12,
+                        borderRadius: draftingRadius.soft,
+                        backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                        border: `1px solid ${OsakaJadePalette.border.subtle}`
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted }}>
+                        {k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())}
+                      </div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+                        {(v as number).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
               </div>
             </>
           )}
 
-          {/* TAB 2: ASME DRESSING & NOZZLES */}
+          {/* TAB 2: NOZZLES */}
           {activeTab === 'DRESSING' && (
             <>
               <div style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                ASME B16.5 Flanged Nozzle Schedule
+                Nozzle schedule
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {nozzles.length > 0 ? (
@@ -458,7 +334,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: OsakaJadePalette.text.muted }}>Agitator Impeller</span>
                   <span style={{ color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
-                    {dressing?.internals?.agitatorType ?? 'Rushton Turbine (6-Blade)'}
+                    {dressing?.internals?.agitatorType ?? 'None'}
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -486,13 +362,13 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                       cursor: 'pointer'
                     }}
                   >
-                    {dressing?.internals?.hasJacket ? `ASME Dimple (${dressing?.internals?.jacketType})` : 'Disabled'}
+                    {dressing?.internals?.hasJacket ? `Dimple (${dressing?.internals?.jacketType})` : 'Disabled'}
                   </button>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: OsakaJadePalette.text.muted }}>Wall Baffles</span>
                   <span style={{ color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
-                    {dressing?.internals?.baffleCount ?? 4} Wall Baffles (90° Offset)
+                    {dressing?.internals?.baffleCount ?? 0} baffles
                   </span>
                 </div>
               </div>
@@ -537,38 +413,9 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                 }}
               >
                 <strong style={{ color: OsakaJadePalette.text.primary }}>Equipment Status: </strong>
-                Agitator setpoint: {rpmValue} RPM. Vessel geometry: {dressing?.customSvgShell ? 'Custom Vector CAD' : 'Standard ASME'}. Nozzle ports placed and ready for canvas stream connection.
+                Symbol: {dressing?.customSvgShell ? 'custom drawing' : 'standard symbol'}. {nozzles.length} nozzle{nozzles.length === 1 ? '' : 's'} defined.
               </div>
 
-              {/* Zero-Key Architecture Compliance Notice */}
-              {aiConfig.provider === 'offline' ? (
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: draftingRadius.soft,
-                    backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                    border: `1px solid ${OsakaJadePalette.border.default}`,
-                    fontSize: 11,
-                    lineHeight: 1.4,
-                    color: OsakaJadePalette.text.muted,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
-                    <ShieldCheck size={14} color={OsakaJadePalette.jade.glow} />
-                    <span>Zero Raw Keys Policy</span>
-                  </div>
-                  <span>
-                    Model inference routed via local MCP or OAuth 2.0 PKCE. Local process physics and mechanical dressing execute offline.
-                  </span>
-                </div>
-              ) : (
-                <div style={{ fontSize: 11, color: OsakaJadePalette.jade.glow }}>
-                  Connected via {aiConfig.provider.toUpperCase()}
-                </div>
-              )}
             </>
           )}
         </div>

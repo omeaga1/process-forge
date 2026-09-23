@@ -892,10 +892,22 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         onUpdateConfig={handleUpdateNodeConfig}
         onUpdateDressing={handleUpdateNodeDressing}
         onPublishToForgeHub={async (n) => {
+          // Category from what the unit handles, not "reactor, else packaging";
+          // description from the contract when the unit has one.
+          const contract = (n.config as { contract?: { description?: string } }).contract;
+          const ports = [...n.inputs, ...n.outputs].map((p) => String(p.flowDimension));
+          const category =
+            n.kind === 'CONVEYOR' || n.kind === 'PALLETIZER'
+              ? 'MATERIAL_HANDLING'
+              : n.kind === 'ROTARY_FILLER' || n.kind === 'LABELER'
+                ? 'PACKAGING'
+                : ports.some((d) => d.startsWith('CONTINUOUS'))
+                  ? 'FLUID_PROCESSING'
+                  : 'MATERIAL_HANDLING';
           const res = await CommunityLibraryService.publishUnitOp(n, {
             name: n.name,
-            category: n.kind === 'BATCH_REACTOR' ? 'FLUID_PROCESSING' : 'PACKAGING',
-            description: `Community-engineered Unit-Op: ${n.name}`
+            category,
+            description: contract?.description || `${n.name} (${n.kind.replace(/_/g, ' ').toLowerCase()})`
           });
           alert(res.message);
         }}

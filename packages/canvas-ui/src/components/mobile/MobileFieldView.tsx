@@ -224,7 +224,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
           <div style={{ flex: 1, minWidth: 0 }}>
             <strong style={{ color: OsakaJadePalette.text.primary }}>Chokepoint Alarm: </strong>
             <span style={{ color: OsakaJadePalette.text.secondary }}>
-              Labeler LB-500 accumulation at 92% buffer capacity
+              {graph.nodes.find((n) => n.id === telemetry.activeBottleneck)?.name ?? telemetry.activeBottleneck} is the constraint on this line
             </span>
           </div>
         </div>
@@ -248,9 +248,8 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
 
         {graph.nodes.map((node, index) => {
           const isBottleneck = node.id === telemetry.activeBottleneck;
-          const isBlocked = isRunning && node.id === 'rotary-filler-300';
-          const statusText = isBottleneck ? 'Bottleneck' : isBlocked ? 'Backpressure' : isRunning ? 'Nominal' : 'Standby';
-          const statusColor = isBottleneck ? OsakaJadePalette.border.glowAmber : isBlocked ? OsakaJadePalette.status.failed : isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted;
+          const statusText = isBottleneck ? 'Bottleneck' : isRunning ? 'Running' : 'Standby';
+          const statusColor = isBottleneck ? OsakaJadePalette.border.glowAmber : isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted;
 
           return (
             <div
@@ -324,16 +323,16 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                 }}
               >
                 <div>
-                  <span style={{ color: OsakaJadePalette.text.muted }}>Sub-Agent: </span>
-                  <span style={{ color: OsakaJadePalette.jade.glow, fontWeight: 600 }}>
-                    {node.assignedSubAgentId ?? `Agent ${node.name.split(' ')[0]}`}
+                  <span style={{ color: OsakaJadePalette.text.muted }}>Type: </span>
+                  <span style={{ color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
+                    {node.kind.replace(/_/g, ' ').toLowerCase()}
                   </span>
                 </div>
 
                 <div>
                   <span style={{ color: OsakaJadePalette.text.muted }}>Nozzles: </span>
                   <span style={{ color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
-                    {node.dressing?.nozzles?.length ?? 2} ASME
+                    {node.dressing?.nozzles?.length ?? 0}
                   </span>
                 </div>
               </div>

@@ -122,7 +122,7 @@ const AppInner: React.FC = () => {
   const handleSelectTemplate = useCallback((key: string) => {
     setTemplateKey(key);
     let targetGraph = SHERWIN_WILLIAMS_PAINT_LINE;
-    let targetName = 'Sherwin-Williams Paint Canning Line';
+    let targetName = 'Architectural Paint Canning Line';
     let targetDesc = 'Industrial paint blending, filling, labeling, and palletizing line';
     if (key === 'beverage-bottling-line') {
       targetGraph = BEVERAGE_BOTTLING_LINE;
@@ -365,7 +365,7 @@ const AppInner: React.FC = () => {
       ) : viewMode === 'portal' || viewMode === 'landing' ? (
         <LandingPageHub
           currentProject={project}
-          onNavigateLanding={handleNavigateHome}
+          {...(isDesktopRuntime() ? {} : { onNavigateLanding: handleNavigateHome })}
           onCreateBlank={handleCreateBlank}
           onSelectTemplate={handleSelectTemplateAndLaunch}
           onOpenProject={handleSelectCloudProjectAndLaunch}

@@ -144,7 +144,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                 Save Simulation Flowsheet
               </h3>
               <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-                Preserve digital twin topology, equipment dressing, and agent transcripts
+                Units, settings, drawings and streams
               </span>
             </div>
           </div>
@@ -172,7 +172,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Sherwin-Williams Line Twin"
+              placeholder="e.g. North plant paint line"
               style={{
                 width: '100%',
                 backgroundColor: OsakaJadePalette.background.canvas,
@@ -319,7 +319,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                 <HardDrive size={18} color={OsakaJadePalette.text.secondary} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                    Browser Local Storage
+                    This device
                   </div>
                   <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
                     Quick save to this browser for fast reloading
@@ -408,7 +408,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
         >
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <ShieldCheck size={12} color={OsakaJadePalette.jade[500]} />
-            100% Deterministic Simulation State Preservation
+            Saved projects reopen exactly as they were
           </span>
           <button
             onClick={onClose}

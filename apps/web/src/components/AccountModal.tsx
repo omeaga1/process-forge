@@ -234,7 +234,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 {isAuthenticated ? 'Engineer Profile & Cloud Sync' : 'ProcessForge Account'}
               </div>
               <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>
-                {isAuthenticated ? 'Manage session & cloud storage quota' : 'Password-secured authentication for cloud digital twins'}
+                {isAuthenticated ? 'Your account on this device' : 'A Google account can save to ProcessForge Cloud. An email profile stays on this device.'}
               </div>
             </div>
           </div>
@@ -730,7 +730,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         gap: 6
                       }}
                     >
-                      <span>{authMode === 'signin' ? 'Sign In to Account' : 'Create Account & Enable Cloud Sync'}</span>
+                      <span>{authMode === 'signin' ? 'Sign In to Account' : 'Create profile on this device'}</span>
                       <ArrowRight size={14} />
                     </button>
                   </form>
