@@ -11,6 +11,7 @@ import {
   type AiModelConfig
 } from '../../ai/aiModelManager.js';
 import { dispatchMasterOrchestratorMessage } from '../../ai/aiDispatch.js';
+import { useAssistantRoute, claudeDesktopFlowsheetPrompt } from '../../ai/assistantRoute.js';
 import { createDefaultProcessNode } from '../../utils/nodeFactory.js';
 import { draftingRadius } from '@process-forge/theme';
 import { AiModelModal } from '../modals/AiModelModal.js';
@@ -52,6 +53,14 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [lockStatus, setLockStatus] = useState(() => isAgentChatUnlocked(getAiConnection(), getLlmCredentials()));
+  const route = useAssistantRoute();
+  const [handoffCopied, setHandoffCopied] = useState(false);
+
+  const copyForClaudeDesktop = async () => {
+    await navigator.clipboard.writeText(claudeDesktopFlowsheetPrompt(graph, inputText));
+    setHandoffCopied(true);
+    setTimeout(() => setHandoffCopied(false), 2500);
+  };
 
   const refreshAiState = () => {
     setAiConfig(getAiConfig());
@@ -289,7 +298,13 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                     display: 'inline-block'
                   }}
                 />
-                <span>{lockStatus.unlocked ? (PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant') : 'Local Solver'}</span>
+                <span>
+                  {route === 'claude-desktop'
+                    ? 'Claude Desktop'
+                    : lockStatus.unlocked
+                      ? `${PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant'} · your key`
+                      : 'Local Solver'}
+                </span>
                 <span style={{ fontSize: size['2xs'], color: OsakaJadePalette.text.muted }}>• Tools</span>
               </button>
             </div>
@@ -580,7 +595,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       </div>
 
       {/* Offline Solver Status Banner (Unobtrusive) */}
-      {!lockStatus.unlocked && (
+      {route === 'none' && (
         <div
           style={{
             padding: '6px 14px',
@@ -593,7 +608,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             color: OsakaJadePalette.text.secondary
           }}
         >
-          <span>Offline solver active</span>
+          <span>No assistant: standard equipment from plain requests</span>
           <button
             onClick={() => setIsAiModalOpen(true)}
             style={{
@@ -610,12 +625,73 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             }}
           >
             <KeyRound size={11} />
-            <span>Connect AI Key</span>
+            <span>Use Claude</span>
           </button>
         </div>
       )}
 
+      {route === 'claude-desktop' && (
+        <div
+          style={{
+            padding: space[3],
+            borderTop: `1px solid ${OsakaJadePalette.border.default}`,
+            backgroundColor: OsakaJadePalette.background.base,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: space[2]
+          }}
+        >
+          <p style={{ margin: 0, fontSize: size.xs, color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
+            You chat with Claude in Claude Desktop, on your Claude subscription. It has the
+            ProcessForge tools; this app cannot see that conversation, so hand the flowsheet over.
+          </p>
+          <textarea
+            aria-label="Question for Claude Desktop"
+            placeholder="What should Claude look at? e.g. why is the labeler starved?"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            rows={2}
+            style={{
+              backgroundColor: OsakaJadePalette.background.surfaceElevated,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              borderRadius: draftingRadius.soft,
+              padding: `${space[2]}px ${space[2.5]}px`,
+              color: OsakaJadePalette.text.primary,
+              fontSize: size.sm,
+              fontFamily: font.sans,
+              resize: 'vertical'
+            }}
+          />
+          <div style={{ display: 'flex', gap: space[2], alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={copyForClaudeDesktop}
+              style={{
+                backgroundColor: OsakaJadePalette.jade[500],
+                color: OsakaJadePalette.text.inverse,
+                border: 'none',
+                borderRadius: draftingRadius.soft,
+                padding: `${space[2]}px ${space[3]}px`,
+                fontWeight: weight.bold,
+                fontSize: size.xs,
+                cursor: 'pointer'
+              }}
+            >
+              {handoffCopied ? 'Copied — paste into Claude Desktop' : 'Copy flowsheet for Claude Desktop'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsAiModalOpen(true)}
+              style={{ background: 'none', border: 'none', color: OsakaJadePalette.text.muted, fontSize: size.xs, cursor: 'pointer', padding: 0 }}
+            >
+              Change how you use Claude
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Chat Input Bar */}
+      {route !== 'claude-desktop' && (
       <div
         style={{
           padding: space[3],
@@ -664,6 +740,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           Send
         </button>
       </div>
+      )}
 
       {/* AI Model & Provider Modal */}
       <AiModelModal

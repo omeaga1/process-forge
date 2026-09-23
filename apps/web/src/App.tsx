@@ -11,6 +11,7 @@ import {
   loadLlmCredentials,
   hasValidCredentials,
   authorUnitOpContract,
+  useAssistantRoute,
   type AiModelConfig,
   ThemeProvider
 } from '@process-forge/canvas-ui';
@@ -61,6 +62,7 @@ function inferTemplateKeyFromProject(proj: SimulationProject): string {
 
 const AppInner: React.FC = () => {
   const updater = useAppUpdater();
+  const assistantRoute = useAssistantRoute();
   const { isAccountModalOpen, openAccountModal, closeAccountModal, isAuthenticated } = useAccount();
   const [isEntryGateOpen, setIsEntryGateOpen] = useState<boolean>(false);
   const [isCloudProjectsModalOpen, setIsCloudProjectsModalOpen] = useState<boolean>(false);
@@ -492,6 +494,8 @@ const AppInner: React.FC = () => {
             }}
           >
             <UnitOpCreator
+              route={assistantRoute}
+              onChooseAssistant={() => setIsAiModalOpen(true)}
               onPropose={handleProposeUnitOp}
               onAccept={handleAcceptUnitOpContract}
               onClose={() => setIsUnitOpCreatorOpen(false)}
