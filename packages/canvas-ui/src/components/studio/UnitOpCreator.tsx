@@ -12,6 +12,7 @@ import {
 } from '@process-forge/protocol';
 import { OsakaJadePalette as P, drafting, draftingRadius } from '@process-forge/theme';
 import { TemplateChoice } from './TemplateChoice.js';
+import { claudeDesktopUnitOpPrompt, type AssistantRoute } from '../../ai/assistantRoute.js';
 
 const D = drafting('dark');
 
@@ -43,6 +44,14 @@ export interface UnitOpCreatorProcessContext {
 export interface UnitOpCreatorProps {
   /** Authors a contract from the engineer's description. Omit for paste-in mode. */
   onPropose?: (description: string, onProgress?: (note: string) => void) => Promise<UnitOpContract | string>;
+  /**
+   * How the engineer uses Claude. Decides what the authoring button does:
+   * Claude in the app (needs onPropose), a hand-off to Claude Desktop, or
+   * paste-in only. Defaults to 'api-key' when onPropose is given.
+   */
+  route?: AssistantRoute;
+  /** Opens the "how do you use Claude" settings. */
+  onChooseAssistant?: () => void;
   /** Called with a contract that passed every gate. */
   onAccept: (contract: UnitOpContract) => void;
   onClose?: () => void;
@@ -136,6 +145,8 @@ function GateBadge({ state, label }: { state: 'pass' | 'fail' | 'pending'; label
 
 export function UnitOpCreator({
   onPropose,
+  route: routeProp,
+  onChooseAssistant,
   onAccept,
   onClose,
   processContext,
@@ -148,6 +159,8 @@ export function UnitOpCreator({
   // One line per round of the design loop, so the engineer can see what the
   // engine rejected and what Claude changed -- not just a spinner.
   const [progress, setProgress] = useState<string[]>([]);
+  const route: AssistantRoute = routeProp ?? (onPropose ? 'api-key' : 'none');
+  const [briefCopied, setBriefCopied] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   // Keyed to the description it was made for, so editing the description
   // discards a pick that no longer applies.
@@ -289,7 +302,7 @@ export function UnitOpCreator({
             boxSizing: 'border-box'
           }}
         />
-        {onPropose ? (
+        {route === 'api-key' && onPropose ? (
           <button
             onClick={handlePropose}
             disabled={busy || !description.trim()}
@@ -306,12 +319,58 @@ export function UnitOpCreator({
           >
             {busy ? 'Claude is designing it…' : 'Ask Claude to design it'}
           </button>
+        ) : route === 'claude-desktop' ? (
+          <div>
+          <button
+            type="button"
+            onClick={async () => {
+              await navigator.clipboard.writeText(claudeDesktopUnitOpPrompt(description));
+              setBriefCopied(true);
+              setTimeout(() => setBriefCopied(false), 2500);
+            }}
+            style={{
+              marginTop: 10,
+              background: P.jade[600],
+              color: P.text.inverse,
+              border: 'none',
+              borderRadius: draftingRadius.soft,
+              padding: '8px 16px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            {briefCopied ? 'Copied — paste it into Claude Desktop' : 'Copy design brief for Claude Desktop'}
+          </button>
+            <p style={{ margin: '8px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
+              Claude Desktop designs it with the ProcessForge tools on your subscription. Paste the
+              contract it gives you below; the engine checks it here again before it can be added.
+            </p>
+          </div>
         ) : (
-          <p style={{ margin: '10px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
-            No model is wired into this panel. Author the contract in your own MCP client using{' '}
-            <code style={{ color: P.text.accent }}>design_unit_op</code>, then paste the result
-            below.
-          </p>
+          <div>
+            <p style={{ margin: '10px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
+              No assistant is set up. Paste a contract below, or choose how to use Claude: in the
+              app with your API key, or from Claude Desktop on your subscription.
+            </p>
+            {onChooseAssistant && (
+          <button
+            type="button"
+            onClick={onChooseAssistant}
+            style={{
+              marginTop: 10,
+              background: P.jade[600],
+              color: P.text.inverse,
+              border: 'none',
+              borderRadius: draftingRadius.soft,
+              padding: '8px 16px',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Choose how to use Claude
+          </button>
+            )}
+          </div>
         )}
         {progress.length > 0 && (
           <ol aria-live="polite" style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: '0.76rem', color: P.text.secondary }}>

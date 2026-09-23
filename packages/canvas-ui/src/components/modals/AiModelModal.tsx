@@ -34,6 +34,7 @@ import {
   type ConnectionTestResult
 } from '../../ai/aiModelManager.js';
 import { draftingRadius } from '@process-forge/theme';
+import { setAssistantRoute, useAssistantRoute, ROUTE_LABELS } from '../../ai/assistantRoute.js';
 
 export interface AiModelModalProps {
   isOpen: boolean;
@@ -107,13 +108,14 @@ const PROVIDERS: ProviderMeta[] = [
   },
   {
     id: 'mcp',
-    label: 'External MCP',
-    badge: 'Agent Bridge',
+    label: 'Claude Desktop (MCP)',
+    badge: 'Your subscription',
     icon: Server,
     accentColor: '#a855f7',
     accentGlow: 'rgba(168, 85, 247, 0.25)',
     apiKeyField: undefined,
-    description: 'Expose ProcessForge simulation and CAD tools to external AI hosts via Model Context Protocol.'
+    description:
+      'Chat with Claude in Claude Desktop on your Claude subscription, with the ProcessForge tools available to it. The app hands your flowsheet and design briefs over; Claude Desktop does the thinking.'
   }
 ];
 
@@ -123,6 +125,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
   onConfigChanged
 }) => {
   const { theme, palette, font } = useTheme();
+  const route = useAssistantRoute();
   const isDark = theme !== 'light';
 
   const [activeProvider, setActiveProvider] = useState<LlmProvider | 'mcp'>('gemini');
@@ -203,6 +206,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
         provider: activeProvider
       });
       setCreds(updated);
+      setAssistantRoute('api-key');
       setSaveFeedback(true);
       setTimeout(() => setSaveFeedback(false), 2200);
       onConfigChanged?.({
@@ -343,8 +347,11 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     letterSpacing: '-0.01em'
                   }}
                 >
-                  AI Model & Engine Settings
+                  How you use Claude
                 </h2>
+                <span style={{ fontSize: 11, color: textMuted }} aria-live="polite">
+                  Now: {ROUTE_LABELS[route]}
+                </span>
                 <span
                   style={{
                     fontSize: 10,
@@ -1122,9 +1129,28 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
               </div>
 
               <p style={{ margin: 0, fontSize: 11, color: textDim, lineHeight: 1.4 }}>
-                Paste the configuration snippet into your Claude Desktop, Cursor, or Antigravity MCP config
-                file to grant your external AI assistant autonomous access to ProcessForge simulation models.
+                Add this to Claude Desktop's configuration file and restart Claude Desktop. The app cannot
+                detect that connection -- it lives inside Claude Desktop -- so choose this route below once
+                it is set up.
               </p>
+              <button
+                type="button"
+                onClick={() => setAssistantRoute(route === 'claude-desktop' ? 'none' : 'claude-desktop')}
+                aria-pressed={route === 'claude-desktop'}
+                style={{
+                  padding: '9px 14px',
+                  borderRadius: draftingRadius.soft,
+                  border: `1px solid ${borderColor}`,
+                  backgroundColor: route === 'claude-desktop' ? 'rgba(168, 85, 247, 0.18)' : 'transparent',
+                  color: textColor,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  alignSelf: 'flex-start'
+                }}
+              >
+                {route === 'claude-desktop' ? 'Using Claude Desktop — stop using it' : 'Use Claude Desktop as my assistant'}
+              </button>
             </div>
           )}
 

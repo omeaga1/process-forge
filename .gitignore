@@ -47,3 +47,6 @@ coverage/
 # Release distributions
 release-dist/
 apps/desktop/installer/staging/
+
+# Local state from wrangler dev servers
+.wrangler/

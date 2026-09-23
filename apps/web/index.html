@@ -16,24 +16,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
-    <script>
-      (function() {
-        try {
-          var stored = localStorage.getItem('pf-theme');
-          var theme = stored === 'light' || stored === 'dark' ? stored : 'dark';
-          document.documentElement.setAttribute('data-theme', theme);
-          document.documentElement.style.colorScheme = theme;
-          var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', theme === 'light' ? '#f8f7f0' : '#0c1214');
-        } catch (e) {}
-      })();
-      // ProcessForge desktop launcher heartbeat loop
-      setInterval(function() {
-        if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
-          fetch('/api/heartbeat').catch(function() {});
-        }
-      }, 5000);
-    </script>
+    <script src="./boot.js"></script>
     <!-- Google Identity Services for real Google Accounts -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>

@@ -15,6 +15,8 @@ import {
   hasValidCredentials,
   dispatchMasterOrchestratorMessage,
   createDefaultProcessNode,
+  useAssistantRoute,
+  claudeDesktopFlowsheetPrompt,
   type ChatMessage
 } from '@process-forge/canvas-ui';
 import type { SimulationProject, ProcessNode } from '@process-forge/protocol';
@@ -44,6 +46,8 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
   const OsakaJadePalette = palette;
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [inputText, setInputText] = useState<string>('');
+  const route = useAssistantRoute();
+  const [handoffCopied, setHandoffCopied] = useState(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [creds, setCreds] = useState(() => getLlmCredentials());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -446,7 +450,66 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
             ))}
           </div>
 
+          {/* Claude Desktop: a hand-off instead of a chat box that cannot answer */}
+          {route === 'claude-desktop' && (
+            <div
+              style={{
+                padding: 10,
+                backgroundColor: OsakaJadePalette.background.surface,
+                borderTop: `1px solid ${OsakaJadePalette.border.default}`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6
+              }}
+            >
+              <span style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
+                You chat in Claude Desktop. Hand it this flowsheet with your question.
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text"
+                  aria-label="Question for Claude Desktop"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Your question (optional)"
+                  style={{
+                    flex: 1,
+                    backgroundColor: OsakaJadePalette.background.canvas,
+                    border: `1px solid ${OsakaJadePalette.border.default}`,
+                    borderRadius: draftingRadius.soft,
+                    padding: '6px 10px',
+                    fontSize: 12,
+                    color: OsakaJadePalette.text.primary,
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(claudeDesktopFlowsheetPrompt(currentProject.graph, inputText));
+                    setHandoffCopied(true);
+                    setTimeout(() => setHandoffCopied(false), 2500);
+                  }}
+                  style={{
+                    backgroundColor: OsakaJadePalette.jade[600],
+                    border: 'none',
+                    borderRadius: draftingRadius.soft,
+                    padding: '0 10px',
+                    color: '#fff',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {handoffCopied ? 'Copied' : 'Copy for Claude'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Input Area */}
+          {route !== 'claude-desktop' && (
           <div
             style={{
               padding: 10,
@@ -493,6 +556,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
               <Send size={14} />
             </button>
           </div>
+          )}
         </div>
       )}
 
