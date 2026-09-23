@@ -20,8 +20,17 @@ interface InternalNodeRuntime {
   downTime: number;
   unitsProduced: number;
   unitsScrapped: number;
+  /** Input queue: units waiting to be processed by this node. */
   bufferCans: number;
   maxBuffer: number;
+  /**
+   * Finished units that could not leave because every downstream buffer was
+   * full. Kept apart from the input queue: the contract handler used to put
+   * held output back into bufferCans, where the next cycle processed -- and
+   * scrapped -- it a second time. (The filler has no input queue and still
+   * holds its output in bufferCans.)
+   */
+  heldUnits: number;
   fluidLevelGallons: number;
   /**
    * Present when this node's behavior comes from a UnitOpContract rather than
@@ -39,6 +48,8 @@ export class SimulationEngine {
   private telemetry: NodeTelemetrySnapshot[] = [];
   private eventCounter = 0;
   private lastTelemetrySnapshotMinute = -1;
+  /** Round-robin position per node with more than one outgoing edge. */
+  private routeCursor = new Map<string, number>();
 
   private readonly rng: SeededRng;
 
@@ -116,6 +127,7 @@ export class SimulationEngine {
         unitsScrapped: 0,
         bufferCans: 0,
         maxBuffer,
+        heldUnits: 0,
         fluidLevelGallons: initialFluid,
         ...(contract ? { contract, contractEval } : {})
       });
@@ -143,7 +155,20 @@ export class SimulationEngine {
 
   private setNodeState(runtime: InternalNodeRuntime, newState: MachineOperationalState): void {
     if (runtime.state === newState) return;
+    this.creditElapsed(runtime);
+    runtime.state = newState;
+  }
 
+  /**
+   * Adds the time since the last state change to the current state's bucket.
+   *
+   * Split out of setNodeState so finalization can call it directly. Finalizing
+   * by transitioning every node to IDLE silently skipped any node already
+   * IDLE -- setNodeState returns early on an unchanged state -- so a node that
+   * was never activated ended the run with zero seconds in every bucket. That
+   * was hidden by reporting totalTime as Math.max(simTime, sum of buckets).
+   */
+  private creditElapsed(runtime: InternalNodeRuntime): void {
     const duration = this.currentTimeSeconds - runtime.stateStartTime;
     switch (runtime.state) {
       case 'BUSY':
@@ -162,8 +187,6 @@ export class SimulationEngine {
         runtime.starvedTime += duration;
         break;
     }
-
-    runtime.state = newState;
     runtime.stateStartTime = this.currentTimeSeconds;
   }
 
@@ -226,9 +249,9 @@ export class SimulationEngine {
 
     this.currentTimeSeconds = maxTimeSeconds;
 
-    // Finalize all remaining node state timers
+    // Finalize: every node's trailing time lands in the bucket it was in.
     for (const runtime of this.nodes.values()) {
-      this.setNodeState(runtime, 'IDLE');
+      this.creditElapsed(runtime);
     }
 
     const endWallClock = performance.now();
@@ -256,21 +279,15 @@ export class SimulationEngine {
         runtime.unitsProduced += produced;
         runtime.unitsScrapped += rejected;
 
-        // Route cans to downstream machine
-        const downstream = this.findDownstreamRuntime(runtime.node.id);
-        if (downstream) {
-          if (downstream.bufferCans + produced <= downstream.maxBuffer) {
-            downstream.bufferCans += produced;
-            this.setNodeState(runtime, 'BUSY');
-
-            // Wake downstream machine if it was starved
-            if (downstream.state === 'STARVED' || downstream.state === 'IDLE') {
-              this.triggerDownstreamMachine(downstream);
-            }
-          } else {
-            // Downstream buffer full: machine is blocked, buffer held items
-            runtime.bufferCans += produced;
+        // Route cans downstream. Whatever does not fit is held, and the
+        // filler blocks until a downstream machine makes room.
+        if (this.hasDownstream(runtime.node.id)) {
+          const held = produced - this.routeUnits(runtime, produced);
+          if (held > 0) {
+            runtime.bufferCans += held;
             this.setNodeState(runtime, 'BLOCKED');
+          } else {
+            this.setNodeState(runtime, 'BUSY');
           }
         }
 
@@ -284,20 +301,14 @@ export class SimulationEngine {
 
       case 'CONVEYOR_TRANSFER_COMPLETE': {
         if (runtime.bufferCans > 0) {
-          const downstream = this.findDownstreamRuntime(runtime.node.id);
-          if (downstream) {
-            if (downstream.bufferCans < downstream.maxBuffer) {
-              runtime.bufferCans--;
-              runtime.unitsProduced++;
-              downstream.bufferCans++;
-              this.unblockUpstreamIfWaiting(runtime.node.id);
-
-              if (downstream.state === 'STARVED' || downstream.state === 'IDLE') {
-                this.triggerDownstreamMachine(downstream);
-              }
-            } else {
-              this.setNodeState(runtime, 'BLOCKED');
-            }
+          // A conveyor at the end of a line discharges off the end.
+          const moved = this.hasDownstream(runtime.node.id) ? this.routeUnits(runtime, 1) : 1;
+          if (moved > 0) {
+            runtime.bufferCans--;
+            runtime.unitsProduced++;
+            this.unblockUpstreamIfWaiting(runtime.node.id);
+          } else {
+            this.setNodeState(runtime, 'BLOCKED');
           }
 
           if (runtime.bufferCans > 0 && runtime.state !== 'BLOCKED') {
@@ -329,15 +340,16 @@ export class SimulationEngine {
           const failed = this.rng.next() < failRate;
           if (failed) {
             runtime.unitsScrapped++;
-          } else {
+          } else if (!this.hasDownstream(runtime.node.id) || this.routeUnits(runtime, 1) > 0) {
             runtime.unitsProduced++;
-            const downstream = this.findDownstreamRuntime(runtime.node.id);
-            if (downstream) {
-              downstream.bufferCans++;
-              if (downstream.state === 'STARVED' || downstream.state === 'IDLE') {
-                this.triggerDownstreamMachine(downstream);
-              }
-            }
+          } else {
+            // Was: downstream.bufferCans++ with no capacity check -- measured
+            // at 17,351 in a buffer of 100. Now the labeled can waits here and
+            // the labeler blocks, the same discipline as the filler.
+            runtime.heldUnits = 1;
+            this.unblockUpstreamIfWaiting(runtime.node.id);
+            this.setNodeState(runtime, 'BLOCKED');
+            break;
           }
 
           // Unblock upstream machine if it was waiting on this buffer
@@ -425,6 +437,9 @@ export class SimulationEngine {
       available = Math.min(unitsPerCycle, runtime.bufferCans);
       runtime.bufferCans -= available;
     }
+    // Consuming input frees room upstream. Without this a filler blocked
+    // behind a contract node stayed blocked for the rest of the run.
+    if (!isSource) this.unblockUpstreamIfWaiting(runtime.node.id);
 
     // Scrap is a deterministic fraction, not a coin flip, so that a
     // contract-defined node does not reintroduce the nondeterminism that the
@@ -433,25 +448,18 @@ export class SimulationEngine {
     const produced = available - scrapped;
     runtime.unitsScrapped += scrapped;
 
-    const downstream = this.findDownstreamRuntime(runtime.node.id);
-    if (downstream) {
-      const room = downstream.maxBuffer - downstream.bufferCans;
-      const transferred = Math.max(0, Math.min(produced, room));
-      downstream.bufferCans += transferred;
+    if (this.hasDownstream(runtime.node.id)) {
+      const transferred = this.routeUnits(runtime, produced);
       runtime.unitsProduced += transferred;
 
       const heldBack = produced - transferred;
       if (heldBack > 0) {
         // Downstream is full: hold the remainder and block, exactly as the
         // filler does. This is what makes backpressure propagate.
-        runtime.bufferCans += heldBack;
+        runtime.heldUnits += heldBack;
         this.setNodeState(runtime, 'BLOCKED');
       } else {
         this.setNodeState(runtime, 'BUSY');
-      }
-
-      if (transferred > 0 && (downstream.state === 'STARVED' || downstream.state === 'IDLE')) {
-        this.triggerDownstreamMachine(downstream);
       }
     } else {
       // Terminal node: everything produced leaves the system.
@@ -510,54 +518,125 @@ export class SimulationEngine {
 
   private unblockUpstreamIfWaiting(currentNodeId: string): void {
     for (const edge of this.graph.edges) {
-      if (edge.targetNodeId === currentNodeId) {
-        const upstream = this.nodes.get(edge.sourceNodeId);
-        if (upstream && upstream.state === 'BLOCKED') {
-          this.setNodeState(upstream, 'BUSY');
-          if (upstream.node.kind === 'ROTARY_FILLER') {
-            const downstream = this.findDownstreamRuntime(upstream.node.id);
-            if (downstream && upstream.bufferCans > 0) {
-              const transferCount = Math.min(upstream.bufferCans, downstream.maxBuffer - downstream.bufferCans);
-              if (transferCount > 0) {
-                upstream.bufferCans -= transferCount;
-                downstream.bufferCans += transferCount;
-                if (downstream.state === 'STARVED' || downstream.state === 'IDLE') {
-                  this.triggerDownstreamMachine(downstream);
-                }
-              }
-            }
-            if (upstream.bufferCans === 0) {
-              this.setNodeState(upstream, 'BUSY');
-              const cfg = upstream.node.config as {
-                fillTimePerCycleSeconds?: number;
-                indexTimePerCycleSeconds?: number;
-              };
-              const cycleTime =
-                (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2);
-              this.scheduleEvent(cycleTime, upstream.node.id, 'FILLER_CYCLE_COMPLETE');
-            } else {
-              this.setNodeState(upstream, 'BLOCKED');
-            }
-          } else if (upstream.node.kind === 'CONVEYOR') {
-            const cfg = upstream.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
-            const speed = cfg.speedMetersPerSecond ?? 0.5;
-            const length = cfg.lengthMeters ?? 10;
-            const transitTimePerItem = Math.max(0.1, (length / speed) / Math.max(1, upstream.maxBuffer));
-            this.scheduleEvent(transitTimePerItem, upstream.node.id, 'CONVEYOR_TRANSFER_COMPLETE');
-          } else if (upstream.node.kind === 'LABELER') {
-            const cfg = upstream.node.config as { maxSpeedUnitsPerMinute?: number };
-            const speed = cfg.maxSpeedUnitsPerMinute ?? 40;
-            this.scheduleEvent(60 / speed, upstream.node.id, 'LABELER_CYCLE_COMPLETE');
-          }
-        }
+      if (edge.targetNodeId !== currentNodeId) continue;
+      const upstream = this.nodes.get(edge.sourceNodeId);
+      if (upstream && upstream.state === 'BLOCKED') this.resumeBlocked(upstream);
+    }
+  }
+
+  /**
+   * Gives a blocked node another chance to push its held output downstream,
+   * and restarts it if everything got out.
+   *
+   * Previously a blocked node of a kind with no branch here -- a contract node
+   * -- was set BUSY with no event scheduled, so it accrued busy time forever
+   * while doing nothing.
+   */
+  private resumeBlocked(upstream: InternalNodeRuntime): void {
+    const id = upstream.node.id;
+
+    if (upstream.node.kind === 'ROTARY_FILLER') {
+      upstream.bufferCans -= this.routeUnits(upstream, upstream.bufferCans);
+      if (upstream.bufferCans > 0) return; // still full downstream: stay blocked
+      this.setNodeState(upstream, 'BUSY');
+      const cfg = upstream.node.config as { fillTimePerCycleSeconds?: number; indexTimePerCycleSeconds?: number };
+      this.scheduleEvent(
+        (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2),
+        id,
+        'FILLER_CYCLE_COMPLETE'
+      );
+      return;
+    }
+
+    if (upstream.node.kind === 'CONVEYOR') {
+      this.setNodeState(upstream, 'BUSY');
+      const cfg = upstream.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
+      const transit = Math.max(
+        0.1,
+        (cfg.lengthMeters ?? 10) / (cfg.speedMetersPerSecond ?? 0.5) / Math.max(1, upstream.maxBuffer)
+      );
+      this.scheduleEvent(transit, id, 'CONVEYOR_TRANSFER_COMPLETE');
+      return;
+    }
+
+    // Labeler and contract nodes hold finished units in heldUnits.
+    if (upstream.heldUnits > 0) {
+      const moved = this.routeUnits(upstream, upstream.heldUnits);
+      upstream.heldUnits -= moved;
+      upstream.unitsProduced += moved;
+      if (upstream.heldUnits > 0) return;
+    }
+
+    if (upstream.node.kind === 'LABELER') {
+      if (upstream.bufferCans > 0) {
+        this.setNodeState(upstream, 'BUSY');
+        const cfg = upstream.node.config as { maxSpeedUnitsPerMinute?: number };
+        this.scheduleEvent(60 / (cfg.maxSpeedUnitsPerMinute ?? 40), id, 'LABELER_CYCLE_COMPLETE');
+      } else {
+        this.setNodeState(upstream, 'STARVED');
+      }
+      return;
+    }
+
+    if (upstream.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
+      if (this.isSourceNode(id) || upstream.bufferCans > 0) {
+        this.setNodeState(upstream, 'BUSY');
+        this.scheduleEvent(upstream.contractEval.behavior.cycleSeconds, id, 'CONTRACT_CYCLE_COMPLETE');
+      } else {
+        this.setNodeState(upstream, 'STARVED');
       }
     }
   }
 
-  private findDownstreamRuntime(nodeId: string): InternalNodeRuntime | undefined {
-    const edge = this.graph.edges.find((e) => e.sourceNodeId === nodeId);
-    if (!edge) return undefined;
-    return this.nodes.get(edge.targetNodeId);
+  private downstreamRuntimes(nodeId: string): InternalNodeRuntime[] {
+    const out: InternalNodeRuntime[] = [];
+    for (const e of this.graph.edges) {
+      if (e.sourceNodeId !== nodeId) continue;
+      const target = this.nodes.get(e.targetNodeId);
+      if (target) out.push(target);
+    }
+    return out;
+  }
+
+  private hasDownstream(nodeId: string): boolean {
+    return this.graph.edges.some((e) => e.sourceNodeId === nodeId && this.nodes.has(e.targetNodeId));
+  }
+
+  /**
+   * Moves up to `count` units from `from` into its downstream buffers and
+   * returns how many moved. Every transfer is capacity-checked here, so no
+   * handler can overfill a buffer.
+   *
+   * With several outgoing edges, units are dealt round-robin to targets that
+   * have room. The engine used to take `edges.find()` -- the first edge -- so
+   * a second branch never received anything.
+   */
+  private routeUnits(from: InternalNodeRuntime, count: number): number {
+    const targets = this.downstreamRuntimes(from.node.id);
+    if (targets.length === 0 || count <= 0) return 0;
+
+    let cursor = this.routeCursor.get(from.node.id) ?? 0;
+    let moved = 0;
+    let misses = 0;
+    const touched = new Set<InternalNodeRuntime>();
+    while (moved < count && misses < targets.length) {
+      const target = targets[cursor % targets.length]!;
+      cursor++;
+      if (target.bufferCans < target.maxBuffer) {
+        target.bufferCans++;
+        moved++;
+        misses = 0;
+        touched.add(target);
+      } else {
+        misses++;
+      }
+    }
+    this.routeCursor.set(from.node.id, cursor % targets.length);
+
+    for (const target of touched) {
+      if (target.state === 'STARVED' || target.state === 'IDLE') this.triggerDownstreamMachine(target);
+    }
+    return moved;
   }
 
   private recordTelemetrySnapshot(): void {
@@ -585,10 +664,8 @@ export class SimulationEngine {
     let totalScrapped = 0;
 
     for (const [nodeId, r] of this.nodes.entries()) {
-      const totalTime = Math.max(
-        totalSimTime,
-        r.busyTime + r.blockedTime + r.starvedTime + r.downTime
-      );
+      // Every second is now attributed to a state, so the total is the run.
+      const totalTime = totalSimTime;
       const operatingTime = r.busyTime;
       const plannedProductionTime = totalTime - r.downTime;
 
@@ -633,8 +710,10 @@ export class SimulationEngine {
         unitsScrapped: r.unitsScrapped
       };
 
-      if (r.node.kind === 'PALLETIZER' || !this.findDownstreamRuntime(nodeId)) {
-        totalPackaged = Math.max(totalPackaged, r.unitsProduced);
+      // Output is what leaves the line: the sum over every terminal node.
+      // max() under-counted a line that splits into parallel end stations.
+      if (!this.hasDownstream(nodeId)) {
+        totalPackaged += r.unitsProduced;
       }
       totalScrapped += r.unitsScrapped;
     }

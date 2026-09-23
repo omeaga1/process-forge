@@ -5,7 +5,7 @@
 **Method:** Read of the full engine, plus executable invariant tests written before
 any fix. Tests live in `packages/simulation-core/src/__tests__/engine-invariants.test.ts`.
 
-**Status: 6 of 7 invariant tests fail.** No engine code has been changed.
+**Status (2026-09-22): all 7 invariant tests pass.** The determinism pair was fixed by the seeded RNG; the other four by the engine changes described in §6 below. Each of the four was confirmed to fail against the pre-fix engine. The original findings are kept as the record.
 
 > ⚠️ Adding this file turns `pnpm test` red for `simulation-core`. That is
 > intentional per the audit plan ("write failing tests for anything you find
@@ -230,6 +230,22 @@ graph both under-produces and under-reports.
 | buffer never exceeds capacity | FAIL | 174x over capacity — §4 |
 | all downstream edges receive output | FAIL | second branch got nothing — §4.1 |
 | equal-priority events dequeue FIFO | FAIL | heap order, not insertion — §1 |
+
+## 6. Fixes (2026-09-22)
+
+| Defect | Fix |
+|---|---|
+| §1 heap tie order | Entries ordered by (time, insertion sequence) |
+| §2 never-activated node unaccounted | Finalization credits trailing time directly; `Math.max` removed |
+| §4 labeler overfills downstream | All transfers go through one capacity-checked `routeUnits`; the labeler holds and blocks |
+| §4.1 only the first edge used | `routeUnits` deals round-robin across every outgoing edge with room; packaged output sums every terminal node |
+
+Two defects found while fixing these, both in contract-defined nodes:
+
+- A contract node consumed input without unblocking its feeder, so a feeder that blocked once stayed blocked for the rest of the run.
+- A blocked contract node was resumed to BUSY with no event scheduled, accruing busy time while doing nothing. Its held output went back into its input queue, which would have been processed twice once the resume was fixed; the two bugs hid each other. Held output now lives in `heldUnits`.
+
+Both have tests in `contractNode.test.ts`.
 
 ## Assessment
 
