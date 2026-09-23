@@ -8,6 +8,7 @@ export * from './cad/equipmentCadEngine.js';
 export * from './unitop/expression.js';
 export * from './unitop/contract.js';
 export * from './unitop/evaluate.js';
+export * from './unitop/review.js';
 export * from './unitop/examples/waxCoolingBelt.js';
 export * from './decisions/types.js';
 export * from './decisions/heuristic.js';

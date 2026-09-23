@@ -8,6 +8,9 @@ import {
   CommunityUnitOpLibraryModal,
   UnitOpCreator,
   getAiConfig,
+  loadLlmCredentials,
+  hasValidCredentials,
+  authorUnitOpContract,
   type AiModelConfig,
   ThemeProvider
 } from '@process-forge/canvas-ui';
@@ -243,6 +246,35 @@ const AppInner: React.FC = () => {
    * engine re-evaluates it at construction, so an accepted design is checked
    * once more before it can affect a simulation.
    */
+  // Claude designs the unit op from inside the app, on the engineer's own API
+  // key. Anthropic does not allow third-party apps to use a Claude
+  // subscription, so a key is the permitted route; MCP remains the way to use
+  // a subscription from Claude Desktop.
+  const handleProposeUnitOp = useCallback(async (description: string, onProgress?: (note: string) => void) => {
+    const creds = await loadLlmCredentials();
+    if (!hasValidCredentials(creds) || creds.provider === 'ollama') {
+      throw new Error(
+        'Connect an Anthropic API key in AI settings to have Claude design this, or paste a contract below.'
+      );
+    }
+    onProgress?.(`Asking ${creds.provider === 'claude' ? 'Claude' : creds.provider} to write the contract…`);
+    const result = await authorUnitOpContract(description, {
+      creds,
+      onRound: (r) =>
+        onProgress?.(
+          r.verdict === 'ACCEPTED'
+            ? `Round ${r.round}: the engine accepted it.`
+            : r.verdict === 'NOT_JSON'
+              ? `Round ${r.round}: the reply was not a contract; asking again.`
+              : `Round ${r.round}: the engine rejected it (${r.feedback.split('\n')[0]}); sending the reasons back.`
+        )
+    });
+    if (!result.accepted) {
+      onProgress?.('Out of rounds. The last draft is below, with exactly what still fails.');
+    }
+    return typeof result.draft === 'string' ? result.draft : JSON.stringify(result.draft, null, 2);
+  }, []);
+
   const handleAcceptUnitOpContract = useCallback(
     (contract: Parameters<typeof contractToProcessNode>[0]) => {
       handleInsertCommunityNode(contractToProcessNode(contract));
@@ -460,6 +492,7 @@ const AppInner: React.FC = () => {
             }}
           >
             <UnitOpCreator
+              onPropose={handleProposeUnitOp}
               onAccept={handleAcceptUnitOpContract}
               onClose={() => setIsUnitOpCreatorOpen(false)}
             />

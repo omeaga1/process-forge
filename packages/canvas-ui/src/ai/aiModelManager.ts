@@ -228,13 +228,15 @@ export function getLlmCredentials(): LlmCredentials {
       const RETIRED_CLAUDE = new Set([
         'claude-3-7-sonnet-latest',
         'claude-3-5-haiku-latest',
-        'claude-3-opus-latest'
+        'claude-3-opus-latest',
+        // Was the app's own default, and never a real model ID.
+        'claude-opus-5'
       ]);
       if (parsed.provider === 'gemini' && (!parsed.modelId || RETIRED_GEMINI.has(parsed.modelId))) {
         parsed.modelId = 'gemini-2.5-flash';
       }
       if (parsed.provider === 'claude' && (!parsed.modelId || RETIRED_CLAUDE.has(parsed.modelId))) {
-        parsed.modelId = 'claude-opus-5';
+        parsed.modelId = 'claude-opus-5-5';
       }
       return parsed;
     }

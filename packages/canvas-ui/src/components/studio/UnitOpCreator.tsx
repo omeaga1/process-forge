@@ -27,11 +27,11 @@ const D = drafting('dark');
  * failure mode the audit found in the previous sub-agent surface, where a
  * `status: 'PASS'` badge was a string literal.
  *
- * Contract authoring is injected via `onPropose`. When the host app supplies it
- * (wired to the LLM client, or to an MCP round-trip), the engineer can describe
- * and receive. When it is absent the panel falls back to paste-in, which is the
- * honest default for a BYO-subscription product: the engineer's own MCP client
- * authors the contract and they paste the result here.
+ * Contract authoring is injected via `onPropose`. The desktop and web apps wire
+ * it to authorUnitOpContract (ai/unitOpAuthor.ts): Claude, on the engineer's
+ * own API key, writes the contract and the engine's verdicts go back to it
+ * until it passes. Without `onPropose` the panel is paste-in, for a contract
+ * authored elsewhere -- e.g. by Claude Desktop through the MCP tools.
  */
 
 export interface UnitOpCreatorProcessContext {
@@ -42,7 +42,7 @@ export interface UnitOpCreatorProcessContext {
 
 export interface UnitOpCreatorProps {
   /** Authors a contract from the engineer's description. Omit for paste-in mode. */
-  onPropose?: (description: string) => Promise<UnitOpContract | string>;
+  onPropose?: (description: string, onProgress?: (note: string) => void) => Promise<UnitOpContract | string>;
   /** Called with a contract that passed every gate. */
   onAccept: (contract: UnitOpContract) => void;
   onClose?: () => void;
@@ -145,6 +145,9 @@ export function UnitOpCreator({
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [proposeError, setProposeError] = useState<string | null>(null);
+  // One line per round of the design loop, so the engineer can see what the
+  // engine rejected and what Claude changed -- not just a spinner.
+  const [progress, setProgress] = useState<string[]>([]);
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   // Keyed to the description it was made for, so editing the description
   // discards a pick that no longer applies.
@@ -190,8 +193,9 @@ export function UnitOpCreator({
     if (!onPropose || !description.trim()) return;
     setBusy(true);
     setProposeError(null);
+    setProgress([]);
     try {
-      const result = await onPropose(description);
+      const result = await onPropose(description, (note) => setProgress((p) => [...p, note]));
       setDraft(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
       setOverrides({});
     } catch (e) {
@@ -300,7 +304,7 @@ export function UnitOpCreator({
               cursor: busy || !description.trim() ? 'not-allowed' : 'pointer'
             }}
           >
-            {busy ? 'Sub-agent designing…' : 'Ask the sub-agent to design it'}
+            {busy ? 'Claude is designing it…' : 'Ask Claude to design it'}
           </button>
         ) : (
           <p style={{ margin: '10px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
@@ -308,6 +312,13 @@ export function UnitOpCreator({
             <code style={{ color: P.text.accent }}>design_unit_op</code>, then paste the result
             below.
           </p>
+        )}
+        {progress.length > 0 && (
+          <ol aria-live="polite" style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: '0.76rem', color: P.text.secondary }}>
+            {progress.map((note, i) => (
+              <li key={i} style={{ marginTop: 2 }}>{note}</li>
+            ))}
+          </ol>
         )}
         {proposeError && (
           <p style={{ margin: '8px 0 0', fontSize: '0.78rem', color: D.semantic.violation }}>

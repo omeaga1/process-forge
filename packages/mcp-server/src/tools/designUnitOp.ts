@@ -2,6 +2,7 @@ import {
   EXPRESSION_FUNCTIONS,
   RESERVED_SCOPE_NAMES,
   WAX_COOLING_BELT_CONTRACT,
+  UNIT_OP_AUTHORING_RULES,
   type ProcessGraph,
   type ProcessNode
 } from '@process-forge/protocol';
@@ -180,18 +181,6 @@ function buildProcessContext(
   return { available: true, neighbours, notes };
 }
 
-const RULES: string[] = [
-  'A contract is DATA. Emit JSON. Do not emit JavaScript, and do not expect any code you write to run.',
-  'Every expression is evaluated by a restricted evaluator: arithmetic, comparison, && || !, parentheses, and the whitelisted functions below. Nothing else exists.',
-  'Every name an expression references must be a parameter you declared, a derived value declared EARLIER in the list, or one of the engine-supplied names. Unknown names are a validation error, not a zero.',
-  'Derived values resolve in declaration order. Forward references are rejected, so order your derived list as a calculation sequence.',
-  'Declare min/max on every parameter as the PHYSICALLY meaningful domain, not a UI range. A value outside its own bounds is a validation error.',
-  'Put the physics that must hold in `constraints`, not in prose. severity ERROR means the unit op cannot operate as specified and the engine will refuse to simulate it; WARNING means operable but outside good practice.',
-  'Write each constraint `message` so an engineer can act on it, and add a `hint` naming the knob to turn. These strings are fed back to you verbatim when a design is rejected.',
-  'Prefer a constraint that is INDEPENDENT of the quantity it guards. A check that reduces algebraically to another check adds no information.',
-  'CONTINUOUS_RATE evaluates steady-state relations. The engine does not integrate. If a unit op genuinely requires a time-resolved profile, say so plainly rather than approximating it with an algebraic stand-in.',
-  'Set provenance.authoredBy to SUB_AGENT and list in engineerConfirmed only the parameters the engineer actually stated. Do not claim confirmation for values you chose.'
-];
 
 export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpResult {
   const { description, graph, targetNodeId, preferredMode } = params;
@@ -222,7 +211,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     brief,
     engineSuppliedNames: RESERVED_SCOPE_NAMES,
     availableFunctions,
-    rules: RULES,
+    rules: [...UNIT_OP_AUTHORING_RULES],
     workedExample: WAX_COOLING_BELT_CONTRACT,
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:

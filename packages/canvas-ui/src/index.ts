@@ -13,6 +13,7 @@ export * from './components/studio/UnitOpCreator.js';
 export * from './components/ProcessCanvas.js';
 export * from './ai/aiModelManager.js';
 export * from './ai/aiDispatch.js';
+export * from './ai/unitOpAuthor.js';
 export * from './components/modals/AiModelModal.js';
 export * from './components/mobile/MobileFieldView.js';
 export * from './components/mobile/MobileUnitOpSheet.js';
