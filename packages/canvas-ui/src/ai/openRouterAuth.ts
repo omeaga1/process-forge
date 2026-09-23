@@ -101,12 +101,22 @@ function waitForWebCode(popup: Window): Promise<string> {
 
 /**
  * Runs the whole flow and resolves with the issued API key. Must be called
- * from a click handler (the web popup is otherwise blocked).
+ * from a click handler.
  */
 export async function signInWithOpenRouter(): Promise<string> {
+  const invoke = tauriInvoke();
+
+  // Web: open the window before any await. Browsers (Safari most strictly)
+  // only allow a popup during the click that caused it, and computing the
+  // PKCE challenge is async; the window is pointed at OpenRouter once ready.
+  let popup: Window | null = null;
+  if (!invoke) {
+    popup = window.open('about:blank', 'pf-openrouter', 'width=520,height=720');
+    if (!popup) throw new Error('Your browser blocked the OpenRouter window. Allow pop-ups for this site and try again.');
+  }
+
   const verifier = createCodeVerifier();
   const challenge = await codeChallengeS256(verifier);
-  const invoke = tauriInvoke();
 
   if (invoke) {
     const result = (await invoke('openrouter_loopback_sign_in', {
@@ -115,12 +125,9 @@ export async function signInWithOpenRouter(): Promise<string> {
     return exchangeOpenRouterCode(result.code, verifier);
   }
 
-  // Open the popup synchronously relative to the click where possible: the
-  // digest above is fast, and browsers keep the user-activation for ~1s.
+  const win = popup as Window;
   window.localStorage.removeItem(OPENROUTER_CODE_KEY);
-  const callback = `${window.location.origin}/openrouter-callback.html`;
-  const popup = window.open(buildOpenRouterAuthUrl(callback, challenge), 'pf-openrouter', 'width=520,height=720');
-  if (!popup) throw new Error('Your browser blocked the OpenRouter window. Allow pop-ups for this site and try again.');
-  const code = await waitForWebCode(popup);
+  win.location.href = buildOpenRouterAuthUrl(`${window.location.origin}/openrouter-callback.html`, challenge);
+  const code = await waitForWebCode(win);
   return exchangeOpenRouterCode(code, verifier);
 }
