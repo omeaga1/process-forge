@@ -15,7 +15,7 @@
     "lint": "echo \"MCP Server lint clean\"",
     "smoke": "node scripts/smoke.mjs",
     "bundle": "node scripts/bundle.mjs",
-    "prepublishOnly": "pnpm run build && pnpm run bundle && node scripts/smoke.mjs"
+    "prepublishOnly": "npm run build && npm run bundle && node scripts/smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.0",
