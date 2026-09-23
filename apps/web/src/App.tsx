@@ -362,17 +362,6 @@ const AppInner: React.FC = () => {
             hasUpdateAvailable={updater.hasUpdate}
           />
 
-          {/* Desktop & Web In-App Auto Update Banner */}
-          <UpdateNotificationBanner
-            status={updater.status}
-            updateInfo={updater.updateInfo}
-            statusMessage={updater.statusMessage}
-            onDismiss={updater.dismissNotification}
-            onCheckForUpdates={() => updater.checkForUpdates(true)}
-            onRestartAndApply={updater.restartAndApplyUpdate}
-            onHardReload={updater.hardReloadApp}
-          />
-
           {/* Main Interactive Studio Canvas */}
           <div style={{ flex: 1, position: 'relative', overflow: 'hidden', minWidth: 0, minHeight: 0 }}>
             <ProcessCanvas
@@ -384,6 +373,20 @@ const AppInner: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* Update banner, on every screen. It used to render only inside the
+          studio, and the desktop app opens on the portal, so an engineer who
+          launched the app and never opened a flowsheet was never told. It hides
+          itself outside the desktop app. */}
+      <UpdateNotificationBanner
+        status={updater.status}
+        updateInfo={updater.updateInfo}
+        statusMessage={updater.statusMessage}
+        onDismiss={updater.dismissNotification}
+        onCheckForUpdates={() => updater.checkForUpdates(true)}
+        onRestartAndApply={updater.restartAndApplyUpdate}
+        onHardReload={updater.hardReloadApp}
+      />
 
       {/* Omnipresent Overarching Agent Companion (Studio View Only — Never on Landing Page) */}
       {viewMode === 'studio' && (
