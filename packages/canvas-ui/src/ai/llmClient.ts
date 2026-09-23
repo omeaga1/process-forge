@@ -48,11 +48,13 @@ export const DEFAULT_PROVIDER_MODELS: Record<LlmProvider, { defaultModel: string
     ]
   },
   claude: {
-    defaultModel: 'claude-opus-5',
+    // Real Anthropic model IDs. 'claude-opus-5' was not one, so a key set up
+    // with the default model failed on every call.
+    defaultModel: 'claude-opus-5-5',
     models: [
-      { id: 'claude-opus-5', name: 'Claude Opus 5' },
+      { id: 'claude-opus-5-5', name: 'Claude Opus 5.5' },
       { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
-      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5' }
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' }
     ]
   },
   openai: {
@@ -125,7 +127,7 @@ export async function testLlmConnection(creds: LlmCredentials): Promise<Connecti
         if (!creds.claudeApiKey?.trim()) {
           return { ok: false, error: 'Anthropic Claude API key is missing' };
         }
-        const model = creds.modelId || 'claude-haiku-4-5';
+        const model = creds.modelId || 'claude-haiku-4-5-20251001';
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -204,7 +206,9 @@ export async function testLlmConnection(creds: LlmCredentials): Promise<Connecti
 export async function callLlmModel(
   creds: LlmCredentials,
   messages: LlmChatMessage[],
-  systemPrompt: string
+  systemPrompt: string,
+  /** A full unit-op contract does not fit in the 2,048 tokens a chat reply gets. */
+  options: { maxTokens?: number } = {}
 ): Promise<LlmCallResult> {
   const start = performance.now();
   switch (creds.provider) {
@@ -238,7 +242,7 @@ export async function callLlmModel(
           contents,
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 2048
+            maxOutputTokens: options.maxTokens ?? 2048
           }
         })
       });
@@ -261,7 +265,7 @@ export async function callLlmModel(
       if (!creds.claudeApiKey?.trim()) {
         throw new Error('Anthropic Claude API key not configured. Open AI settings to connect your key.');
       }
-      const model = creds.modelId || 'claude-opus-5';
+      const model = creds.modelId || 'claude-opus-5-5';
       const formattedMessages = messages
         .filter((m) => m.role !== 'system')
         .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
@@ -277,7 +281,7 @@ export async function callLlmModel(
         },
         body: JSON.stringify({
           model,
-          max_tokens: 2048,
+          max_tokens: options.maxTokens ?? 2048,
           system: systemPrompt,
           messages: formattedMessages
         })

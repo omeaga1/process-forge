@@ -499,7 +499,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
                 'No continuous ODE integration — unit-op contracts evaluate steady-state relations',
                 'A split output is dealt round-robin; there are no routing rules or split ratios yet',
                 'The simulation engine is TypeScript; the Rust is the desktop shell',
-                'Sub-agent contract authoring runs through your MCP client, not in-app'
+                'In-app authoring uses your own API key; a Claude subscription works through MCP, from Claude Desktop'
               ].map((t) => (
                 <div key={t} style={{ display: 'flex', gap: 10, padding: '7px 0', borderBottom: HAIRLINE, fontSize: '0.86rem', lineHeight: 1.5 }}>
                   <span style={{ ...mono, color: P.text.muted }}>·</span>
