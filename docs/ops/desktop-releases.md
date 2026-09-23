@@ -17,8 +17,8 @@ If a change matters to desktop users, it needs a tag.
 
 ```
 # from an up-to-date main
-git tag v0.1.12
-git push origin v0.1.12
+git tag v0.1.13
+git push origin v0.1.13
 ```
 
 `release-desktop.yml` builds Windows, macOS and Linux, publishes the installers,
@@ -101,3 +101,29 @@ curl -sL https://github.com/omeaga1/process-forge/releases/latest/download/lates
 
 A release whose `latest.json` is missing or has no platforms is invisible to
 every installed client, no matter how good the installers are.
+
+## Why Windows warns about the installer, and how to stop it
+
+As of v0.1.12 the Windows installer is **not code-signed**. The workflow has a
+SignPath step, but its secrets were never set. An unsigned installer gets the
+"Windows protected your PC" SmartScreen prompt, and antivirus heuristics treat
+it with more suspicion.
+
+Until 2026-09-23 the site also served an `irm https://…/install.ps1 | iex`
+script that purged any existing install, downloaded a zip from several
+fallback URLs (one pinned to v0.1.1), unpacked it and ran an unsigned launcher
+exe that opened a local web server. That is a textbook dropper pattern, and it
+is gone, along with the "portable" build it delivered. The Tauri installer is
+the only Windows download.
+
+To sign, pick one:
+
+| Option | Cost | Who can use it | Notes |
+|---|---|---|---|
+| **Microsoft Artifact Signing** (formerly Trusted Signing) | paid Azure subscription; see the pricing page | organizations, and individual developers in supported countries, after identity validation (government ID) | Microsoft-issued certificate. SmartScreen reputation still builds with downloads; it is not instant. GitHub Action available. |
+| **SignPath Foundation** | free | open-source projects, after an application | The workflow already has the step; set `SIGNPATH_API_TOKEN` and `SIGNPATH_ORG_ID`. |
+| A commercial OV certificate | per year | anyone | Now issued on hardware tokens or cloud HSMs; awkward in CI. |
+
+Signing removes "unknown publisher", and a signed file builds SmartScreen
+reputation as people download it. Until then, submitting each release to
+Microsoft (https://www.microsoft.com/wdsi/filesubmission) speeds it up.

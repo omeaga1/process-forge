@@ -277,7 +277,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
             <span>
               <span style={{ display: 'block', fontSize: 13, fontWeight: 700 }}>Not in this list? Design it.</span>
               <span style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>
-                Describe the equipment. Claude writes it as a contract, and the engine checks the physics before it goes on the flowsheet.
+                Describe the equipment. Your AI model writes it as a contract, and the engine checks the physics before it goes on the flowsheet.
               </span>
             </span>
             <span style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.jade.glow, whiteSpace: 'nowrap' }}>Design a unit op →</span>

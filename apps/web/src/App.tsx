@@ -253,12 +253,15 @@ const AppInner: React.FC = () => {
   // a subscription from Claude Desktop.
   const handleProposeUnitOp = useCallback(async (description: string, onProgress?: (note: string) => void) => {
     const creds = await loadLlmCredentials();
-    if (!hasValidCredentials(creds) || creds.provider === 'ollama') {
+    // Any provider the app can call: a key for Claude, GPT or Gemini, or a
+    // local Ollama model. The engine judges the result either way.
+    if (!hasValidCredentials(creds)) {
       throw new Error(
-        'Connect an Anthropic API key in AI settings to have Claude design this, or paste a contract below.'
+        'Add an API key in AI settings (Claude, GPT or Gemini), or connect a local Ollama model, to have AI design this. Or paste a contract below.'
       );
     }
-    onProgress?.(`Asking ${creds.provider === 'claude' ? 'Claude' : creds.provider} to write the contract…`);
+    const providerName = { claude: 'Claude', openai: 'GPT', gemini: 'Gemini', ollama: 'your local model' }[creds.provider] ?? creds.provider;
+    onProgress?.(`Asking ${providerName} to write the contract…`);
     const result = await authorUnitOpContract(description, {
       creds,
       onRound: (r) =>

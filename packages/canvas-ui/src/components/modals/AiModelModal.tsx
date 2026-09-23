@@ -109,14 +109,14 @@ const PROVIDERS: ProviderMeta[] = [
   },
   {
     id: 'mcp',
-    label: 'Claude Desktop (MCP)',
+    label: 'MCP client',
     badge: 'Your subscription',
     icon: Server,
     accentColor: '#a855f7',
     accentGlow: 'rgba(168, 85, 247, 0.25)',
     apiKeyField: undefined,
     description:
-      'Chat with Claude in Claude Desktop on your Claude subscription, with the ProcessForge tools available to it. The app hands your flowsheet and design briefs over; Claude Desktop does the thinking.'
+      'Chat in an MCP client (Claude Desktop, Cursor, or any client that supports MCP) on the subscription you already have, with the ProcessForge tools available to it. The app hands your flowsheet and design briefs over; the client does the thinking.'
   }
 ];
 
@@ -344,7 +344,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     letterSpacing: '-0.01em'
                   }}
                 >
-                  How you use Claude
+                  AI model
                 </h2>
                 <span style={{ fontSize: 11, color: textMuted }} aria-live="polite">
                   Now: {ROUTE_LABELS[route]}
@@ -1126,9 +1126,9 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
               </div>
 
               <p style={{ margin: 0, fontSize: 11, color: textDim, lineHeight: 1.4 }}>
-                Add this to Claude Desktop's configuration file and restart Claude Desktop. The app cannot
-                detect that connection -- it lives inside Claude Desktop -- so choose this route below once
-                it is set up.
+                Add this to your MCP client's configuration (for Claude Desktop, claude_desktop_config.json)
+                and restart it. The app cannot detect that connection -- it lives inside the client -- so
+                choose this route below once it is set up.
               </p>
               <button
                 type="button"
@@ -1146,7 +1146,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   alignSelf: 'flex-start'
                 }}
               >
-                {route === 'claude-desktop' ? 'Using Claude Desktop — stop using it' : 'Use Claude Desktop as my assistant'}
+                {route === 'claude-desktop' ? 'Using an MCP client — stop' : 'Use an MCP client as my assistant'}
               </button>
             </div>
           )}

@@ -66,8 +66,8 @@ export function useAssistantRoute(): AssistantRoute {
 }
 
 export const ROUTE_LABELS: Record<AssistantRoute, string> = {
-  'api-key': 'Claude in the app',
-  'claude-desktop': 'Claude Desktop',
+  'api-key': 'AI in the app',
+  'claude-desktop': 'MCP client',
   none: 'No assistant'
 };
 

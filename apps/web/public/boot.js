@@ -11,10 +11,3 @@
     if (meta) meta.setAttribute('content', theme === 'light' ? '#f8f7f0' : '#0c1214');
   } catch (e) {}
 })();
-
-// ProcessForge desktop launcher heartbeat loop
-setInterval(function () {
-  if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
-    fetch('/api/heartbeat').catch(function () {});
-  }
-}, 5000);

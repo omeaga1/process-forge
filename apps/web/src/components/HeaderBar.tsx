@@ -427,7 +427,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             whiteSpace: 'nowrap',
             boxSizing: 'border-box'
           }}
-          title="AI & MCP Engineering Tools (Claude, Gemini, Cursor)"
+          title="AI model: an API key (Claude, GPT, Gemini), a local Ollama model, or an MCP client"
         >
           <Cpu size={14} color={OsakaJadePalette.jade.glow} />
           {!compact && <span>AI Tools</span>}

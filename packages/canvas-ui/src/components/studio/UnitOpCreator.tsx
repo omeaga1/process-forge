@@ -317,7 +317,7 @@ export function UnitOpCreator({
               cursor: busy || !description.trim() ? 'not-allowed' : 'pointer'
             }}
           >
-            {busy ? 'Claude is designing it…' : 'Ask Claude to design it'}
+            {busy ? 'Designing it…' : 'Ask AI to design it'}
           </button>
         ) : route === 'claude-desktop' ? (
           <div>
@@ -339,18 +339,18 @@ export function UnitOpCreator({
               cursor: 'pointer'
             }}
           >
-            {briefCopied ? 'Copied — paste it into Claude Desktop' : 'Copy design brief for Claude Desktop'}
+            {briefCopied ? 'Copied — paste it into your MCP client' : 'Copy design brief for your MCP client'}
           </button>
             <p style={{ margin: '8px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
-              Claude Desktop designs it with the ProcessForge tools on your subscription. Paste the
+              Your MCP client designs it with the ProcessForge tools on your subscription. Paste the
               contract it gives you below; the engine checks it here again before it can be added.
             </p>
           </div>
         ) : (
           <div>
             <p style={{ margin: '10px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
-              No assistant is set up. Paste a contract below, or choose how to use Claude: in the
-              app with your API key, or from Claude Desktop on your subscription.
+              No AI model is set up. Paste a contract below, or connect one: in the app with an API
+              key or a local Ollama model, or from an MCP client on your subscription.
             </p>
             {onChooseAssistant && (
           <button
@@ -367,7 +367,7 @@ export function UnitOpCreator({
               cursor: 'pointer'
             }}
           >
-            Choose how to use Claude
+            Connect an AI model
           </button>
             )}
           </div>
