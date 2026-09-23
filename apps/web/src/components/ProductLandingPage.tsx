@@ -497,7 +497,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
               </div>
               {[
                 'No continuous ODE integration — unit-op contracts evaluate steady-state relations',
-                'Branching topologies route along one outgoing edge only',
+                'A split output is dealt round-robin; there are no routing rules or split ratios yet',
                 'The simulation engine is TypeScript; the Rust is the desktop shell',
                 'Sub-agent contract authoring runs through your MCP client, not in-app'
               ].map((t) => (

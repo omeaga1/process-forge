@@ -166,3 +166,58 @@ describe('Engine executes a contract-defined unit operation', () => {
     );
   });
 });
+
+describe('Contract nodes under backpressure', () => {
+  const tunnel = (id: string, contract: UnitOpContract, opts: { source?: boolean; sink?: boolean; buffer: number }) => ({
+    id, name: id, kind: 'CUSTOM_UNIT_OP', position: { x: 0, y: 0 },
+    inputs: opts.source ? [] : [discreteIn('in', 'In')],
+    outputs: opts.sink ? [] : [discreteOut('out', 'Out')],
+    config: { contract, bufferCapacity: opts.buffer }
+  });
+
+  it('a slow contract node does not leave its feeder blocked for the rest of the run', () => {
+    // Was: the contract handler consumed input without telling upstream, so a
+    // feeder that blocked once stayed blocked -- here after about 15 seconds.
+    const graph = {
+      id: 'backpressure', name: 'bp', version: '1.0.0', metadata: {},
+      nodes: [
+        tunnel('fast', { ...curingTunnelContract({ beltSpeedMPerMin: 5 }), id: 'fast' }, { source: true, buffer: 200 }),
+        tunnel('slow', { ...curingTunnelContract({ beltSpeedMPerMin: 1 }), id: 'slow' }, { sink: true, buffer: 5 })
+      ] as unknown as Node[],
+      edges: [edge('e1', 'fast', 'out', 'slow', 'in')]
+    } as ProcessGraph;
+
+    const r = simulateProcess(graph, 30).nodeReports;
+    // The slow tunnel indexes every 15 s: ~120 parts in 30 minutes. The feeder
+    // must keep pace with it, not stop at the first five.
+    assert.ok(r.slow!.unitsProduced > 100, `slow tunnel produced ${r.slow!.unitsProduced}`);
+    assert.ok(r.fast!.unitsProduced >= r.slow!.unitsProduced, `feeder produced ${r.fast!.unitsProduced}`);
+  });
+
+  it('never processes the same unit twice (conservation through a blocked node)', () => {
+    // The old handler put output that could not leave back into the INPUT
+    // queue, so a later cycle would process -- and scrap -- it again. It never
+    // showed, because a blocked contract node was "resumed" with no event
+    // scheduled and never ran again: one bug hid the other. Fixing the resume
+    // alone would have exposed the double count; this pins that it cannot.
+    const batching = (id: string, belt: number, reject: number): UnitOpContract => ({
+      ...curingTunnelContract({ beltSpeedMPerMin: belt, rejectFraction: reject }),
+      id,
+      behavior: { mode: 'DISCRETE_CYCLE', cycleSeconds: 'indexSeconds', unitsPerCycle: 'partsPerCycle', scrapFraction: 'rejectFraction' }
+    });
+    const graph = {
+      id: 'conservation', name: 'c', version: '1.0.0', metadata: {},
+      nodes: [
+        tunnel('src', batching('src', 5, 0), { source: true, buffer: 200 }),
+        tunnel('mid', batching('mid', 5, 0.5), { buffer: 64 }),
+        tunnel('end', { ...curingTunnelContract({ beltSpeedMPerMin: 1 }), id: 'end' }, { sink: true, buffer: 4 })
+      ] as unknown as Node[],
+      edges: [edge('e1', 'src', 'out', 'mid', 'in'), edge('e2', 'mid', 'out', 'end', 'in')]
+    } as ProcessGraph;
+
+    const r = simulateProcess(graph, 30).nodeReports;
+    const received = r.src!.unitsProduced;
+    const accounted = r.mid!.unitsProduced + r.mid!.unitsScrapped;
+    assert.ok(accounted <= received, `mid accounted for ${accounted} units but only received ${received}`);
+  });
+});
