@@ -1,4 +1,5 @@
 import type { NodeKind, ProcessNode, InternalsDressing } from '@process-forge/protocol';
+import { standardNozzles } from '../nozzles/nozzleLayout.js';
 
 export interface CreateNodeOptions {
   name?: string;
@@ -22,9 +23,24 @@ function defaultInternals(overrides?: Partial<InternalsDressing>): InternalsDres
 
 /**
  * Creates a fully-configured ProcessNode adhering to the ProcessForge protocol schema
- * for any industrial NodeKind.
+ * for any industrial NodeKind, with nozzles placed on its drawing and linked to
+ * its ports (see nozzles/nozzleLayout.ts), so pipes attach where they should.
  */
 export function createDefaultProcessNode(kind: NodeKind, options?: CreateNodeOptions): ProcessNode {
+  const node = createBaseProcessNode(kind, options);
+  const ports = new Set([...node.inputs, ...node.outputs].map((p) => p.id));
+  const nozzles = standardNozzles(kind).filter((z) => !z.portId || ports.has(z.portId));
+  return {
+    ...node,
+    dressing: {
+      ...(node.dressing ?? { internals: defaultInternals() }),
+      internals: node.dressing?.internals ?? defaultInternals(),
+      nozzles
+    }
+  };
+}
+
+function createBaseProcessNode(kind: NodeKind, options?: CreateNodeOptions): ProcessNode {
   const timestamp = Date.now();
   const posX = options?.position?.x ?? 400 + Math.floor(Math.random() * 80) - 40;
   const posY = options?.position?.y ?? 250 + Math.floor(Math.random() * 80) - 40;

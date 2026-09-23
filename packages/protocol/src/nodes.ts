@@ -72,7 +72,13 @@ export const NozzleDressingSchema = z.object({
   position: z.enum(['top', 'bottom', 'left', 'right']),
   sizeInches: z.number().positive().default(2),
   ratingPsi: z.number().positive().default(150),
-  elevationMeters: z.number().optional()
+  elevationMeters: z.number().optional(),
+  /**
+   * The node port (an entry in inputs/outputs) this nozzle is. Pipes attach
+   * at the nozzle on the canvas. Optional: older files have none, and an
+   * inlet/outlet nozzle without it is paired with a free port in order.
+   */
+  portId: z.string().optional()
 });
 export type NozzleDressing = z.infer<typeof NozzleDressingSchema>;
 
