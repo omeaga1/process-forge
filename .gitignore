@@ -50,3 +50,6 @@ apps/desktop/installer/staging/
 
 # Local state from wrangler dev servers
 .wrangler/
+
+# Published MCP server bundle (built by packages/mcp-server/scripts/bundle.mjs)
+packages/mcp-server/bundle/
