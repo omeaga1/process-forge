@@ -962,7 +962,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             </div>
 
             <p style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, margin: '0 0 14px 0', lineHeight: 1.4 }}>
-              Use Claude in the app with your own API key (or Gemini, OpenAI, or a local Ollama model), or from Claude Desktop on your Claude subscription. Keys are stored only on this device — in the OS keychain in the desktop app, in local storage in a browser — and sent only to the provider they belong to.
+              Use AI in the app with an API key (Claude, GPT or Gemini) or a local Ollama model, or drive ProcessForge from an MCP client such as Claude Desktop or Cursor. Keys are stored only on this device — in the OS keychain in the desktop app, in local storage in a browser — and sent only to the provider they belong to.
             </p>
 
             <button
@@ -987,7 +987,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               }}
             >
               <Sliders size={13} />
-              <span>Choose how to use Claude</span>
+              <span>Choose your AI model</span>
             </button>
           </div>
         </div>

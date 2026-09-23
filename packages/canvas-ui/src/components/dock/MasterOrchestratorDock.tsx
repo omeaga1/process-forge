@@ -300,7 +300,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                 />
                 <span>
                   {route === 'claude-desktop'
-                    ? 'Claude Desktop'
+                    ? 'MCP client'
                     : lockStatus.unlocked
                       ? `${PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant'} · your key`
                       : 'Local Solver'}
@@ -625,7 +625,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             }}
           >
             <KeyRound size={11} />
-            <span>Use Claude</span>
+            <span>Connect an AI model</span>
           </button>
         </div>
       )}
@@ -642,12 +642,13 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           }}
         >
           <p style={{ margin: 0, fontSize: size.xs, color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
-            You chat with Claude in Claude Desktop, on your Claude subscription. It has the
-            ProcessForge tools; this app cannot see that conversation, so hand the flowsheet over.
+            You chat in your MCP client (Claude Desktop, Cursor, …), on the subscription you already
+            have. It has the ProcessForge tools; this app cannot see that conversation, so hand the
+            flowsheet over.
           </p>
           <textarea
-            aria-label="Question for Claude Desktop"
-            placeholder="What should Claude look at? e.g. why is the labeler starved?"
+            aria-label="Question for your MCP client"
+            placeholder="What should it look at? e.g. why is the labeler starved?"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             rows={2}
@@ -677,14 +678,14 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                 cursor: 'pointer'
               }}
             >
-              {handoffCopied ? 'Copied — paste into Claude Desktop' : 'Copy flowsheet for Claude Desktop'}
+              {handoffCopied ? 'Copied — paste it into your MCP client' : 'Copy flowsheet for your MCP client'}
             </button>
             <button
               type="button"
               onClick={() => setIsAiModalOpen(true)}
               style={{ background: 'none', border: 'none', color: OsakaJadePalette.text.muted, fontSize: size.xs, cursor: 'pointer', padding: 0 }}
             >
-              Change how you use Claude
+              Change AI model
             </button>
           </div>
         </div>

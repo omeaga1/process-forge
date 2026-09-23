@@ -246,7 +246,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
               Model the equipment no simulator ships.
             </p>
             <p style={{ margin: '10px 0 0', fontSize: '1.02rem', lineHeight: 1.6, color: P.text.secondary, maxWidth: '58ch' }}>
-              Describe a unit operation in plain words. Claude writes the model, the engine checks
+              Describe a unit operation in plain words. Your AI model writes it, the engine checks
               the physics before it reaches your flowsheet, and then you simulate the whole line:
               throughput, bottlenecks, OEE.
             </p>
@@ -256,7 +256,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
               {[
                 ['SIMULATION', 'discrete-event'],
                 ['RUNS', 'on your machine'],
-                ['AI', 'Claude'],
+                ['AI', 'any model · API key or MCP'],
                 ['LICENCE', 'Apache-2.0']
               ].map(([k, v]) => (
                 <tr key={k}>
@@ -318,8 +318,8 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
                 'Say what the equipment does, in your words: “a water-cooled steel belt that solidifies molten wax, 16 m by 1.2 m, fed at 0.55 kg/s.”'
               ],
               [
-                'Claude designs it; the engine checks it',
-                'Claude writes the unit as a model: its parameters, the equations that connect them, and the limits that must hold. The engine evaluates every limit, and anything that fails goes back to Claude with the reason, until the design holds.'
+                'The AI designs it; the engine checks it',
+                'Your AI model writes the unit as a model: its parameters, the equations that connect them, and the limits that must hold. The engine evaluates every limit, and anything that fails goes back to the model with the reason, until the design holds.'
               ],
               [
                 'Run your line',
@@ -422,21 +422,22 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         </Zone>
 
         {/* ── 03 · Claude ──────────────────────────────────────────────── */}
-        <Zone n="03" title="Two ways to use Claude">
+        <Zone n="03" title="Bring your own AI">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 0, border: RULE }}>
             <div style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
-              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>In the app, with your API key</div>
+              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>In the app, with an API key or a local model</div>
               <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>
-                Chat about your flowsheet and design unit operations without leaving ProcessForge. Add an
-                Anthropic API key in the app; it stays on your device and is sent only to Anthropic.
+                Chat about your flowsheet and design unit operations without leaving ProcessForge. Use a key
+                for Claude, GPT or Gemini, or a model running locally in Ollama. A key stays on your device
+                and is sent only to its provider.
               </p>
             </div>
             <div style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
-              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>From Claude Desktop, on your subscription</div>
+              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>From an MCP client, on your subscription</div>
               <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>
-                Give Claude Desktop the ProcessForge tools and it can design and simulate for you; the app
-                hands your flowsheet over. The tool package is not published yet, so this route is coming
-                soon.
+                Give an MCP client such as Claude Desktop or Cursor the ProcessForge tools, and it designs and simulates for you on the
+                subscription you already pay for. The tool package is not published yet, so this route is
+                coming soon.
               </p>
             </div>
           </div>
@@ -447,7 +448,8 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
           {[
             'No continuous dynamics: a unit operation is evaluated at steady state, and a line runs as discrete events.',
             'A split sends output evenly down each branch; there are no split ratios yet.',
-            'Claude inside the app needs your own API key. Anthropic does not let apps use a Claude subscription.'
+            'AI inside the app needs an API key or a local Ollama model. Subscriptions such as Claude Pro or ChatGPT Plus cannot be used by other apps; they work through an MCP client instead.',
+            'Results depend on the model. Smaller models write designs the engine rejects more often.'
           ].map((t) => (
             <div key={t} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: HAIRLINE, fontSize: '0.88rem', lineHeight: 1.55 }}>
               <span style={{ ...mono, color: P.text.muted }}>·</span>

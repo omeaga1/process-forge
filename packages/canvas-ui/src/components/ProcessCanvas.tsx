@@ -580,7 +580,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               fontWeight: 700,
               cursor: 'pointer'
             }}
-            title="Describe equipment that has no model yet. Claude writes it as a contract; the engine checks the physics."
+            title="Describe equipment that has no model yet. Your AI model writes it as a contract; the engine checks the physics."
           >
             <Sparkles size={13} />
             <span>Design a unit op</span>
@@ -778,7 +778,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                 Start your flowsheet
               </div>
               <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, marginTop: 4, lineHeight: 1.4 }}>
-                Design a unit operation that does not exist yet: describe it, Claude writes it, and the engine checks the physics. Or start from standard equipment.
+                Design a unit operation that does not exist yet: describe it, your AI model writes it, and the engine checks the physics. Or start from standard equipment.
               </div>
             </div>
 
@@ -800,7 +800,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               justifyContent: 'center',
               padding: '10px 12px'
             }}
-            title="Describe equipment that has no model yet. Claude writes it as a contract; the engine checks the physics."
+            title="Describe equipment that has no model yet. Your AI model writes it as a contract; the engine checks the physics."
           >
             <Sparkles size={13} />
             <span>Design a unit operation</span>
