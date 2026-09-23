@@ -20,6 +20,7 @@ import {
   type CommunityUnitOpItem,
   type CreatorSession
 } from '../../marketplace/communityLibraryClient.js';
+import { draftingRadius } from '@process-forge/theme';
 
 export interface CommunityUnitOpLibraryModalProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
   onClose,
   onInsertNode
 }) => {
-  const { palette, elevation, font, size, weight, space, radius: r, motion } = useTheme();
+  const { palette, font, size, weight, space, radius: r, motion } = useTheme();
   const OsakaJadePalette = palette;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -118,8 +119,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
           maxHeight: '90vh',
           backgroundColor: OsakaJadePalette.background.surface,
           border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: 14,
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.85)',
+          borderRadius: draftingRadius.sharp,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column'
@@ -188,7 +188,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                   alignItems: 'center',
                   gap: 8,
                   padding: '4px 10px',
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: 'rgba(16, 185, 129, 0.1)',
                   border: `1px solid ${OsakaJadePalette.jade[600]}`
                 }}
@@ -219,7 +219,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                   alignItems: 'center',
                   gap: 6,
                   padding: '6px 12px',
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: 'rgba(255, 255, 255, 0.05)',
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   color: OsakaJadePalette.text.primary,
@@ -274,7 +274,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                 onClick={() => handleLogin('github')}
                 style={{
                   padding: '6px 12px',
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   color: OsakaJadePalette.text.primary,
@@ -289,7 +289,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                 onClick={() => handleLogin('google')}
                 style={{
                   padding: '6px 12px',
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   color: OsakaJadePalette.text.primary,
@@ -304,7 +304,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                 onClick={() => handleLogin('microsoft')}
                 style={{
                   padding: '6px 12px',
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   color: OsakaJadePalette.text.primary,
@@ -341,7 +341,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
               gap: 8,
               backgroundColor: OsakaJadePalette.background.canvas,
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               padding: '7px 12px'
             }}
           >
@@ -376,7 +376,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                 onClick={() => setSelectedCategory(cat.id)}
                 style={{
                   padding: '6px 12px',
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   border: `1px solid ${selectedCategory === cat.id ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.subtle}`,
                   backgroundColor:
                     selectedCategory === cat.id ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
@@ -421,7 +421,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                   padding: 16,
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 10,
+                  borderRadius: draftingRadius.soft,
                   display: 'flex',
                   alignItems: 'flex-start',
                   justifyContent: 'space-between',
@@ -440,7 +440,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                         fontWeight: 700,
                         textTransform: 'uppercase',
                         padding: '2px 6px',
-                        borderRadius: 4,
+                        borderRadius: draftingRadius.soft,
                         backgroundColor: 'rgba(255, 255, 255, 0.05)',
                         border: `1px solid ${OsakaJadePalette.border.subtle}`,
                         color: OsakaJadePalette.text.secondary
@@ -498,7 +498,6 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                     fontWeight: weight.bold,
                     cursor: insertedId === plugin.id ? 'default' : 'pointer',
                     flexShrink: 0,
-                    boxShadow: insertedId === plugin.id ? 'none' : elevation.glow,
                     transition: `all ${motion.fast}`
                   }}
                 >
@@ -532,7 +531,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
               padding: '6px 14px',
               backgroundColor: 'transparent',
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               color: OsakaJadePalette.text.secondary,
               cursor: 'pointer'
             }}

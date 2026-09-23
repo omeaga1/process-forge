@@ -175,8 +175,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
             height: 480,
             backgroundColor: OsakaJadePalette.background.surface,
             border: `1px solid ${OsakaJadePalette.border.glow}`,
-            borderRadius: 12,
-            boxShadow: '0 16px 40px rgba(0, 0, 0, 0.45)',
+            borderRadius: draftingRadius.sharp,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -199,7 +198,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
                 style={{
                   width: 24,
                   height: 24,
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.jade.muted,
                   display: 'flex',
                   alignItems: 'center',
@@ -218,7 +217,6 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
                       height: 6,
                       borderRadius: '50%',
                       backgroundColor: hasKey ? OsakaJadePalette.jade[500] : '#f59e0b',
-                      boxShadow: hasKey ? `0 0 6px ${OsakaJadePalette.jade.glow}` : undefined
                     }}
                   />
                 </div>
@@ -234,7 +232,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
                 style={{
                   background: 'none',
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 4,
+                  borderRadius: draftingRadius.soft,
                   padding: '3px 6px',
                   color: OsakaJadePalette.text.secondary,
                   fontSize: 10,
@@ -286,7 +284,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
                 style={{
                   background: OsakaJadePalette.jade[600],
                   border: 'none',
-                  borderRadius: 4,
+                  borderRadius: draftingRadius.soft,
                   color: '#fff',
                   padding: '3px 8px',
                   fontSize: 10,
@@ -326,7 +324,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
                       ? 'rgba(16, 185, 129, 0.15)'
                       : OsakaJadePalette.background.canvas,
                     border: `1px solid ${isUser ? OsakaJadePalette.jade[600] : OsakaJadePalette.border.default}`,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     padding: '8px 10px',
                     fontSize: 12,
                     lineHeight: 1.45,
@@ -351,7 +349,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
                           fontSize: 9,
                           backgroundColor: 'rgba(255,255,255,0.06)',
                           padding: '1px 4px',
-                          borderRadius: 3,
+                          borderRadius: draftingRadius.soft,
                           color: OsakaJadePalette.text.muted
                         }}
                       >
@@ -396,7 +394,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
                   alignSelf: 'flex-start',
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   padding: '8px 12px',
                   display: 'flex',
                   alignItems: 'center',
@@ -435,7 +433,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
                 style={{
                   backgroundColor: 'rgba(255,255,255,0.04)',
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 4,
+                  borderRadius: draftingRadius.soft,
                   padding: '3px 8px',
                   color: OsakaJadePalette.text.secondary,
                   fontSize: 10,
@@ -470,7 +468,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
                 flex: 1,
                 backgroundColor: OsakaJadePalette.background.canvas,
                 border: `1px solid ${OsakaJadePalette.border.default}`,
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 padding: '6px 10px',
                 fontSize: 12,
                 color: OsakaJadePalette.text.primary,
@@ -483,7 +481,7 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
               style={{
                 backgroundColor: inputText.trim() && !isProcessing ? OsakaJadePalette.jade[600] : 'rgba(255,255,255,0.05)',
                 border: 'none',
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 padding: '0 10px',
                 color: '#fff',
                 cursor: inputText.trim() && !isProcessing ? 'pointer' : 'default',
@@ -506,10 +504,9 @@ export const OmnipresentAgentWidget: React.FC<OmnipresentAgentWidgetProps> = ({
           alignItems: 'center',
           gap: 8,
           padding: '7px 14px',
-          borderRadius: 24,
+          borderRadius: draftingRadius.sharp,
           backgroundColor: OsakaJadePalette.background.surface,
           border: `1px solid ${isExpanded ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.glow}`,
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.35)',
           color: OsakaJadePalette.text.primary,
           cursor: 'pointer',
           transition: 'all 0.15s ease'

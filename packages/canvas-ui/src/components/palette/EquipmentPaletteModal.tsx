@@ -9,6 +9,7 @@ import {
   Layers,
   Check
 } from 'lucide-react';
+import { draftingRadius } from '@process-forge/theme';
 
 export interface EquipmentPaletteItem {
   kind: NodeKind;
@@ -170,8 +171,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
           maxHeight: '90vh',
           backgroundColor: OsakaJadePalette.background.surface,
           border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: 14,
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.85)',
+          borderRadius: draftingRadius.sharp,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column'
@@ -358,13 +358,12 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                 style={{
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${isAdded ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
-                  borderRadius: 10,
+                  borderRadius: draftingRadius.soft,
                   padding: 16,
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   transition: 'all 0.15s ease',
-                  boxShadow: isAdded ? `0 0 16px ${OsakaJadePalette.jade.glow}40` : 'none'
                 }}
               >
                 <div>
@@ -415,7 +414,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                     justifyContent: 'center',
                     gap: 6,
                     padding: '8px 12px',
-                    borderRadius: 6,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: isAdded ? OsakaJadePalette.jade.glow : 'rgba(16, 185, 129, 0.15)',
                     border: `1px solid ${OsakaJadePalette.jade[600]}`,
                     color: isAdded ? OsakaJadePalette.background.base : OsakaJadePalette.jade.glow,

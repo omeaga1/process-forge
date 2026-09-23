@@ -24,6 +24,7 @@ import {
   type CloudProjectRecord
 } from '../storage/cloudStorageAdapter.js';
 import { downloadProjectFile } from '../storage/localStorageAdapter.js';
+import { draftingRadius } from '@process-forge/theme';
 
 export interface CloudProjectsModalProps {
   isOpen: boolean;
@@ -137,8 +138,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
           maxHeight: 'min(90vh, calc(100vh - 40px))',
           backgroundColor: OsakaJadePalette.background.surface,
           border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: 12,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+          borderRadius: draftingRadius.sharp,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column'
@@ -160,7 +160,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
               style={{
                 width: 34,
                 height: 34,
-                borderRadius: 8,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: 'rgba(16, 185, 129, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
@@ -215,7 +215,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
               gap: 8,
               backgroundColor: OsakaJadePalette.background.canvas,
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               padding: '6px 12px',
               flex: 1,
               minWidth: 200
@@ -246,7 +246,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
               padding: '6px 14px',
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               color: OsakaJadePalette.text.secondary,
               fontSize: 12,
               fontWeight: 600,
@@ -309,7 +309,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                   backgroundColor: OsakaJadePalette.jade[500],
                   color: OsakaJadePalette.text.inverse,
                   border: 'none',
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   fontWeight: 700,
                   fontSize: 13,
                   cursor: 'pointer',
@@ -336,7 +336,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                   onClick={() => handleSelect(project)}
                   style={{
                     padding: 16,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: OsakaJadePalette.background.surfaceElevated,
                     border: `1px solid ${isLoaded ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
                     display: 'flex',
@@ -357,7 +357,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                           fontSize: 10,
                           fontWeight: 600,
                           padding: '2px 6px',
-                          borderRadius: 4,
+                          borderRadius: draftingRadius.soft,
                           backgroundColor: 'rgba(16, 185, 129, 0.15)',
                           color: OsakaJadePalette.jade[400],
                           border: `1px solid ${OsakaJadePalette.jade[700]}`,
@@ -405,7 +405,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                       style={{
                         background: 'none',
                         border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                        borderRadius: 6,
+                        borderRadius: draftingRadius.soft,
                         color: OsakaJadePalette.text.secondary,
                         padding: 6,
                         cursor: 'pointer'
@@ -419,7 +419,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                       style={{
                         background: 'none',
                         border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                        borderRadius: 6,
+                        borderRadius: draftingRadius.soft,
                         color: OsakaJadePalette.text.muted,
                         padding: 6,
                         cursor: 'pointer'
@@ -434,7 +434,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                         alignItems: 'center',
                         gap: 6,
                         padding: '6px 12px',
-                        borderRadius: 6,
+                        borderRadius: draftingRadius.soft,
                         backgroundColor: isLoaded ? OsakaJadePalette.jade[600] : OsakaJadePalette.jade[500],
                         color: OsakaJadePalette.text.inverse,
                         border: 'none',
@@ -475,7 +475,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
               padding: '6px 14px',
               backgroundColor: 'transparent',
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               color: OsakaJadePalette.text.secondary,
               cursor: 'pointer'
             }}
