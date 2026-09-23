@@ -14,13 +14,14 @@ import { executePackageUnitOp } from './tools/packageUnitOp.js';
 import { executeForgeEquipmentDrawing } from './tools/forgeEquipmentDrawing.js';
 import { executeDesignUnitOp } from './tools/designUnitOp.js';
 import { executeValidateUnitOp } from './tools/validateUnitOp.js';
+import { executeAddUnitOpToFlowsheet, executeGetOpenFlowsheet } from './tools/desktopBridge.js';
 import { AVAILABLE_TEMPLATES } from './templates.js';
 
 export function createProcessForgeMcpServer(): Server {
   const server = new Server(
     {
       name: 'process-forge-mcp',
-      version: '0.1.0'
+      version: '0.2.0'
     },
     {
       capabilities: {
@@ -207,7 +208,7 @@ export function createProcessForgeMcpServer(): Server {
         {
           name: 'validate_unit_op',
           description:
-            'Checks a proposed UnitOpContract against three gates and returns the verdict computed by the engine: schema conformance, static coherence (every expression parses and every reference resolves), and physical validity (every ERROR-severity constraint evaluated against the parameter values the contract itself declares). Returns ACCEPTED or REJECTED with the specific failures and revision guidance. The verdict is computed, not asserted -- a contract that cannot survive its own simulator is rejected.',
+            "Checks a proposed UnitOpContract and returns the engine's verdict: schema conformance; every expression parses and every name resolves; every ERROR constraint holds at the contract's own parameter values; and the drawing works (every port has one nozzle on the drawing, every shape lies inside the viewBox). Returns ACCEPTED or REJECTED with the specific failures and what to change.",
           inputSchema: {
             type: 'object',
             properties: {
@@ -218,6 +219,29 @@ export function createProcessForgeMcpServer(): Server {
               parameterOverrides: {
                 type: 'object',
                 description: 'Optional parameter overrides, for asking whether the design holds at a different operating point (e.g. { "beltSpeedMPerMin": 20 }).'
+              }
+            },
+            required: ['contract']
+          }
+        },
+        {
+          name: 'get_open_flowsheet',
+          description:
+            "Reads the flowsheet open in the ProcessForge desktop app on this computer: its units, their ports, and the streams between them. Use it to design a unit op that fits the engineer's actual process, and pass it as `graph` to design_unit_op. Requires ProcessForge Desktop to be running.",
+          inputSchema: { type: 'object', properties: {} }
+        },
+        {
+          name: 'add_unit_op_to_flowsheet',
+          description:
+            'Adds a unit operation to the flowsheet open in the ProcessForge desktop app on this computer. The contract is validated here first (same gates as validate_unit_op) and again by the app; a rejected contract is not sent. The unit appears on the canvas with its own drawing and its pipes attached at the nozzles you drew. Requires ProcessForge Desktop to be running.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              contract: { type: 'object', description: 'An accepted UnitOpContract, including its drawing.' },
+              position: {
+                type: 'object',
+                description: 'Optional canvas position { x, y }. By default the unit is placed to the right of the existing flowsheet.',
+                properties: { x: { type: 'number' }, y: { type: 'number' } }
               }
             },
             required: ['contract']
@@ -286,6 +310,16 @@ export function createProcessForgeMcpServer(): Server {
               }
             ]
           };
+        }
+
+        case 'get_open_flowsheet': {
+          const result = await executeGetOpenFlowsheet();
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+
+        case 'add_unit_op_to_flowsheet': {
+          const result = await executeAddUnitOpToFlowsheet(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 
         case 'validate_unit_op': {

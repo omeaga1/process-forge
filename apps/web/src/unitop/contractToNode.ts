@@ -1,4 +1,4 @@
-import type { ProcessNode, UnitOpContract, UnitOpPort } from '@process-forge/protocol';
+import { drawingToDressing, type ProcessNode, type UnitOpContract, type UnitOpPort } from '@process-forge/protocol';
 
 /**
  * Turns an accepted UnitOpContract into a node the canvas and the engine both
@@ -65,6 +65,9 @@ export function contractToProcessNode(
     config: {
       contract,
       ...Object.fromEntries(contract.parameters.map((p) => [p.name, p.value]))
-    }
+    },
+    // Drawn from the contract's own drawing, with each port's nozzle where the
+    // author put it. Without one the canvas falls back to a generic vessel.
+    ...(contract.drawing ? { dressing: drawingToDressing(contract.drawing, contract.ports) } : {})
   } as ProcessNode;
 }

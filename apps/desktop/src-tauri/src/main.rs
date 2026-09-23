@@ -2,9 +2,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod oauth_loopback;
+mod mcp_bridge;
 
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
+use tauri::Manager;
 use tauri_plugin_updater::UpdaterExt;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -149,8 +151,31 @@ fn main() {
             check_for_updates,
             install_and_restart_update,
             oauth_loopback::google_loopback_sign_in,
-            oauth_loopback::openrouter_loopback_sign_in
+            oauth_loopback::openrouter_loopback_sign_in,
+            mcp_bridge::bridge_take_pending,
+            mcp_bridge::bridge_report,
+            mcp_bridge::bridge_set_flowsheet,
+            mcp_bridge::bridge_status
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running ProcessForge desktop application");
+        .setup(|app| {
+            // The link MCP clients use to add unit ops to the open flowsheet.
+            // If it cannot start, the app still runs; the bridge commands then
+            // have no state and MCP falls back to copy and paste.
+            match mcp_bridge::start(app.handle()) {
+                Ok(bridge) => {
+                    app.manage(bridge);
+                }
+                Err(e) => eprintln!("MCP bridge not started: {e}"),
+            }
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building ProcessForge desktop application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                if let Some(bridge) = app.try_state::<mcp_bridge::Bridge>() {
+                    mcp_bridge::stop(&bridge);
+                }
+            }
+        });
 }

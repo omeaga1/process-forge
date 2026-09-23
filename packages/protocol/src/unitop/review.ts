@@ -1,5 +1,6 @@
 import { UnitOpContractSchema, validateUnitOpContract, type UnitOpContract } from './contract.js';
 import { evaluateUnitOp, blockingViolations } from './evaluate.js';
+import { checkUnitOpDrawing } from './drawing.js';
 
 /**
  * The engine's verdict on a proposed unit operation.
@@ -23,7 +24,7 @@ export interface ValidateUnitOpParams {
 
 export interface ValidateUnitOpResult {
   success: boolean;
-  /** ACCEPTED | REJECTED. A contract is accepted only if all three gates pass. */
+  /** ACCEPTED | REJECTED. A contract is accepted only if every gate passes. */
   verdict: 'ACCEPTED' | 'REJECTED';
   gates: {
     /** Does it match the contract schema at all? */
@@ -32,6 +33,8 @@ export interface ValidateUnitOpResult {
     staticAnalysis: { passed: boolean; errors: string[] };
     /** Do the physics hold when evaluated? */
     physical: { passed: boolean; errors: string[]; warnings: string[] };
+    /** Can it be drawn and piped: every port a nozzle on the drawing, every shape inside it? */
+    drawing: { passed: boolean; errors: string[]; warnings: string[] };
   };
   /** Computed quantities, when evaluation got far enough to produce them. */
   derived?: Record<string, number>;
@@ -52,7 +55,8 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
   const gates: ValidateUnitOpResult['gates'] = {
     schema: { passed: false, errors: [] },
     staticAnalysis: { passed: false, errors: [] },
-    physical: { passed: false, errors: [], warnings: [] }
+    physical: { passed: false, errors: [], warnings: [] },
+    drawing: { passed: false, errors: [], warnings: [] }
   };
 
   // Gate 1 -- shape.
@@ -91,6 +95,19 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     );
   }
   gates.staticAnalysis.passed = true;
+
+  // Gate 4 -- the drawing. Checked here so its problems come back in the same
+  // round as any physics problems; it decides the verdict after physics.
+  if (contract.drawing) {
+    const d = checkUnitOpDrawing(contract.drawing, contract.ports);
+    gates.drawing = { passed: d.errors.length === 0, errors: d.errors, warnings: d.warnings };
+  } else {
+    gates.drawing = {
+      passed: true,
+      errors: [],
+      warnings: ['No drawing: the unit will appear as a generic vessel with its connections spaced along the edges. Add contract.drawing.']
+    };
+  }
 
   // Gate 3 -- physics.
   const evaluation = evaluateUnitOp(contract, {
@@ -137,15 +154,32 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
 
   gates.physical.passed = true;
 
+  if (!gates.drawing.passed) {
+    return reject(
+      gates,
+      [
+        `"${contract.name}" works physically but cannot be drawn and piped. ${gates.drawing.errors.length} problem(s):`,
+        ...gates.drawing.errors.map((e) => `  - ${e}`),
+        '',
+        'Shape coordinates are in viewBox units; nozzle x and y are percent of the',
+        'viewBox (0-100). Every port needs exactly one nozzle, on the wall of the',
+        'equipment, facing the way its pipe leaves.'
+      ].join('\n'),
+      { derived: evaluation.derived, behavior: evaluation.behavior }
+    );
+  }
+
   const guidance = [
     `"${contract.name}" is accepted. All expressions resolved and every ERROR constraint holds.`,
     warnings.length > 0
       ? `\n${warnings.length} warning(s) worth reviewing with the engineer:\n` +
         warnings.map((w) => `  - ${w.message}${w.hint ? ` (${w.hint})` : ''}`).join('\n')
       : '',
+    gates.drawing.warnings.length > 0 ? `\nDrawing:\n` + gates.drawing.warnings.map((w) => `  - ${w}`).join('\n') : '',
     '',
-    'Attach it to a node as config.contract. The engine will re-evaluate it at',
-    'construction and refuse the run if anything has changed.'
+    'Attach it to a node as config.contract (or send it to the desktop app with',
+    'add_unit_op_to_flowsheet). The engine re-evaluates it when the simulation',
+    'is built and refuses the run if anything has changed.'
   ]
     .filter(Boolean)
     .join('\n');
@@ -174,5 +208,8 @@ export const UNIT_OP_AUTHORING_RULES: readonly string[] = [
   'Write each constraint `message` so an engineer can act on it, and add a `hint` naming the knob to turn. These strings are fed back to you verbatim when a design is rejected.',
   'Prefer a constraint that is INDEPENDENT of the quantity it guards. A check that reduces algebraically to another check adds no information.',
   'CONTINUOUS_RATE evaluates steady-state relations. The engine does not integrate. If a unit op genuinely requires a time-resolved profile, say so plainly rather than approximating it with an algebraic stand-in.',
-  'Set provenance.authoredBy to SUB_AGENT and list in engineerConfirmed only the parameters the engineer actually stated. Do not claim confirmation for values you chose.'
+  'Set provenance.authoredBy to SUB_AGENT and list in engineerConfirmed only the parameters the engineer actually stated. Do not claim confirmation for values you chose.',
+  'Draw the unit in `drawing`: a viewBox { width, height } (20-400 each; wide equipment is wide, tall equipment is tall) and `shapes` in viewBox units. Shapes are rect, circle, ellipse, line, polyline, polygon, or path (plain SVG path data: M L H V C S Q T A Z and numbers only). Every shape must lie inside the viewBox.',
+  'Use layer "body" for the equipment outline, "detail" for internals (trays, flights, impellers, coils; drawn thinner), and "fill" for a tinted area such as a liquid level or a bed. Set dashed: true for jackets, sprays, and hidden lines. Draw what makes this unit recognisable to an engineer, not a generic box.',
+  'Give every port exactly one entry in drawing.nozzles: { portId, x, y, side }, where x and y are PERCENT of the viewBox (0-100) and side is the direction the pipe leaves (left, right, top, bottom). Put each nozzle on the wall of the body where that stream really enters or leaves, facing outward. Pipes on the flowsheet attach exactly there.'
 ];

@@ -1,6 +1,6 @@
 [package]
 name = "process-forge-desktop"
-version = "0.1.17"
+version = "0.1.18"
 description = "ProcessForge Desktop native shell"
 authors = ["omeaga1"]
 license = "Apache-2.0"
@@ -15,6 +15,7 @@ tauri-plugin-process = "2.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 keyring = "2.1"
+getrandom = "0.2"
 
 [build-dependencies]
 tauri-build = { version = "2.0.0", features = [] }

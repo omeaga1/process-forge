@@ -136,7 +136,7 @@ const PROVIDERS: ProviderMeta[] = [
     accentGlow: 'rgba(168, 85, 247, 0.25)',
     apiKeyField: undefined,
     description:
-      'Chat in an MCP client (Claude Desktop, Cursor, or any client that supports MCP) on the subscription you already have, with the ProcessForge tools available to it. The app hands your flowsheet and design briefs over; the client does the thinking.'
+      'Chat in an MCP client (Claude Desktop, Cursor, or any client that supports MCP) on the subscription you already have, with the ProcessForge tools available to it. While ProcessForge Desktop is open, the client can read the open flowsheet and add the unit ops it designs straight onto it, drawn and ready to pipe.'
   }
 ];
 

@@ -168,5 +168,31 @@ export const WAX_COOLING_BELT_CONTRACT: UnitOpContract = {
     ],
     notes:
       'Reference contract. Steady-state energy balance only; no temperature profile is integrated along the belt. The residence-time and layer-thickness constraints are what keep that simplification honest.'
+  },
+
+  // A steel belt looped over two drums, the deposit head over the feed end,
+  // pastilles on the top run, the cooling-water spray header and tank under
+  // it, and the scraper at the discharge end. Each port's nozzle sits on the
+  // wall of the part it belongs to.
+  drawing: {
+    viewBox: { width: 220, height: 90 },
+    shapes: [
+      { type: 'path', d: 'M 30 40 L 190 40 A 14 14 0 0 1 190 68 L 30 68 A 14 14 0 0 1 30 40 Z', layer: 'body' },
+      { type: 'circle', cx: 30, cy: 54, r: 11, layer: 'body' },
+      { type: 'circle', cx: 190, cy: 54, r: 11, layer: 'body' },
+      { type: 'rect', x: 36, y: 16, width: 26, height: 16, rx: 2, layer: 'body' },
+      { type: 'polygon', points: [[42, 32], [56, 32], [52, 38], [46, 38]], layer: 'body' },
+      { type: 'polygon', points: [[198, 34], [214, 44], [206, 47]], layer: 'body' },
+      { type: 'rect', x: 40, y: 74, width: 140, height: 12, rx: 2, layer: 'body' },
+      { type: 'rect', x: 41, y: 79, width: 138, height: 6, layer: 'fill' },
+      ...[70, 84, 98, 112, 126, 140, 154, 168].map((cx) => ({ type: 'circle' as const, cx, cy: 37, r: 2.2, layer: 'detail' as const })),
+      ...[55, 80, 105, 130, 155].map((x) => ({ type: 'line' as const, x1: x, y1: 74, x2: x, y2: 69, layer: 'detail' as const, dashed: true }))
+    ],
+    nozzles: [
+      { portId: 'wax-in', x: 22.3, y: 17.8, side: 'top', label: 'Molten wax' },
+      { portId: 'cw-in', x: 18.2, y: 88.9, side: 'left', label: 'CW supply' },
+      { portId: 'cw-out', x: 81.8, y: 88.9, side: 'right', label: 'CW return' },
+      { portId: 'wax-out', x: 97.3, y: 48.9, side: 'right', label: 'Solid wax' }
+    ]
   }
 };
