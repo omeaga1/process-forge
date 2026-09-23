@@ -17,8 +17,8 @@ If a change matters to desktop users, it needs a tag.
 
 ```
 # from an up-to-date main
-git tag v0.1.8
-git push origin v0.1.8
+git tag v0.1.9
+git push origin v0.1.9
 ```
 
 `release-desktop.yml` builds Windows, macOS and Linux, publishes the installers,
