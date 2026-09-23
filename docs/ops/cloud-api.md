@@ -76,5 +76,6 @@ One-time setup:
    at the prompt.
 4. Deploy the worker, then tag a desktop release.
 
-Until then the desktop app says Google sign-in is not set up and works without
+Configured 2026-09-23 (desktop client in the ProcessForge Google Cloud project).
+Before that the desktop app said Google sign-in was not set up and worked without
 an account.
