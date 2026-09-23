@@ -4,7 +4,7 @@
  * Zero middleman servers: your API keys and prompts stay 100% in your browser.
  */
 
-export type LlmProvider = 'gemini' | 'claude' | 'openai' | 'ollama';
+export type LlmProvider = 'gemini' | 'claude' | 'openai' | 'ollama' | 'openrouter';
 
 export interface LlmCredentials {
   provider: LlmProvider;
@@ -12,13 +12,15 @@ export interface LlmCredentials {
   geminiApiKey?: string;
   claudeApiKey?: string;
   openaiApiKey?: string;
+  /** Issued by "Sign in with OpenRouter" (OAuth PKCE), or pasted. */
+  openrouterApiKey?: string;
   ollamaEndpoint?: string;
   /**
    * Desktop only: which key fields are held in the OS keychain. Lets
    * synchronous code know a key EXISTS without the key itself being in
    * localStorage. The value is loaded with loadLlmCredentials().
    */
-  vaulted?: ('geminiApiKey' | 'claudeApiKey' | 'openaiApiKey')[];
+  vaulted?: ('geminiApiKey' | 'claudeApiKey' | 'openaiApiKey' | 'openrouterApiKey')[];
 }
 
 export interface LlmChatMessage {
@@ -40,29 +42,42 @@ export interface ConnectionTestResult {
 }
 
 export const DEFAULT_PROVIDER_MODELS: Record<LlmProvider, { defaultModel: string; models: { id: string; name: string }[] }> = {
+  // Model lists checked against OpenRouter's live catalogue (2026-09-23).
   gemini: {
-    defaultModel: 'gemini-2.5-flash',
+    defaultModel: 'gemini-3.8-flash',
     models: [
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
+      { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
       { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' }
     ]
   },
   claude: {
-    // Real Anthropic model IDs. 'claude-opus-5' was not one, so a key set up
-    // with the default model failed on every call.
     defaultModel: 'claude-opus-5-5',
     models: [
       { id: 'claude-opus-5-5', name: 'Claude Opus 5.5' },
+      { id: 'claude-opus-5', name: 'Claude Opus 5' },
       { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
       { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' }
     ]
   },
   openai: {
-    defaultModel: 'gpt-4o',
+    defaultModel: 'gpt-6-sol',
     models: [
-      { id: 'gpt-4o', name: 'GPT-4o' },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-      { id: 'o3-mini', name: 'o3-mini' }
+      { id: 'gpt-6-sol', name: 'GPT-6 Sol' },
+      { id: 'gpt-6-luna', name: 'GPT-6 Luna' },
+      { id: 'gpt-4o', name: 'GPT-4o' }
+    ]
+  },
+  openrouter: {
+    defaultModel: 'anthropic/claude-opus-5.5',
+    models: [
+      { id: 'anthropic/claude-opus-5.5', name: 'Claude Opus 5.5' },
+      { id: 'anthropic/claude-sonnet-5', name: 'Claude Sonnet 5' },
+      { id: 'openai/gpt-6-sol', name: 'GPT-6 Sol' },
+      { id: 'google/gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
+      { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
+      { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick' },
+      { id: 'openrouter/auto', name: 'Auto (OpenRouter picks)' }
     ]
   },
   ollama: {
@@ -74,6 +89,21 @@ export const DEFAULT_PROVIDER_MODELS: Record<LlmProvider, { defaultModel: string
     ]
   }
 };
+
+/**
+ * OpenRouter: one account, many models (Claude, GPT, Gemini, open-weight).
+ * OpenAI-compatible API. The two headers identify the app on OpenRouter's side
+ * and are optional.
+ */
+export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
+function openRouterHeaders(key: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${key.trim()}`,
+    'Content-Type': 'application/json',
+    'HTTP-Referer': 'https://process-forge.pages.dev',
+    'X-Title': 'ProcessForge'
+  };
+}
 
 /**
  * Utility to mask an API key for safe display in the UI without exposing secrets.
@@ -174,6 +204,23 @@ export async function testLlmConnection(creds: LlmCredentials): Promise<Connecti
         }
         const latencyMs = Math.round(performance.now() - start);
         return { ok: true, latencyMs, modelName: model };
+      }
+
+      case 'openrouter': {
+        if (!creds.openrouterApiKey?.trim()) {
+          return { ok: false, error: 'OpenRouter is not connected' };
+        }
+        const model = creds.modelId || 'anthropic/claude-opus-5.5';
+        const res = await fetch(OPENROUTER_CHAT_URL, {
+          method: 'POST',
+          headers: openRouterHeaders(creds.openrouterApiKey),
+          body: JSON.stringify({ model, max_tokens: 10, messages: [{ role: 'user', content: 'Respond with exactly: OK' }] })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error?.message || `HTTP ${res.status}: ${res.statusText}`);
+        }
+        return { ok: true, latencyMs: Math.round(performance.now() - start), modelName: model };
       }
 
       case 'ollama': {
@@ -334,6 +381,36 @@ export async function callLlmModel(
       return {
         text,
         model,
+        latencyMs: Math.round(performance.now() - start)
+      };
+    }
+
+    case 'openrouter': {
+      if (!creds.openrouterApiKey?.trim()) {
+        throw new Error('OpenRouter is not connected. Open AI settings and sign in with OpenRouter.');
+      }
+      const model = creds.modelId || 'anthropic/claude-opus-5.5';
+      const res = await fetch(OPENROUTER_CHAT_URL, {
+        method: 'POST',
+        headers: openRouterHeaders(creds.openrouterApiKey),
+        body: JSON.stringify({
+          model,
+          max_tokens: options.maxTokens ?? 2048,
+          temperature: 0.2,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages.filter((m) => m.role !== 'system').map((m) => ({ role: m.role, content: m.content }))
+          ]
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `OpenRouter error (${res.status})`);
+      }
+      const data = await res.json();
+      return {
+        text: data.choices?.[0]?.message?.content || '',
+        model: data.model || model,
         latencyMs: Math.round(performance.now() - start)
       };
     }

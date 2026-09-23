@@ -15,13 +15,41 @@
 //!
 //! It never sees a client secret or a token. The web app sends the code and
 //! the PKCE verifier to the cloud API, which does the exchange.
+//!
+//! The same loopback also serves "Sign in with OpenRouter": OpenRouter's PKCE
+//! flow redirects back with a `code` (no `state`), which the web app exchanges
+//! for an API key directly with OpenRouter.
 
 use serde::Serialize;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
-const GOOGLE_AUTH_PREFIX: &str = "https://accounts.google.com/o/oauth2/v2/auth?";
+/// Who we are signing in with. Each provider has exactly one URL this module
+/// will open, so the commands cannot be used to open arbitrary URLs.
+struct Provider {
+    name: &'static str,
+    auth_prefix: &'static str,
+    /// Google echoes `state`; OpenRouter's flow has none (PKCE covers it).
+    requires_state: bool,
+    /// Loopback host placed in the redirect. OpenRouter documents
+    /// `localhost`; Google accepts the literal address RFC 8252 prefers.
+    redirect_host: &'static str,
+}
+
+const GOOGLE: Provider = Provider {
+    name: "Google",
+    auth_prefix: "https://accounts.google.com/o/oauth2/v2/auth?",
+    requires_state: true,
+    redirect_host: "127.0.0.1",
+};
+
+const OPENROUTER: Provider = Provider {
+    name: "OpenRouter",
+    auth_prefix: "https://openrouter.ai/auth?",
+    requires_state: false,
+    redirect_host: "localhost",
+};
 const REDIRECT_PLACEHOLDER: &str = "{redirect_uri}";
 const TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -88,11 +116,12 @@ fn open_in_browser(url: &str) -> Result<(), String> {
     status.map(|_| ()).map_err(|e| format!("Could not open the browser: {e}"))
 }
 
-fn respond(stream: &mut TcpStream, ok: bool) {
+fn respond(stream: &mut TcpStream, ok: bool, provider: &Provider) {
+    let fail = format!("{} did not return a sign-in code. Return to ProcessForge and try again.", provider.name);
     let (title, body) = if ok {
         ("Signed in", "You are signed in to ProcessForge. You can close this tab and return to the app.")
     } else {
-        ("Sign-in did not complete", "Google did not return a sign-in code. Return to ProcessForge and try again.")
+        ("Sign-in did not complete", fail.as_str())
     };
     let html = format!(
         "<!doctype html><meta charset=utf-8><title>{title}</title>\
@@ -118,18 +147,18 @@ fn read_request_target(stream: &mut TcpStream) -> Option<String> {
     (parts.next()? == "GET").then(|| parts.next().map(str::to_string))?
 }
 
-fn run(auth_url_template: &str) -> Result<LoopbackResult, String> {
-    // Only ever open Google's authorization endpoint: this command must not be
-    // usable to open arbitrary URLs from the web view.
-    if !auth_url_template.starts_with(GOOGLE_AUTH_PREFIX) || !auth_url_template.contains(REDIRECT_PLACEHOLDER) {
-        return Err("Refusing to open an authorization URL that is not Google's.".into());
+fn run(auth_url_template: &str, provider: &Provider) -> Result<LoopbackResult, String> {
+    // Only ever open the provider's authorization endpoint: this command must
+    // not be usable to open arbitrary URLs from the web view.
+    if !auth_url_template.starts_with(provider.auth_prefix) || !auth_url_template.contains(REDIRECT_PLACEHOLDER) {
+        return Err(format!("Refusing to open an authorization URL that is not {}'s.", provider.name));
     }
 
     // 127.0.0.1, not localhost: RFC 8252 section 8.3, and it cannot be
     // redirected by a hosts-file entry.
     let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("Could not open a local port: {e}"))?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-    let redirect_uri = format!("http://127.0.0.1:{port}/");
+    let redirect_uri = format!("http://{}:{port}/", provider.redirect_host);
     let url = auth_url_template.replace(REDIRECT_PLACEHOLDER, &percent_encode(&redirect_uri));
 
     open_in_browser(&url)?;
@@ -138,7 +167,7 @@ fn run(auth_url_template: &str) -> Result<LoopbackResult, String> {
     let deadline = Instant::now() + TIMEOUT;
     loop {
         if Instant::now() > deadline {
-            return Err("Timed out waiting for Google sign-in in the browser.".into());
+            return Err(format!("Timed out waiting for {} sign-in in the browser.", provider.name));
         }
         match listener.accept() {
             Ok((mut stream, _)) => {
@@ -150,21 +179,22 @@ fn run(auth_url_template: &str) -> Result<LoopbackResult, String> {
                     continue;
                 };
                 if let Some(err) = query_param(query, "error") {
-                    respond(&mut stream, false);
+                    respond(&mut stream, false, provider);
                     return Err(if err == "access_denied" {
-                        "Google sign-in was cancelled.".into()
+                        format!("{} sign-in was cancelled.", provider.name)
                     } else {
-                        format!("Google sign-in failed: {err}")
+                        format!("{} sign-in failed: {err}", provider.name)
                     });
                 }
-                match (query_param(query, "code"), query_param(query, "state")) {
-                    (Some(code), Some(state)) if !code.is_empty() => {
-                        respond(&mut stream, true);
-                        return Ok(LoopbackResult { code, state, redirect_uri });
+                let state = query_param(query, "state");
+                match (query_param(query, "code"), state) {
+                    (Some(code), state) if !code.is_empty() && (state.is_some() || !provider.requires_state) => {
+                        respond(&mut stream, true, provider);
+                        return Ok(LoopbackResult { code, state: state.unwrap_or_default(), redirect_uri });
                     }
                     _ => {
-                        respond(&mut stream, false);
-                        return Err("Google's redirect did not include a sign-in code.".into());
+                        respond(&mut stream, false, provider);
+                        return Err(format!("{}'s redirect did not include a sign-in code.", provider.name));
                     }
                 }
             }
@@ -178,7 +208,16 @@ fn run(auth_url_template: &str) -> Result<LoopbackResult, String> {
 /// authorization URL with `{redirect_uri}` where the loopback address goes.
 #[tauri::command]
 pub async fn google_loopback_sign_in(auth_url: String) -> Result<LoopbackResult, String> {
-    tauri::async_runtime::spawn_blocking(move || run(&auth_url))
+    tauri::async_runtime::spawn_blocking(move || run(&auth_url, &GOOGLE))
+        .await
+        .map_err(|e| format!("Sign-in task failed: {e}"))?
+}
+
+/// Runs the browser half of "Sign in with OpenRouter". `auth_url` is
+/// `https://openrouter.ai/auth?callback_url={redirect_uri}&code_challenge=...`.
+#[tauri::command]
+pub async fn openrouter_loopback_sign_in(auth_url: String) -> Result<LoopbackResult, String> {
+    tauri::async_runtime::spawn_blocking(move || run(&auth_url, &OPENROUTER))
         .await
         .map_err(|e| format!("Sign-in task failed: {e}"))?
 }
@@ -198,8 +237,12 @@ mod tests {
 
     #[test]
     fn refuses_non_google_urls() {
-        assert!(run("https://evil.example/?redirect_uri={redirect_uri}").is_err());
-        assert!(run("https://accounts.google.com/o/oauth2/v2/auth?no_placeholder").is_err());
+        assert!(run("https://evil.example/?redirect_uri={redirect_uri}", &GOOGLE).is_err());
+        assert!(run("https://accounts.google.com/o/oauth2/v2/auth?no_placeholder", &GOOGLE).is_err());
+        // Each command opens only its own provider.
+        assert!(run("https://accounts.google.com/o/oauth2/v2/auth?redirect_uri={redirect_uri}", &OPENROUTER).is_err());
+        assert!(run("https://openrouter.ai/auth?callback_url={redirect_uri}", &GOOGLE).is_err());
+        assert!(run("https://openrouter.ai.evil.example/auth?callback_url={redirect_uri}", &OPENROUTER).is_err());
     }
 
     #[test]
