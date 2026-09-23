@@ -293,3 +293,33 @@ describe('Community library', () => {
     assert.ok(!JSON.stringify(r.body).includes('secret_things'));
   });
 });
+
+describe('Sign-in with a profile left by the old flow', () => {
+  it('adopts a legacy unverified profile that has the same email, instead of failing', async () => {
+    // The pre-fix /api/auth/session wrote rows like usr_google_<sub>, with the
+    // email under a UNIQUE index. A verified sign-in for the same email then
+    // hit the constraint and returned 500 "Internal server error".
+    const { DB, call } = setup();
+    DB.raw
+      .prepare("INSERT INTO users (id, username, display_name, email, provider) VALUES ('usr_google_1001', 'alice', 'Alice', 'alice@example.com', 'google')")
+      .run();
+    const r = await call('POST', '/api/auth/google', { body: { credential: await googleToken({}) } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const rows = DB.raw.prepare("SELECT id FROM users WHERE email = 'alice@example.com'").all() as { id: string }[];
+    assert.deepEqual(rows.map((x) => x.id), ['google:1001']);
+  });
+
+  it('never lets one verified account take over another', async () => {
+    const { DB, call } = setup();
+    DB.raw
+      .prepare("INSERT INTO users (id, username, display_name, email, provider) VALUES ('google:9999', 'google:9999', 'Other', 'alice@example.com', 'google')")
+      .run();
+    const r = await call('POST', '/api/auth/google', { body: { credential: await googleToken({}) } });
+    // Google says this sub now owns the address; the older verified row keeps
+    // its id and projects, and the address moves to the account that proved it.
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const ids = (DB.raw.prepare('SELECT id, email FROM users ORDER BY id').all() as { id: string; email: string }[]);
+    assert.ok(ids.some((x) => x.id === 'google:9999'), 'the other verified account still exists');
+    assert.equal(ids.find((x) => x.id === 'google:1001')?.email, 'alice@example.com');
+  });
+});
