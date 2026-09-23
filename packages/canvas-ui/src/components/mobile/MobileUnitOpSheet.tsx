@@ -9,6 +9,7 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { getAiConfig } from '../../ai/aiModelManager.js';
+import { draftingRadius } from '@process-forge/theme';
 
 export interface MobileUnitOpSheetProps {
   node: ProcessNode | null;
@@ -58,11 +59,10 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
         style={{
           backgroundColor: OsakaJadePalette.background.surface,
           borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: '16px 16px 0 0',
+          borderRadius: draftingRadius.sharp,
           maxHeight: '85vh',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 -8px 32px rgba(0, 0, 0, 0.6)',
           overflow: 'hidden'
         }}
       >
@@ -72,7 +72,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
             style={{
               width: 36,
               height: 4,
-              borderRadius: 2,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.border.default
             }}
           />
@@ -98,7 +98,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                   color: OsakaJadePalette.jade.glow,
                   backgroundColor: 'rgba(16, 185, 129, 0.15)',
                   padding: '2px 6px',
-                  borderRadius: 4
+                  borderRadius: draftingRadius.soft
                 }}
               >
                 {node.id.toUpperCase()}
@@ -132,7 +132,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
             onClick={onClose}
             style={{
               padding: 6,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.secondary,
@@ -231,7 +231,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                 <div
                   style={{
                     padding: 12,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: OsakaJadePalette.background.surfaceElevated,
                     border: `1px solid ${OsakaJadePalette.border.subtle}`
                   }}
@@ -244,7 +244,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                 <div
                   style={{
                     padding: 12,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: OsakaJadePalette.background.surfaceElevated,
                     border: `1px solid ${OsakaJadePalette.border.subtle}`
                   }}
@@ -257,7 +257,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                 <div
                   style={{
                     padding: 12,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: OsakaJadePalette.background.surfaceElevated,
                     border: `1px solid ${OsakaJadePalette.border.subtle}`
                   }}
@@ -270,7 +270,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                 <div
                   style={{
                     padding: 12,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: OsakaJadePalette.background.surfaceElevated,
                     border: `1px solid ${OsakaJadePalette.border.subtle}`
                   }}
@@ -285,7 +285,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
               <div
                 style={{
                   padding: 14,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.subtle}`,
                   display: 'flex',
@@ -320,7 +320,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
               <div
                 style={{
                   padding: 14,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.subtle}`,
                   display: 'flex',
@@ -338,7 +338,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                     style={{
                       flex: 1,
                       padding: '8px',
-                      borderRadius: 6,
+                      borderRadius: draftingRadius.soft,
                       backgroundColor: OsakaJadePalette.background.surface,
                       border: `1px solid ${OsakaJadePalette.border.default}`,
                       color: OsakaJadePalette.text.primary,
@@ -353,7 +353,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                     style={{
                       flex: 1,
                       padding: '8px',
-                      borderRadius: 6,
+                      borderRadius: draftingRadius.soft,
                       backgroundColor: OsakaJadePalette.background.surface,
                       border: `1px solid ${OsakaJadePalette.border.default}`,
                       color: OsakaJadePalette.text.primary,
@@ -381,7 +381,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                       key={nz.id}
                       style={{
                         padding: '10px 12px',
-                        borderRadius: 8,
+                        borderRadius: draftingRadius.soft,
                         backgroundColor: OsakaJadePalette.background.surfaceElevated,
                         border: `1px solid ${OsakaJadePalette.border.subtle}`,
                         display: 'flex',
@@ -409,7 +409,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                           style={{
                             fontSize: 10,
                             padding: '3px 8px',
-                            borderRadius: 4,
+                            borderRadius: draftingRadius.soft,
                             backgroundColor: 'rgba(16, 185, 129, 0.12)',
                             color: OsakaJadePalette.jade[300],
                             fontWeight: 700
@@ -431,7 +431,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                       fontSize: 12,
                       color: OsakaJadePalette.text.muted,
                       backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                      borderRadius: 8
+                      borderRadius: draftingRadius.soft
                     }}
                   >
                     Nozzles configured via default process ports.
@@ -446,7 +446,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
               <div
                 style={{
                   padding: 12,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.subtle}`,
                   display: 'flex',
@@ -482,7 +482,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                       color: OsakaJadePalette.text.primary,
                       fontSize: 11,
                       padding: '2px 8px',
-                      borderRadius: 4,
+                      borderRadius: draftingRadius.soft,
                       cursor: 'pointer'
                     }}
                   >
@@ -505,7 +505,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
               <div
                 style={{
                   padding: '12px 14px',
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: 'rgba(16, 185, 129, 0.1)',
                   border: `1px solid ${OsakaJadePalette.border.glow}`,
                   display: 'flex',
@@ -528,7 +528,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
               <div
                 style={{
                   padding: 12,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   border: `1px solid ${OsakaJadePalette.border.subtle}`,
                   fontSize: 11,
@@ -545,7 +545,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                 <div
                   style={{
                     padding: 12,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: OsakaJadePalette.background.surfaceElevated,
                     border: `1px solid ${OsakaJadePalette.border.default}`,
                     fontSize: 11,

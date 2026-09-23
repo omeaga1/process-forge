@@ -11,6 +11,7 @@ import {
   Monitor
 } from 'lucide-react';
 import { MobileUnitOpSheet } from './MobileUnitOpSheet.js';
+import { draftingRadius } from '@process-forge/theme';
 
 export interface MobileFieldViewProps {
   graph: ProcessGraph;
@@ -33,7 +34,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
   onUpdateNodeConfig,
   onUpdateNodeDressing
 }) => {
-  const { palette, elevation, space, radius: r } = useTheme();
+  const { palette, space, radius: r } = useTheme();
   const OsakaJadePalette = palette;
   const [selectedNode, setSelectedNode] = useState<ProcessNode | null>(null);
 
@@ -76,7 +77,6 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                   height: 8,
                   borderRadius: '50%',
                   backgroundColor: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-                  boxShadow: isRunning ? `0 0 8px ${OsakaJadePalette.jade.glow}` : 'none'
                 }}
               />
               <span style={{ fontSize: 11, fontWeight: 700, color: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.secondary, textTransform: 'uppercase' }}>
@@ -101,7 +101,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                 alignItems: 'center',
                 gap: 4,
                 padding: '6px 10px',
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
                 border: `1px solid ${OsakaJadePalette.border.default}`,
                 color: OsakaJadePalette.text.secondary,
@@ -121,7 +121,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 padding: '6px 8px',
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
                 border: `1px solid ${OsakaJadePalette.border.default}`,
                 color: OsakaJadePalette.text.secondary,
@@ -139,14 +139,13 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                 alignItems: 'center',
                 gap: 6,
                 padding: '6px 14px',
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: isRunning ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
                 border: isRunning ? `1px solid ${OsakaJadePalette.border.default}` : 'none',
                 color: isRunning ? OsakaJadePalette.text.primary : OsakaJadePalette.text.inverse,
                 fontSize: 11,
                 fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: isRunning ? 'none' : `0 0 10px ${OsakaJadePalette.jade.glow}44`
               }}
             >
               {isRunning ? <Pause size={13} /> : <Play size={13} />}
@@ -167,7 +166,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
           <div
             style={{
               padding: '6px 10px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
               border: `1px solid ${OsakaJadePalette.border.subtle}`
             }}
@@ -181,7 +180,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
           <div
             style={{
               padding: '6px 10px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
               border: `1px solid ${OsakaJadePalette.border.subtle}`
             }}
@@ -195,7 +194,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
           <div
             style={{
               padding: '6px 10px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
               border: `1px solid ${OsakaJadePalette.border.subtle}`
             }}
@@ -262,7 +261,6 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                 borderRadius: r.md,
                 backgroundColor: OsakaJadePalette.background.surface,
                 border: isBottleneck ? `1px solid ${OsakaJadePalette.border.glowAmber}` : `1px solid ${OsakaJadePalette.border.default}`,
-                boxShadow: isBottleneck ? elevation.glowWarning : 'none',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: space[2],
@@ -280,7 +278,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                       color: OsakaJadePalette.jade.glow,
                       backgroundColor: 'rgba(16, 185, 129, 0.12)',
                       padding: '2px 6px',
-                      borderRadius: 4
+                      borderRadius: draftingRadius.soft
                     }}
                   >
                     #{index + 1}
@@ -301,7 +299,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                       fontSize: 10,
                       fontWeight: 700,
                       padding: '2px 8px',
-                      borderRadius: 12,
+                      borderRadius: draftingRadius.sharp,
                       backgroundColor: `${statusColor}22`,
                       color: statusColor,
                       border: `1px solid ${statusColor}44`
@@ -320,7 +318,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '8px 10px',
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surfaceElevated,
                   fontSize: 11
                 }}

@@ -321,7 +321,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               fontFamily: '"JetBrains Mono", monospace',
               textDecoration: 'none',
               cursor: 'pointer',
-              boxShadow: `0 0 10px ${OsakaJadePalette.jade.glow}44`,
               transition: 'all 0.12s ease'
             }}
             title="Download ProcessForge for Windows (Native .exe Setup)"
@@ -358,7 +357,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 height: 7,
                 borderRadius: '50%',
                 backgroundColor: hasKey ? OsakaJadePalette.jade.glow : OsakaJadePalette.status.failed,
-                boxShadow: hasKey ? `0 0 6px ${OsakaJadePalette.jade.glow}` : undefined
               }}
             />
             <span>{hasKey ? `AI: ${creds.provider.toUpperCase()}` : 'LINK AI MODEL'}</span>
@@ -453,7 +451,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 height: 6,
                 borderRadius: '50%',
                 backgroundColor: OsakaJadePalette.jade[500],
-                boxShadow: `0 0 8px ${OsakaJadePalette.jade.glow}`
               }}
             />
             CONTINUOUS & DISCRETE PROCESS SIMULATION
@@ -529,9 +526,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               fontSize: 13,
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: theme === 'dark'
-                ? `inset 0 1px 0 rgba(255,255,255,0.25), 0 3px 12px ${OsakaJadePalette.jade.glow}44`
-                : '0 2px 4px rgba(0,0,0,0.1)',
               fontFamily: '"JetBrains Mono", monospace',
               textTransform: 'uppercase',
               letterSpacing: '0.04em',
@@ -967,7 +961,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                       alignItems: 'center',
                       gap: 6,
                       padding: '4px 10px',
-                      borderRadius: 3,
+                      borderRadius: draftingRadius.soft,
                       backgroundColor: theme === 'dark' ? 'rgba(45, 213, 183, 0.08)' : 'rgba(35, 148, 104, 0.08)',
                       border: `1px solid ${OsakaJadePalette.border.strong}`,
                       fontSize: 11,
@@ -1031,7 +1025,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                       alignItems: 'center',
                       gap: 6,
                       padding: '4px 10px',
-                      borderRadius: 3,
+                      borderRadius: draftingRadius.soft,
                       backgroundColor: theme === 'dark' ? 'rgba(14, 165, 233, 0.08)' : 'rgba(2, 132, 199, 0.08)',
                       border: `1px solid rgba(56, 189, 248, 0.3)`,
                       fontSize: 11,
@@ -1095,7 +1089,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                       alignItems: 'center',
                       gap: 6,
                       padding: '4px 10px',
-                      borderRadius: 3,
+                      borderRadius: draftingRadius.soft,
                       backgroundColor: 'rgba(255, 255, 255, 0.04)',
                       border: `1px solid ${OsakaJadePalette.border.default}`,
                       fontSize: 11,
@@ -1125,7 +1119,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               padding: 20,
               display: 'flex',
               flexDirection: 'column',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -1153,7 +1146,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                         height: 6,
                         borderRadius: '50%',
                         backgroundColor: hasKey ? OsakaJadePalette.jade[500] : OsakaJadePalette.status.failed,
-                        boxShadow: hasKey ? `0 0 6px ${OsakaJadePalette.jade.glow}` : undefined
                       }}
                     />
                   </div>
@@ -1237,7 +1229,6 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',
-                    boxShadow: `0 0 12px ${OsakaJadePalette.jade.glow}`,
                     transition: 'all 0.15s ease'
                   }}
                 >
@@ -1299,7 +1290,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                                 fontSize: 9,
                                 backgroundColor: 'rgba(255,255,255,0.06)',
                                 padding: '1px 4px',
-                                borderRadius: 3,
+                                borderRadius: draftingRadius.soft,
                                 color: OsakaJadePalette.text.muted
                               }}
                             >
@@ -1431,7 +1422,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
               {isAuthenticated ? user?.name : 'Local Guest Engineer'}
             </div>
             <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted, marginTop: 2 }}>
-              {isAuthenticated ? `${user?.email} • ${user?.organization || 'Process Engineering'}` : 'Sign in with Google to sync cloud projects and unlock higher quotas.'}
+              {isAuthenticated ? `${user?.email} • ${user?.organization || 'Process Engineering'}` : 'Sign in with Google to keep a copy of your projects in ProcessForge Cloud.'}
             </div>
 
             {/* Quota Bar */}
@@ -1444,7 +1435,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                 style={{
                   width: '100%',
                   height: 6,
-                  borderRadius: 3,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: 'rgba(255, 255, 255, 0.08)',
                   overflow: 'hidden'
                 }}
@@ -1454,7 +1445,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
                     width: `${Math.min(100, ((cloudProjects.length) / (user?.cloudStorageQuota?.maxProjects || 25)) * 100)}%`,
                     height: '100%',
                     backgroundColor: OsakaJadePalette.jade[500],
-                    borderRadius: 3
+                    borderRadius: draftingRadius.soft
                   }}
                 />
               </div>
@@ -1518,7 +1509,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             </div>
 
             <p style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, margin: '0 0 14px 0', lineHeight: 1.4 }}>
-              Bring your existing subscription from <strong>Anthropic Claude</strong>, <strong>Google Gemini</strong>, <strong>OpenAI</strong>, or run locally on <strong>Ollama</strong>. Keys are stored strictly on your local browser.
+              Bring your existing subscription from <strong>Anthropic Claude</strong>, <strong>Google Gemini</strong>, <strong>OpenAI</strong>, or run locally on <strong>Ollama</strong>. Keys are stored only on this device — in the OS keychain in the desktop app, in local storage in a browser — and sent only to the provider they belong to.
             </p>
 
             <button

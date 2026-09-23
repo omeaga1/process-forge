@@ -18,6 +18,7 @@ import {
 import { dispatchUnitOpMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
 import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, Network, KeyRound } from 'lucide-react';
+import { draftingRadius } from '@process-forge/theme';
 
 interface UnitOpPopOutStudioProps {
   node: ProcessNode | null;
@@ -131,7 +132,6 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         maxWidth: '100%',
         backgroundColor: OsakaJadePalette.background.surfaceElevated,
         borderLeft: `1px solid ${OsakaJadePalette.border.default}`,
-        boxShadow: '-8px 0 28px rgba(0,0,0,0.4)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 40,
@@ -157,7 +157,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             style={{
               width: 44,
               height: 44,
-              borderRadius: 8,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
               border: `1px solid ${OsakaJadePalette.jade.glow}44`,
               display: 'flex',
@@ -181,7 +181,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                   fontSize: 10,
                   fontWeight: 600,
                   padding: '2px 8px',
-                  borderRadius: 12,
+                  borderRadius: draftingRadius.sharp,
                   backgroundColor: 'rgba(16, 185, 129, 0.15)',
                   color: OsakaJadePalette.jade.glow,
                   border: `1px solid ${OsakaJadePalette.jade[600]}`,
@@ -347,7 +347,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                     maxWidth: '85%',
                     backgroundColor: isUser ? OsakaJadePalette.jade.muted : OsakaJadePalette.background.surface,
                     padding: '10px 14px',
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     border: `1px solid ${isUser ? OsakaJadePalette.jade[600] : OsakaJadePalette.border.default}`,
                     fontSize: 13,
                     lineHeight: '1.4'
@@ -358,7 +358,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                     <span
                       style={{
                         padding: '1px 6px',
-                        borderRadius: 4,
+                        borderRadius: draftingRadius.soft,
                         fontSize: 9,
                         fontWeight: 700,
                         backgroundColor: msg.isOffline ? 'rgba(255,255,255,0.06)' : 'rgba(16,185,129,0.15)',
@@ -378,7 +378,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                       style={{
                         marginTop: 12,
                         padding: 12,
-                        borderRadius: 8,
+                        borderRadius: draftingRadius.soft,
                         backgroundColor: OsakaJadePalette.background.surfaceElevated,
                         border: `1px solid ${OsakaJadePalette.jade[700]}`,
                         display: 'flex',
@@ -406,7 +406,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                         style={{
                           width: '100%',
                           height: 140,
-                          borderRadius: 6,
+                          borderRadius: draftingRadius.soft,
                           backgroundColor: OsakaJadePalette.background.canvas,
                           border: `1px solid ${OsakaJadePalette.border.subtle}`,
                           display: 'flex',
@@ -462,7 +462,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                             backgroundColor: OsakaJadePalette.jade.glow,
                             color: OsakaJadePalette.background.base,
                             border: 'none',
-                            borderRadius: 6,
+                            borderRadius: draftingRadius.soft,
                             padding: '6px 10px',
                             fontSize: 11,
                             fontWeight: 700,
@@ -497,7 +497,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                             textAlign: 'left',
                             backgroundColor: OsakaJadePalette.background.surfaceElevated,
                             border: `1px solid ${OsakaJadePalette.border.default}`,
-                            borderRadius: 6,
+                            borderRadius: draftingRadius.soft,
                             padding: '6px 10px',
                             fontSize: 11,
                             color: OsakaJadePalette.text.secondary,
@@ -518,7 +518,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                 style={{
                   alignSelf: 'flex-start',
                   padding: '8px 12px',
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surface,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   display: 'flex',
@@ -598,7 +598,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                 flex: 1,
                 backgroundColor: OsakaJadePalette.background.surfaceElevated,
                 border: `1px solid ${OsakaJadePalette.border.default}`,
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 padding: '8px 12px',
                 color: OsakaJadePalette.text.primary,
                 fontSize: 13,
@@ -613,7 +613,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                 backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
                 color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
                 border: 'none',
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 padding: '8px 16px',
                 fontWeight: 700,
                 fontSize: 12,
@@ -653,7 +653,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                   style={{
                     backgroundColor: OsakaJadePalette.background.surface,
                     border: `1px solid ${OsakaJadePalette.border.default}`,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     padding: '12px 14px',
                     display: 'flex',
                     flexDirection: 'column',
@@ -682,7 +682,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                         style={{
                           width: 75,
                           padding: '4px 6px',
-                          borderRadius: 4,
+                          borderRadius: draftingRadius.soft,
                           backgroundColor: OsakaJadePalette.background.surfaceElevated,
                           border: `1px solid ${OsakaJadePalette.border.subtle}`,
                           color: OsakaJadePalette.jade.glow,
@@ -753,7 +753,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             backgroundColor: OsakaJadePalette.jade.muted,
             color: OsakaJadePalette.jade.glow,
             border: `1px solid ${OsakaJadePalette.jade[600]}`,
-            borderRadius: 6,
+            borderRadius: draftingRadius.soft,
             padding: '8px 16px',
             fontSize: 12,
             fontWeight: 700,

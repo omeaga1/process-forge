@@ -13,6 +13,7 @@ import { useTheme } from '@process-forge/canvas-ui';
 import type { SimulationProject } from '@process-forge/protocol';
 import { useAccount } from '../auth/useAccount.js';
 import { hasCloudSession } from '../auth/accountManager.js';
+import { draftingRadius } from '@process-forge/theme';
 
 interface SaveProjectModalProps {
   isOpen: boolean;
@@ -96,8 +97,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
           maxHeight: 'min(90vh, calc(100vh - 40px))',
           backgroundColor: OsakaJadePalette.background.surface,
           border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: 12,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+          borderRadius: draftingRadius.sharp,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column'
@@ -119,7 +119,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 8,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: 'rgba(16, 185, 129, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
@@ -167,7 +167,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                 width: '100%',
                 backgroundColor: OsakaJadePalette.background.canvas,
                 border: `1px solid ${OsakaJadePalette.border.default}`,
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 padding: '8px 12px',
                 color: OsakaJadePalette.text.primary,
                 fontSize: 13,
@@ -189,7 +189,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                 width: '100%',
                 backgroundColor: OsakaJadePalette.background.canvas,
                 border: `1px solid ${OsakaJadePalette.border.default}`,
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 padding: '8px 12px',
                 color: OsakaJadePalette.text.primary,
                 fontSize: 13,
@@ -210,7 +210,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                 padding: 14,
                 backgroundColor: 'rgba(16, 185, 129, 0.08)',
                 border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                borderRadius: 8
+                borderRadius: draftingRadius.soft
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -223,7 +223,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                         fontSize: 9,
                         fontWeight: 700,
                         padding: '1px 6px',
-                        borderRadius: 10,
+                        borderRadius: draftingRadius.soft,
                         backgroundColor: OsakaJadePalette.jade[500],
                         color: OsakaJadePalette.text.inverse
                       }}
@@ -257,7 +257,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                     padding: '8px 16px',
                     backgroundColor: isSavedCloud ? OsakaJadePalette.jade[600] : OsakaJadePalette.jade[500],
                     border: 'none',
-                    borderRadius: 6,
+                    borderRadius: draftingRadius.soft,
                     color: OsakaJadePalette.text.inverse,
                     fontSize: 12,
                     fontWeight: 700,
@@ -280,7 +280,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                     padding: '8px 14px',
                     backgroundColor: OsakaJadePalette.jade[500],
                     border: 'none',
-                    borderRadius: 6,
+                    borderRadius: draftingRadius.soft,
                     color: OsakaJadePalette.text.inverse,
                     fontSize: 12,
                     fontWeight: 700,
@@ -302,7 +302,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                 padding: 12,
                 backgroundColor: OsakaJadePalette.background.canvas,
                 border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                borderRadius: 8
+                borderRadius: draftingRadius.soft
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -325,7 +325,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                   padding: '6px 12px',
                   backgroundColor: isSavedLocally ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
                   border: `1px solid ${isSavedLocally ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   color: isSavedLocally ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.primary,
                   fontSize: 12,
                   fontWeight: 600,
@@ -346,7 +346,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                 padding: 12,
                 backgroundColor: OsakaJadePalette.background.canvas,
                 border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                borderRadius: 8
+                borderRadius: draftingRadius.soft
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -369,7 +369,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                   padding: '6px 12px',
                   backgroundColor: 'rgba(255, 255, 255, 0.06)',
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   color: OsakaJadePalette.text.primary,
                   fontSize: 12,
                   fontWeight: 600,
@@ -406,7 +406,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
               padding: '6px 14px',
               backgroundColor: 'transparent',
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               color: OsakaJadePalette.text.secondary,
               fontSize: 12,
               cursor: 'pointer'

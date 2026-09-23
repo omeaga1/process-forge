@@ -19,6 +19,7 @@ import { useAccount } from '../auth/useAccount.js';
 import { getInitials } from '../auth/accountManager.js';
 import { isDesktopRuntime } from '../runtime/desktop.js';
 import { isDesktopGoogleSignInConfigured } from '../auth/desktopGoogleSignIn.js';
+import { draftingRadius } from '@process-forge/theme';
 
 export interface AccountModalProps {
   isOpen: boolean;
@@ -194,8 +195,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
           maxWidth: 520,
           backgroundColor: OsakaJadePalette.background.surface,
           border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: 12,
-          boxShadow: '0 24px 48px rgba(0, 0, 0, 0.5)',
+          borderRadius: draftingRadius.sharp,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -219,7 +219,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 8,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: OsakaJadePalette.jade.muted,
                 display: 'flex',
                 alignItems: 'center',
@@ -266,7 +266,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   padding: 16,
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 10
+                  borderRadius: draftingRadius.soft
                 }}
               >
                 {/* Authentic Avatar / Monogram */}
@@ -274,7 +274,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   style={{
                     width: 56,
                     height: 56,
-                    borderRadius: 28,
+                    borderRadius: draftingRadius.sharp,
                     overflow: 'hidden',
                     backgroundColor: OsakaJadePalette.jade[600],
                     display: 'flex',
@@ -310,7 +310,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     <span
                       style={{
                         padding: '2px 8px',
-                        borderRadius: 10,
+                        borderRadius: draftingRadius.soft,
                         backgroundColor: 'rgba(16, 185, 129, 0.15)',
                         border: `1px solid ${OsakaJadePalette.jade[600]}`,
                         color: OsakaJadePalette.text.accent,
@@ -341,7 +341,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   padding: 14,
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 10
+                  borderRadius: draftingRadius.soft
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -358,7 +358,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   style={{
                     width: '100%',
                     height: 6,
-                    borderRadius: 3,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: 'rgba(255, 255, 255, 0.08)',
                     overflow: 'hidden'
                   }}
@@ -368,7 +368,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                       width: `${Math.min(100, (((user.cloudStorageQuota?.usedProjects || 0)) / (user.cloudStorageQuota?.maxProjects || 50)) * 100)}%`,
                       height: '100%',
                       backgroundColor: OsakaJadePalette.jade[500],
-                      borderRadius: 3
+                      borderRadius: draftingRadius.soft
                     }}
                   />
                 </div>
@@ -389,7 +389,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                       justifyContent: 'center',
                       gap: 8,
                       padding: '10px 14px',
-                      borderRadius: 8,
+                      borderRadius: draftingRadius.soft,
                       backgroundColor: OsakaJadePalette.jade[600],
                       border: 'none',
                       color: '#fff',
@@ -411,7 +411,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     justifyContent: 'center',
                     gap: 6,
                     padding: '10px 16px',
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: 'rgba(239, 68, 68, 0.1)',
                     border: '1px solid rgba(239, 68, 68, 0.3)',
                     color: '#f87171',
@@ -433,7 +433,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                 style={{
                   display: 'flex',
                   backgroundColor: OsakaJadePalette.background.canvas,
-                  borderRadius: 8,
+                  borderRadius: draftingRadius.soft,
                   padding: 3,
                   marginBottom: 16
                 }}
@@ -446,7 +446,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   style={{
                     flex: 1,
                     padding: '8px 12px',
-                    borderRadius: 6,
+                    borderRadius: draftingRadius.soft,
                     border: 'none',
                     backgroundColor: activeTab === 'email' ? OsakaJadePalette.background.surface : 'transparent',
                     color: activeTab === 'email' ? OsakaJadePalette.text.primary : OsakaJadePalette.text.secondary,
@@ -471,7 +471,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   style={{
                     flex: 1,
                     padding: '8px 12px',
-                    borderRadius: 6,
+                    borderRadius: draftingRadius.soft,
                     border: 'none',
                     backgroundColor: activeTab === 'google' ? OsakaJadePalette.background.surface : 'transparent',
                     color: activeTab === 'google' ? OsakaJadePalette.text.primary : OsakaJadePalette.text.secondary,
@@ -497,7 +497,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     alignItems: 'center',
                     gap: 8,
                     padding: '10px 12px',
-                    borderRadius: 6,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: 'rgba(239, 68, 68, 0.12)',
                     border: '1px solid rgba(239, 68, 68, 0.3)',
                     color: '#f87171',
@@ -517,7 +517,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     alignItems: 'center',
                     gap: 8,
                     padding: '10px 12px',
-                    borderRadius: 6,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: 'rgba(16, 185, 129, 0.15)',
                     border: `1px solid ${OsakaJadePalette.jade[600]}`,
                     color: OsakaJadePalette.text.accent,
@@ -576,7 +576,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                             boxSizing: 'border-box',
                             backgroundColor: OsakaJadePalette.background.canvas,
                             border: `1px solid ${OsakaJadePalette.border.default}`,
-                            borderRadius: 6,
+                            borderRadius: draftingRadius.soft,
                             padding: '8px 10px 8px 34px',
                             color: OsakaJadePalette.text.primary,
                             fontSize: 13,
@@ -603,7 +603,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                               boxSizing: 'border-box',
                               backgroundColor: OsakaJadePalette.background.canvas,
                               border: `1px solid ${OsakaJadePalette.border.default}`,
-                              borderRadius: 6,
+                              borderRadius: draftingRadius.soft,
                               padding: '8px 10px',
                               color: OsakaJadePalette.text.primary,
                               fontSize: 13,
@@ -625,7 +625,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                               boxSizing: 'border-box',
                               backgroundColor: OsakaJadePalette.background.canvas,
                               border: `1px solid ${OsakaJadePalette.border.default}`,
-                              borderRadius: 6,
+                              borderRadius: draftingRadius.soft,
                               padding: '8px 10px',
                               color: OsakaJadePalette.text.primary,
                               fontSize: 13,
@@ -654,7 +654,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                             boxSizing: 'border-box',
                             backgroundColor: OsakaJadePalette.background.canvas,
                             border: `1px solid ${OsakaJadePalette.border.default}`,
-                            borderRadius: 6,
+                            borderRadius: draftingRadius.soft,
                             padding: '8px 36px 8px 34px',
                             color: OsakaJadePalette.text.primary,
                             fontSize: 13,
@@ -699,7 +699,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                               boxSizing: 'border-box',
                               backgroundColor: OsakaJadePalette.background.canvas,
                               border: `1px solid ${OsakaJadePalette.border.default}`,
-                              borderRadius: 6,
+                              borderRadius: draftingRadius.soft,
                               padding: '8px 10px 8px 34px',
                               color: OsakaJadePalette.text.primary,
                               fontSize: 13,
@@ -717,7 +717,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                       style={{
                         marginTop: 6,
                         padding: '10px 16px',
-                        borderRadius: 6,
+                        borderRadius: draftingRadius.soft,
                         backgroundColor: OsakaJadePalette.jade[600],
                         border: 'none',
                         color: '#fff',
@@ -750,7 +750,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         disabled={isSubmitting}
                         style={{
                           padding: '10px 16px',
-                          borderRadius: 6,
+                          borderRadius: draftingRadius.soft,
                           backgroundColor: OsakaJadePalette.jade[600],
                           border: 'none',
                           color: '#fff',

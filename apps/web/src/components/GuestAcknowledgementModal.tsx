@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldCheck, Download, ArrowRight, X, Cloud } from 'lucide-react';
 import { useTheme } from '@process-forge/canvas-ui';
+import { draftingRadius } from '@process-forge/theme';
 
 interface GuestAcknowledgementModalProps {
   isOpen: boolean;
@@ -41,8 +42,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
           maxHeight: 'min(90vh, calc(100vh - 40px))',
           backgroundColor: OsakaJadePalette.background.surface,
           border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: 12,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)',
+          borderRadius: draftingRadius.sharp,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column'
@@ -64,7 +64,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 8,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: 'rgba(16, 185, 129, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
@@ -117,7 +117,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
                 padding: 14,
                 backgroundColor: 'rgba(16, 185, 129, 0.08)',
                 border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                borderRadius: 8
+                borderRadius: draftingRadius.soft
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -130,7 +130,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
                         fontSize: 9,
                         fontWeight: 700,
                         padding: '1px 6px',
-                        borderRadius: 10,
+                        borderRadius: draftingRadius.soft,
                         backgroundColor: OsakaJadePalette.jade[500],
                         color: OsakaJadePalette.text.inverse
                       }}
@@ -152,7 +152,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
                   padding: '7px 14px',
                   backgroundColor: OsakaJadePalette.jade[500],
                   border: 'none',
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   color: OsakaJadePalette.text.inverse,
                   fontSize: 12,
                   fontWeight: 700,
@@ -173,7 +173,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
                 padding: 14,
                 backgroundColor: OsakaJadePalette.background.canvas,
                 border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                borderRadius: 8
+                borderRadius: draftingRadius.soft
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -196,7 +196,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
                   padding: '6px 12px',
                   backgroundColor: 'rgba(255, 255, 255, 0.06)',
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 6,
+                  borderRadius: draftingRadius.soft,
                   color: OsakaJadePalette.text.primary,
                   fontSize: 12,
                   fontWeight: 600,
@@ -234,7 +234,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
               padding: '8px 16px',
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
               border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               color: OsakaJadePalette.text.primary,
               fontWeight: 600,
               fontSize: 13,

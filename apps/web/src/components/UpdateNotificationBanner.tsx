@@ -11,6 +11,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { useTheme } from '@process-forge/canvas-ui';
+import { draftingRadius } from '@process-forge/theme';
 
 export interface UpdateInfo {
   current_version: string;
@@ -180,10 +181,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
             ? OsakaJadePalette.jade.glow
             : OsakaJadePalette.border.default
         }`,
-        borderRadius: 8,
-        boxShadow: `0 8px 32px rgba(0,0,0,0.65), 0 0 16px ${
-          status === 'available' ? `${OsakaJadePalette.jade.glow}33` : 'transparent'
-        }`,
+        borderRadius: draftingRadius.soft,
         padding: '10px 16px',
         display: 'flex',
         alignItems: 'center',
@@ -198,7 +196,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
           style={{
             width: 34,
             height: 34,
-            borderRadius: 8,
+            borderRadius: draftingRadius.soft,
             backgroundColor:
               status === 'error'
                 ? 'rgba(239, 68, 68, 0.15)'
@@ -248,7 +246,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
                 style={{
                   fontSize: '0.7rem',
                   padding: '1px 6px',
-                  borderRadius: 4,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surface,
                   color: OsakaJadePalette.text.secondary,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
@@ -291,14 +289,13 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
               alignItems: 'center',
               gap: 6,
               padding: '6px 14px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.jade[500],
               color: OsakaJadePalette.text.inverse,
               border: 'none',
               fontSize: '0.8rem',
               fontWeight: 700,
               cursor: 'pointer',
-              boxShadow: `0 0 10px ${OsakaJadePalette.jade.glow}44`
             }}
             title="Download, install, and restart ProcessForge"
           >
@@ -315,7 +312,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
               alignItems: 'center',
               gap: 5,
               padding: '6px 12px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: 'rgba(255, 255, 255, 0.05)',
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.primary,
@@ -338,7 +335,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
               alignItems: 'center',
               gap: 5,
               padding: '6px 12px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.jade[500],
               color: OsakaJadePalette.text.inverse,
               border: 'none',
@@ -362,7 +359,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
               alignItems: 'center',
               gap: 4,
               padding: '6px 10px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surface,
               color: OsakaJadePalette.text.secondary,
               border: `1px solid ${OsakaJadePalette.border.default}`,

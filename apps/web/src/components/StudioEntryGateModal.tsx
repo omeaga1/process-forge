@@ -1,6 +1,7 @@
 import React from 'react';
 import { Cloud, HardDrive, ShieldAlert, ArrowRight, UserPlus, X, CheckCircle2 } from 'lucide-react';
 import { useTheme } from '@process-forge/canvas-ui';
+import { draftingRadius } from '@process-forge/theme';
 
 interface StudioEntryGateModalProps {
   isOpen: boolean;
@@ -41,8 +42,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
           maxHeight: 'min(92vh, 700px)',
           backgroundColor: OsakaJadePalette.background.surface,
           border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: 14,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
+          borderRadius: draftingRadius.sharp,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column'
@@ -75,7 +75,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
               color: OsakaJadePalette.text.muted,
               cursor: 'pointer',
               padding: 6,
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -93,13 +93,12 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
           <div
             style={{
               padding: '18px 20px',
-              borderRadius: 10,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
               border: `1px solid ${OsakaJadePalette.jade[600]}`,
               display: 'flex',
               flexDirection: 'column',
               gap: 12,
-              boxShadow: `0 0 16px ${OsakaJadePalette.jade.glow}18`,
               position: 'relative'
             }}
           >
@@ -109,7 +108,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                   style={{
                     width: 36,
                     height: 36,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: 'rgba(16, 185, 129, 0.15)',
                     display: 'flex',
                     alignItems: 'center',
@@ -133,7 +132,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                   fontSize: 11,
                   fontWeight: 700,
                   padding: '3px 8px',
-                  borderRadius: 4,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: 'rgba(16, 185, 129, 0.2)',
                   color: OsakaJadePalette.jade[300],
                   border: `1px solid ${OsakaJadePalette.jade[500]}66`
@@ -170,14 +169,13 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                 justifyContent: 'center',
                 gap: 8,
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: OsakaJadePalette.jade[500],
                 color: OsakaJadePalette.text.inverse,
                 border: 'none',
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: 'pointer',
-                boxShadow: `0 2px 10px ${OsakaJadePalette.jade.glow}44`,
                 transition: 'all 0.15s ease'
               }}
             >
@@ -191,7 +189,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
           <div
             style={{
               padding: '18px 20px',
-              borderRadius: 10,
+              borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               display: 'flex',
@@ -205,7 +203,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                   style={{
                     width: 36,
                     height: 36,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: 'rgba(245, 158, 11, 0.12)',
                     display: 'flex',
                     alignItems: 'center',
@@ -229,7 +227,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                   fontSize: 11,
                   fontWeight: 700,
                   padding: '3px 8px',
-                  borderRadius: 4,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: 'rgba(245, 158, 11, 0.15)',
                   color: OsakaJadePalette.status.blocked,
                   border: '1px solid rgba(245, 158, 11, 0.3)'
@@ -266,7 +264,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                 justifyContent: 'center',
                 gap: 8,
                 padding: '10px 16px',
-                borderRadius: 6,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: OsakaJadePalette.background.surface,
                 color: OsakaJadePalette.text.primary,
                 border: `1px solid ${OsakaJadePalette.border.strong}`,

@@ -33,6 +33,7 @@ import {
   type LlmCredentials,
   type ConnectionTestResult
 } from '../../ai/aiModelManager.js';
+import { draftingRadius } from '@process-forge/theme';
 
 export interface AiModelModalProps {
   isOpen: boolean;
@@ -297,10 +298,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
           maxHeight: '92vh',
           background: modalBg,
           border: `1px solid ${borderColor}`,
-          borderRadius: 16,
-          boxShadow: isDark
-            ? '0 30px 80px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 40px -10px rgba(45, 213, 183, 0.08)'
-            : '0 25px 60px -15px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+          borderRadius: draftingRadius.sharp,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -323,14 +321,13 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
               style={{
                 width: 40,
                 height: 40,
-                borderRadius: 10,
+                borderRadius: draftingRadius.soft,
                 background: `linear-gradient(135deg, ${currentProviderMeta.accentGlow}, rgba(255, 255, 255, 0.02))`,
                 border: `1px solid ${currentProviderMeta.accentColor}40`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: currentProviderMeta.accentColor,
-                boxShadow: `0 4px 12px ${currentProviderMeta.accentGlow}`
               }}
             >
               <Cpu size={20} />
@@ -355,7 +352,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
                     padding: '2px 7px',
-                    borderRadius: 12,
+                    borderRadius: draftingRadius.sharp,
                     backgroundColor: `${currentProviderMeta.accentColor}20`,
                     color: currentProviderMeta.accentColor,
                     border: `1px solid ${currentProviderMeta.accentColor}40`
@@ -383,7 +380,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
             style={{
               width: 32,
               height: 32,
-              borderRadius: 8,
+              borderRadius: draftingRadius.soft,
               background: 'transparent',
               border: 'none',
               color: textMuted,
@@ -420,7 +417,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
               gridTemplateColumns: 'repeat(5, 1fr)',
               gap: 4,
               padding: 4,
-              borderRadius: 10,
+              borderRadius: draftingRadius.soft,
               backgroundColor: cardBg,
               border: `1px solid ${borderColor}`
             }}
@@ -443,7 +440,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     padding: '8px 4px',
-                    borderRadius: 7,
+                    borderRadius: draftingRadius.soft,
                     border: isSelected
                       ? `1px solid ${tab.accentColor}50`
                       : '1px solid transparent',
@@ -452,11 +449,6 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                         ? 'rgba(255, 255, 255, 0.07)'
                         : '#ffffff'
                       : 'transparent',
-                    boxShadow: isSelected
-                      ? isDark
-                        ? '0 2px 8px rgba(0, 0, 0, 0.35)'
-                        : '0 2px 6px rgba(0, 0, 0, 0.06)'
-                      : 'none',
                     color: isSelected ? textColor : textMuted,
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
@@ -492,7 +484,6 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                           height: 6,
                           borderRadius: '50%',
                           backgroundColor: '#10b981',
-                          boxShadow: '0 0 6px #10b981'
                         }}
                       />
                     )}
@@ -529,7 +520,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
           <div
             style={{
               padding: '10px 14px',
-              borderRadius: 10,
+              borderRadius: draftingRadius.soft,
               backgroundColor: isDark ? 'rgba(45, 213, 183, 0.05)' : 'rgba(16, 185, 129, 0.05)',
               border: isDark ? '1px solid rgba(45, 213, 183, 0.2)' : '1px solid rgba(16, 185, 129, 0.2)',
               display: 'flex',
@@ -541,7 +532,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
               style={{
                 width: 28,
                 height: 28,
-                borderRadius: 7,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: isDark ? 'rgba(45, 213, 183, 0.15)' : 'rgba(16, 185, 129, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
@@ -615,7 +606,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 <div
                   style={{
                     position: 'relative',
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     border: `1px solid ${inputFocused ? borderFocus : borderColor}`,
                     boxShadow: inputFocused ? `0 0 0 3px ${currentProviderMeta.accentGlow}` : 'none',
                     transition: 'all 0.15s ease',
@@ -686,7 +677,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                       color: textMuted,
                       cursor: 'pointer',
                       padding: 6,
-                      borderRadius: 6,
+                      borderRadius: draftingRadius.soft,
                       display: 'flex',
                       alignItems: 'center',
                       transition: 'all 0.15s ease'
@@ -725,7 +716,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 <div
                   style={{
                     position: 'relative',
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     border: `1px solid ${borderColor}`,
                     backgroundColor: inputBg,
                     transition: 'all 0.15s ease'
@@ -812,7 +803,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   }
                   style={{
                     padding: '9px 16px',
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
                     border: `1px solid ${borderColor}`,
                     color: textColor,
@@ -862,7 +853,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   style={{
                     flex: 1,
                     padding: '9px 18px',
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     background: saveFeedback
                       ? '#10b981'
                       : `linear-gradient(135deg, ${currentProviderMeta.accentColor} 0%, #10b981 100%)`,
@@ -875,7 +866,6 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 7,
-                    boxShadow: `0 4px 14px ${currentProviderMeta.accentGlow}`,
                     transition: 'all 0.2s ease'
                   }}
                 >
@@ -909,7 +899,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 </label>
                 <div
                   style={{
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     border: `1px solid ${borderColor}`,
                     backgroundColor: inputBg
                   }}
@@ -950,7 +940,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 </label>
                 <div
                   style={{
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     border: `1px solid ${borderColor}`,
                     backgroundColor: inputBg
                   }}
@@ -980,7 +970,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                       onClick={() => setCreds({ ...creds, modelId: tag })}
                       style={{
                         padding: '2px 8px',
-                        borderRadius: 4,
+                        borderRadius: draftingRadius.soft,
                         border: `1px solid ${borderColor}`,
                         backgroundColor: cardBg,
                         color: textMuted,
@@ -1002,7 +992,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   disabled={isTesting}
                   style={{
                     padding: '9px 16px',
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
                     border: `1px solid ${borderColor}`,
                     color: textColor,
@@ -1027,7 +1017,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   style={{
                     flex: 1,
                     padding: '9px 18px',
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     background: saveFeedback
                       ? '#10b981'
                       : 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)',
@@ -1059,7 +1049,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
               <div
                 style={{
                   padding: 14,
-                  borderRadius: 10,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: cardBg,
                   border: `1px solid ${borderColor}`
                 }}
@@ -1080,7 +1070,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                       style={{
                         fontSize: 9,
                         padding: '1px 6px',
-                        borderRadius: 10,
+                        borderRadius: draftingRadius.soft,
                         backgroundColor: 'rgba(168, 85, 247, 0.15)',
                         color: '#c084fc',
                         fontWeight: 700
@@ -1122,7 +1112,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     color: textMuted,
                     backgroundColor: isDark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.05)',
                     padding: 12,
-                    borderRadius: 8,
+                    borderRadius: draftingRadius.soft,
                     overflowX: 'auto',
                     border: `1px solid ${borderColor}`
                   }}
@@ -1143,7 +1133,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
             <div
               style={{
                 padding: '12px 16px',
-                borderRadius: 10,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: testResult.ok
                   ? isDark
                     ? 'rgba(16, 185, 129, 0.1)'
@@ -1161,7 +1151,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 style={{
                   width: 28,
                   height: 28,
-                  borderRadius: 7,
+                  borderRadius: draftingRadius.soft,
                   backgroundColor: testResult.ok ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                   display: 'flex',
                   alignItems: 'center',
@@ -1184,7 +1174,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                         fontSize: 10,
                         fontWeight: 700,
                         padding: '2px 7px',
-                        borderRadius: 10,
+                        borderRadius: draftingRadius.soft,
                         backgroundColor: 'rgba(16, 185, 129, 0.2)',
                         color: '#10b981',
                         fontFamily: font.mono
@@ -1219,7 +1209,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
             onClick={handlePurgeCredentials}
             style={{
               padding: '6px 12px',
-              borderRadius: 6,
+              borderRadius: draftingRadius.soft,
               backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.05)',
               color: isDark ? '#f87171' : '#dc2626',
               border: '1px solid rgba(239, 68, 68, 0.25)',
@@ -1255,7 +1245,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
               onClick={onClose}
               style={{
                 padding: '7px 16px',
-                borderRadius: 7,
+                borderRadius: draftingRadius.soft,
                 backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
                 color: textColor,
                 border: `1px solid ${borderColor}`,
