@@ -274,7 +274,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                 transition: 'all 0.15s ease'
               }}
             >
-              <span>Enter Guest Studio (Blank Canvas)</span>
+              <span>Continue without an account</span>
               <ArrowRight size={14} color={OsakaJadePalette.text.muted} />
             </button>
           </div>

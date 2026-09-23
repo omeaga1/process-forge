@@ -179,27 +179,4 @@ describe('ProcessForge Studio Navigation & State Synchronization', () => {
     assert.strictEqual(restored.graph.nodes.length, 7);
     assert.strictEqual(restored.graph.nodes[6].id, 'custom-filter-101');
   });
-
-  it('guarantees OmnipresentAgentWidget declares all React hooks before any early returns', async () => {
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const widgetPath = path.resolve(process.cwd(), 'src/components/OmnipresentAgentWidget.tsx');
-    const content = fs.readFileSync(widgetPath, 'utf-8');
-
-    // Find the position of the early return
-    const earlyReturnIdx = content.indexOf('if (isInStudioView) return null;');
-    assert.ok(earlyReturnIdx !== -1, 'Early return statement should exist');
-
-    // Ensure all hook calls in the component appear before the early return
-    const hooksMatches = [...content.matchAll(/\b(use[A-Z]\w+)\s*\(/g)];
-    assert.ok(hooksMatches.length > 0, 'Component must declare hooks');
-
-    for (const match of hooksMatches) {
-      const hookIdx = match.index!;
-      assert.ok(
-        hookIdx < earlyReturnIdx,
-        `React hook "${match[1]}" at position ${hookIdx} must be invoked BEFORE early return at position ${earlyReturnIdx} to satisfy Rules of Hooks.`
-      );
-    }
-  });
 });

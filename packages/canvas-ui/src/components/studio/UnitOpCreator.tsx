@@ -599,7 +599,19 @@ export function UnitOpCreator({
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 'auto' }}>
         <button
           disabled={!accepted}
-          onClick={() => reviewState.contract && onAccept(reviewState.contract)}
+          onClick={() => {
+            const contract = reviewState.contract;
+            if (!contract) return;
+            // Add the design the gates actually passed: with the engineer's
+            // "what if?" edits folded in. It used to add the original values,
+            // which had not necessarily passed.
+            onAccept({
+              ...contract,
+              parameters: contract.parameters.map((p) =>
+                overrides[p.name] === undefined ? p : { ...p, value: overrides[p.name]! }
+              )
+            });
+          }}
           style={{
             background: accepted ? P.jade[600] : P.background.surfaceHover,
             color: accepted ? P.text.inverse : P.text.muted,

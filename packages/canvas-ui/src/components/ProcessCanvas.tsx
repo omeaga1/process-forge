@@ -50,6 +50,18 @@ export interface ProcessCanvasProps {
   onToggleDockCollapse?: () => void;
 }
 
+/** What actually feeds a unit and what it feeds, read from the flowsheet. */
+function neighbourContext(graph: ProcessGraph, nodeId: string): { upstreamContext?: string; downstreamContext?: string } {
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const describe = (ids: string[]) => ids.map((id) => byId.get(id)?.name ?? id).join(', ');
+  const up = graph.edges.filter((e) => e.targetNodeId === nodeId).map((e) => e.sourceNodeId);
+  const down = graph.edges.filter((e) => e.sourceNodeId === nodeId).map((e) => e.targetNodeId);
+  return {
+    ...(up.length ? { upstreamContext: describe(up) } : {}),
+    ...(down.length ? { downstreamContext: describe(down) } : {})
+  };
+}
+
 export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   initialViewMode = 'auto',
   onViewModeChange,
@@ -80,6 +92,21 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   }, [activeMode, onViewModeChange]);
 
   const [graph, setGraph] = useState<ProcessGraph>(externalGraph || SHERWIN_WILLIAMS_PAINT_LINE);
+  // Every edit goes through updateGraph. It used to call onGraphChange from
+  // inside setGraph's updater, which is a parent setState during a child's
+  // render ("Cannot update a component while rendering a different
+  // component") and runs twice under StrictMode.
+  const graphRef = useRef(graph);
+  graphRef.current = graph;
+  const updateGraph = useCallback(
+    (fn: (prev: ProcessGraph) => ProcessGraph) => {
+      const next = fn(graphRef.current);
+      graphRef.current = next;
+      setGraph(next);
+      onGraphChange?.(next);
+    },
+    [onGraphChange]
+  );
   const [isRunning, setIsRunning] = useState(false);
   const [isForgeHubOpen, setIsForgeHubOpen] = useState(false);
   const [isEquipmentPaletteOpen, setIsEquipmentPaletteOpen] = useState(false);
@@ -87,18 +114,17 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
   const handleAddNode = useCallback(
     (newNode: ProcessNode) => {
-      setGraph((prev) => {
+      updateGraph((prev) => {
         const nextGraph = {
           ...prev,
           nodes: [...prev.nodes, newNode]
         };
-        onGraphChange?.(nextGraph);
         return nextGraph;
       });
       // Immediately select and open the Unit-Op Pop-Out Studio Drawer!
       setPopOutNodeId(newNode.id);
     },
-    [onGraphChange]
+    [updateGraph]
   );
 
   // Sync external graph changes (from project import, template switcher, etc.)
@@ -269,63 +295,83 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
-      setNodes((nds) => {
-        const updated = applyNodeChanges(changes, nds);
-        const positionChanges = changes.filter((c) => c.type === 'position' && (c as any).position);
-        if (positionChanges.length > 0) {
-          setGraph((prev) => {
-            const nextNodes = prev.nodes.map((pn) => {
-              const matched = updated.find((un) => un.id === pn.id);
-              return matched ? { ...pn, position: matched.position } : pn;
-            });
-            const nextGraph = { ...prev, nodes: nextNodes };
-            onGraphChange?.(nextGraph);
-            return nextGraph;
-          });
-        }
-        return updated;
-      });
+      setNodes((nds) => applyNodeChanges(changes, nds));
+
+      // Was: only position changes reached the flowsheet. Deleting a node hid
+      // it on screen but left it in the saved project and the simulation,
+      // and it came back on the next rebuild.
+      const removed = new Set(changes.filter((c) => c.type === 'remove').map((c) => c.id));
+      const moved = new Map<string, { x: number; y: number }>();
+      for (const c of changes) {
+        if (c.type === 'position' && c.position && !c.dragging) moved.set(c.id, c.position);
+      }
+      if (removed.size === 0 && moved.size === 0) return;
+      updateGraph((prev) => ({
+        ...prev,
+        nodes: prev.nodes
+          .filter((n) => !removed.has(n.id))
+          .map((n) => (moved.has(n.id) ? { ...n, position: moved.get(n.id)! } : n)),
+        // A stream to or from a deleted unit goes with it.
+        edges: prev.edges.filter((e) => !removed.has(e.sourceNodeId) && !removed.has(e.targetNodeId))
+      }));
     },
-    [onGraphChange]
+    [updateGraph]
   );
 
   const onEdgesChange: OnEdgesChange = useCallback(
-    (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    []
+    (changes) => {
+      setEdges((eds) => applyEdgeChanges(changes, eds));
+      const removed = new Set(changes.filter((c) => c.type === 'remove').map((c) => c.id));
+      if (removed.size === 0) return;
+      updateGraph((prev) => ({ ...prev, edges: prev.edges.filter((e) => !removed.has(e.id)) }));
+    },
+    [updateGraph]
   );
 
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
+      // The stream type follows the port it leaves from. Every new connection
+      // used to be a 45 gpm liquid, so two conveyors were joined by "45 gpm".
+      const sourceNode = graphRef.current.nodes.find((n) => n.id === connection.source);
+      const sourcePort =
+        sourceNode?.outputs.find((p) => p.id === connection.sourceHandle) ?? sourceNode?.outputs[0];
+      const discrete = String(sourcePort?.flowDimension ?? '').startsWith('DISCRETE');
       const newEdge: ProcessEdge = {
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
         sourceNodeId: connection.source,
         targetNodeId: connection.target,
         sourcePortId: connection.sourceHandle || 'out-1',
         targetPortId: connection.targetHandle || 'in-1',
-        stream: {
-          type: 'CONTINUOUS_FLUID',
-          designFlowRateGpm: 45,
-          operatingPressurePsi: 30,
-          pipeDiameterInches: 2.0,
-          fluid: {
-            name: 'Process Fluid',
-            densityGPerCm3: 1.0,
-            viscosityCentipoise: 1.0,
-            temperatureCelsius: 20
-          }
-        }
+        stream: discrete
+          ? {
+              type: 'DISCRETE_CONTAINER_STREAM',
+              targetPiecesPerMinute: 40,
+              containerVolumeGallons: 1,
+              containerType: 'CAN_1_GAL'
+            }
+          : {
+              type: 'CONTINUOUS_FLUID',
+              designFlowRateGpm: 45,
+              operatingPressurePsi: 30,
+              pipeDiameterInches: 2.0,
+              fluid: {
+                name: 'Process Fluid',
+                densityGPerCm3: 1.0,
+                viscosityCentipoise: 1.0,
+                temperatureCelsius: 20
+              }
+            }
       };
-      setGraph((prev) => {
+      updateGraph((prev) => {
         const nextGraph = {
           ...prev,
           edges: [...prev.edges, newEdge]
         };
-        onGraphChange?.(nextGraph);
         return nextGraph;
       });
     },
-    [onGraphChange]
+    [updateGraph]
   );
 
   const [simSpeed, setSimSpeed] = useState<number>(1);
@@ -403,34 +449,31 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   };
 
   const handleInsertNodeFromForgeHub = (newNode: ProcessNode) => {
-    setGraph((prev) => {
+    updateGraph((prev) => {
       const nextGraph = {
         ...prev,
         nodes: [...prev.nodes, newNode]
       };
-      onGraphChange?.(nextGraph);
       return nextGraph;
     });
   };
 
   const handleUpdateNodeConfig = (nodeId: string, newConfig: Record<string, unknown>) => {
-    setGraph((prev) => {
+    updateGraph((prev) => {
       const nextGraph = {
         ...prev,
         nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, config: newConfig as ProcessNode['config'] } : n))
       };
-      onGraphChange?.(nextGraph);
       return nextGraph;
     });
   };
 
   const handleUpdateNodeDressing = (nodeId: string, updatedDressing: any) => {
-    setGraph((prev) => {
+    updateGraph((prev) => {
       const nextGraph = {
         ...prev,
         nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, dressing: updatedDressing } : n))
       };
-      onGraphChange?.(nextGraph);
       return nextGraph;
     });
   };
@@ -843,6 +886,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       {/* Double-Click Unit-Op Pop-Out Studio Drawer */}
       <UnitOpPopOutStudio
         node={popOutNode}
+        {...(popOutNode ? neighbourContext(graph, popOutNode.id) : {})}
         isOpen={popOutNodeId !== null}
         onClose={() => setPopOutNodeId(null)}
         onUpdateConfig={handleUpdateNodeConfig}

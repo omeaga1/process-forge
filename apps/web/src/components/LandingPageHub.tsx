@@ -534,7 +534,12 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             title="Launch Interactive Canvas Studio"
           >
             <Terminal size={16} strokeWidth={2.5} />
-            <span>Open Studio</span>
+            {/* Resumes the project in progress; it never starts a new one. */}
+            <span>
+              {currentProject.graph.nodes.length > 0
+                ? `Resume ${currentProject.name}`
+                : 'Open the studio'}
+            </span>
             <ArrowRight size={14} />
           </button>
 
