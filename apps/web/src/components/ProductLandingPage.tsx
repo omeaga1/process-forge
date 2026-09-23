@@ -437,9 +437,24 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
               <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>From an MCP client, on your subscription</div>
               <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>
                 Give an MCP client such as Claude Desktop or Cursor the ProcessForge tools, and it designs and simulates for you on the
-                subscription you already pay for. The tool package is not published yet, so this route is
-                coming soon.
+                subscription you already pay for. Add this server to the client's MCP settings (Node.js 20 or
+                later):
               </p>
+              <code
+                style={{
+                  ...mono,
+                  display: 'block',
+                  marginTop: 10,
+                  padding: '8px 10px',
+                  fontSize: '0.8rem',
+                  border: HAIRLINE,
+                  overflowX: 'auto',
+                  whiteSpace: 'nowrap',
+                  color: P.text.primary
+                }}
+              >
+                npx -y @process-forge/mcp-server
+              </code>
             </div>
           </div>
         </Zone>
