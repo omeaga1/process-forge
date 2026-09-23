@@ -173,9 +173,7 @@ function buildProcessContext(
   }
 
   if (neighbours.length > 2) {
-    notes.push(
-      'NOTE: the engine currently routes along the first outgoing edge only, so a branching topology will not distribute as drawn. See docs/audit/02-engine.md section 4.1.'
-    );
+    notes.push('Where a unit has several outgoing streams, the engine sends its output to them in turn (round robin), not by split ratio.');
   }
 
   return { available: true, neighbours, notes };
@@ -199,11 +197,14 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     '',
     modeLine,
     '',
-    'Return a single UnitOpContract as JSON, then call validate_unit_op with it.',
-    'The engine will evaluate your expressions and check your constraints. If any',
-    'ERROR-severity constraint fails, or any expression fails to resolve, the',
-    'design is rejected and you will be handed the specific failures to revise',
-    'against. A contract that cannot survive its own simulator is not a design.'
+    'Return a single UnitOpContract as JSON, including its drawing, then call',
+    'validate_unit_op with it. The engine evaluates your expressions, checks your',
+    'constraints, and checks that the drawing gives every port a nozzle. If',
+    'anything fails you get the specific failures back to revise against.',
+    '',
+    'The drawing is how the unit appears on the flowsheet: draw the actual',
+    'equipment (see the rules), and put each nozzle where that stream really',
+    'connects. The worked example shows the format.'
   ].join('\n');
 
   return {
@@ -215,6 +216,6 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     workedExample: WAX_COOLING_BELT_CONTRACT,
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:
-      'Author the contract, then call validate_unit_op with { contract }. Revise and re-validate until it passes. Only then attach it to a node as config.contract.'
+      'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'
   };
 }

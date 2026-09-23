@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { UnitOpDrawingSchema } from './drawing.js';
 import { parseExpression, referencedNames, ExpressionError } from './expression.js';
 
 /**
@@ -139,7 +140,13 @@ export const UnitOpContractSchema = z.object({
   derived: z.array(UnitOpDerivedSchema).default([]),
   constraints: z.array(UnitOpConstraintSchema).default([]),
   behavior: UnitOpBehaviorSchema,
-  provenance: UnitOpProvenanceSchema
+  provenance: UnitOpProvenanceSchema,
+  /**
+   * How the unit is drawn on the flowsheet, with a nozzle for every port.
+   * Optional so older contracts still load; without it the unit is drawn as a
+   * generic vessel with its connections spaced along the edges.
+   */
+  drawing: UnitOpDrawingSchema.optional()
 });
 export type UnitOpContract = z.infer<typeof UnitOpContractSchema>;
 

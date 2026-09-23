@@ -118,4 +118,19 @@ describe('Contract to flowsheet node', () => {
 
     assert.throws(() => simulateProcess(graph as never, 5), /not physically valid/);
   });
+
+  it("draws the unit from its contract, with each port's nozzle where the drawing put it", () => {
+    const node = contractToProcessNode(WAX_COOLING_BELT_CONTRACT);
+    assert.equal(node.dressing?.viewBox, '0 0 220 90');
+    assert.ok(node.dressing?.customSvgShell);
+    const byPort = Object.fromEntries((node.dressing?.nozzles ?? []).map((z) => [z.portId, [z.x, z.y, z.position]]));
+    assert.deepEqual(byPort['wax-out'], [97.3, 48.9, 'right']);
+    // Every port of the node has its nozzle.
+    for (const p of [...node.inputs, ...node.outputs]) assert.ok(byPort[p.id], p.id);
+  });
+
+  it('leaves a contract without a drawing undressed (drawn as a generic vessel)', () => {
+    const { drawing: _drawing, ...plain } = WAX_COOLING_BELT_CONTRACT;
+    assert.equal(contractToProcessNode(plain as typeof WAX_COOLING_BELT_CONTRACT).dressing, undefined);
+  });
 });

@@ -36,6 +36,7 @@ import { ProductLandingPage } from './components/ProductLandingPage.js';
 import { AccountProvider, useAccount } from './auth/useAccount.js';
 import { saveProjectToCloud } from './storage/cloudStorageAdapter.js';
 import { useAppUpdater } from './hooks/useAppUpdater.js';
+import { useMcpBridge } from './hooks/useMcpBridge.js';
 import {
   saveLocalProject,
   loadCurrentLocalProject,
@@ -242,6 +243,9 @@ const AppInner: React.FC = () => {
     });
   }, []);
 
+  // Desktop: unit ops sent by an MCP client on this computer land here.
+  const mcpBridge = useMcpBridge(project.name, project.graph, handleInsertCommunityNode);
+
   /**
    * A contract that passed every gate becomes a node on the flowsheet. The
    * engine re-evaluates it at construction, so an accepted design is checked
@@ -425,6 +429,40 @@ const AppInner: React.FC = () => {
         onRestartAndApply={updater.restartAndApplyUpdate}
         onHardReload={updater.hardReloadApp}
       />
+
+      {mcpBridge.lastArrival && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed',
+            left: '50%',
+            bottom: 24,
+            transform: 'translateX(-50%)',
+            zIndex: 2000,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '10px 14px',
+            borderRadius: 8,
+            background: 'var(--pf-surface-elevated, #16221f)',
+            border: '1px solid #10b981',
+            color: '#e6ece9',
+            fontSize: 13,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)'
+          }}
+        >
+          <span>
+            <strong>{mcpBridge.lastArrival.name}</strong> was added to the flowsheet by your MCP client.
+          </span>
+          <button
+            type="button"
+            onClick={mcpBridge.dismiss}
+            style={{ background: 'none', border: '1px solid #3f5550', color: '#e6ece9', borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}
+          >
+            OK
+          </button>
+        </div>
+      )}
 
 
       {/* Modals */}

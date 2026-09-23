@@ -4,14 +4,16 @@ import {
   validateUnitOpContract,
   evaluateUnitOp,
   blockingViolations,
-  synthesizeEquipmentDrawing,
-  type TemplateFamily,
+  checkUnitOpDrawing,
+  drawingToDressing,
+  type DrawingCheck,
   type UnitOpContract,
   type UnitOpEvaluation,
   type ContractValidationIssue
 } from '@process-forge/protocol';
 import { OsakaJadePalette as P, drafting, draftingRadius } from '@process-forge/theme';
-import { TemplateChoice } from './TemplateChoice.js';
+import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
+import { layoutNozzles } from '../../nozzles/nozzleLayout.js';
 import { claudeDesktopUnitOpPrompt, type AssistantRoute } from '../../ai/assistantRoute.js';
 
 const D = drafting('dark');
@@ -59,18 +61,20 @@ export interface UnitOpCreatorProps {
   initialDescription?: string;
 }
 
-type Gate = 'schema' | 'static' | 'physical';
+type Gate = 'schema' | 'static' | 'physical' | 'drawing';
 
 interface ReviewState {
   contract?: UnitOpContract;
   schemaErrors: string[];
   staticIssues: ContractValidationIssue[];
   evaluation?: UnitOpEvaluation;
+  /** Absent when the contract has no drawing. */
+  drawingCheck?: DrawingCheck;
 }
 
 const EMPTY_REVIEW: ReviewState = { schemaErrors: [], staticIssues: [] };
 
-/** Runs the same three gates the MCP validate_unit_op tool runs. */
+/** Runs the same gates the MCP validate_unit_op tool runs. */
 function review(raw: unknown, overrides: Record<string, number>): ReviewState {
   const parsed = UnitOpContractSchema.safeParse(raw);
   if (!parsed.success) {
@@ -90,7 +94,8 @@ function review(raw: unknown, overrides: Record<string, number>): ReviewState {
     contract,
     schemaErrors: [],
     staticIssues: [],
-    evaluation: evaluateUnitOp(contract, { parameterOverrides: overrides })
+    evaluation: evaluateUnitOp(contract, { parameterOverrides: overrides }),
+    ...(contract.drawing ? { drawingCheck: checkUnitOpDrawing(contract.drawing, contract.ports) } : {})
   };
 }
 
@@ -103,6 +108,11 @@ function gateState(r: ReviewState, gate: Gate): 'pass' | 'fail' | 'pending' {
     if (!r.contract) return 'pending';
     if (r.schemaErrors.length > 0) return 'pending';
     return r.staticIssues.length === 0 ? 'pass' : 'fail';
+  }
+  if (gate === 'drawing') {
+    if (!r.contract || r.schemaErrors.length > 0 || r.staticIssues.length > 0) return 'pending';
+    // No drawing is allowed (older contracts); it is drawn as a generic vessel.
+    return !r.drawingCheck || r.drawingCheck.errors.length === 0 ? 'pass' : 'fail';
   }
   if (!r.evaluation) return 'pending';
   if (r.evaluation.error) return 'fail';
@@ -164,7 +174,6 @@ export function UnitOpCreator({
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   // Keyed to the description it was made for, so editing the description
   // discards a pick that no longer applies.
-  const [familyPick, setFamilyPick] = useState<{ description: string; family: TemplateFamily } | null>(null);
 
   const parsedDraft = useMemo<unknown>(() => {
     if (!draft.trim()) return undefined;
@@ -182,25 +191,26 @@ export function UnitOpCreator({
     return review(parsedDraft, overrides);
   }, [parsedDraft, jsonBroken, overrides]);
 
-  const drawing = useMemo(() => {
-    if (!description.trim()) return null;
-    try {
-      const machineName = reviewState.contract?.name;
-      const auto = synthesizeEquipmentDrawing(description, { machineName });
-      const picked = familyPick?.description === description ? familyPick.family : undefined;
-      const shown = picked ? synthesizeEquipmentDrawing(description, { machineName, family: picked }) : auto;
-      // `routing` stays the description's own, so the choice stays on offer
-      // after a pick and the engineer can change their mind.
-      return { ...shown, routing: auto.routing, current: picked ?? auto.routing.family };
-    } catch {
-      return null;
-    }
-  }, [description, reviewState.contract?.name, familyPick]);
+  // The unit as the canvas will draw it: from the contract's own drawing.
+  const figure = useMemo(() => {
+    const c = reviewState.contract;
+    if (!c?.drawing) return null;
+    const dressing = drawingToDressing(c.drawing, c.ports);
+    const inputs = c.ports
+      .filter((p) => p.direction === 'INLET')
+      .map((p) => ({ id: p.id, name: p.name, type: 'FLUID_INPUT' as const, flowDimension: 'CONTINUOUS_VOLUME' as const }));
+    const outputs = c.ports
+      .filter((p) => p.direction === 'OUTLET')
+      .map((p) => ({ id: p.id, name: p.name, type: 'FLUID_OUTPUT' as const, flowDimension: 'CONTINUOUS_VOLUME' as const }));
+    const layout = layoutNozzles({ kind: 'CUSTOM_UNIT_OP', dressing, inputs, outputs });
+    return { dressing, layout };
+  }, [reviewState.contract]);
 
   const accepted =
     gateState(reviewState, 'schema') === 'pass' &&
     gateState(reviewState, 'static') === 'pass' &&
-    gateState(reviewState, 'physical') === 'pass';
+    gateState(reviewState, 'physical') === 'pass' &&
+    gateState(reviewState, 'drawing') === 'pass';
 
   const handlePropose = useCallback(async () => {
     if (!onPropose || !description.trim()) return;
@@ -421,6 +431,7 @@ export function UnitOpCreator({
         <GateBadge state={gateState(reviewState, 'schema')} label="Schema" />
         <GateBadge state={gateState(reviewState, 'static')} label="References resolve" />
         <GateBadge state={gateState(reviewState, 'physical')} label="Physically valid" />
+        <GateBadge state={gateState(reviewState, 'drawing')} label="Drawn and pipeable" />
       </div>
 
       {reviewState.schemaErrors.length > 0 && (
@@ -459,53 +470,52 @@ export function UnitOpCreator({
 
       {evaluation && !evaluation.error && (
         <>
-          {drawing && (
-            <div style={card}>
-              <div style={labelStyle}>Rendered component</div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  padding: 8,
-                  background: P.background.surfaceMuted,
-                  borderRadius: draftingRadius.soft
-                }}
-              >
-                <svg
-                  viewBox={drawing.viewBox}
-                  preserveAspectRatio="xMidYMid meet"
-                  style={{ width: 160, height: 120 }}
-                  aria-label={drawing.label}
+          <div style={card}>
+            <div style={labelStyle}>On the flowsheet</div>
+            {figure ? (
+              <>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    padding: 26,
+                    background: P.background.surfaceMuted,
+                    borderRadius: draftingRadius.soft
+                  }}
                 >
-                  <g
-                    fill="rgba(16, 185, 129, 0.08)"
-                    stroke={P.jade[400]}
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    dangerouslySetInnerHTML={{ __html: drawing.svgShell }}
+                  <EquipmentFigure
+                    kind="CUSTOM_UNIT_OP"
+                    dressing={figure.dressing}
+                    width={figure.dressing.defaultSize?.width ?? 160}
+                    stubs={figure.layout.anchors
+                      .filter((a) => a.nozzle)
+                      .map((a) => ({ nozzle: a.nozzle!, color: P.streams.continuousFluid }))}
                   />
-                  {drawing.svgDetails && (
-                    <g
-                      fill="none"
-                      stroke={P.streams.continuousFluid}
-                      strokeWidth={1.2}
-                      opacity={0.8}
-                      dangerouslySetInnerHTML={{ __html: drawing.svgDetails }}
-                    />
-                  )}
-                </svg>
-              </div>
-              <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: P.text.muted }}>
-                {drawing.label} — template match from the ISA-5.1 library, not a generated drawing.
+                </div>
+                <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: P.text.muted }}>
+                  Drawn by the contract. Pipes attach at the {figure.layout.anchors.filter((a) => a.nozzle).length} nozzles shown.
+                </p>
+              </>
+            ) : (
+              <p style={{ margin: 0, fontSize: '0.8rem', color: P.text.secondary }}>
+                This contract has no drawing, so it will appear as a generic vessel with its connections along the edges.
               </p>
-              <TemplateChoice
-                routing={drawing.routing}
-                current={drawing.current}
-                onPick={(family) => setFamilyPick({ description, family })}
-              />
-            </div>
-          )}
+            )}
+            {reviewState.drawingCheck && reviewState.drawingCheck.errors.length > 0 && (
+              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: '0.8rem', color: D.semantic.violation }}>
+                {reviewState.drawingCheck.errors.map((e) => (
+                  <li key={e}>{e}</li>
+                ))}
+              </ul>
+            )}
+            {reviewState.drawingCheck && reviewState.drawingCheck.warnings.length > 0 && (
+              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: '0.8rem', color: P.text.secondary }}>
+                {reviewState.drawingCheck.warnings.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           <div style={card}>
             <div style={labelStyle}>Parameters — edit to ask “what if?”</div>
