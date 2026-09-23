@@ -11,3 +11,16 @@
     if (meta) meta.setAttribute('content', theme === 'light' ? '#f8f7f0' : '#0c1214');
   } catch (e) {}
 })();
+
+// Google's sign-in button script, on the web only. The desktop app signs in
+// through the system browser (oauth_loopback.rs) and never uses it, and its
+// CSP does not allow it; Tauri injects __TAURI_INTERNALS__ before any page
+// script runs, so this check is reliable here.
+(function () {
+  if (window.__TAURI_INTERNALS__) return;
+  var s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.async = true;
+  s.defer = true;
+  document.head.appendChild(s);
+})();
