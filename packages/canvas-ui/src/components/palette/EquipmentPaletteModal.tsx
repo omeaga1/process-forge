@@ -106,12 +106,15 @@ export interface EquipmentPaletteModalProps {
   isOpen: boolean;
   onClose: () => void;
   onInsertNode: (node: ProcessNode) => void;
+  /** Leaves the stock list for the Unit Op Creator. */
+  onDesignNew?: () => void;
 }
 
 export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
   isOpen,
   onClose,
-  onInsertNode
+  onInsertNode,
+  onDesignNew
 }) => {
   const { palette, radius: r } = useTheme();
   const OsakaJadePalette = palette;
@@ -223,11 +226,11 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                     border: `1px solid ${OsakaJadePalette.jade[600]}40`
                   }}
                 >
-                  Equipment Palette
+                  Standard equipment
                 </span>
               </div>
               <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>
-                Place industrial equipment onto the flowsheet. Clicking any placed unit opens its dedicated Unit-Op Sub-Agent.
+                Stock units with ready-made models. For anything else, design it.
               </div>
             </div>
           </div>
@@ -250,6 +253,36 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
             <X size={16} />
           </button>
         </div>
+
+        {/* Designing is the point; the stock list is the shortcut. */}
+        {onDesignNew && (
+          <button
+            type="button"
+            onClick={onDesignNew}
+            style={{
+              margin: '12px 24px 0',
+              padding: '12px 14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              textAlign: 'left',
+              borderRadius: draftingRadius.soft,
+              border: `1px solid ${OsakaJadePalette.jade[600]}`,
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              color: OsakaJadePalette.text.primary,
+              cursor: 'pointer'
+            }}
+          >
+            <span>
+              <span style={{ display: 'block', fontSize: 13, fontWeight: 700 }}>Not in this list? Design it.</span>
+              <span style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>
+                Describe the equipment. Claude writes it as a contract, and the engine checks the physics before it goes on the flowsheet.
+              </span>
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.jade.glow, whiteSpace: 'nowrap' }}>Design a unit op →</span>
+          </button>
+        )}
 
         {/* Search & Category Filter Bar */}
         <div

@@ -13,7 +13,7 @@ import {
   type Connection
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus } from 'lucide-react';
+import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles } from 'lucide-react';
 
 import { validateProcessGraph, type ProcessGraph, type ProcessNode, type ProcessEdge } from '@process-forge/protocol';
 import { SimulationEngine, type SimulationResult, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
@@ -46,6 +46,12 @@ export interface ProcessCanvasProps {
   onViewModeChange?: (mode: 'field' | 'canvas') => void;
   graph?: ProcessGraph;
   onGraphChange?: (updatedGraph: ProcessGraph) => void;
+  /**
+   * Opens the Unit Op Creator: design a unit operation that does not exist
+   * yet. This is the product's main path, so it leads the toolbar and the
+   * empty canvas; the stock list is the secondary option.
+   */
+  onDesignUnitOp?: () => void;
   isDockCollapsed?: boolean;
   onToggleDockCollapse?: () => void;
 }
@@ -67,6 +73,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   onViewModeChange,
   graph: externalGraph,
   onGraphChange,
+  onDesignUnitOp,
   isDockCollapsed: externalIsDockCollapsed,
   onToggleDockCollapse: externalOnToggleDockCollapse
 }) => {
@@ -557,7 +564,30 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             <span>{isRunning ? 'Pause Simulation' : 'Run Simulation'}</span>
           </button>
 
-          {/* Add UnitOp Action Button */}
+          {onDesignUnitOp && (
+            <button
+            onClick={onDesignUnitOp}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 11px',
+              borderRadius: draftingRadius.soft,
+              backgroundColor: OsakaJadePalette.jade[600],
+              color: OsakaJadePalette.text.inverse,
+              border: `1px solid ${OsakaJadePalette.jade[500]}`,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+            title="Describe equipment that has no model yet. Claude writes it as a contract; the engine checks the physics."
+          >
+            <Sparkles size={13} />
+            <span>Design a unit op</span>
+          </button>
+          )}
+
+          {/* Standard equipment palette */}
           <button
             onClick={() => setIsEquipmentPaletteOpen(true)}
             style={{
@@ -574,10 +604,10 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            title="Open Equipment Palette to add Pumps, Tanks, Reactors, Fillers, etc."
+            title="Stock pumps, tanks, reactors, fillers and conveyors"
           >
             <Plus size={13} color={OsakaJadePalette.jade[400]} />
-            <span>Add UnitOp</span>
+            <span>Standard equipment</span>
           </button>
 
           {/* Reset Action Button */}
@@ -745,14 +775,38 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
             <div>
               <div style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                Flowsheet Canvas Blank
+                Start your flowsheet
               </div>
               <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, marginTop: 4, lineHeight: 1.4 }}>
-                Add your first unit operation to initialize the model. Clicking any placed unit opens its dedicated Unit-Op Sub-Agent.
+                Design a unit operation that does not exist yet: describe it, Claude writes it, and the engine checks the physics. Or start from standard equipment.
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 8, marginTop: 6 }}>
+              {onDesignUnitOp && (
+                <button
+            onClick={onDesignUnitOp}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              borderRadius: draftingRadius.soft,
+              backgroundColor: OsakaJadePalette.jade[600],
+              color: OsakaJadePalette.text.inverse,
+              border: `1px solid ${OsakaJadePalette.jade[500]}`,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              justifyContent: 'center',
+              padding: '10px 12px'
+            }}
+            title="Describe equipment that has no model yet. Claude writes it as a contract; the engine checks the physics."
+          >
+            <Sparkles size={13} />
+            <span>Design a unit operation</span>
+          </button>
+              )}
+              <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted, marginTop: 4 }}>Or start from standard equipment</div>
               <button
                 onClick={() => handleAddNode(createDefaultProcessNode('PUMP', { flowRateGpm: 100 }))}
                 style={{
@@ -836,7 +890,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                   cursor: 'pointer'
                 }}
               >
-                Browse All Industrial Equipment (Palette) →
+                All standard equipment →
               </button>
             </div>
           </div>
@@ -924,6 +978,14 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       <EquipmentPaletteModal
         isOpen={isEquipmentPaletteOpen}
         onClose={() => setIsEquipmentPaletteOpen(false)}
+        {...(onDesignUnitOp
+          ? {
+              onDesignNew: () => {
+                setIsEquipmentPaletteOpen(false);
+                onDesignUnitOp();
+              }
+            }
+          : {})}
         onInsertNode={handleAddNode}
       />
 

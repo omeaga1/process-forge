@@ -403,6 +403,7 @@ const AppInner: React.FC = () => {
             <ProcessCanvas
               graph={project.graph}
               onGraphChange={handleGraphChange}
+              onDesignUnitOp={() => setIsUnitOpCreatorOpen(true)}
               isDockCollapsed={isDockCollapsed}
               onToggleDockCollapse={() => setIsDockCollapsed((prev) => !prev)}
             />
