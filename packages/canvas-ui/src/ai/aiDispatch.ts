@@ -1,7 +1,7 @@
 import {
   getAiConfig,
   getAiConnection,
-  getLlmCredentials,
+  loadLlmCredentials,
   type AiModelConfig,
   type LlmCredentials,
   callLlmModel
@@ -126,7 +126,9 @@ export async function dispatchUnitOpMessage(
   ctx: UnitOpContext,
   overrideConfig?: AiModelConfig
 ): Promise<AiAgentResponse> {
-  const creds = getLlmCredentials();
+  // Awaited: on desktop the key lives in the OS keychain, and the synchronous
+  // read deliberately does not contain it.
+  const creds = await loadLlmCredentials();
   const hasCreds = hasValidCredentials(creds);
   const config = overrideConfig || getAiConfig();
   const conn = getAiConnection();
@@ -292,7 +294,7 @@ export async function dispatchMasterOrchestratorMessage(
   ctx: MasterOrchestratorContext,
   overrideConfig?: AiModelConfig
 ): Promise<AiAgentResponse> {
-  const creds = getLlmCredentials();
+  const creds = await loadLlmCredentials();
   const hasCreds = hasValidCredentials(creds);
   const config = overrideConfig || getAiConfig();
   const conn = getAiConnection();
