@@ -154,22 +154,39 @@ fn run(auth_url_template: &str, provider: &Provider) -> Result<LoopbackResult, S
         return Err(format!("Refusing to open an authorization URL that is not {}'s.", provider.name));
     }
 
-    // 127.0.0.1, not localhost: RFC 8252 section 8.3, and it cannot be
-    // redirected by a hosts-file entry.
-    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("Could not open a local port: {e}"))?;
-    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+    // 127.0.0.1 (RFC 8252 section 8.3): it cannot be redirected by a
+    // hosts-file entry, and it is what Google is sent. OpenRouter is sent
+    // `localhost`, which a browser may resolve to ::1 first, so the same port
+    // is also opened on ::1 when the machine has IPv6. A failure there is not
+    // fatal; browsers fall back to 127.0.0.1.
+    let v4 = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("Could not open a local port: {e}"))?;
+    let port = v4.local_addr().map_err(|e| e.to_string())?.port();
+    let mut listeners = vec![v4];
+    if provider.redirect_host == "localhost" {
+        if let Ok(v6) = TcpListener::bind(("::1", port)) {
+            listeners.push(v6);
+        }
+    }
     let redirect_uri = format!("http://{}:{port}/", provider.redirect_host);
     let url = auth_url_template.replace(REDIRECT_PLACEHOLDER, &percent_encode(&redirect_uri));
 
     open_in_browser(&url)?;
 
-    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+    for l in &listeners {
+        l.set_nonblocking(true).map_err(|e| e.to_string())?;
+    }
     let deadline = Instant::now() + TIMEOUT;
     loop {
         if Instant::now() > deadline {
             return Err(format!("Timed out waiting for {} sign-in in the browser.", provider.name));
         }
-        match listener.accept() {
+        // First listener with a connection waiting, else WouldBlock.
+        let accepted = listeners
+            .iter()
+            .map(|l| l.accept())
+            .find(|r| !matches!(r, Err(e) if e.kind() == std::io::ErrorKind::WouldBlock))
+            .unwrap_or_else(|| Err(std::io::ErrorKind::WouldBlock.into()));
+        match accepted {
             Ok((mut stream, _)) => {
                 let _ = stream.set_nonblocking(false);
                 let Some(target) = read_request_target(&mut stream) else { continue };
