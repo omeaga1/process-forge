@@ -6,12 +6,7 @@ import {
   type DesktopOs
 } from '../downloads/latestRelease.js';
 import { OsakaJadeLightPalette as P, fontFamily } from '@process-forge/theme';
-import {
-  evaluateUnitOp,
-  blockingViolations,
-  synthesizeEquipmentDrawing,
-  WAX_COOLING_BELT_CONTRACT
-} from '@process-forge/protocol';
+import { evaluateUnitOp, blockingViolations, WAX_COOLING_BELT_CONTRACT } from '@process-forge/protocol';
 
 /**
  * The public landing page, as an engineering drawing.
@@ -35,16 +30,22 @@ import {
  *
  * Every number in the worked example is COMPUTED, at render, by the same
  * evaluator the engine uses. The 172.095 kW duty is not typed into copy; it is
- * `evaluateUnitOp(WAX_COOLING_BELT_CONTRACT).derived.totalDutyKw`. The
- * equipment drawings come from the real ISA-5.1 template library. If the engine
- * changes, this page changes with it, and it cannot drift into claiming
+ * `evaluateUnitOp(WAX_COOLING_BELT_CONTRACT).derived.totalDutyKw`. If the
+ * engine changes, this page changes with it, and it cannot drift into claiming
  * something the software no longer does.
+ *
+ * WHAT IT SAYS
+ *
+ * One thing, in order: you describe equipment no simulator ships, Claude
+ * designs it, the engine checks the physics, and you simulate the line. It
+ * used to lead with jargon ("a sub-agent writes it as a declarative
+ * contract"), show a gallery of stock symbols -- the opposite of the point --
+ * list developer trivia as features, and advertise a Claude Desktop setup
+ * whose package was never published.
  */
 
 export interface ProductLandingPageProps {
   onLaunchStudio: () => void;
-  onOpenPortal: () => void;
-  onSelectTemplate: (templateKey: string) => void;
 }
 
 interface PlatformInfo {
@@ -77,7 +78,7 @@ function Zone({
       <div
         style={{
           ...mono,
-          width: 64,
+          width: 'clamp(36px, 8vw, 64px)',
           flexShrink: 0,
           borderRight: RULE,
           padding: '20px 0 0',
@@ -89,7 +90,7 @@ function Zone({
       >
         {n}
       </div>
-      <div style={{ flex: 1, padding: '20px 28px 40px', minWidth: 0 }}>
+      <div style={{ flex: 1, padding: '20px clamp(16px, 4vw, 28px) 40px', minWidth: 0 }}>
         <h2
           style={{
             ...sans,
@@ -110,48 +111,6 @@ function Zone({
         <div style={{ marginTop: 22 }}>{children}</div>
       </div>
     </section>
-  );
-}
-
-/** An equipment symbol drawn from the real ISA-5.1 template library. */
-function Symbol({ prompt, caption }: { prompt: string; caption: string }) {
-  const drawing = useMemo(() => {
-    try {
-      return synthesizeEquipmentDrawing(prompt);
-    } catch {
-      return null;
-    }
-  }, [prompt]);
-  if (!drawing) return null;
-  return (
-    <figure style={{ margin: 0, textAlign: 'center', minWidth: 96 }}>
-      <svg
-        viewBox={drawing.viewBox}
-        preserveAspectRatio="xMidYMid meet"
-        style={{ width: '100%', height: 92 }}
-        aria-label={drawing.label}
-      >
-        <g
-          fill="none"
-          stroke={P.text.primary}
-          strokeWidth={1.4}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          dangerouslySetInnerHTML={{ __html: drawing.svgShell }}
-        />
-        {drawing.svgDetails && (
-          <g
-            fill="none"
-            stroke={P.text.muted}
-            strokeWidth={1}
-            dangerouslySetInnerHTML={{ __html: drawing.svgDetails }}
-          />
-        )}
-      </svg>
-      <figcaption style={{ ...mono, fontSize: 10, color: P.text.muted, letterSpacing: '0.06em', marginTop: 4 }}>
-        {caption}
-      </figcaption>
-    </figure>
   );
 }
 
@@ -187,24 +146,23 @@ function Row({
   );
 }
 
-export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
-  onLaunchStudio,
-  onOpenPortal: _onOpenPortal,
-  onSelectTemplate: _onSelectTemplate
-}) => {
+export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunchStudio }) => {
   const [platform, setPlatform] = useState<PlatformInfo>({
     name: 'Windows',
     os: 'windows',
     downloadUrl: RELEASES_PAGE,
     fileLabel: 'Windows installer (.exe)'
   });
-  const [copied, setCopied] = useState(false);
   const [beltSpeed, setBeltSpeed] = useState(6);
 
   useEffect(() => {
     const ua = window.navigator.userAgent.toLowerCase();
     const plat = window.navigator.platform?.toLowerCase() || '';
-    if (plat.includes('mac') || ua.includes('mac os x')) {
+    // Phones report Linux (Android) or Mac (iOS); there is no phone build, so
+    // point them at every desktop download rather than offer the wrong one.
+    if (/android|iphone|ipad|ipod|mobile/.test(ua)) {
+      setPlatform({ name: 'desktop', os: 'unknown', downloadUrl: RELEASES_PAGE, fileLabel: 'Windows, macOS and Linux' });
+    } else if (plat.includes('mac') || ua.includes('mac os x')) {
       setPlatform({ name: 'macOS', os: 'macos', downloadUrl: RELEASES_PAGE, fileLabel: 'macOS disk image (.dmg)' });
     } else if (plat.includes('linux') || ua.includes('linux')) {
       setPlatform({ name: 'Linux', os: 'linux', downloadUrl: RELEASES_PAGE, fileLabel: 'Linux AppImage' });
@@ -212,8 +170,9 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
   }, []);
 
   useEffect(() => {
+    if (platform.os === 'unknown') return;
     let cancelled = false;
-    void fetchLatestInstaller(platform.os === 'unknown' ? 'windows' : (platform.os as DesktopOs)).then(
+    void fetchLatestInstaller(platform.os as DesktopOs).then(
       (found) => {
         if (cancelled || !found) return;
         setPlatform((prev) => ({
@@ -238,15 +197,6 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
   const d = evaluation.derived;
   const fx = (v: number | undefined, dp = 2) => (v === undefined ? '—' : v.toFixed(dp));
 
-  const mcpSnippet = `{
-  "mcpServers": {
-    "process-forge": {
-      "command": "npx",
-      "args": ["-y", "@process-forge/mcp-server"]
-    }
-  }
-}`;
-
   return (
     <div
       style={{
@@ -269,16 +219,17 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
         {/* ── Title block ─────────────────────────────────────────────── */}
         <header
           style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr auto',
-            alignItems: 'end',
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            alignItems: 'flex-end',
             gap: 24,
-            padding: '34px 28px 20px'
+            padding: '34px clamp(16px, 4vw, 28px) 20px'
           }}
         >
           <div>
             <div style={{ ...mono, fontSize: 11, letterSpacing: '0.18em', color: P.text.muted }}>
-              PROCESS SIMULATION · DESKTOP
+              PROCESS SIMULATION
             </div>
             <h1
               style={{
@@ -291,17 +242,21 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
             >
               ProcessForge
             </h1>
-            <p style={{ margin: '14px 0 0', fontSize: '1.02rem', lineHeight: 1.6, color: P.text.secondary, maxWidth: '54ch' }}>
-              Describe a unit operation that has no model. A sub-agent writes it as a declarative
-              contract; the engine evaluates the physics and refuses designs that cannot hold.
+            <p style={{ margin: '14px 0 0', fontSize: '1.3rem', lineHeight: 1.35, color: P.text.primary, fontWeight: 600, maxWidth: '30ch' }}>
+              Model the equipment no simulator ships.
+            </p>
+            <p style={{ margin: '10px 0 0', fontSize: '1.02rem', lineHeight: 1.6, color: P.text.secondary, maxWidth: '58ch' }}>
+              Describe a unit operation in plain words. Claude writes the model, the engine checks
+              the physics before it reaches your flowsheet, and then you simulate the whole line:
+              throughput, bottlenecks, OEE.
             </p>
           </div>
           <table style={{ ...mono, fontSize: 10.5, borderCollapse: 'collapse', color: P.text.secondary }}>
             <tbody>
               {[
-                ['SOLVER', 'discrete-event'],
-                ['EXECUTION', 'local / offline'],
-                ['INTERFACE', 'MCP · stdio'],
+                ['SIMULATION', 'discrete-event'],
+                ['RUNS', 'on your machine'],
+                ['AI', 'Claude'],
                 ['LICENCE', 'Apache-2.0']
               ].map(([k, v]) => (
                 <tr key={k}>
@@ -313,7 +268,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
           </table>
         </header>
 
-        <div style={{ display: 'flex', gap: 10, padding: '0 28px 28px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, padding: '0 clamp(16px, 4vw, 28px) 28px', flexWrap: 'wrap' }}>
           <a
             href={platform.downloadUrl}
             target="_blank"
@@ -354,13 +309,39 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
           </span>
         </div>
 
-        {/* ── 01 · The worked example ──────────────────────────────────── */}
+        {/* ── 01 · How it works ────────────────────────────────────────── */}
+        <Zone n="01" title="How it works">
+          <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 0, border: RULE }}>
+            {[
+              [
+                'Describe it',
+                'Say what the equipment does, in your words: “a water-cooled steel belt that solidifies molten wax, 16 m by 1.2 m, fed at 0.55 kg/s.”'
+              ],
+              [
+                'Claude designs it; the engine checks it',
+                'Claude writes the unit as a model: its parameters, the equations that connect them, and the limits that must hold. The engine evaluates every limit, and anything that fails goes back to Claude with the reason, until the design holds.'
+              ],
+              [
+                'Run your line',
+                'Connect it to pumps, tanks, fillers and conveyors, or to other units you designed, and simulate: busy, blocked and starved time for each machine, throughput, the bottleneck, and OEE.'
+              ]
+            ].map(([title, body], i) => (
+              <li key={title} style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
+                <div style={{ ...mono, fontSize: 11, color: P.text.muted, letterSpacing: '0.1em' }}>STEP {i + 1}</div>
+                <div style={{ ...sans, marginTop: 6, fontSize: '1rem', fontWeight: 600, color: P.text.primary }}>{title}</div>
+                <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>{body}</p>
+              </li>
+            ))}
+          </ol>
+        </Zone>
+
+        {/* ── 02 · The worked example ──────────────────────────────────── */}
         <Zone
-          n="01"
-          title="A unit operation nobody shipped a model for"
-          note="A water-cooled belt: molten wax is poured on, solidifies as it travels, and is scraped off at the far end. No simulator ships this. Every figure below is computed as you read it, by the same evaluator the engine runs — move the belt speed and watch the verdict change."
+          n="02"
+          title="Try one: a unit nobody ships a model for"
+          note="A water-cooled belt: molten wax is poured on, solidifies as it travels, and is scraped off at the far end. Every figure below is computed as you read it, by the same evaluator the engine runs. Move the belt speed and watch the verdict change."
         >
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 28 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 28 }}>
             <div>
               <div style={{ ...mono, fontSize: 10, letterSpacing: '0.12em', color: P.text.muted, marginBottom: 8 }}>
                 INPUT
@@ -440,111 +421,39 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({
           </div>
         </Zone>
 
-        {/* ── 02 · Equipment library ───────────────────────────────────── */}
-        <Zone
-          n="02"
-          title="ISA-5.1 symbols, drawn from the template library"
-          note="Equipment is drawn from a fixed template library matched by keyword, with a few parameters interpolated from the description. These are rendered live by the same function the studio calls."
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))',
-              gap: 18,
-              borderTop: HAIRLINE,
-              borderBottom: HAIRLINE,
-              padding: '18px 0'
-            }}
-          >
-            <Symbol prompt="distillation column with sieve trays" caption="COLUMN" />
-            <Symbol prompt="jacketed CSTR with Rushton turbine" caption="REACTOR" />
-            <Symbol prompt="shell and tube heat exchanger" caption="EXCHANGER" />
-            <Symbol prompt="centrifugal pump" caption="PUMP" />
-            <Symbol prompt="cyclone separator" caption="CYCLONE" />
-            <Symbol prompt="spherical LPG pressure storage" caption="SPHERE" />
-            <Symbol prompt="horizontal bullet tank on saddles" caption="DRUM" />
-          </div>
-        </Zone>
-
-        {/* ── 03 · Scope, stated honestly ──────────────────────────────── */}
-        <Zone
-          n="03"
-          title="What it does, and what it does not"
-          note="Stated plainly, because the alternative is discovering it after you have modelled your line."
-        >
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 28 }}>
-            <div>
-              <div style={{ ...mono, fontSize: 10, letterSpacing: '0.12em', color: P.text.accent, marginBottom: 10 }}>
-                BUILT
-              </div>
-              {[
-                'Discrete-event simulation with per-machine busy, blocked, starved and down time',
-                'OEE from accumulated state-time, not from a nameplate figure',
-                'Reproducible runs — the same graph and seed produce the same numbers',
-                'Custom unit operations, with constraints the engine evaluates before it will run them',
-                'Eight MCP tools over stdio, for Claude Desktop on your own subscription',
-                'Runs on your machine; a flowsheet leaves it only when you sign in with Google and choose Save to Cloud'
-              ].map((t) => (
-                <div key={t} style={{ display: 'flex', gap: 10, padding: '7px 0', borderBottom: HAIRLINE, fontSize: '0.86rem', lineHeight: 1.5 }}>
-                  <span style={{ ...mono, color: P.text.accent }}>✓</span>
-                  <span style={{ color: P.text.secondary }}>{t}</span>
-                </div>
-              ))}
+        {/* ── 03 · Claude ──────────────────────────────────────────────── */}
+        <Zone n="03" title="Two ways to use Claude">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 0, border: RULE }}>
+            <div style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
+              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>In the app, with your API key</div>
+              <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>
+                Chat about your flowsheet and design unit operations without leaving ProcessForge. Add an
+                Anthropic API key in the app; it stays on your device and is sent only to Anthropic.
+              </p>
             </div>
-            <div>
-              <div style={{ ...mono, fontSize: 10, letterSpacing: '0.12em', color: P.text.muted, marginBottom: 10 }}>
-                NOT YET
-              </div>
-              {[
-                'No continuous ODE integration — unit-op contracts evaluate steady-state relations',
-                'A split output is dealt round-robin; there are no routing rules or split ratios yet',
-                'The simulation engine is TypeScript; the Rust is the desktop shell',
-                'In-app authoring uses your own API key; a Claude subscription works through MCP, from Claude Desktop'
-              ].map((t) => (
-                <div key={t} style={{ display: 'flex', gap: 10, padding: '7px 0', borderBottom: HAIRLINE, fontSize: '0.86rem', lineHeight: 1.5 }}>
-                  <span style={{ ...mono, color: P.text.muted }}>·</span>
-                  <span style={{ color: P.text.muted }}>{t}</span>
-                </div>
-              ))}
+            <div style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
+              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>From Claude Desktop, on your subscription</div>
+              <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>
+                Give Claude Desktop the ProcessForge tools and it can design and simulate for you; the app
+                hands your flowsheet over. The tool package is not published yet, so this route is coming
+                soon.
+              </p>
             </div>
           </div>
         </Zone>
 
-        {/* ── 04 · MCP ─────────────────────────────────────────────────── */}
-        <Zone
-          n="04"
-          title="Drive it from the assistant you already pay for"
-          note="ProcessForge exposes its tools over MCP. Your client is the model — there is no second subscription and no key to hand over."
-        >
-          <div style={{ border: RULE, background: P.background.base }}>
-            <div
-              style={{
-                ...mono,
-                fontSize: 10,
-                letterSpacing: '0.1em',
-                color: P.text.muted,
-                padding: '8px 14px',
-                borderBottom: HAIRLINE,
-                display: 'flex',
-                justifyContent: 'space-between'
-              }}
-            >
-              <span>claude_desktop_config.json</span>
-              <button
-                onClick={() => {
-                  void navigator.clipboard.writeText(mcpSnippet);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1800);
-                }}
-                style={{ ...mono, background: 'none', border: 'none', color: P.text.accent, cursor: 'pointer', fontSize: 10, letterSpacing: '0.1em' }}
-              >
-                {copied ? 'COPIED' : 'COPY'}
-              </button>
+        {/* ── 04 · Limits ──────────────────────────────────────────────── */}
+        <Zone n="04" title="What it does not do yet">
+          {[
+            'No continuous dynamics: a unit operation is evaluated at steady state, and a line runs as discrete events.',
+            'A split sends output evenly down each branch; there are no split ratios yet.',
+            'Claude inside the app needs your own API key. Anthropic does not let apps use a Claude subscription.'
+          ].map((t) => (
+            <div key={t} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: HAIRLINE, fontSize: '0.88rem', lineHeight: 1.55 }}>
+              <span style={{ ...mono, color: P.text.muted }}>·</span>
+              <span style={{ color: P.text.secondary }}>{t}</span>
             </div>
-            <pre style={{ ...mono, margin: 0, padding: '14px', fontSize: '0.8rem', lineHeight: 1.6, color: P.text.primary, overflowX: 'auto' }}>
-              {mcpSnippet}
-            </pre>
-          </div>
+          ))}
         </Zone>
 
         {/* ── Footer title block ───────────────────────────────────────── */}
