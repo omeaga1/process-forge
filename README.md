@@ -122,6 +122,15 @@ WebKitGTK on Linux). Then:
 pnpm --filter @process-forge/desktop tauri dev
 ```
 
+To build the installer for your platform:
+
+```bash
+pnpm --filter @process-forge/desktop build:app
+```
+
+`pnpm run build` builds the web packages only. The desktop app needs Rust, so
+it has its own command (CI runs it in `release-desktop.yml`).
+
 Release and deployment steps are in [docs/ops](docs/ops).
 
 ## Contributing

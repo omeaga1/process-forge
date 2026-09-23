@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tauri dev",
     "tauri": "tauri",
-    "build": "node scripts/build.cjs"
+    "build:app": "tauri build"
   },
   "dependencies": {
     "@process-forge/web": "workspace:*"
