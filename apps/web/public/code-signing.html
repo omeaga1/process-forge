@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Code signing policy</title>
+  <meta name="description" content="How ProcessForge Windows releases are built and signed.">
+  <link rel="stylesheet" href="/legal.css">
+</head>
+<body>
+<main>
+  <p class="back"><a href="/">← ProcessForge</a></p>
+  <h1>Code signing policy</h1>
+  <p class="lede">Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by <a href="https://signpath.org">SignPath Foundation</a>.</p>
+
+  <h2>What is signed</h2>
+  <p>The Windows installers (<code>.exe</code> and <code>.msi</code>) published on the <a href="https://github.com/omeaga1/process-forge/releases">GitHub releases page</a>. They are built by GitHub Actions from the public source in <a href="https://github.com/omeaga1/process-forge">github.com/omeaga1/process-forge</a>, from a version tag, and nothing else is signed with this certificate.</p>
+  <p>Separately, every release is signed with the project's update key, which the desktop app checks before installing an update.</p>
+
+  <h2>Team roles</h2>
+  <ul>
+    <li><strong>Committers and reviewers:</strong> <a href="https://github.com/omeaga1">omeaga1</a>. Changes from anyone else are reviewed before they are merged.</li>
+    <li><strong>Approvers</strong> (who approve each signing request): <a href="https://github.com/omeaga1">omeaga1</a>.</li>
+  </ul>
+  <p>All team members use multi-factor authentication for GitHub and SignPath.</p>
+
+  <h2>Privacy</h2>
+  <p>This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. What it connects to, and when, is listed in the <a href="/privacy.html">privacy statement</a>.</p>
+
+  <p class="meta">Updated 2026-09-23</p>
+</main>
+</body>
+</html>

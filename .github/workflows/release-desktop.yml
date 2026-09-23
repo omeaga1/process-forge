@@ -12,14 +12,14 @@ on:
         default: 'v0.1.4'
 
 # ── Code Signing Configuration ────────────────────────────────────────────────
-# 100% Free Open-Source Code Signing:
-#   Option A: SignPath Foundation (https://signpath.org/apply)
-#     - SIGNPATH_API_TOKEN   — SignPath API token (Free for open source)
-#     - SIGNPATH_ORG_ID      — SignPath Organization ID
-#
-#   Option B (Automated Fallback):
-#     - Automatically signs binaries with Authenticode digital certificate
-#       and DigiCert timestamp so executables have verified publisher structure.
+# Windows Authenticode signing, through SignPath Foundation (free for open
+# source; https://signpath.org/apply). Without these secrets the installers
+# are published unsigned and Windows SmartScreen warns on first run.
+#     - SIGNPATH_API_TOKEN   — API token of the SignPath CI user
+#     - SIGNPATH_ORG_ID      — SignPath organization ID
+# SignPath project 'process-forge', signing policy 'release-signing',
+# artifact configuration 'installer' (a zip holding the NSIS .exe and the
+# .msi). See docs/ops/desktop-releases.md.
 #
 #   Tauri Updater:
 #     - TAURI_SIGNING_PRIVATE_KEY — Minisign private key for in-app updates
@@ -108,6 +108,65 @@ jobs:
             exit 1
           fi
 
+      # ── Windows code signing (SignPath) ─────────────────────────────────────
+      # Must happen BEFORE the release upload and must be followed by a fresh
+      # updater signature: the .sig made by `tauri build` covers the unsigned
+      # installer, and the in-app updater rejects a file whose bytes changed.
+      - name: Collect Windows installers for signing
+        id: unsigned
+        if: matrix.platform == 'windows-latest' && env.SIGNPATH_API_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-windows-installers
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+      - name: Sign Windows installers (SignPath Foundation)
+        if: matrix.platform == 'windows-latest' && env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+          organization-id: '${{ secrets.SIGNPATH_ORG_ID }}'
+          project-slug: 'process-forge'
+          signing-policy-slug: 'release-signing'
+          artifact-configuration-slug: 'installer'
+          github-artifact-id: '${{ steps.unsigned.outputs.artifact-id }}'
+          wait-for-completion: true
+          output-artifact-directory: 'signed-installer/'
+
+      # Runs on every Windows release, signed or not, so the re-signing path
+      # is exercised long before a certificate exists; unsigned, it simply
+      # re-creates an equivalent signature.
+      - name: Replace installers with signed ones and re-sign for the updater
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          nsis=apps/desktop/src-tauri/target/release/bundle/nsis
+          msi=apps/desktop/src-tauri/target/release/bundle/msi
+          if [ -d signed-installer ]; then
+            find signed-installer -type f -print
+            for f in $(find signed-installer -type f -name '*.exe'); do cp "$f" "$nsis/$(basename "$f")"; done
+            for f in $(find signed-installer -type f -name '*.msi'); do cp "$f" "$msi/$(basename "$f")"; done
+          else
+            echo "No SignPath output: installers stay unsigned."
+          fi
+          for exe in "$nsis"/*.exe; do
+            rm -f "$exe.sig"
+            abs="$PWD/$exe"
+            # -p explicitly: the key has an empty passphrase, and an empty env
+            # var reads as absent, which would make the CLI prompt for one.
+            (cd apps/desktop && pnpm exec tauri signer sign -p "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" "$abs")
+            test -s "$exe.sig" || { echo "::error::No updater signature for $exe after signing"; exit 1; }
+          done
+          # Proof in the log that Windows sees a valid signature.
+          powershell -NoProfile -Command "Get-ChildItem '$nsis/*.exe','$msi/*.msi' | Get-AuthenticodeSignature | Format-Table Status, SignerCertificate, Path -AutoSize"
+
       - name: Upload Platform Release Assets
         uses: softprops/action-gh-release@v2
         if: success()
@@ -129,28 +188,6 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/macos/*.sig
             apps/desktop/src-tauri/target/release/bundle/appimage/*.sig
 
-      # ── Optional: SignPath Foundation Free OSS Signing ──────────────────────
-      - name: Sign Windows Installer (SignPath Foundation - Free for OSS)
-        if: matrix.platform == 'windows-latest' && env.SIGNPATH_API_TOKEN != ''
-        uses: signpath/github-action-submit-signing-request@v1
-        with:
-          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
-          organization-id: '${{ secrets.SIGNPATH_ORG_ID }}'
-          project-slug: 'process-forge'
-          signing-policy-slug: 'release-signing'
-          artifact-configuration-slug: 'installer'
-          github-artifact-id: 'tauri-artifacts'
-          wait-for-completion: true
-          output-artifact-directory: 'signed-installer/'
-
-      - name: Upload Signed Windows Installer
-        if: matrix.platform == 'windows-latest' && env.SIGNPATH_API_TOKEN != ''
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.4' }}"
-          files: signed-installer/*
 
   # There is no "portable" build any more. It was the web bundle plus a C#
   # launcher compiled in CI: an unsigned exe that ran a local web server, had

@@ -472,7 +472,9 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
           {[
             ['REPOSITORY', 'github.com/omeaga1/process-forge', 'https://github.com/omeaga1/process-forge'],
             ['RELEASES', 'all platforms', RELEASES_PAGE],
-            ['LICENCE', 'Apache-2.0', 'https://github.com/omeaga1/process-forge/blob/main/LICENSE']
+            ['LICENCE', 'Apache-2.0', 'https://github.com/omeaga1/process-forge/blob/main/LICENSE'],
+            ['PRIVACY', 'what goes where', '/privacy.html'],
+            ['CODE SIGNING', 'policy', '/code-signing.html']
           ].map(([k, v, href]) => (
             <a
               key={k}

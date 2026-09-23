@@ -1,1 +1,50 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Privacy Policy — ProcessForge</title><style>body{font-family:sans-serif;background:#0c1214;color:#e2e8f0;line-height:1.6;padding:40px 20px}.co{max-width:740px;margin:0 auto;background:#111a1c;padding:36px;border-radius:12px;border:1px solid rgba(0,214,143,0.2)}h1{color:#00d687}h2{color:#ffffff}a{color:#00d687;text-decoration:none}</style></head><body><div class="co"><h1>Privacy Policy</h1><p>Effective Date: September 16, 2026</p><h2>1. Overview</h2><p>ProcessForge respects your privacy. We only receive basic Google Sign-In profile data (name, email, picture) solely for user authentication. We never sell, share, or monetize your personal data.</p><h2>2. Google User Data</h2><p>ProcessForge complies with the Google API Services User Data Policy.</p><h2>3. Contact</h2><p>Contact us at <a href="mailto:vprescenzi@gmail.com">vprescenzi@gmail.com</a>.</p><p><a href="/">&rqquo; Return to ProcessForge Studio</a></p></div></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProcessForge privacy</title>
+  <meta name="description" content="What data ProcessForge stores, where it goes, and what it never collects.">
+  <link rel="stylesheet" href="/legal.css">
+</head>
+<body>
+<main>
+  <p class="back"><a href="/">← ProcessForge</a></p>
+  <h1>Privacy</h1>
+  <p class="lede">ProcessForge has no analytics, no tracking and no advertising. This page lists every place your data can go.</p>
+
+  <h2>On your device</h2>
+  <ul>
+    <li><strong>Projects</strong> (flowsheets, unit operations you design) are saved locally: in the desktop app's storage, or in your browser's local storage on the web.</li>
+    <li><strong>AI keys.</strong> In the desktop app, a key is stored in the operating system's keychain (Windows Credential Manager, macOS Keychain). In a browser there is no keychain, so it is kept in that browser's local storage. Remove keys at any time with <em>AI model → Purge all keys</em>.</li>
+  </ul>
+
+  <h2>Your AI provider</h2>
+  <p>When you use AI inside the app, your messages and the parts of your flowsheet the request needs are sent <strong>directly from your device</strong> to the provider you chose: OpenRouter, Anthropic, OpenAI or Google, with your own key. They do not pass through ProcessForge servers. That provider's own privacy terms apply. With Ollama, nothing leaves your machine.</p>
+  <p>"Sign in with OpenRouter" asks OpenRouter to issue a key for this app. ProcessForge receives only that key; you can revoke it in your OpenRouter settings.</p>
+  <p>With an MCP client (such as Claude Desktop or Cursor), the client runs the ProcessForge tools on your machine and its own terms apply.</p>
+
+  <h2>Optional account</h2>
+  <p>You can use ProcessForge without an account. If you sign in with Google, the ProcessForge cloud service (on Cloudflare) stores your Google account ID, name, email address and profile picture URL, and the projects you choose to save to the cloud. They are used only to sign you in and to give you back your projects; each project is visible only to its owner. To have your account and projects deleted, email <a href="mailto:vprescenzi@gmail.com">vprescenzi@gmail.com</a>.</p>
+
+  <h2>Google user data</h2>
+  <p>Google sign-in data (name, email, profile picture) is used only for signing you in. It is never sold, shared or used for advertising. ProcessForge's use of information received from Google APIs complies with the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
+
+  <h2>Community library</h2>
+  <p>Unit operations you publish to the community library are public, with the author name you publish under.</p>
+
+  <h2>Other connections</h2>
+  <ul>
+    <li><strong>Updates.</strong> The desktop app checks GitHub for a newer release a few times a day. GitHub sees the request.</li>
+    <li><strong>Download button.</strong> The website asks GitHub for the latest release to link the right installer.</li>
+    <li><strong>Fonts.</strong> Typefaces load from Google Fonts, which sees the request.</li>
+  </ul>
+  <p>The website and desktop app both enforce a Content Security Policy that lets the app talk only to the services on this page.</p>
+
+  <h2>Contact</h2>
+  <p><a href="mailto:vprescenzi@gmail.com">vprescenzi@gmail.com</a></p>
+
+  <p class="meta">Source code: <a href="https://github.com/omeaga1/process-forge">github.com/omeaga1/process-forge</a> · First published 2026-09-16 · Updated 2026-09-23</p>
+</main>
+</body>
+</html>
