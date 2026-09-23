@@ -4,7 +4,8 @@
   place, and all four seams are wired to it: drawing requests (PR #21),
   creation and equipment kind (PR #22), and the drawing template (seam 4).
   Every seam now reports a tie as a tie rather than taking the first match. The
-  Jev provider (§8) has not been started.
+  Jev provider and the fixture harness are built but not wired in; measuring
+  Jev needs an API key, and where that key lives is still §8.2. See Appendix B.
 * **Date:** 2026-09-22
 * **Scope:** `@process-forge/protocol`, `@process-forge/canvas-ui`, `@process-forge/mcp-server`
 * **Relates to:** [ADR-0002](../adr/0002-deterministic-sim-vs-llm.md), [ADR-0005](../adr/0005-zero-raw-keys-and-agent-driven-packages.md), [ADR-0006](../adr/0006-model-context-protocol-mcp.md)
@@ -472,3 +473,62 @@ heuristic provider first and ship that on its own. It requires no network, no
 key, and no new dependency, and it is independently valuable. Treat the Jev
 provider as a second, separable change once the seams have fixtures to be
 measured against.
+
+---
+
+## Appendix B — Phase 3 built, Phase 4 waiting on a key (2026-09-22)
+
+### B.1 Correction to A.2
+
+A.2 described Jev as a Cloudflare Workers AI model (`typesafe/jev`). **That was
+wrong.** Neither this account's Workers AI catalog nor Cloudflare's public model
+list contains it. Jev is TypeSafe's own endpoint (docs.typesafe.ai/api):
+
+    POST https://api.typesafe.ai/v1/systemone
+    Authorization: Bearer <key>
+    { "model": "jev-latest", "state": ..., "questions": { key: { type, instructions, criteria } } }
+
+The request and response shapes A.2 gave are otherwise right, and match the
+`DecisionProvider` question types field for field: choice criteria as an
+option → description map (up to 255 options), score criteria as an ordered
+array, noul criteria as `{ true, false }`. A noul answer carries no confidence;
+ours is defined as distance from 0.5, the same as the heuristic's.
+
+§8.1 is partly answered: there is an npm SDK (`@typesafe-ai/sdk`) and a plain
+HTTP contract. The docs say nothing about browser origins, so direct browser
+calls should be assumed unsupported until tested.
+
+### B.2 What exists
+
+- `JevDecisionProvider` (`packages/protocol/src/decisions/jev.ts`): batched,
+  timeout (default 1.5 s), heuristic fall-through on error, timeout, or any
+  answer that names an option the question does not have; session memo.
+  It takes a **transport**, so §8.2 can be answered either way without
+  changing it. **It is not wired into the app.**
+- `ROUTING_FIXTURES` and `scoreProvider` (`decisions/fixtures.ts`): 36 phrasings
+  across the four seams, 12 marked hard (paraphrase, politeness, negation).
+- `scripts/measure-decisions.mjs`: scores the heuristic, and Jev when
+  `TYPESAFE_API_KEY` is set, and lists every case they disagree on.
+
+### B.3 Baseline
+
+| Provider | All | Hard |
+|---|---|---|
+| heuristic (keyword rules) | 25/36 | **1/12** |
+| Jev | not yet measured | not yet measured |
+
+The non-hard cases all pass; that is pinned in CI. The hard ones are the case
+for a decision model: "could you add a pump after the tank?", "don't add a
+pump", "something to cool the product stream", "a tall vessel with trays for
+splitting light and heavy ends". Each is a phrasing the keyword rules either
+miss or get backwards.
+
+### B.4 Still open
+
+- **§8.2 — where the key lives.** Options, given what now exists: (a) a key in
+  the desktop OS keychain, which now works (PR #27), for self-hosters; (b) the
+  cloud Worker holds one key and answers for signed-in users, which puts the
+  cost on the project and makes the Worker a middleman; (c) off entirely.
+- **Phase 4 measurement.** Needs one run of the script with a key. Proceed to
+  wiring a seam only if Jev clearly beats 1/12 on the hard cases without
+  losing any of the 24 others.
