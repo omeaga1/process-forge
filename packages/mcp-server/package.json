@@ -1,32 +1,48 @@
 {
   "name": "@process-forge/mcp-server",
   "version": "0.1.0",
-  "private": true,
-  "description": "Model Context Protocol (MCP) server for ProcessForge - software engineer copilot for industrial simulation",
+  "description": "Model Context Protocol server for ProcessForge: lets any MCP client (Claude Desktop, Cursor, and others) design, validate and simulate process unit operations.",
   "license": "Apache-2.0",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "bin": {
-    "process-forge-mcp": "./dist/cli.js"
+    "process-forge-mcp": "./bundle/cli.js"
   },
   "scripts": {
     "build": "tsc",
     "start": "node dist/cli.js",
     "test": "node --test dist/__tests__/**/*.test.js",
     "typecheck": "tsc --noEmit",
-    "lint": "echo \"MCP Server lint clean\""
+    "lint": "echo \"MCP Server lint clean\"",
+    "smoke": "node scripts/smoke.mjs",
+    "bundle": "node scripts/bundle.mjs",
+    "prepublishOnly": "pnpm run build && pnpm run bundle && node scripts/smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.0",
-    "@process-forge/protocol": "workspace:*",
-    "@process-forge/simulation-core": "workspace:*",
-    "@process-forge/theme": "workspace:*",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@process-forge/protocol": "workspace:*",
+    "@process-forge/simulation-core": "workspace:*",
+    "@process-forge/theme": "workspace:*",
     "@process-forge/typescript-config": "workspace:*",
     "@types/node": "^22.13.9",
+    "esbuild": "^0.25.12",
     "typescript": "^5.8.2"
+  },
+  "files": [
+    "bundle",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omeaga1/process-forge.git",
+    "directory": "packages/mcp-server"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

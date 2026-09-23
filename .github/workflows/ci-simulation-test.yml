@@ -34,3 +34,8 @@ jobs:
 
       - name: Run Protocol & Simulation Test Suites
         run: pnpm run test
+
+      # The npm package is one bundled file; check that it runs on its own
+      # (MCP handshake over stdio, tools listed) before anyone publishes it.
+      - name: Bundle & smoke-test the MCP server package
+        run: pnpm --filter @process-forge/mcp-server run bundle && pnpm --filter @process-forge/mcp-server run smoke

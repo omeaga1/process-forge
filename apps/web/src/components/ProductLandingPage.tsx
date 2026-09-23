@@ -256,7 +256,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
               {[
                 ['SIMULATION', 'discrete-event'],
                 ['RUNS', 'on your machine'],
-                ['AI', 'any model · API key or MCP'],
+                ['AI', 'any model · sign-in, key or MCP'],
                 ['LICENCE', 'Apache-2.0']
               ].map(([k, v]) => (
                 <tr key={k}>
@@ -425,11 +425,12 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         <Zone n="03" title="Bring your own AI">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 0, border: RULE }}>
             <div style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
-              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>In the app, with an API key or a local model</div>
+              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>In the app, with a sign-in, a key, or a local model</div>
               <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>
-                Chat about your flowsheet and design unit operations without leaving ProcessForge. Use a key
-                for Claude, GPT or Gemini, or a model running locally in Ollama. A key stays on your device
-                and is sent only to its provider.
+                Chat about your flowsheet and design unit operations without leaving ProcessForge. Sign in
+                with OpenRouter to use Claude, GPT, Gemini and others on one account, paste a key from a
+                provider, or run a model locally in Ollama. A key stays on your device and is sent only to
+                its provider.
               </p>
             </div>
             <div style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
@@ -448,7 +449,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
           {[
             'No continuous dynamics: a unit operation is evaluated at steady state, and a line runs as discrete events.',
             'A split sends output evenly down each branch; there are no split ratios yet.',
-            'AI inside the app needs an API key or a local Ollama model. Subscriptions such as Claude Pro or ChatGPT Plus cannot be used by other apps; they work through an MCP client instead.',
+            'AI inside the app is billed per use, through OpenRouter or a provider key, or runs free in Ollama. Subscriptions such as Claude Pro or ChatGPT Plus cannot be used by other apps; they work through an MCP client instead.',
             'Results depend on the model. Smaller models write designs the engine rejects more often.'
           ].map((t) => (
             <div key={t} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: HAIRLINE, fontSize: '0.88rem', lineHeight: 1.55 }}>
