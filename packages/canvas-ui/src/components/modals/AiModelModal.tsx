@@ -300,22 +300,11 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
   );
 
   const hasConfiguredKey = (providerId: LlmProvider | 'mcp'): boolean => {
-    switch (providerId) {
-      case 'gemini':
-        return Boolean(creds.geminiApiKey?.trim());
-      case 'claude':
-        return Boolean(creds.claudeApiKey?.trim());
-      case 'openai':
-        return Boolean(creds.openaiApiKey?.trim());
-      case 'openrouter':
-        return Boolean(creds.openrouterApiKey?.trim());
-      case 'ollama':
-        return Boolean(creds.ollamaEndpoint?.trim());
-      case 'mcp':
-        return false;
-      default:
-        return false;
-    }
+    if (providerId === 'ollama') return Boolean(creds.ollamaEndpoint?.trim());
+    const field = PROVIDERS.find((p) => p.id === providerId)?.apiKeyField as SecretKeyField | undefined;
+    if (!field) return false;
+    // A desktop key is in the keychain, recorded in `vaulted`, not in creds.
+    return Boolean((creds[field] as string | undefined)?.trim()) || Boolean(creds.vaulted?.includes(field));
   };
 
   // Color tokens
@@ -473,7 +462,9 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
             role="tablist"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(5, 1fr)',
+              // Six routes: two even rows of three. This was 'repeat(5, 1fr)' from
+              // before OpenRouter, which left "MCP client" alone on a second row.
+              gridTemplateColumns: 'repeat(3, 1fr)',
               gap: 4,
               padding: 4,
               borderRadius: draftingRadius.soft,
@@ -603,9 +594,11 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
               <ShieldCheck size={16} />
             </div>
             <div style={{ flex: 1, fontSize: 11, lineHeight: 1.45, color: textMuted }}>
-              <span style={{ fontWeight: 600, color: textColor }}>Direct TLS Architecture:</span>{' '}
-              Your key stays on this device (the OS keychain in the desktop app, local storage in a browser) and is sent only to this provider.
-              No proxy or intermediary telemetry servers.
+              <span style={{ fontWeight: 600, color: textColor }}>Where your key goes:</span>{' '}
+              it stays on this device (the OS keychain in the desktop app, local storage in a browser) and is sent only to{' '}
+              {activeProvider === 'openrouter'
+                ? "OpenRouter, which forwards each request to the model's own provider under OpenRouter's terms."
+                : 'this provider. No ProcessForge server is in between.'}
             </div>
           </div>
 
@@ -805,7 +798,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     marginBottom: 6
                   }}
                 >
-                  Model Architecture
+                  Model
                 </label>
 
                 <div
