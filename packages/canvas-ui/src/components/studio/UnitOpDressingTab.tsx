@@ -67,9 +67,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
   const handleForgeDrawing = (promptToUse?: string, family?: TemplateFamily) => {
     const text = promptToUse || aiPrompt;
     if (!text.trim()) return;
-    // A template match is instant. It used to sit behind a 400 ms
-    // "Synthesizing..." delay and was tagged as sub-agent output; no model is
-    // involved, so neither is true.
+    // A template match is instant and involves no model.
     {
       const context = { kind: node.kind, machineName: node.name };
       // The description's own routing is kept even after a pick, so the

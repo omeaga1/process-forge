@@ -1,10 +1,7 @@
 /**
- * Seam 3, cut over: the dispatcher asks when a creation request is ambiguous.
- *
- * The ladder this replaces tested 'pump' before 'reactor' and always picked a
- * branch, so "add a reactor with a feed pump" silently became a pump. It also
- * treated a bare 'add' anywhere in a message as creation intent, so a question
- * about adding equipment added it. See plan 0001 sections 2.2 and 2.4.
+ * The dispatcher asks when a creation request is ambiguous ("add a reactor
+ * with a feed pump" names two kinds), and a question about adding equipment
+ * is not treated as a request to add it. See plan 0001 sections 2.2 and 2.4.
  */
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';

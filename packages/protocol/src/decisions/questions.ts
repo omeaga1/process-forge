@@ -4,15 +4,13 @@ import { text, keywordWeight } from './heuristic.js';
 /**
  * The four routing seams from plan 0001 §2, declared as questions.
  *
- * Each one used to be a `String.prototype.includes` ladder buried in a
- * dispatcher. Declaring them here does three things the ladder could not:
+ * Declaring them as questions means:
  *
  *   1. The answer set is closed and visible.
- *   2. Ambiguity survives. Two matching options produce a near-tie instead of
- *      whichever the author happened to test first.
- *   3. They can be given fixtures, so a fix can be shown not to break a
- *      neighbouring case -- which is the thing §4 of the plan says the ladder
- *      makes impossible.
+ *   2. Ambiguity survives: two matching options produce a near-tie instead of
+ *      whichever was tested first.
+ *   3. They have fixtures, so a fix can be shown not to break a neighbouring
+ *      case.
  *
  * `criteria` strings are written for a decision model to read. The `heuristic`
  * is the offline answer. Keeping both at the same declaration site is what stops

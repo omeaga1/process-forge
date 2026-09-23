@@ -64,11 +64,10 @@ export function synthesizeEquipmentDrawing(
  * How the template was chosen, returned with the drawing so a caller can
  * disclose it.
  *
- * The ladder this replaces was first-match: "absorption column feeding a
- * cyclone" drew a column and discarded the fact that a cyclone was named too.
- * The same drawing is still returned -- a render path needs one -- but when
- * `decided` is false the caller knows it was a tie and can offer the
- * alternatives instead of presenting the pick as settled.
+ * A drawing is always returned (a render path needs one), but when `decided`
+ * is false it was a tie ("absorption column feeding a cyclone" names two
+ * families), and the caller can offer the alternatives instead of presenting
+ * the pick as settled.
  */
 export interface TemplateRouting {
   family: TemplateFamily;
@@ -110,13 +109,12 @@ function drawTemplate(family: TemplateFamily, prompt: string, name: string): Equ
     // A tray count has to be a count OF TRAYS. The previous test read any bare
     // digit out of the prompt -- `p.includes('10')` -- so
     // "distillation column with a 10 inch nozzle" rendered a ten-tray column.
-    // See plan 0001 section 2.3 and Appendix A.3.
+    // See plan 0001 section 2.3.
     const trayMatch = p.match(/(\d{1,2})\s*(?:sieve\s+|valve\s+|bubble[- ]cap\s+)?(?:tray|plate|stage)s?\b/);
     const explicitTrayCount = trayMatch ? Math.min(40, Math.max(1, Number(trayMatch[1]))) : null;
 
-    // An explicit tray count outranks a packing keyword. "absorption column with
-    // 6 trays" is unambiguous, and previously rendered packing cross-hatching
-    // because isPacked was tested first and the count was discarded.
+    // An explicit tray count outranks a packing keyword: "absorption column with
+    // 6 trays" is a trayed column.
     const mentionsPacking = /\bpack(ed|ing)?\b|\babsorption\b|\brandom packing\b/.test(p);
     const isPacked = mentionsPacking && explicitTrayCount === null;
     const trayCount = explicitTrayCount ?? 5;

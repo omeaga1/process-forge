@@ -186,18 +186,6 @@ importers:
         specifier: ^5.8.2
         version: 5.9.3
 
-  packages/scaffold-registry:
-    devDependencies:
-      '@process-forge/typescript-config':
-        specifier: workspace:*
-        version: link:../../tooling/typescript-config
-      '@types/node':
-        specifier: ^22.13.9
-        version: 22.20.2
-      typescript:
-        specifier: ^5.8.2
-        version: 5.9.3
-
   packages/simulation-core:
     dependencies:
       '@process-forge/protocol':

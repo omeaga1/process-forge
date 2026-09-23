@@ -1,15 +1,6 @@
 /**
- * Phase 2 audit - invariant tests for the discrete-event engine.
- *
- * These were written to fail before any fix, and were skipped while the fixes
- * landed. All of them now run: every one failed against the pre-fix engine and
- * passes against the current one (verified by running this file against both).
- * The SKIPPED notes above individual tests are kept as a record of the defect
- * each one pins. Full analysis in docs/audit/02-engine.md.
- *
- * These encode guarantees the engine is DOCUMENTED to provide. A test that fails
- * here is a defect in the engine, not in the test. Written before any fix, per
- * Phase 2 of the audit plan.
+ * Invariants of the discrete-event engine. Each test pins a guarantee the
+ * engine provides; a failure here is a defect in the engine, not the test.
  */
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
@@ -158,9 +149,7 @@ describe('Engine invariant: state-time accounting', () => {
     }
   });
 
-  // FIXED - this pinned a real defect; it failed before the fix.
-  // 02-engine.md: setNodeState early-returns on an unchanged state, so a node that ends IDLE never gets its trailing time credited. Hidden by Math.max(totalSimTime, sum) at engine.ts:430.
-  // See docs/audit/02-engine.md §2. To fix: un-skip once finalization credits elapsed time and the Math.max is removed.
+  // Time in a state is credited up to the end of the run, even for a node that never changes state.
   it('accounts for a node that is never activated', () => {
     // A surge tank with no edges is never scheduled and stays IDLE for the whole
     // run. Its elapsed time still has to land in some bucket.
@@ -190,9 +179,7 @@ describe('Engine invariant: state-time accounting', () => {
 });
 
 describe('Engine invariant: buffer capacity and backpressure', () => {
-  // FIXED - this pinned a real defect; it failed before the fix.
-  // 02-engine.md: LABELER_CYCLE_COMPLETE does downstream.bufferCans++ with no capacity check; measured 17,351 against a capacity of 100.
-  // See docs/audit/02-engine.md §4. To fix: un-skip once the labeler mirrors the filler's maxBuffer check and blocks.
+  // A node's buffer never exceeds its capacity; upstream blocks instead.
   it('never lets a node buffer exceed its configured capacity', () => {
     // The balanced line in buildLine() never exercises this: the palletizer keeps
     // up, so the buffer stays small and the missing check is invisible. This graph
@@ -233,9 +220,7 @@ describe('Engine invariant: buffer capacity and backpressure', () => {
 });
 
 describe('Engine invariant: graph topology', () => {
-  // FIXED - this pinned a real defect; it failed before the fix.
-  // 02-engine.md: findDownstreamRuntime uses edges.find(), so all outgoing edges after the first are ignored.
-  // See docs/audit/02-engine.md §4.1. To fix: un-skip once splitting is implemented, or delete it if validateProcessGraph rejects multi-edge graphs instead.
+  // Output reaches every downstream edge, not only the first.
   it('delivers output to every downstream node, not just the first edge', () => {
     // One filler feeding two labelers. findDownstreamRuntime uses edges.find(),
     // so only the first outgoing edge is ever considered.
@@ -268,9 +253,7 @@ describe('Engine invariant: graph topology', () => {
 });
 
 describe('Priority queue invariant: tie-breaking', () => {
-  // FIXED - this pinned a real defect; it failed before the fix.
-  // 02-engine.md: The heap has no tie-breaker, so simultaneous events resolve in heap-structure order.
-  // See docs/audit/02-engine.md §1. To fix: un-skip once priority is (timeSeconds, eventCounter).
+  // Events at the same instant are processed in the order they were scheduled.
   it('dequeues equal-priority events in insertion order (FIFO)', () => {
     const pq = new PriorityQueue<string>();
     pq.enqueue('first', 10);

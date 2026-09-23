@@ -21,7 +21,6 @@ export interface ForgeHubPackageBundle {
   subAgentPersona: {
     roleName: string;
     systemPrompt: string;
-    failurePhysics: string;
   };
   requiredCapabilities: string[];
   serializedBundle: string;
@@ -44,8 +43,7 @@ export function executePackageUnitOp(params: PackageUnitOpParams): ForgeHubPacka
     nodeTemplate: node,
     subAgentPersona: {
       roleName: `${node.name} Engineering Specialist`,
-      systemPrompt: `You are the dedicated software engineer and domain specialist for ${node.name} (${node.kind}). Assist industrial operators in parameter sizing, fluid compatibility, and backpressure mitigation.`,
-      failurePhysics: 'Stochastic Poisson distribution with Weibull wear degradation curve.'
+      systemPrompt: `You are the dedicated software engineer and domain specialist for ${node.name} (${node.kind}). Assist industrial operators in parameter sizing, fluid compatibility, and backpressure mitigation.`
     },
     requiredCapabilities: requiredCapabilities.length > 0 ? requiredCapabilities : ['@forge/pkg-discrete-packaging'],
     serializedBundle: ''

@@ -12,7 +12,6 @@
     "start": "node dist/cli.js",
     "test": "node --test dist/__tests__/**/*.test.js",
     "typecheck": "tsc --noEmit",
-    "lint": "echo \"MCP Server lint clean\"",
     "smoke": "node scripts/smoke.mjs",
     "bundle": "node scripts/bundle.mjs",
     "prepublishOnly": "npm run build && npm run bundle && node scripts/smoke.mjs"

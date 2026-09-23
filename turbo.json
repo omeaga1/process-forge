@@ -8,9 +8,6 @@
       "outputs": ["dist/**"],
       "env": ["VITE_BASE_PATH", "NODE_ENV"]
     },
-    "lint": {
-      "dependsOn": ["^build"]
-    },
     "test": {
       "dependsOn": ["^build", "build"],
       "inputs": ["$TURBO_DEFAULT$"]

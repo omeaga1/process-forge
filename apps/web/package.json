@@ -11,8 +11,7 @@
     "test": "tsc && node --test dist/__tests__/**/*.test.js",
     "preview": "vite preview",
     "deploy": "tsc && vite build && wrangler pages deploy dist --project-name process-forge",
-    "typecheck": "tsc --noEmit",
-    "lint": "echo \"Web app lint clean\""
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@process-forge/canvas-ui": "workspace:*",

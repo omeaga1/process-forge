@@ -7,7 +7,6 @@ import {
 } from '@process-forge/protocol';
 import {
   getUserSession,
-  loginUser,
   logoutUser,
   updateUserProfile,
   registerUser,
@@ -58,60 +57,24 @@ Object.defineProperty(globalThis, 'localStorage', {
   configurable: true
 });
 
+/** A local email/password profile, created the way the app creates one. */
+async function localProfile(email = 'engineer@example.com') {
+  return registerUser({ email, password: 'correct-horse-battery', name: 'Test Engineer' });
+}
+
 describe('ProcessForge User Accounts & Session Layer', () => {
   beforeEach(() => {
     mockLocalStorage.clear();
   });
 
-  it('authenticates with GitHub and initializes an engineering profile', async () => {
-    const user = await loginUser('github');
-    assert.strictEqual(user.name, 'Lead Process Engineer');
-    assert.strictEqual(user.organization, 'Process Engineering Team');
-    assert.strictEqual(user.plan, 'Professional');
-    assert.strictEqual(user.cloudStorageQuota.maxProjects, 50);
-    assert.strictEqual(user.provider, 'github');
-
-    const session = getUserSession();
-    assert.notStrictEqual(session, null);
-    assert.strictEqual(session?.id, user.id);
-  });
-
-  it('authenticates with Microsoft for enterprise plan allocation', async () => {
-    const user = await loginUser('microsoft');
-    assert.strictEqual(user.name, 'Automation Architect');
-    assert.strictEqual(user.plan, 'Enterprise');
-    assert.strictEqual(user.cloudStorageQuota.maxProjects, 100);
-  });
-
-  it('supports custom email sign-in with organization details', async () => {
-    const user = await loginUser('email', {
-      email: 'dr.schmidt@bayer-materials.com',
-      name: 'Dr. Klaus Schmidt',
-      organization: 'Bayer Polyurethane Synthesis'
-    });
-    assert.strictEqual(user.email, 'dr.schmidt@bayer-materials.com');
-    assert.strictEqual(user.name, 'Dr. Klaus Schmidt');
-    assert.strictEqual(user.organization, 'Bayer Polyurethane Synthesis');
-    assert.strictEqual(user.plan, 'Professional');
-  });
-
-  it('updates profile and quota correctly', async () => {
-    await loginUser('google');
-    updateUserProfile({
-      organization: 'Advanced Bioprocess Labs',
-      cloudStorageQuota: {
-        usedProjects: 12,
-        maxProjects: 50
-      }
-    });
-
-    const updated = getUserSession();
-    assert.strictEqual(updated?.organization, 'Advanced Bioprocess Labs');
-    assert.strictEqual(updated?.cloudStorageQuota.usedProjects, 12);
+  it('updates the profile', async () => {
+    await localProfile();
+    updateUserProfile({ organization: 'Advanced Bioprocess Labs' });
+    assert.strictEqual(getUserSession()?.organization, 'Advanced Bioprocess Labs');
   });
 
   it('clears session upon logout', async () => {
-    await loginUser('github');
+    await localProfile();
     assert.notStrictEqual(getUserSession(), null);
 
     logoutUser();
@@ -198,13 +161,12 @@ describe('ProcessForge Cloud Storage Persistence Layer', () => {
   });
 
   it('starts a new user with no projects, not a fabricated "synced 3 days ago" one', async () => {
-    const user = await loginUser('github');
+    const user = await localProfile();
     assert.deepStrictEqual(await listUserCloudProjects(user), []);
   });
 
   it('never touches the network without a verified cloud session', async () => {
-    // These tests used to save through the production API on every run:
-    // 117 rows in the live database came from this file.
+    // Tests must never reach the production API.
     const realFetch = globalThis.fetch;
     let calls = 0;
     globalThis.fetch = (async () => {
@@ -212,7 +174,7 @@ describe('ProcessForge Cloud Storage Persistence Layer', () => {
       throw new Error('network is off limits here');
     }) as typeof fetch;
     try {
-      const user = await loginUser('github');
+      const user = await localProfile();
       const project = createSimulationProject('Local only', sampleGraph, { isGuest: false });
       const result = await saveProjectToCloud(project, user);
       await listUserCloudProjects(user);
@@ -237,7 +199,7 @@ describe('ProcessForge Cloud Storage Persistence Layer', () => {
     }) as typeof fetch;
     try {
       const user = {
-        ...(await loginUser('email', { email: 'a@b.c' })),
+        ...(await localProfile('a@b.c')),
         cloudToken: 'pfs1.session.sig',
         cloudTokenExpiresAt: new Date(Date.now() + 60_000).toISOString()
       };
@@ -259,7 +221,7 @@ describe('ProcessForge Cloud Storage Persistence Layer', () => {
 
   it('treats an expired cloud session as no session', async () => {
     const user = {
-      ...(await loginUser('email', { email: 'a@b.c' })),
+      ...(await localProfile('a@b.c')),
       cloudToken: 'pfs1.session.sig',
       cloudTokenExpiresAt: new Date(Date.now() - 1000).toISOString()
     };
@@ -278,7 +240,7 @@ describe('ProcessForge Cloud Storage Persistence Layer', () => {
   });
 
   it('saves, lists, and loads a simulation project with full engineering fidelity', async () => {
-    const user = await loginUser('github');
+    const user = await localProfile();
     const project: SimulationProject = createSimulationProject(
       'Industrial Latex Paint Line Twin',
       sampleGraph,
@@ -308,7 +270,7 @@ describe('ProcessForge Cloud Storage Persistence Layer', () => {
   });
 
   it('deletes a project from cloud storage and updates used quota', async () => {
-    const user = await loginUser('github');
+    const user = await localProfile();
     const project: SimulationProject = createSimulationProject(
       'Temporary Decommission Twin',
       sampleGraph,

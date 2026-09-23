@@ -1,8 +1,6 @@
 /**
- * The seeded RNG is what turns the engine's documented determinism guarantee
- * from false into true. See docs/audit/02-engine.md section 5 for the state
- * before this: unseeded Math.random() at two call sites, and 200 runs of one
- * unchanged graph producing 59 distinct outcomes.
+ * Same seed, same result: the engine's randomness (rejects, inspection) comes
+ * only from its seeded generator.
  */
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';

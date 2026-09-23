@@ -4,23 +4,16 @@ import {
   importSimulationProject
 } from '@process-forge/protocol';
 import type { UserSession } from '../auth/accountManager.js';
-import { getUserSession, hasCloudSession, updateUserProfile } from '../auth/accountManager.js';
+import { getUserSession, hasCloudSession } from '../auth/accountManager.js';
 import { cloudApiBase } from './cloudApi.js';
 
 /**
  * Saved projects: a copy on this device, and -- for a Google account the cloud
  * API has verified -- a copy in ProcessForge Cloud.
  *
- * What changed, and why:
- *
- * - Every user, including guests and local email profiles, used to be sent to
- *   the cloud API with a made-up bearer token the server never read. Only a
- *   verified cloud session (`cloudToken`) reaches the network now. Everyone
- *   else's projects never leave the device.
- * - A save reported "(Cloud Synced)" whether or not the upload happened. The
- *   result now says which of the two copies was written.
- * - A new user's list was seeded with a sample project stamped as synced three
- *   days ago. It was never synced and never three days old, so it is gone.
+ * Only a verified cloud session (`cloudToken`) reaches the network; guests'
+ * and local profiles' projects never leave the device. A save reports which
+ * of the two copies was written.
  */
 
 export interface CloudProjectRecord {
@@ -54,8 +47,6 @@ const LOCAL_USER: UserSession = {
   organization: '',
   provider: 'email',
   token: '',
-  plan: 'Community',
-  cloudStorageQuota: { usedProjects: 0, maxProjects: 25 },
   createdAt: new Date(0).toISOString()
 };
 
@@ -81,9 +72,6 @@ function writeLocal(user: UserSession, records: CloudProjectRecord[]): void {
   if (typeof localStorage === 'undefined') return;
   try {
     localStorage.setItem(getStorageKey(user.id), JSON.stringify(records));
-    updateUserProfile({
-      cloudStorageQuota: { usedProjects: records.length, maxProjects: user.cloudStorageQuota.maxProjects }
-    });
   } catch (e) {
     console.error('Failed to write projects to local storage:', e);
   }

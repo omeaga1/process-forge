@@ -20,7 +20,7 @@ function findSourceFile(filename: string): string {
   throw new Error(`Could not find source component file: ${filename}`);
 }
 
-describe('ProcessForge UI Ergonomics & CTA Architecture Audit', () => {
+describe('Landing and portal layout', () => {
   const landingHubPath = findSourceFile('LandingPageHub.tsx');
   const landingHubContent = fs.readFileSync(landingHubPath, 'utf8');
 
@@ -35,11 +35,11 @@ describe('ProcessForge UI Ergonomics & CTA Architecture Audit', () => {
     assert.strictEqual(
       primaryButtonMatches?.length,
       1,
-      'Hero section must contain EXACTLY ONE primary solid Osaka Jade CTA button to prevent cognitive conflict'
+      'The hero has exactly one primary button'
     );
 
-    // The primary button resumes the project in progress (it used to start a
-    // blank canvas and discard it), and only says "open" when there is none.
+    // The primary button resumes the project in progress, and only says "open"
+    // when there is none.
     assert.ok(
       heroSection.includes('`Resume ${currentProject.name}`') && heroSection.includes("'Open the studio'"),
       'Hero section primary button must resume the current project'

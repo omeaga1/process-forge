@@ -44,15 +44,14 @@ describe('Canvas UI - Mobile Pocket Twin & Field View', () => {
     }
   });
 
-  it('preserves Zero Raw Keys security policy in mobile sub-agent config', () => {
+  it('keeps no API key in the mobile AI config', () => {
     const currentConfig = getAiConfig();
     assert.strictEqual(currentConfig.apiKey, undefined);
     assert.strictEqual(currentConfig.provider, 'offline');
 
-    // Ensure zero raw keys policy is enforced
     saveAiConfig({
       provider: 'offline',
-      modelId: 'deterministic-wasm'
+      modelId: 'offline'
     });
     const updated = getAiConfig();
     assert.strictEqual(updated.provider, 'offline');

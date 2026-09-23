@@ -11,37 +11,13 @@ import { evaluateUnitOp, blockingViolations, WAX_COOLING_BELT_CONTRACT } from '@
 /**
  * The public landing page, as an engineering drawing.
  *
- * DESIGN NOTE
+ * Laid out like a drafting sheet: ruled borders, a title block, zone numbers,
+ * mono for figures and sans for prose, and colour only where it carries
+ * meaning (green for a satisfied constraint, amber for a violated one).
  *
- * The previous page argued. Gradient headline, three-card feature grid,
- * checkmark pill row, "Engineered for Diverse Process Domains" -- the shape of
- * a generic SaaS page, which is a poor fit for an audience that reads P&IDs
- * fluently and distrusts a sales tone. It also asserted capabilities that did
- * not exist, which is the same failure this project has been auditing out of
- * the codebase all along.
- *
- * This page demonstrates instead, in an idiom its reader already knows: a
- * drafting sheet. Ruled borders, a title block, zone numbers, mono for every
- * figure and sans for prose, and colour used only where it carries meaning --
- * green for a satisfied constraint, amber for a violated one. No gradients, no
- * decorative motion.
- *
- * THE IMPORTANT PART
- *
- * Every number in the worked example is COMPUTED, at render, by the same
- * evaluator the engine uses. The 172.095 kW duty is not typed into copy; it is
- * `evaluateUnitOp(WAX_COOLING_BELT_CONTRACT).derived.totalDutyKw`. If the
- * engine changes, this page changes with it, and it cannot drift into claiming
- * something the software no longer does.
- *
- * WHAT IT SAYS
- *
- * One thing, in order: you describe equipment no simulator ships, Claude
- * designs it, the engine checks the physics, and you simulate the line. It
- * used to lead with jargon ("a sub-agent writes it as a declarative
- * contract"), show a gallery of stock symbols -- the opposite of the point --
- * list developer trivia as features, and advertise a Claude Desktop setup
- * whose package was never published.
+ * Every number in the worked example is computed at render by the engine's
+ * evaluator (e.g. the duty is evaluateUnitOp(WAX_COOLING_BELT_CONTRACT)
+ * .derived.totalDutyKw), so the page changes when the engine does.
  */
 
 export interface ProductLandingPageProps {

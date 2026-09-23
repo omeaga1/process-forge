@@ -1,10 +1,6 @@
 /**
- * The creator panel's gates must be computed, not decorative.
- *
- * This tests the decision logic the panel renders from, against the same
- * evaluator the engine and the MCP tool use. The audited failure was a
- * `status: 'PASS'` badge that was a string literal; the point here is that a
- * badge in this UI can only turn green because evaluateUnitOp() said so.
+ * The creator panel's gates come from the same evaluator the engine and the
+ * MCP tool use: a badge turns green only because evaluateUnitOp() said so.
  */
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';

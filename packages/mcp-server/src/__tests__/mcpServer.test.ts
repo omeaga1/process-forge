@@ -108,7 +108,7 @@ describe('ProcessForge MCP Server Tools', () => {
 
     assert.ok(res.equipmentDrawing, 'Should include synthesized CAD drawing');
     assert.strictEqual(res.equipmentDrawing.category, 'Reactors');
-    assert.ok(res.softwareEngineerResponse.includes('Equipment CAD Engine'));
+    assert.ok(res.softwareEngineerResponse.includes('Template drawing'));
     assert.ok(res.equipmentDrawing.nozzles.some((n) => n.role === 'relief'));
   });
 

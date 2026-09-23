@@ -18,10 +18,6 @@ import { getLlmCredentials, hasValidCredentials } from './aiModelManager.js';
  *                   brief out, paste Claude's result back in.
  *   none            No Claude. Standard equipment from plain requests, and
  *                   paste-in contracts.
- *
- * Previously the app had an "MCP mode" whose connection test always succeeded
- * and whose chat replied with canned "[MCP Connected]" text. Nothing was
- * connected. This replaces it.
  */
 export type AssistantRoute = 'api-key' | 'claude-desktop' | 'none';
 

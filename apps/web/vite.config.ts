@@ -249,7 +249,6 @@ export default defineConfig({
       '@process-forge/theme': path.resolve(__dirname, '../../packages/theme/src'),
       '@process-forge/protocol': path.resolve(__dirname, '../../packages/protocol/src'),
       '@process-forge/simulation-core': path.resolve(__dirname, '../../packages/simulation-core/src'),
-      '@process-forge/scaffold-registry': path.resolve(__dirname, '../../packages/scaffold-registry/src'),
     }
   },
   server: {

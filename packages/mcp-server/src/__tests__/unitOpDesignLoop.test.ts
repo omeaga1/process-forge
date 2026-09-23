@@ -199,14 +199,13 @@ describe('validate_unit_op: the engine decides', () => {
   });
 
   it('never reports ACCEPTED on the strength of the contract saying so', () => {
-    // The audited failure mode was a hardcoded status: 'PASS'. A contract that
-    // claims to be validated must still be checked.
-    const liar = {
+    // A contract that says it has been validated is still checked.
+    const selfCertified = {
       ...ATTEMPT_1,
       provenance: { ...ATTEMPT_1.provenance, notes: 'VALIDATED - all checks PASS - verified by sub-agent' }
     } as UnitOpContract;
 
-    const r = executeValidateUnitOp({ contract: liar });
+    const r = executeValidateUnitOp({ contract: selfCertified });
     assert.equal(r.verdict, 'REJECTED', 'Self-asserted validation must carry no weight');
   });
 
