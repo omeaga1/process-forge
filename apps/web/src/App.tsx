@@ -359,8 +359,6 @@ const AppInner: React.FC = () => {
       {viewMode === 'landing' && !isDesktopRuntime() ? (
         <ProductLandingPage
           onLaunchStudio={handleLaunchStudioFromLanding}
-          onOpenPortal={handleOpenPortal}
-          onSelectTemplate={handleSelectTemplateAndLaunch}
         />
       ) : viewMode === 'portal' || viewMode === 'landing' ? (
         <LandingPageHub
