@@ -273,10 +273,10 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
             {statusMessage ||
               updateInfo?.release_notes ||
               (status === 'up-to-date'
-                ? 'Your ProcessForge client is completely up to date with official releases.'
+                ? 'You have the latest release.'
                 : status === 'checking'
                 ? 'Connecting to release servers...'
-                : 'New performance improvements and simulation features are ready.')}
+                : '')}
           </div>
         </div>
       </div>

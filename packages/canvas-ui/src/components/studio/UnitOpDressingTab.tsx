@@ -72,7 +72,6 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
     routing: TemplateRouting;
     current: TemplateFamily;
   } | null>(null);
-  const [isForging, setIsForging] = useState<boolean>(false);
 
   useEffect(() => {
     if (node.dressing) {
@@ -90,8 +89,10 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
   const handleForgeDrawing = (promptToUse?: string, family?: TemplateFamily) => {
     const text = promptToUse || aiPrompt;
     if (!text.trim()) return;
-    setIsForging(true);
-    setTimeout(() => {
+    // A template match is instant. It used to sit behind a 400 ms
+    // "Synthesizing..." delay and was tagged as sub-agent output; no model is
+    // involved, so neither is true.
+    {
       const context = { kind: node.kind, machineName: node.name };
       // The description's own routing is kept even after a pick, so the
       // choice stays on offer and a second pick can undo the first.
@@ -105,7 +106,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
         viewBox: dwg.viewBox,
         defaultSize: dwg.defaultSize,
         drawingPrompt: text,
-        generatedBySubAgent: true,
+        generatedBySubAgent: false,
         nozzles: dwg.nozzles,
         internals: {
           agitatorType: dwg.internals.agitatorType ?? dressing.internals.agitatorType ?? 'none',
@@ -121,10 +122,9 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
       setDressing(updated);
       setSelectedNozzleId(dwg.nozzles[0]?.id || null);
       onUpdateDressing(updated);
-      setIsForging(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
-    }, 400);
+    }
   };
 
   const handleResetToStandard = () => {
@@ -306,16 +306,16 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
             {/* Action Button */}
             <button
               onClick={() => handleForgeDrawing()}
-              disabled={isForging || !aiPrompt.trim()}
+              disabled={!aiPrompt.trim()}
               style={{
                 padding: '7px 14px',
-                backgroundColor: isForging || !aiPrompt.trim() ? OsakaJadePalette.background.surface : OsakaJadePalette.jade[500],
-                color: isForging || !aiPrompt.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
-                border: `1px solid ${isForging || !aiPrompt.trim() ? OsakaJadePalette.border.default : OsakaJadePalette.jade[400]}`,
+                backgroundColor: !aiPrompt.trim() ? OsakaJadePalette.background.surface : OsakaJadePalette.jade[500],
+                color: !aiPrompt.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
+                border: `1px solid ${!aiPrompt.trim() ? OsakaJadePalette.border.default : OsakaJadePalette.jade[400]}`,
                 borderRadius: '6px',
                 fontWeight: 600,
                 fontSize: '0.8rem',
-                cursor: isForging || !aiPrompt.trim() ? 'not-allowed' : 'pointer',
+                cursor: !aiPrompt.trim() ? 'not-allowed' : 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
@@ -323,7 +323,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
               }}
             >
               <Sparkles size={13} />
-              <span>{isForging ? 'Synthesizing...' : 'Forge CAD'}</span>
+              <span>Draw it</span>
             </button>
           </div>
           {lastForge && (
@@ -574,7 +574,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
               >
                 <option value="0">0 Baffles (Unbaffled)</option>
                 <option value="2">2 Standard Wall Baffles (180°)</option>
-                <option value="4">4 Standard ASME Baffles (90°)</option>
+                <option value="4">4 baffles (90° apart)</option>
               </select>
             </div>
 

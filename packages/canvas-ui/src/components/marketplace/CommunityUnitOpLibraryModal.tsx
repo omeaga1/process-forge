@@ -5,14 +5,10 @@ import type { ProcessNode } from '@process-forge/protocol';
 import {
   X,
   Search,
-  Download,
-  Star,
-  ShieldCheck,
   Plus,
   Cloud,
   WifiOff,
   UserCheck,
-  LogIn,
   Check
 } from 'lucide-react';
 import {
@@ -41,7 +37,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
   const [isLiveApi, setIsLiveApi] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [creatorSession, setCreatorSession] = useState<CreatorSession | null>(null);
-  const [showAuthCard, setShowAuthCard] = useState<boolean>(false);
+  const [insertError, setInsertError] = useState<string | null>(null);
   const [insertedId, setInsertedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -67,25 +63,20 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
     }
   };
 
-  const handleLogin = async (provider: 'github' | 'google' | 'microsoft') => {
-    const session = await CommunityLibraryService.loginCreator(provider);
-    setCreatorSession(session);
-    setShowAuthCard(false);
-  };
-
-  const handleLogout = () => {
-    CommunityLibraryService.logoutCreator();
-    setCreatorSession(null);
-  };
-
-  const handleInsert = (plugin: CommunityUnitOpItem) => {
-    // Generate fresh instance of the node
+  const handleInsert = async (plugin: CommunityUnitOpItem) => {
+    setInsertError(null);
+    // Listings do not carry the equipment definition; fetch it now.
+    const template = plugin.nodeTemplate ?? (await CommunityLibraryService.fetchUnitOpTemplate(plugin.id));
+    if (!template) {
+      setInsertError(`Could not load "${plugin.name}" from the library.`);
+      return;
+    }
     const nodeInstance: ProcessNode = {
-      ...plugin.nodeTemplate,
-      id: `node-${plugin.nodeTemplate.kind.toLowerCase()}-${Date.now()}`,
+      ...template,
+      id: `node-${template.kind.toLowerCase()}-${Date.now()}`,
       position: {
-        x: (plugin.nodeTemplate.position?.x || 500) + Math.floor(Math.random() * 80) - 40,
-        y: (plugin.nodeTemplate.position?.y || 350) + Math.floor(Math.random() * 80) - 40
+        x: (template.position?.x || 500) + Math.floor(Math.random() * 80) - 40,
+        y: (template.position?.y || 350) + Math.floor(Math.random() * 80) - 40
       }
     };
     onInsertNode(nodeInstance);
@@ -154,7 +145,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <h3 style={{ margin: 0, fontSize: size.lg, fontWeight: weight.bold, color: OsakaJadePalette.text.primary, letterSpacing: '-0.02em' }}>
-                  ProcessForge Hub
+                  Community library
                 </h3>
                 <span
                   style={{
@@ -171,67 +162,20 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                   }}
                 >
                   {isLiveApi ? <Cloud size={11} /> : <WifiOff size={11} />}
-                  {isLiveApi ? 'Cloud Registry Live' : 'Local Verified Cache'}
+                  {isLiveApi ? 'Online' : 'Offline'}
                 </span>
               </div>
               <span style={{ fontSize: size.xs, color: OsakaJadePalette.text.secondary }}>
-                Industrial Unit-Op marketplace • Validated physics models, ASME ratings, and sub-agent contracts
+                Unit operations other engineers have published. Each is a contract the engine checks when you add it.
               </span>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {creatorSession ? (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '4px 10px',
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                  border: `1px solid ${OsakaJadePalette.jade[600]}`
-                }}
-              >
-                <UserCheck size={14} color={OsakaJadePalette.jade[400]} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                  {creatorSession.displayName}
-                </span>
-                <button
-                  onClick={handleLogout}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: OsakaJadePalette.text.muted,
-                    fontSize: 11,
-                    cursor: 'pointer',
-                    marginLeft: 4
-                  }}
-                >
-                  (Sign Out)
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowAuthCard(!showAuthCard)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 12px',
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                <LogIn size={13} />
-                Creator Account
-              </button>
-            )}
+            <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <UserCheck size={14} color={creatorSession ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted} />
+              {creatorSession ? `Publishing as ${creatorSession.displayName}` : 'Sign in with Google to publish'}
+            </span>
 
             <button
               onClick={onClose}
@@ -248,74 +192,9 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
           </div>
         </div>
 
-        {/* Creator Account Modal Dropdown */}
-        {showAuthCard && !creatorSession && (
-          <div
-            style={{
-              padding: '14px 24px',
-              backgroundColor: 'rgba(16, 185, 129, 0.05)',
-              borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                Connect Creator Account to Push Plugins
-              </div>
-              <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
-                Claim your author badge and push custom unit operations to the community library.
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => handleLogin('github')}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                GitHub
-              </button>
-              <button
-                onClick={() => handleLogin('google')}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Google
-              </button>
-              <button
-                onClick={() => handleLogin('microsoft')}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Microsoft
-              </button>
-            </div>
+        {insertError && (
+          <div role="alert" style={{ padding: '8px 24px', fontSize: 12, color: OsakaJadePalette.text.primary, borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
+            {insertError}
           </div>
         )}
 
@@ -448,20 +327,6 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                     >
                       {plugin.category.replace('_', ' ')}
                     </span>
-                    {plugin.asmeRating && (
-                      <span
-                        style={{
-                          fontSize: 11,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          color: OsakaJadePalette.jade[400]
-                        }}
-                      >
-                        <ShieldCheck size={13} />
-                        {plugin.asmeRating}
-                      </span>
-                    )}
                   </div>
 
                   <p style={{ margin: '0 0 10px 0', fontSize: 13, lineHeight: 1.5, color: OsakaJadePalette.text.secondary }}>
@@ -470,14 +335,6 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: OsakaJadePalette.text.muted }}>
                     <span>Author: <strong style={{ color: OsakaJadePalette.text.primary }}>{plugin.author}</strong></span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: space[0.5] || 3, color: OsakaJadePalette.text.gold }}>
-                      <Star size={12} fill={OsakaJadePalette.text.gold} />
-                      {plugin.rating.toFixed(1)}
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: space[1] }}>
-                      <Download size={12} />
-                      {plugin.downloadCount.toLocaleString()} pulls
-                    </span>
                   </div>
                 </div>
 
@@ -523,7 +380,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
           }}
         >
           <span>
-            Double-click any unit-op on your flowsheet to open the Machine Studio and click <strong>[Publish to Community Library]</strong>.
+            To publish your own, click a unit on the flowsheet and choose <strong>Publish to community library</strong> in its panel. You need to be signed in with Google.
           </span>
           <button
             onClick={onClose}

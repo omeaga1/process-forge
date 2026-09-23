@@ -100,7 +100,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
         {/* Body */}
         <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: OsakaJadePalette.text.primary }}>
-            Welcome to ProcessForge. You have full access to the digital twin flowsheet canvas, the deterministic fluid/discrete simulation engine, and Sub-Agent machine tools.
+            Everything works without an account: the flowsheet canvas, the discrete-event simulation, and unit-op design. Your projects are saved on this device.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -139,7 +139,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
                     </span>
                   </div>
                   <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>
-                    Sign in with GitHub, Google, or Email to automatically sync simulations across devices.
+                    Sign in with Google to keep a copy in ProcessForge Cloud when you choose Save to Cloud.
                   </div>
                 </div>
               </div>
@@ -223,7 +223,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
         >
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: OsakaJadePalette.text.muted }}>
             <ShieldCheck size={14} color={OsakaJadePalette.jade[500]} />
-            Zero Raw Keys Architecture
+            No account needed
           </span>
           <button
             onClick={onClose}

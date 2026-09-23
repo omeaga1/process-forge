@@ -2,7 +2,7 @@ import type { ProcessGraph } from '@process-forge/protocol';
 
 export const SHERWIN_WILLIAMS_PAINT_LINE: ProcessGraph = {
   id: 'sherwin-williams-twin-01',
-  name: 'Sherwin-Williams Architectural Paint Canning & Packaging Line',
+  name: 'Architectural Paint Canning & Packaging Line',
   version: '1.0.0',
   metadata: {
     facility: 'Cleveland Coatings Plant',

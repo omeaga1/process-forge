@@ -1,8 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   Layers,
   Cpu,
-  ShieldCheck,
   ChevronDown,
   Save,
   FolderOpen,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useMobileViewport, useTheme, ProcessForgeLogo } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
+import { hasCloudSession } from '../auth/accountManager.js';
 import { isTauriEnvironment } from './UpdateNotificationBanner.js';
 import { draftingRadius } from '@process-forge/theme';
 
@@ -57,6 +57,15 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   hasUpdateAvailable = false
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Below this width the buttons keep their icons and tooltips but drop
+  // their text labels, so the header fits the desktop window's 1024 px minimum.
+  const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1280);
+  useEffect(() => {
+    const onResize = () => setCompact(window.innerWidth < 1280);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const { isMobile } = useMobileViewport();
   const { theme, toggleTheme, palette } = useTheme();
   const OsakaJadePalette = palette;
@@ -233,7 +242,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
       />
 
       {/* Left: Brand, Navigation, Flowsheet Selector, and Core Status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0, overflow: 'hidden' }}>
         <div
           onClick={onNavigateHome}
           style={{ display: 'flex', alignItems: 'center', cursor: onNavigateHome ? 'pointer' : 'default', flexShrink: 0 }}
@@ -273,7 +282,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px', flexShrink: 0 }} />
 
         {/* Digital Twin Flowsheet Selector */}
-        <div style={{ position: 'relative', width: 220, minWidth: 150, flexShrink: 1 }}>
+        <div style={{ position: 'relative', width: 220, minWidth: 120, flexShrink: 1 }}>
           <select
             value={currentTemplate}
             onChange={(e) => onSelectTemplate(e.target.value)}
@@ -299,7 +308,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           >
             <option value="blank">Custom Blank Canvas</option>
             <option value="sherwin-williams-paint-line">
-              Sherwin-Williams Paint Canning Line
+              Architectural Paint Canning Line
             </option>
             <option value="beverage-bottling-line">
               High-Speed Beverage Bottling Line
@@ -314,38 +323,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
         {/* Subtle separator */}
         <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px', flexShrink: 0 }} />
-
-        {/* Simulation Core Active Indicator */}
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 32,
-            padding: '0 8px',
-            borderRadius: draftingRadius.soft,
-            backgroundColor: 'rgba(16, 185, 129, 0.08)',
-            border: '1px solid rgba(16, 185, 129, 0.25)',
-            fontSize: 11,
-            color: OsakaJadePalette.text.accent,
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            boxSizing: 'border-box',
-            flexShrink: 0
-          }}
-          title="Deterministic Simulation Core: Active & Synchronized"
-        >
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: 0,
-              backgroundColor: OsakaJadePalette.jade[400],
-              flexShrink: 0
-            }}
-          />
-          <span>Core Active</span>
-        </div>
 
         {/* Guest Mode Indicator */}
         {isGuestMode && (
@@ -400,7 +377,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           title="Open or browse Cloud Simulation Projects"
         >
           <FolderOpen size={14} />
-          <span>Projects</span>
+          {!compact && <span>Projects</span>}
         </button>
 
         {/* Save Simulation Action */}
@@ -425,7 +402,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           title="Save simulation to Cloud Storage"
         >
           <Save size={14} />
-          <span>Save</span>
+          {!compact && <span>Save</span>}
         </button>
 
         {/* Subtle separator */}
@@ -453,7 +430,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           title="AI & MCP Engineering Tools (Claude, Gemini, Cursor)"
         >
           <Cpu size={14} color={OsakaJadePalette.jade.glow} />
-          <span>AI Tools</span>
+          {!compact && <span>AI Tools</span>}
         </button>
 
         {/* Create a unit operation that does not exist yet */}
@@ -479,7 +456,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             title="New Unit Op — describe equipment that has no model yet; the engine checks it against your physics before it reaches the canvas"
           >
             <Sparkles size={14} />
-            <span>New Unit Op</span>
+            {!compact && <span>New Unit Op</span>}
           </button>
         )}
 
@@ -505,7 +482,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           title="Community UnitOp Library — Browse & publish unit-op plugins"
         >
           <Layers size={14} />
-          <span>UnitOps</span>
+          {!compact && <span>Community library</span>}
         </button>
 
         {/* Subtle separator */}
@@ -530,7 +507,11 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             whiteSpace: 'nowrap',
             boxSizing: 'border-box'
           }}
-          title={isAuthenticated && user ? `Account: ${user.name} (${user.email}) • Cloud Storage Connected` : 'Sign In to enable Cloud Storage'}
+          title={
+            isAuthenticated && user
+              ? `Account: ${user.name} (${user.email})${hasCloudSession(user) ? ' · can save to ProcessForge Cloud' : ' · this device only'}`
+              : 'Sign in'
+          }
         >
           {user?.avatarUrl ? (
             <img src={user.avatarUrl} alt={user.name} style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />
@@ -538,7 +519,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             <User size={13} color={isAuthenticated ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted} />
           )}
           <span>{isAuthenticated && user ? user.name.split(' ')[0] : 'Sign In'}</span>
-          {isAuthenticated && (
+          {hasCloudSession(user) && (
             <span
               style={{
                 width: 6,
@@ -546,30 +527,10 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 borderRadius: 0,
                 backgroundColor: OsakaJadePalette.jade[400]
               }}
-              title="Cloud Sync Active"
+              title="Signed in to ProcessForge Cloud"
             />
           )}
         </button>
-
-        {/* Zero Raw Keys Security Badge */}
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 32,
-            height: 32,
-            borderRadius: draftingRadius.soft,
-            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-            border: `1px solid ${OsakaJadePalette.border.subtle}`,
-            color: OsakaJadePalette.jade[500],
-            boxSizing: 'border-box',
-            cursor: 'help'
-          }}
-          title="Zero Raw Keys: 100% Local Math & DPAPI Vault Protection"
-        >
-          <ShieldCheck size={16} />
-        </div>
 
         {/* Check for Updates Action (Desktop Tauri only) */}
         {isTauriEnvironment() && onCheckForUpdates && (

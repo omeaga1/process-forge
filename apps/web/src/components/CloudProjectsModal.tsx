@@ -293,7 +293,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                   Connect Account for Cloud Storage
                 </h4>
                 <p style={{ margin: 0, fontSize: 13, color: OsakaJadePalette.text.secondary, maxWidth: 420 }}>
-                  Sign in with GitHub, Google, or your corporate engineering email to automatically sync simulations to the cloud and collaborate across devices.
+                  Sign in with Google, then use Save to Cloud to keep a copy you can open on any device you sign in on.
                 </p>
               </div>
               <button
@@ -366,7 +366,9 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                           gap: 4
                         }}
                       >
-                        <ShieldCheck size={10} /> Cloud Synced
+                        {/* From the record, not assumed: most projects live only on this device. */}
+                        <ShieldCheck size={10} />{' '}
+                        {project.syncStatus === 'synced' ? 'In the cloud' : project.syncStatus === 'failed' ? 'Cloud save failed' : 'This device'}
                       </span>
                     </div>
 
@@ -467,7 +469,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
           }}
         >
           <span>
-            ProcessForge Cloud replicates topology, machine configs, Sub-Agent transcripts, and simulation telemetry.
+            A cloud copy holds the flowsheet: its units, their settings and drawings, and the streams between them.
           </span>
           <button
             onClick={onClose}
