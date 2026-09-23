@@ -38,8 +38,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   onUpdateConfig,
   onUpdateDressing,
   onPublishToForgeHub,
-  upstreamContext = 'Reactor B-101 (45 gal/min Latex)',
-  downstreamContext = 'Conveyor CV-400 (48 cans/min capacity)'
+  upstreamContext = 'Nothing feeds this unit: it is a source.',
+  downstreamContext = 'Nothing downstream: its output leaves the line.'
 }) => {
   const { palette, radius: r } = useTheme();
   const OsakaJadePalette = palette;
@@ -62,6 +62,12 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   }, [isOpen]);
 
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  // The panel stays mounted between units, so a conversation belongs to the
+  // unit it was about. It used to carry over: unit B showed unit A's chat.
+  useEffect(() => {
+    setChatHistory([]);
+    setInputText('');
+  }, [node?.id]);
 
   if (!isOpen || !node) return null;
 
@@ -98,7 +104,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       const agentMsg: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         sender: 'agent',
-        senderTitle: `UnitOpForge [${node.name.split(' ')[0]}]`,
+        senderTitle: node.name,
         text: res.text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         cadDrawing: res.cadDrawing,
@@ -260,7 +266,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           }}
         >
           <MessageSquare size={13} />
-          <span>Forge</span>
+          <span>Chat</span>
         </button>
 
         <button
@@ -645,8 +651,14 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           </div>
 
           {Object.entries(config).map(([key, val]) => {
+            // Breakdowns are not simulated: the engine has no failure model, so
+            // editing these changed nothing. Hidden until they do something.
+            if (key === 'meanTimeBetweenFailuresMinutes' || key === 'meanTimeToRepairMinutes') return null;
             if (typeof val === 'number') {
               const humanized = key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
+              // Fractions stay fractions: min 1 used to snap 0.5 % up to 1 %.
+              const step = Math.abs(val) < 1 ? 0.01 : Math.abs(val) < 10 ? 0.1 : 1;
+              const max = Math.max(val * 2, Math.abs(val) < 1 ? 1 : 100);
               return (
                 <div
                   key={key}
@@ -665,15 +677,13 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                       <div style={{ color: OsakaJadePalette.text.primary, fontWeight: 600, fontSize: 13 }}>
                         {humanized}
                       </div>
-                      <div style={{ color: OsakaJadePalette.text.muted, fontSize: 10, fontFamily: 'monospace' }}>
-                        {key}
-                      </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <input
                         type="number"
-                        min={1}
-                        max={Math.max(100, val * 2)}
+                        min={0}
+                        step={step}
+                        max={max}
                         value={val}
                         onChange={(e) => {
                           const newNum = parseFloat(e.target.value) || 0;
@@ -696,8 +706,9 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                   </div>
                   <input
                     type="range"
-                    min={1}
-                    max={Math.max(100, val * 2)}
+                    min={0}
+                    step={step}
+                    max={max}
                     value={val}
                     onChange={(e) => {
                       const newNum = parseFloat(e.target.value);

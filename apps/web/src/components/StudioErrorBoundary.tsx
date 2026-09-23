@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
+import { AlertTriangle, RotateCcw, Home, Download } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -29,7 +29,27 @@ export class StudioErrorBoundary extends Component<Props, State> {
     window.location.reload();
   };
 
-  private handleReturnToLanding = () => {
+  /** Saves the project that may be causing the crash, before anything clears it. */
+  private handleDownload = () => {
+    try {
+      const raw = localStorage.getItem('pf_current_project');
+      if (!raw) return;
+      const url = URL.createObjectURL(new Blob([raw], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'processforge-recovered-project.pfg.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {}
+  };
+
+  /**
+   * Starts over without the current project. This used to delete it silently,
+   * behind a button labelled "Return to Dashboard"; it now asks, and the
+   * screen offers a download first.
+   */
+  private handleStartOver = () => {
+    if (!window.confirm('Start over without this project? Download a copy first if you want to keep it.')) return;
     this.setState({ hasError: false, error: null });
     try {
       localStorage.removeItem('pf_current_project');
@@ -117,13 +137,13 @@ export class StudioErrorBoundary extends Component<Props, State> {
 
             <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
               <button
-                onClick={this.handleReturnToLanding}
+                onClick={this.handleDownload}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 8,
                   padding: '10px 18px',
-                  borderRadius: 4,
+                  borderRadius: 2,
                   backgroundColor: '#549e6a',
                   color: '#111c18',
                   border: 'none',
@@ -132,8 +152,28 @@ export class StudioErrorBoundary extends Component<Props, State> {
                   cursor: 'pointer'
                 }}
               >
+                <Download size={15} />
+                Download the project
+              </button>
+
+              <button
+                onClick={this.handleStartOver}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 18px',
+                  borderRadius: 4,
+                  backgroundColor: '#1d2f28',
+                  color: '#f6f5dd',
+                  border: '1px solid #253c33',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
                 <Home size={15} />
-                Return to Dashboard
+                Start over
               </button>
 
               <button
@@ -153,7 +193,7 @@ export class StudioErrorBoundary extends Component<Props, State> {
                 }}
               >
                 <RotateCcw size={14} />
-                Reload Studio
+                Reload the app
               </button>
             </div>
           </div>

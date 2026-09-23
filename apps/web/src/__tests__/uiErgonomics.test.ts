@@ -38,10 +38,11 @@ describe('ProcessForge UI Ergonomics & CTA Architecture Audit', () => {
       'Hero section must contain EXACTLY ONE primary solid Osaka Jade CTA button to prevent cognitive conflict'
     );
 
-    // Verify the primary button is Open Studio
+    // The primary button resumes the project in progress (it used to start a
+    // blank canvas and discard it), and only says "open" when there is none.
     assert.ok(
-      heroSection.includes('<span>Open Studio</span>'),
-      'Hero section primary button must be "Open Studio"'
+      heroSection.includes('`Resume ${currentProject.name}`') && heroSection.includes("'Open the studio'"),
+      'Hero section primary button must resume the current project'
     );
   });
 

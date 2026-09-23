@@ -33,7 +33,6 @@ import { CloudProjectsModal } from './components/CloudProjectsModal.js';
 import { StudioErrorBoundary } from './components/StudioErrorBoundary.js';
 import { LandingPageHub } from './components/LandingPageHub.js';
 import { ProductLandingPage } from './components/ProductLandingPage.js';
-import { OmnipresentAgentWidget } from './components/OmnipresentAgentWidget.js';
 import { AccountProvider, useAccount } from './auth/useAccount.js';
 import { saveProjectToCloud } from './storage/cloudStorageAdapter.js';
 import { useAppUpdater } from './hooks/useAppUpdater.js';
@@ -322,13 +321,13 @@ const AppInner: React.FC = () => {
     setViewMode('studio');
   }, []);
 
+  // Opens the studio on the project already in progress. This used to start a
+  // blank canvas and save it over the current one -- "Open Studio" on the
+  // portal, and the floating copilot's button inside the studio, both threw
+  // the engineer's flowsheet away.
   const handleOpenStudio = useCallback(() => {
-    if (isAuthenticated) {
-      handleEnterStudioWithBlankCanvas(false);
-    } else {
-      setIsEntryGateOpen(true);
-    }
-  }, [isAuthenticated, handleEnterStudioWithBlankCanvas]);
+    setViewMode('studio');
+  }, []);
 
   const handleNavigateHome = useCallback(() => {
     saveLocalProject(project);
@@ -348,9 +347,12 @@ const AppInner: React.FC = () => {
     }
   }, [isAuthenticated, handleEnterStudioWithBlankCanvas]);
 
+  // A guest carries on with whatever is on this device; a first visit already
+  // has a blank project. Starting a fresh blank here discarded a returning
+  // guest's work.
   const handleContinueGuest = useCallback(() => {
-    handleEnterStudioWithBlankCanvas(true);
-  }, [handleEnterStudioWithBlankCanvas]);
+    setViewMode('studio');
+  }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', maxWidth: '100vw', maxHeight: '100vh', overflow: viewMode === 'landing' ? 'auto' : 'hidden', position: 'relative' }}>
@@ -422,16 +424,6 @@ const AppInner: React.FC = () => {
         onHardReload={updater.hardReloadApp}
       />
 
-      {/* Omnipresent Overarching Agent Companion (Studio View Only — Never on Landing Page) */}
-      {viewMode === 'studio' && (
-        <OmnipresentAgentWidget
-          currentProject={project}
-          isInStudioView={false}
-          onOpenStudio={handleOpenStudio}
-          onOpenAiModal={() => setIsAiModalOpen(true)}
-          onAddNode={handleInsertCommunityNode}
-        />
-      )}
 
       {/* Modals */}
       <AiModelModal
@@ -522,8 +514,11 @@ const AppInner: React.FC = () => {
       <CloudProjectsModal
         isOpen={isCloudProjectsModalOpen}
         onClose={() => setIsCloudProjectsModalOpen(false)}
-        onSelectProject={handleSelectCloudProject}
-        onUploadLocalFile={handleUploadLocalFile}
+        onSelectProject={handleSelectCloudProjectAndLaunch}
+        onUploadLocalFile={async (file) => {
+          await handleUploadLocalFile(file);
+          setViewMode('studio');
+        }}
       />
     </div>
   );

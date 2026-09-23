@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Save,
   Download,
@@ -46,6 +46,16 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
   const [isSavingCloud, setIsSavingCloud] = useState(false);
   const [isSavedCloud, setIsSavedCloud] = useState(false);
   const [cloudMessage, setCloudMessage] = useState<string | null>(null);
+
+  // The modal stays mounted, so its fields have to be refilled from the
+  // current project on every open. They were set once, and saving after a
+  // project switch renamed the new project to the old one's name.
+  useEffect(() => {
+    if (!isOpen) return;
+    setName(project.name);
+    setDescription(project.description || '');
+    setCloudMessage(null);
+  }, [isOpen, project.id]);
 
   if (!isOpen) return null;
 
