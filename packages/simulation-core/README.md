@@ -1,35 +1,34 @@
 # @process-forge/simulation-core
 
-Deterministic discrete-event and continuous flow simulation engine for industrial manufacturing twin lines.
+The ProcessForge discrete-event simulation engine, in TypeScript. It runs a
+`ProcessGraph` from `@process-forge/protocol` for a given duration and reports
+throughput, per-unit busy/blocked/starved time and OEE.
 
----
-
-## Quick Usage
+## Usage
 
 ```typescript
 import { simulateProcess } from '@process-forge/simulation-core';
 import type { ProcessGraph } from '@process-forge/protocol';
 
-// Run 30 minutes of simulated factory production
+// Run 30 simulated minutes. Pass { seed } to reproduce an earlier run.
 const results = simulateProcess(paintLineGraph, 30);
 
-console.log(`Units Packaged: ${results.totalUnitsPackaged}`);
-console.log(`Average Rate: ${results.averageLineThroughputUnitsPerMin} cans/min`);
-console.log(`Wall clock time: ${results.wallClockExecutionTimeMs} ms`);
+console.log(`Units packaged: ${results.totalUnitsPackaged}`);
+console.log(`Average rate: ${results.averageLineThroughputUnitsPerMin} units/min`);
+console.log(`Seed: ${results.seed}`);
 
-// Machine OEE Metrics
-const fillerOee = results.nodeReports['filler-1'];
-console.log(`Filler Availability: ${fillerOee.availabilityPercentage}%`);
-console.log(`Filler Blocked Time: ${fillerOee.blockedTimeSeconds}s`);
+const filler = results.nodeReports['filler-1'];
+console.log(`Filler availability: ${filler.availabilityPercentage}%`);
+console.log(`Filler blocked time: ${filler.blockedTimeSeconds}s`);
 ```
 
----
+## What it simulates
 
-## Performance
-- **Speed:** Executes >10,000x faster than real-time (>30 minutes of factory runtime evaluated in <10 milliseconds).
-- **Conserved:** Full fluid volumetric tracking and discrete container counts with zero numerical drift.
+- Built-in handlers for rotary fillers, conveyors, labelers and palletizers.
+- Nodes that carry a unit-op contract with `DISCRETE_CYCLE` behavior.
+- Blocking when downstream buffers are full, starving when nothing arrives.
+- Seeded randomness for rejects, so the same seed gives the same result.
 
----
-
-## Documentation
-For mathematical derivations and event scheduling logic, see [docs/architecture/04-simulation-math.md](../../docs/architecture/04-simulation-math.md).
+It does not integrate fluid levels over time or simulate breakdowns. See
+[docs/architecture/04-simulation-math.md](../../docs/architecture/04-simulation-math.md)
+for the formulas and limits.

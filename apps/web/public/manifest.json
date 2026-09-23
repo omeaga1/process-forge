@@ -1,7 +1,7 @@
 {
   "short_name": "ProcessForge",
-  "name": "ProcessForge Industrial Digital Twin & Simulation Studio",
-  "description": "Next-Generation Industrial Process Simulation, ASME Dressing & Multi-Agent Orchestration",
+  "name": "ProcessForge — Industrial Flowsheet & Process Simulation Studio",
+  "description": "Build process and manufacturing flowsheets, design unit operations with AI, and run discrete-event simulations.",
   "icons": [
     {
       "src": "./favicon.ico",

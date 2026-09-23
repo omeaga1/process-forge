@@ -1,30 +1,31 @@
-# How-To Guide: Diagnosing Plant Bottlenecks
+# Guide: diagnosing bottlenecks
 
-## Goal
-Identify which machine in an industrial line is capping overall plant throughput, determine if upstream machines are experiencing backpressure blocking, and formulate an optimization strategy.
+How to find the machine that limits a line's throughput, and what to change.
 
 ---
 
 ## 1. Recognizing Bottleneck Symptoms
 
-ProcessForge categorizes machine states during simulation into four distinct operating conditions:
+The simulation attributes each machine's time to one of these states (plus IDLE):
 
-| State | Canvas Visual (Osaka Jade) | Meaning |
+| State | Colour | Meaning |
 | :--- | :--- | :--- |
-| **`BUSY`** | Imperial Jade (`#10b981`) | Machine is actively operating at its rated capacity. |
-| **`STARVED`** | Ice Cyan (`#38bdf8`) | Machine is idle because upstream units cannot supply material fast enough. |
-| **`BLOCKED`** | Amber Gold (`#f59e0b`) | Machine has completed its cycle but cannot discharge because the downstream buffer is full. |
-| **`FAILED`** | Crimson Rose (`#f43f5e`) | Machine is stopped due to an unscheduled breakdown or jam. |
+| **`BUSY`** | Jade (`#549e6a` dark) | Machine is running a cycle. |
+| **`STARVED`** | Cyan (`#8cd3cb` dark) | Machine is idle because upstream units cannot supply material fast enough. |
+| **`BLOCKED`** | Amber (`#e5c736` dark) | Machine has completed its cycle but cannot discharge because the downstream buffer is full. |
+| **`FAILED`** | Red (`#ff5345` dark) | Machine is stopped by a breakdown. Breakdowns are not simulated yet, so this state does not occur. |
 
 > [!TIP]
-> **The Golden Rule of Bottlenecks:**  
-> The true bottleneck machine will have **near 100% utilization / busy time**, while machines upstream of it will show high **Blocked Time**, and machines downstream will show high **Starved Time**.
+> The bottleneck is the machine that is busy almost all the time. Machines
+> upstream of it show high **blocked** time, and machines downstream show high
+> **starved** time. Each unit's `nodeReports` entry in the simulation result
+> has `busyTimeSeconds`, `blockedTimeSeconds` and `starvedTimeSeconds`.
 
 ---
 
-## 2. Using the Automated Bottleneck Engine
+## 2. Estimating the bottleneck without a run
 
-You can programmatically validate bottlenecks using `@process-forge/protocol`:
+`validateProcessGraph` in `@process-forge/protocol` estimates each filler, labeler and palletizer's capacity and names the lowest:
 
 ```typescript
 import { validateProcessGraph } from '@process-forge/protocol';
@@ -42,7 +43,7 @@ if (result.bottlenecks.bottleneckNodeId) {
 
 ## 3. Resolving the Bottleneck
 
-Once identified, ask the Master Orchestrator or the unit sub-agent to propose solutions:
+Common fixes (you can also ask the assistant in the Engineer Studio dock for suggestions):
 1. **Add an Accumulator Buffer:** Insert a surge conveyor or accumulation table between the filler and the labeler to absorb cycle variances.
-2. **Increase Head Count:** Prompt the sub-agent to increase rotary filler nozzle count (e.g. from 8 to 12 nozzles).
+2. **Increase head count:** raise the rotary filler nozzle count (e.g. from 8 to 12 nozzles).
 3. **Dual-Line Split:** Split the discrete stream into two parallel labeling machines.

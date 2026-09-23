@@ -2,7 +2,7 @@
   "name": "@process-forge/protocol",
   "version": "0.1.0",
   "private": true,
-  "description": "Domain entities, stream contracts, and multi-agent interaction schemas for ProcessForge",
+  "description": "Schemas, graph validation and unit-op contracts shared by the ProcessForge packages",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,136 +1,136 @@
 # ProcessForge
 
-> **Industrial Process Simulation Platform**  
-> Continuous-Discrete Hybrid Simulation • AI Equipment & Environment Forge • Enterprise Trust & Zero-Knowledge Security
+ProcessForge is a flowsheet editor and simulator for process and manufacturing
+lines. You place standard unit operations, connect them with streams, and run a
+discrete-event simulation to see throughput, bottlenecks and OEE. When the unit
+you need does not exist, an AI model writes it as a contract that the engine
+checks before it can join the flowsheet.
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Target Repo](https://img.shields.io/badge/GitHub-omeaga1%2Fprocess--forge-181717.svg?logo=github)](https://github.com/omeaga1/process-forge)
-[![Architecture](https://img.shields.io/badge/Architecture-Tauri_v2_%2B_Web_Monorepo-orange.svg)]()
-[![Anti--Laziness](https://img.shields.io/badge/Scaffold_Policy-Zero_Untracked_Placeholders-success.svg)]()
+It runs as a desktop app (Windows, macOS, Linux) and as the same studio in the
+browser.
 
----
+Licence: [Apache-2.0](LICENSE)
 
-## 1. Overview & Vision
+## Features
 
-**ProcessForge** is a modern industrial process simulation and digital twin platform designed for real-world manufacturing and assembly lines (such as paint manufacturing, packaging lines, batch reactors, automated filling and labeling stations, and palletizers).
+- **Flowsheet canvas.** Standard unit operations: pumps, tanks, reactors, heat
+  exchangers, separators, fillers, conveyors, labelers, palletizers and more.
+  Units are drawn as equipment, and pipes attach at nozzles you can place.
+- **Custom unit ops as contracts.** A contract declares parameters, derived
+  values (in a restricted expression language), constraints (ERROR or WARNING),
+  a behavior mode (discrete cycle or continuous rate) and a drawing with one
+  nozzle per port. The engine checks it through four gates before it can be
+  used: schema, references resolve, physical constraints hold, and the drawing
+  gives every port a nozzle.
+- **AI writes contracts, the engine judges them.** Use your own model inside
+  the app, or drive ProcessForge from an MCP client (see below).
+- **Simulation.** A TypeScript discrete-event engine reports throughput,
+  busy/blocked/starved time per unit, the bottleneck and OEE. Continuous units
+  are evaluated at steady state. Runs are seeded and reproducible.
+- **Projects.** Save to a local `.pfg.json` file without an account. With
+  optional Google sign-in, save projects to the cloud and publish unit ops to
+  the community library.
 
-Unlike legacy chemical-only simulators that are computationally impenetrable or weekend AI wrappers that compromise enterprise trust, ProcessForge decouples **probabilistic generative AI** from **deterministic simulation physics**:
+## Install
 
-1. **Deterministic Core Engine:** Discrete-Event Simulation (DES) combined with Continuous Flow mass/volumetric balances, capable of executing at >10,000x real-time speed.
-2. **AI as the Software Entity & Environment Creator:** AI generates custom unit operations, parametric ASME CAD equipment geometries, and simulation environments. The user places, connects, and refines them on the flowsheet canvas—freeing engineers from writing glue code without relying on AI to guess or analyze deterministic physics.
-3. **Enterprise Trust & Credential Isolation:** Eliminates the "Vercel + Supabase wrapper" stigma through native OS credential vaults (DPAPI/Keychain) in our desktop client, Enterprise Zero-Data-Retention (ZDR) gateways, and full self-hostable on-premises deployment capabilities.
+- **Desktop:** download the installer for your platform from
+  [GitHub Releases](https://github.com/omeaga1/process-forge/releases/latest).
+  The app checks for updates on launch. The Windows installer is not
+  code-signed yet, so SmartScreen will warn on first run.
+- **Web:** open <https://process-forge.pages.dev>.
 
----
+## Using AI
 
-## 2. Architecture & Monorepo Topology
+There are two ways to have a model design unit ops.
 
-ProcessForge is structured as a pnpm + Turborepo monorepo:
+**In the app.** Open the AI settings and pick one:
 
-```
-process-forge/
-├── apps/
-│   ├── desktop/               # Native desktop app shell powered by Tauri v2
-│   ├── web/                   # Collaborative cloud web application
-│   └── docs-landing/          # Product landing page & one-click installer downloads
-├── packages/
-│   ├── protocol/              # @process-forge/protocol: Shared schemas, units, and contracts
-│   ├── simulation-core/       # @process-forge/simulation-core: Discrete-event & continuous engine
-│   ├── canvas-ui/             # @process-forge/canvas-ui: React Flow canvas & generative inspectors
-│   ├── mcp-server/            # @process-forge/mcp-server: Model Context Protocol server (6 tools)
-│   ├── theme/                 # @process-forge/theme: Osaka Jade design tokens & themes
-│   └── scaffold-registry/     # @process-forge/scaffold-registry: Anti-laziness enforcement & CLI
-├── tooling/
-│   ├── typescript-config/     # Strict shared TSConfig
-│   └── eslint-config/         # Strict AST & linting rules
-├── .github/workflows/         # CI/CD (anti-laziness verification, simulation tests, Tauri release)
-└── scaffold-manifest.json     # Authoritative tracking manifest for temporary scaffolding
-```
+- your own API key for Claude, OpenAI or Gemini;
+- OpenRouter, by signing in with your OpenRouter account;
+- a local Ollama server (default `http://localhost:11434`), which needs no key.
 
----
+On desktop, keys are stored in the OS keychain. In the browser, they are stored
+in the browser's local storage. The app sends them only to the provider you
+chose.
 
-## 3. Trust & Security Matrix
+**From an MCP client** (Claude Desktop, Cursor, and others). Add the MCP server
+to the client's configuration:
 
-| Model Tier | Target Audience | Secret / Credential Storage | Network Routing |
-| :--- | :--- | :--- | :--- |
-| **Desktop Native Vault (BYOK)** | Security-conscious engineers, private plant models | Windows DPAPI / macOS Keychain via Tauri secure storage | Direct client-to-provider TLS; **zero keys or prompt data touch our servers** |
-| **Enterprise SaaS Gateway** | Collaborative teams, cloud users | AWS KMS / HashiCorp Vault (Envelope Encryption) | Azure OpenAI / AWS Bedrock under signed **Zero Data Retention (ZDR)** agreements |
-| **Self-Hosted / Air-Gapped** | Industrial plants, defense, high-security facilities | Customer internal vault / environment secrets | Fully local inside private VPC; compatible with vLLM / Ollama |
-
----
-
-## 4. Software Architecture & Flowsheet Authoring
-
-```
-                  ┌────────────────────────────────────────────────┐
-                  │          Interactive Canvas UI (React)         │
-                  │    Process Flowsheet • Stream Connections      │
-                  └───────────────────────┬────────────────────────┘
-                                          │
-                     User Places, Connects, and Refines
-                                          │
-                                          ▼
-                  ┌────────────────────────────────────────────────┐
-                  │        Environment & Unit-Op Forge (AI)        │
-                  │ Synthesizes CAD Geometries • Nozzles • Port UI │
-                  └───────────┬──────────────────────┬─────────────┘
-                              │                      │
-                 ┌────────────┴──────────┐ ┌─────────┴───────────┐
-                 ▼                       ▼ ▼                     ▼
-        ┌──────────────────┐   ┌──────────────────┐    ┌──────────────────┐
-        │ Batch Reactor    │   │ 10-Nozzle Filler │    │ Automated        │
-        │ Unit-Op (ASME)   │   │ Unit-Op (Tri-Cl) │    │ Labeler Unit-Op  │
-        └────────┬─────────┘   └────────┬─────────┘    └────────┬─────────┘
-                 │                      │                       │
-                 └──────────────────────┼───────────────────────┘
-                                        ▼
-                  ┌────────────────────────────────────────────────┐
-                  │  Deterministic Simulation Engine (TypeScript)  │
-                  │ Event Queue • Rate Balance • Physical Solver   │
-                  └────────────────────────────────────────────────┘
+```json
+{
+  "mcpServers": {
+    "process-forge": {
+      "command": "npx",
+      "args": ["-y", "@process-forge/mcp-server"]
+    }
+  }
+}
 ```
 
-- **User-Centric Flowsheet Authoring:** The human engineer designs the process line by placing, connecting, and refining unit operations and streams.
-- **AI as Equipment Software Creator:** Rather than using AI to guess or analyze physics, AI serves as the software entity that authors custom unit operations, synthesizes ASME B16.5 CAD drawings, and configures port schedules.
-- **Physical Validation Gates:** Before committing a configuration to the active simulation graph, nodes must pass contract validation rules defined in `@process-forge/protocol`.
+The client then has tools to design and validate a unit op contract. If the
+desktop app is open, the client can also read the open flowsheet and add a
+validated unit op to it. The desktop app accepts these requests only on
+`127.0.0.1` with a token it creates at each launch. See
+[packages/mcp-server/README.md](packages/mcp-server/README.md) for the tool
+list.
 
----
+## Repository layout
 
-## 5. Anti-Laziness Protocol
+pnpm workspace with Turborepo.
 
-ProcessForge enforces a strict zero-tolerance policy against dangling placeholders, empty stubs, or unhandled `TODO` comments.
-- All temporary scaffolding must be registered in `scaffold-manifest.json` with an explicit **Removal Condition** and **Blocked Milestone**.
-- CI executes `pnpm run verify:scaffolds` via `@process-forge/scaffold-registry`. Any untracked placeholder immediately fails the build.
+```
+apps/
+  desktop/                 Tauri v2 shell: keychain, updater, OAuth loopback, MCP bridge
+  web/                     The studio (Vite + React); also bundled into the desktop app
+packages/
+  protocol/                Schemas, graph validation, unit-op contracts and their checks
+  simulation-core/         Discrete-event simulation engine
+  canvas-ui/               Flowsheet canvas (React Flow), unit-op creator, AI clients
+  mcp-server/              MCP server published as @process-forge/mcp-server
+  community-library-api/   Cloudflare Worker + D1: sign-in, cloud projects, community library
+  theme/                   "Osaka Jade" design tokens
+tooling/
+  typescript-config/       Shared tsconfig
+docs/                      Architecture notes, ADRs, guides, ops runbooks
+```
 
----
+## Development
 
-## 6. Getting Started
+Requirements: Node.js 22 (see `.node-version`) and pnpm 10.
 
-### Prerequisites
-- Node.js >= 20 (v22+ recommended)
-- pnpm >= 10 (`npm install -g pnpm` or `npx pnpm`)
-- Rust toolchain (for native simulation core & Tauri v2 desktop builds)
-
-### Installation
 ```bash
-# Clone the repository
 git clone https://github.com/omeaga1/process-forge.git
 cd process-forge
-
-# Install workspace dependencies
 pnpm install
-
-# Verify scaffolding manifest & zero untracked placeholders
-pnpm run verify:scaffolds
-
-# Build all packages
-pnpm run build
-
-# Run unit and simulation tests
+pnpm run build       # builds every package in dependency order
 pnpm run test
+pnpm run typecheck
 ```
 
----
+Run the web studio:
 
-## 7. License
+```bash
+pnpm --filter @process-forge/web dev
+```
 
-Licensed under the [Apache License, Version 2.0](LICENSE).
+The desktop app also needs Rust and the
+[Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your OS
+(MSVC build tools and WebView2 on Windows, Xcode command line tools on macOS,
+WebKitGTK on Linux). Then:
+
+```bash
+pnpm --filter @process-forge/desktop tauri dev
+```
+
+Release and deployment steps are in [docs/ops](docs/ops).
+
+## Contributing
+
+Issues and pull requests are welcome at
+<https://github.com/omeaga1/process-forge>. Please run `pnpm run build` and
+`pnpm run test` before opening a pull request. The [docs](docs/README.md)
+explain how the pieces fit together.
+
+## Licence
+
+[Apache License 2.0](LICENSE).

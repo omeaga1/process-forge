@@ -1,25 +1,32 @@
-# ADR-0001: Hybrid Desktop (Tauri v2) & Web Monorepo
+# ADR-0001: Tauri v2 desktop app and web studio in one monorepo
 
 * **Status:** Accepted
 * **Date:** 2026-09-12
-* **Deciders:** Lead Systems Architect, Orchestration Engineer
+* **Deciders:** maintainer
 
 ## Context
-Previous attempts at building process simulation platforms on purely cloud-hosted stacks (such as Vercel + Supabase) faced severe customer pushback:
-1. Users rejected pasting sensitive API keys into web forms due to fear of cloud logging and credential theft.
-2. Proprietary factory line recipes could not be stored in unvetted multi-tenant cloud databases.
-3. Conversely, forcing a local-only CLI tool eliminated real-time team collaboration.
+
+Engineers need to work on flowsheets that may be confidential, and some will
+not paste API keys into a web page. Others want to try the tool in a browser
+without installing anything. Maintaining two separate codebases for these
+cases is not practical for a small project.
 
 ## Decision
-We adopt a **Tauri v2 + React/Next.js monorepo** managed via pnpm workspaces and Turborepo.
-- **Desktop Distribution:** Tauri v2 produces native, lightweight (<15MB) single-click installers (`.msi` / `.exe` for Windows, `.dmg` for macOS). It stores API keys exclusively inside the OS credential store (Windows DPAPI / macOS Keychain), dispatching inference over direct client-side TLS.
-- **Web Distribution:** The exact same core packages (`protocol`, `simulation-core`, `theme`, `canvas-ui`) compile for web deployment for collaborative teams using enterprise ZDR gateways.
+
+Use a pnpm + Turborepo monorepo with a Tauri v2 desktop shell and a Vite/React
+web app.
+
+- The studio lives in `apps/web`. The desktop app bundles the same build.
+- Shared code lives in packages: `protocol`, `simulation-core`, `canvas-ui`,
+  `theme`.
+- On desktop, secrets are stored in the OS keychain through a Rust command.
+  Model requests go directly from the app to the provider.
 
 ## Consequences
-### Positive
-- Zero cloud exfiltration of API credentials in desktop mode.
-- Single codebase shared between native desktop and collaborative web app.
-- Extremely fast local startup without Electron's 200MB memory footprint.
 
-### Trade-offs
-- Requires native build tooling (Rust toolchain, MSVC on Windows, WebKitGTK on Linux) in CI.
+- One codebase serves both desktop and web.
+- Tauri uses the OS webview, so the installer does not ship a browser engine.
+- CI and contributors building the desktop app need native tooling (Rust, MSVC
+  on Windows, WebKitGTK on Linux).
+- A fix reaches desktop users only when a new desktop release is tagged (see
+  [docs/ops/desktop-releases.md](../ops/desktop-releases.md)).

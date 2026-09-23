@@ -2,7 +2,7 @@
   "name": "process-forge-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Next-generation hybrid process simulation platform with hierarchical agent orchestration",
+  "description": "ProcessForge: a flowsheet editor and discrete-event simulator for process and manufacturing lines, as a desktop app and a web studio",
   "author": "omeaga1",
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.5.0",

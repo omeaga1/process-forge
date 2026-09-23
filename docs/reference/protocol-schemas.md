@@ -1,6 +1,6 @@
 # Reference: Protocol Schemas & Machine Configurations
 
-The `@process-forge/protocol` package contains authoritative Zod schemas and TypeScript types defining all physical entities in ProcessForge.
+`@process-forge/protocol` defines the Zod schemas and TypeScript types for nodes, ports, streams and graphs. The schemas are in `packages/protocol/src/nodes.ts`, `streams.ts` and `graph.ts`; the fields below are a summary.
 
 ---
 
@@ -48,11 +48,26 @@ interface LabelerConfig {
 
 ## 2. Port Dimensions & Stream Types
 
-To ensure physical consistency, edges must connect ports with matching flow dimensions:
+Each port has a flow dimension: `CONTINUOUS_VOLUME`, `CONTINUOUS_MASS` or
+`DISCRETE_CONTAINER`. Each edge has a stream type: `CONTINUOUS_FLUID` or
+`DISCRETE_CONTAINER_STREAM`.
 
-| Port Dimension | Allowed Edge Stream Type | Example Units |
+| Port dimension | Stream type | Example units |
 | :--- | :--- | :--- |
-| `CONTINUOUS_VOLUME` | `CONTINUOUS_FLUID` | Gallons/min, Liters/min |
-| `DISCRETE_CONTAINER` | `DISCRETE_CONTAINER_STREAM` | Cans/min, Pails/hr |
+| `CONTINUOUS_VOLUME`, `CONTINUOUS_MASS` | `CONTINUOUS_FLUID` | gal/min, L/min, kg/s |
+| `DISCRETE_CONTAINER` | `DISCRETE_CONTAINER_STREAM` | cans/min, pails/hr |
 
-Connecting a `CONTINUOUS_VOLUME` output port directly to a `DISCRETE_CONTAINER` input port triggers a `FLOW_DIMENSION_MISMATCH` validation error in the graph validator.
+`validateProcessGraph` reports `FLOW_DIMENSION_MISMATCH` when an edge connects
+two ports with different flow dimensions. A filler is the usual place where a
+fluid stream becomes a container stream.
+
+---
+
+## 3. Unit-op contracts
+
+Custom unit operations are defined by `UnitOpContractSchema` in
+`packages/protocol/src/unitop/contract.ts` (ports, parameters, derived values,
+constraints, behavior, provenance) and `UnitOpDrawingSchema` in
+`unitop/drawing.ts`. How they are checked is described in the
+[system overview](../architecture/01-system-overview.md#designing-a-unit-op).
+A complete example is `unitop/examples/waxCoolingBelt.ts`.
