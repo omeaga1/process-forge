@@ -37,6 +37,7 @@ import { AccountProvider, useAccount } from './auth/useAccount.js';
 import { saveProjectToCloud } from './storage/cloudStorageAdapter.js';
 import { useAppUpdater } from './hooks/useAppUpdater.js';
 import { useMcpBridge } from './hooks/useMcpBridge.js';
+import { McpArrivalNotice } from './components/McpArrivalNotice.js';
 import {
   saveLocalProject,
   loadCurrentLocalProject,
@@ -382,7 +383,8 @@ const AppInner: React.FC = () => {
           {/* Top Application Navigation */}
           <HeaderBar
             currentTemplate={templateKey}
-            isGuestMode={project.isGuestProject}
+            // "Guest" means not signed in now, not "this project was started signed out".
+            isGuestMode={!isAuthenticated}
             activeAiProvider={aiConfig.provider}
             onNavigateHome={handleOpenPortal}
             onSelectTemplate={handleSelectTemplate}
@@ -424,39 +426,7 @@ const AppInner: React.FC = () => {
         onHardReload={updater.hardReloadApp}
       />
 
-      {mcpBridge.lastArrival && (
-        <div
-          role="status"
-          style={{
-            position: 'fixed',
-            left: '50%',
-            bottom: 24,
-            transform: 'translateX(-50%)',
-            zIndex: 2000,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '10px 14px',
-            borderRadius: 8,
-            background: 'var(--pf-surface-elevated, #16221f)',
-            border: '1px solid #10b981',
-            color: '#e6ece9',
-            fontSize: 13,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.35)'
-          }}
-        >
-          <span>
-            <strong>{mcpBridge.lastArrival.name}</strong> was added to the flowsheet by your MCP client.
-          </span>
-          <button
-            type="button"
-            onClick={mcpBridge.dismiss}
-            style={{ background: 'none', border: '1px solid #3f5550', color: '#e6ece9', borderRadius: 6, padding: '3px 10px', cursor: 'pointer' }}
-          >
-            OK
-          </button>
-        </div>
-      )}
+      <McpArrivalNotice arrival={mcpBridge.lastArrival} onDismiss={mcpBridge.dismiss} />
 
 
       {/* Modals */}
