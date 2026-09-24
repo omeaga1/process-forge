@@ -41,19 +41,31 @@ Licence: [Apache-2.0](LICENSE)
 
 ## Using AI
 
-There are two ways to have a model design unit ops.
+ProcessForge is built around two ways to use AI. The first time you open the
+studio it asks which you want; you can change it any time under **AI model**.
 
-**In the app.** Open the AI settings and pick one:
+| | Best if | Cost |
+|---|---|---|
+| **Claude Desktop (MCP)** | you already pay for Claude, or use Cursor | your existing subscription |
+| **OpenRouter** | you want the AI inside ProcessForge | pay per use, any model |
+
+Either way the engine checks every design before it reaches your flowsheet.
+
+**OpenRouter, in the app.** Open **AI model**, choose OpenRouter and sign in.
+OpenRouter issues a key for this app only; set a spending limit on it in your
+OpenRouter settings.
+
+**Other options**, under **AI model → Other options**:
 
 - your own API key for Claude, OpenAI or Gemini;
-- OpenRouter, by signing in with your OpenRouter account;
-- a local Ollama server (default `http://localhost:11434`), which needs no key.
+- a local Ollama server (default `http://localhost:11434`): free, offline, and
+  nothing leaves your computer. Smaller local models have more designs rejected.
 
 On desktop, keys are stored in the OS keychain. In the browser, they are stored
 in the browser's local storage. The app sends them only to the provider you
 chose.
 
-**From an MCP client** (Claude Desktop, Cursor, and others).
+**Claude Desktop and other MCP clients.**
 
 - **Claude Desktop:** download
   [process-forge.mcpb](https://github.com/omeaga1/process-forge/releases/latest/download/process-forge.mcpb)

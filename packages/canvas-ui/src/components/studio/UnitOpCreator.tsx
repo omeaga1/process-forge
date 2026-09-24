@@ -355,8 +355,8 @@ export function UnitOpCreator({
         ) : (
           <div>
             <p style={{ margin: '10px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
-              No AI model is set up. Paste a contract below, or connect one: in the app with an API
-              key or a local Ollama model, or from an MCP client on your subscription.
+              No AI model is set up. Paste a contract below, or set one up: sign in with OpenRouter to
+              design here, or use Claude Desktop over MCP on your subscription.
             </p>
             {onChooseAssistant && (
           <button
