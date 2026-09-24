@@ -19,10 +19,12 @@ import {
 } from '../../ai/aiModelManager.js';
 import { dispatchUnitOpMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, KeyRound, Copy, Trash2, Workflow } from 'lucide-react';
+import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, KeyRound, Copy, Trash2, Workflow, Bookmark, BookmarkCheck } from 'lucide-react';
 import type { ProcessGraph } from '@process-forge/protocol';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import { UnitOverviewPanel } from './UnitOverviewPanel.js';
+import { useSavedUnitOps, saveUnitOp, removeSavedUnitOp } from '../../library/savedUnitOps.js';
+import { UnitOpContractSchema } from '@process-forge/protocol';
 import { draftingRadius } from '@process-forge/theme';
 
 interface UnitOpPopOutStudioProps {
@@ -76,6 +78,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   const { palette, radius: r } = useTheme();
   const OsakaJadePalette = palette;
   const route = useAssistantRoute();
+  const savedUnits = useSavedUnitOps();
   const [activeTab, setActiveTab] = useState<StudioTab>('OVERVIEW');
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
@@ -242,6 +245,25 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {(() => {
+          // A designed unit can be kept in My unit ops, to place again in any project.
+          const parsed = UnitOpContractSchema.safeParse((node.config as { contract?: unknown }).contract);
+          if (!parsed.success) return null;
+          const contract = parsed.data;
+          const saved = savedUnits.some((u) => u.id === contract.id);
+          return (
+            <button
+              type="button"
+              onClick={() => (saved ? removeSavedUnitOp(contract.id) : saveUnitOp(contract, 'studio'))}
+              title={saved ? 'In My unit ops. Click to remove it from there.' : 'Save to My unit ops, to place again in any project'}
+              aria-label={saved ? 'Remove from My unit ops' : 'Save to My unit ops'}
+              aria-pressed={saved}
+              style={headerIconButton}
+            >
+              {saved ? <BookmarkCheck size={14} color={OsakaJadePalette.jade[500]} /> : <Bookmark size={14} color={OsakaJadePalette.text.secondary} />}
+            </button>
+          );
+        })()}
         {onDuplicate && (
           <button
             type="button"

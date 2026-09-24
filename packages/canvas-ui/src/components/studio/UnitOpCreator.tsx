@@ -14,7 +14,8 @@ import {
 import { OsakaJadePalette as P, drafting, draftingRadius } from '@process-forge/theme';
 import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
 import { layoutNozzles } from '../../nozzles/nozzleLayout.js';
-import { claudeDesktopUnitOpPrompt, type AssistantRoute } from '../../ai/assistantRoute.js';
+import type { AssistantRoute } from '../../ai/assistantRoute.js';
+import { McpDesignGuide } from './McpDesignGuide.js';
 
 const D = drafting('dark');
 
@@ -166,7 +167,6 @@ export function UnitOpCreator({
   // engine rejected and what Claude changed -- not just a spinner.
   const [progress, setProgress] = useState<string[]>([]);
   const route: AssistantRoute = routeProp ?? (onPropose ? 'api-key' : 'none');
-  const [briefCopied, setBriefCopied] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   // Keyed to the description it was made for, so editing the description
   // discards a pick that no longer applies.
@@ -247,8 +247,9 @@ export function UnitOpCreator({
         <div>
           <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>Unit Operation Creator</h2>
           <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: P.text.secondary }}>
-            Describe the equipment. The sub-agent designs it; the engine decides whether it is
-            physically real.
+            {route === 'claude-desktop'
+              ? 'Your MCP client designs it; the engine decides whether it is physically real.'
+              : 'Describe the equipment. Your AI model designs it; the engine decides whether it is physically real.'}
           </p>
         </div>
         {onClose && (
@@ -289,6 +290,9 @@ export function UnitOpCreator({
         </div>
       )}
 
+      {route === 'claude-desktop' ? (
+        <McpDesignGuide />
+      ) : (
       <div style={card}>
         <div style={labelStyle}>What is the unit operation?</div>
         <textarea
@@ -325,33 +329,6 @@ export function UnitOpCreator({
           >
             {busy ? 'Designing it…' : 'Ask AI to design it'}
           </button>
-        ) : route === 'claude-desktop' ? (
-          <div>
-          <button
-            type="button"
-            onClick={async () => {
-              await navigator.clipboard.writeText(claudeDesktopUnitOpPrompt(description));
-              setBriefCopied(true);
-              setTimeout(() => setBriefCopied(false), 2500);
-            }}
-            style={{
-              marginTop: 10,
-              background: P.jade[600],
-              color: P.text.inverse,
-              border: 'none',
-              borderRadius: draftingRadius.soft,
-              padding: '8px 16px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            {briefCopied ? 'Copied — paste it into your MCP client' : 'Copy design brief for your MCP client'}
-          </button>
-            <p style={{ margin: '8px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
-              Your MCP client designs it with the ProcessForge tools on your subscription. Paste the
-              contract it gives you below; the engine checks it here again before it can be added.
-            </p>
-          </div>
         ) : (
           <div>
             <p style={{ margin: '10px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
@@ -391,9 +368,15 @@ export function UnitOpCreator({
           </p>
         )}
       </div>
+      )}
 
-      <div style={card}>
-        <div style={labelStyle}>Proposed contract (JSON)</div>
+      <details
+        open={route !== 'claude-desktop' || draft.trim().length > 0}
+        style={{ ...card, padding: route === 'claude-desktop' ? '10px 14px' : 14 }}
+      >
+        <summary style={{ ...labelStyle, cursor: 'pointer', listStyle: route === 'claude-desktop' ? 'revert' : 'none', marginBottom: 6 }}>
+          {route === 'claude-desktop' ? 'Have the contract as JSON? Paste it to check it here' : 'Proposed contract (JSON)'}
+        </summary>
         <textarea
           value={draft}
           onChange={(e) => {
@@ -421,8 +404,10 @@ export function UnitOpCreator({
             Not valid JSON yet.
           </p>
         )}
-      </div>
+      </details>
 
+      {(route !== 'claude-desktop' || draft.trim().length > 0) && (
+      <>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <GateBadge state={gateState(reviewState, 'schema')} label="Schema" />
         <GateBadge state={gateState(reviewState, 'static')} label="References resolve" />
@@ -639,6 +624,8 @@ export function UnitOpCreator({
               : 'Blocked until every gate passes.'}
         </span>
       </div>
+      </>
+      )}
     </div>
   );
 }

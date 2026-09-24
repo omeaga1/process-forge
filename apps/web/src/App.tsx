@@ -24,6 +24,7 @@ import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModa
 import { StudioEntryGateModal } from './components/StudioEntryGateModal.js';
 import { initialViewMode, homeViewMode, isDesktopRuntime } from './runtime/desktop.js';
 import { contractToProcessNode } from './unitop/contractToNode.js';
+import { saveUnitOp } from '@process-forge/canvas-ui';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
 import { AccountModal } from './components/AccountModal.js';
@@ -319,6 +320,8 @@ const AppInner: React.FC = () => {
   const handleAcceptUnitOpContract = useCallback(
     (contract: Parameters<typeof contractToProcessNode>[0]) => {
       handleInsertCommunityNode(contractToProcessNode(contract));
+      // Kept in My unit ops, so it can be placed again in any project.
+      saveUnitOp(contract, 'designed');
       setIsUnitOpCreatorOpen(false);
     },
     [handleInsertCommunityNode]
