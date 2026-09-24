@@ -35,6 +35,8 @@ import { LandingPageHub } from './components/LandingPageHub.js';
 import { ProductLandingPage } from './components/ProductLandingPage.js';
 import { AccountProvider, useAccount } from './auth/useAccount.js';
 import { saveProjectToCloud } from './storage/cloudStorageAdapter.js';
+import { hasCloudSession } from './auth/accountManager.js';
+import type { CloudSaveStatus } from './components/HeaderBar.js';
 import { useAppUpdater } from './hooks/useAppUpdater.js';
 import { useMcpBridge } from './hooks/useMcpBridge.js';
 import { McpArrivalNotice } from './components/McpArrivalNotice.js';
@@ -64,7 +66,7 @@ function inferTemplateKeyFromProject(proj: SimulationProject): string {
 const AppInner: React.FC = () => {
   const updater = useAppUpdater();
   const assistantRoute = useAssistantRoute();
-  const { isAccountModalOpen, openAccountModal, closeAccountModal, isAuthenticated } = useAccount();
+  const { isAccountModalOpen, accountModalTab, openAccountModal, closeAccountModal, isAuthenticated, user } = useAccount();
   const [isEntryGateOpen, setIsEntryGateOpen] = useState<boolean>(false);
   const [isCloudProjectsModalOpen, setIsCloudProjectsModalOpen] = useState<boolean>(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
@@ -191,8 +193,56 @@ const AppInner: React.FC = () => {
     setProject(updated);
     saveLocalProject(updated);
     const result = await saveProjectToCloud(updated);
+    if (result.synced) {
+      setCloudSaved({ projectId: updated.id, graph: updated.graph, at: Date.now() });
+      setCloudSaveState({ saving: false });
+    }
     return { synced: result.synced, message: result.message };
   }, [project]);
+
+  // What the cloud holds: the graph last uploaded, so the header can say
+  // whether there are changes since.
+  const [cloudSaved, setCloudSaved] = useState<{ projectId: string; graph: ProcessGraph; at: number } | null>(null);
+  const [cloudSaveState, setCloudSaveState] = useState<{ saving: boolean; error?: string }>({ saving: false });
+
+  const handleQuickCloudSave = useCallback(async () => {
+    if (!hasCloudSession(user)) {
+      // Cloud copies are for Google accounts.
+      openAccountModal('google');
+      return;
+    }
+    const snapshot: SimulationProject = { ...project, isGuestProject: false, updatedAt: new Date().toISOString() };
+    setCloudSaveState({ saving: true });
+    const result = await saveProjectToCloud(snapshot);
+    if (result.synced) {
+      setCloudSaved({ projectId: snapshot.id, graph: project.graph, at: Date.now() });
+      setCloudSaveState({ saving: false });
+    } else {
+      setCloudSaveState({ saving: false, error: result.message });
+    }
+  }, [project, user, openAccountModal]);
+
+  const cloudSaveStatus: CloudSaveStatus = !hasCloudSession(user)
+    ? { kind: 'signed-out' }
+    : cloudSaveState.saving
+      ? { kind: 'saving' }
+      : cloudSaveState.error
+        ? { kind: 'error', message: cloudSaveState.error }
+        : cloudSaved && cloudSaved.projectId === project.id && cloudSaved.graph === project.graph
+          ? { kind: 'saved', at: cloudSaved.at }
+          : { kind: 'unsaved' };
+
+  // Ctrl+S saves to the cloud (the copy on this device saves itself on every edit).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (viewMode === 'studio') void handleQuickCloudSave();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleQuickCloudSave, viewMode]);
 
   const handleSelectCloudProject = useCallback((loaded: SimulationProject) => {
     setProject(loaded);
@@ -392,6 +442,8 @@ const AppInner: React.FC = () => {
             onOpenForgeHub={() => setIsCommunityLibraryOpen(true)}
             onOpenUnitOpCreator={() => setIsUnitOpCreatorOpen(true)}
             onOpenSaveModal={() => setIsSaveModalOpen(true)}
+            cloudSaveStatus={cloudSaveStatus}
+            onQuickCloudSave={() => void handleQuickCloudSave()}
             onOpenGuestModal={() => setIsGuestModalOpen(true)}
             onImportFile={handleImportFile}
             onOpenAccountModal={openAccountModal}
@@ -406,6 +458,7 @@ const AppInner: React.FC = () => {
             <ProcessCanvas
               graph={project.graph}
               onGraphChange={handleGraphChange}
+              historyKey={project.id}
               onDesignUnitOp={() => setIsUnitOpCreatorOpen(true)}
               isDockCollapsed={isDockCollapsed}
               onToggleDockCollapse={() => setIsDockCollapsed((prev) => !prev)}
@@ -508,6 +561,7 @@ const AppInner: React.FC = () => {
 
       <AccountModal
         isOpen={isAccountModalOpen}
+        initialTab={accountModalTab}
         onClose={closeAccountModal}
         onOpenCloudProjects={() => {
           closeAccountModal();

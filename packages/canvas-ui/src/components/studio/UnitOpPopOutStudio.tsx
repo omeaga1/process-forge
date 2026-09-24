@@ -19,7 +19,7 @@ import {
 } from '../../ai/aiModelManager.js';
 import { dispatchUnitOpMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, Network, KeyRound } from 'lucide-react';
+import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, Network, KeyRound, Copy, Trash2 } from 'lucide-react';
 import { draftingRadius } from '@process-forge/theme';
 
 interface UnitOpPopOutStudioProps {
@@ -36,6 +36,9 @@ interface UnitOpPopOutStudioProps {
   /** Ports of this node that have a pipe on them. */
   connectedPortIds?: ReadonlySet<string>;
   onPublishToForgeHub: (node: ProcessNode) => void;
+  /** Removes the unit and its streams (undo brings them back). */
+  onDelete?: (nodeId: string) => void;
+  onDuplicate?: (nodeId: string) => void;
   upstreamContext?: string;
   downstreamContext?: string;
 }
@@ -46,6 +49,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   node,
   isOpen,
   onClose,
+  onDelete,
+  onDuplicate,
   onUpdateConfig,
   onUpdateDressing,
   onUpdateShape,
@@ -83,6 +88,18 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   }, [node?.id]);
 
   if (!isOpen || !node) return null;
+
+  const headerIconButton: React.CSSProperties = {
+    background: 'none',
+    border: `1px solid ${OsakaJadePalette.border.default}`,
+    width: 30,
+    height: 30,
+    borderRadius: r.md,
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  };
 
   const config = node.config as Record<string, unknown>;
   const tabs: { id: StudioTab; label: string; Icon: React.ElementType }[] = [
@@ -236,8 +253,32 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           </div>
         </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {onDuplicate && (
+          <button
+            type="button"
+            onClick={() => onDuplicate(node.id)}
+            title="Duplicate this unit (Ctrl+D)"
+            aria-label="Duplicate unit"
+            style={headerIconButton}
+          >
+            <Copy size={14} color={OsakaJadePalette.text.secondary} />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(node.id)}
+            title="Delete this unit and its streams (Delete). Undo with Ctrl+Z."
+            aria-label="Delete unit"
+            style={headerIconButton}
+          >
+            <Trash2 size={14} color={OsakaJadePalette.text.secondary} />
+          </button>
+        )}
         <button
           onClick={onClose}
+          aria-label="Close"
           style={{
             background: 'none',
             border: `1px solid ${OsakaJadePalette.border.default}`,
@@ -255,6 +296,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         >
           <X size={15} color={OsakaJadePalette.text.secondary} />
         </button>
+        </div>
       </div>
 
       {/* Tabs. With an MCP client as the assistant there is no chat here: the

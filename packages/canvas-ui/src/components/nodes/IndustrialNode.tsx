@@ -25,7 +25,7 @@ const PAD = 18;
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { palette, machineVisuals, font, size, weight, radius: r, motion } = useTheme();
   const nodeData = data as unknown as CanvasNodeData;
-  const { processNode, state, instantaneousRate, bufferLevel, onOpenPopOutStudio } = nodeData;
+  const { processNode, state, instantaneousRate, bufferLevel } = nodeData;
   const [hovered, setHovered] = useState(false);
   const updateNodeInternals = useUpdateNodeInternals();
   const edges = useEdges();
@@ -72,10 +72,9 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
   return (
     <div
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpenPopOutStudio?.(id);
-      }}
+      // A click selects the unit (so Delete and Ctrl+D act on it) and the
+      // canvas's onNodeClick opens the studio: no handler here, since
+      // stopping the click would stop React Flow selecting it.
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       title={`${processNode.name}. Click to open the unit op studio.`}

@@ -143,3 +143,7 @@ code, pre, kbd {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--pf-scrollbar-hover);
 }
+
+/* Spinner for loading icons (lucide Loader2, RefreshCw). */
+@keyframes pf-spin { to { transform: rotate(360deg); } }
+.animate-spin { animation: pf-spin 0.9s linear infinite; }
