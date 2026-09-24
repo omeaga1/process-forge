@@ -48,7 +48,15 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
       .map((e) => byId.get(dir === 'in' ? e.sourceNodeId : e.targetNodeId))
       .filter((n): n is ProcessNode => Boolean(n));
 
-  const rate = formatRate(behavior.capacityPerMin);
+  const rate = formatRate(behavior.capacityPerMin, behavior.rateUnit);
+  const rateLabel =
+    behavior.capacityPerMin === null
+      ? 'no rate limit of its own'
+      : node.kind === 'BATCH_REACTOR'
+        ? 'average, batch after batch'
+        : behavior.rateUnit === 'gal'
+          ? 'most it can move'
+          : 'top rate, good units';
   const isBottleneck = bottleneckNodeId === node.id;
 
   const card: React.CSSProperties = {
@@ -197,7 +205,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
               <span style={{ fontSize: 13, color: palette.text.muted }}>{rate.per}</span>
             </div>
             <div style={{ fontSize: 11, color: palette.text.muted, marginTop: 4, lineHeight: 1.35 }}>
-              {behavior.capacityPerMin === null ? 'no rate in the simulation' : 'top rate, good units'}
+              {behavior.simulated ? rateLabel : 'no rate in the simulation'}
             </div>
           </div>
         </div>
@@ -212,12 +220,27 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
           <div style={heading}>In the simulation now</div>
           <div style={{ ...card, display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
             <div style={{ gridColumn: '1 / -1' }}>{chip(liveState.label, liveState.tone)}</div>
-            {[
-              { label: 'Made', value: live.unitsProduced },
-              { label: 'Scrapped', value: live.unitsScrapped },
-              { label: 'Waiting', value: live.bufferLevel },
-              { label: 'Average /min', value: Math.round(live.instantaneousRatePerMin * 10) / 10 }
-            ].map((s) => (
+            {(live.levelGallons !== undefined
+              ? [
+                  ...(node.kind === 'PUMP' ? [] : [{ label: 'Holding (gal)', value: Math.round(live.levelGallons) }]),
+                  ...(live.levelFraction !== undefined && node.kind !== 'PUMP'
+                    ? [{ label: 'Full', value: `${Math.round(live.levelFraction * 100)}%` }]
+                    : []),
+                  { label: 'Flowing out (gpm)', value: Math.round((live.flowGpm ?? 0) * 10) / 10 },
+                  ...(node.kind === 'BATCH_REACTOR'
+                    ? [
+                        { label: 'Batches done', value: live.unitsProduced },
+                        { label: 'Now', value: live.phase ? live.phase.charAt(0) + live.phase.slice(1).toLowerCase() : '—' }
+                      ]
+                    : [])
+                ]
+              : [
+                  { label: 'Made', value: live.unitsProduced },
+                  { label: 'Scrapped', value: live.unitsScrapped },
+                  { label: 'Waiting', value: live.bufferLevel },
+                  { label: 'Average /min', value: Math.round(live.instantaneousRatePerMin * 10) / 10 }
+                ]
+            ).map((s: { label: string; value: number | string }) => (
               <div key={s.label}>
                 <div style={{ fontFamily: font.mono, fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                   {s.value.toLocaleString()}

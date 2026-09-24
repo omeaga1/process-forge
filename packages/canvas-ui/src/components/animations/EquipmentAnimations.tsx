@@ -101,13 +101,19 @@ export const ReactorAnim: React.FC<{
   isRunning?: boolean;
   hasJacket?: boolean;
   agitatorType?: string;
+  /** Contents as a fraction of the batch, from the simulation; drawn at 60% without one. */
+  levelFraction?: number;
 }> = ({
   stroke = OsakaJadePalette.jade[400],
   bg = 'rgba(16, 185, 129, 0.08)',
   isRunning = true,
   hasJacket = true,
-  agitatorType = 'pitched_blade'
+  agitatorType = 'pitched_blade',
+  levelFraction
 }) => {
+  // The vessel's liquid region runs from y = 127 (empty) up to y = 30 (full).
+  const fraction = levelFraction === undefined ? 0.6 : Math.max(0, Math.min(1, levelFraction));
+  const liquidTop = 127 - fraction * 97;
   return (
     <svg viewBox="0 0 160 160" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
       {/* External Heating/Cooling Jacket if dressed */}
@@ -126,8 +132,12 @@ export const ReactorAnim: React.FC<{
       <rect x="30" y="25" width="100" height="105" rx="15" fill={bg} stroke={stroke} strokeWidth="2" />
 
       {/* Fluid level */}
-      <rect x="32" y="65" width="96" height="62" rx="4" fill="rgba(16, 185, 129, 0.22)" />
-      <path d="M 32 65 Q 80 58 128 65 Q 80 72 32 65" fill="rgba(45, 212, 191, 0.35)" />
+      {fraction > 0.005 && (
+        <>
+          <rect x="32" y={liquidTop} width="96" height={127 - liquidTop} rx="4" fill="rgba(16, 185, 129, 0.22)" style={{ transition: 'y 0.6s ease, height 0.6s ease' }} />
+          <path d={`M 32 ${liquidTop} Q 80 ${liquidTop - 7} 128 ${liquidTop} Q 80 ${liquidTop + 7} 32 ${liquidTop}`} fill="rgba(45, 212, 191, 0.35)" />
+        </>
+      )}
 
       {/* Agitator Motor */}
       <rect x="65" y="5" width="30" height="20" rx="4" fill={OsakaJadePalette.background.surfaceElevated} stroke={stroke} strokeWidth="1.5" />
@@ -335,7 +345,7 @@ export const TankAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
   isRunning = true,
   levelPercent = 70
 }) => {
-  const liquidHeight = Math.max(10, Math.min(80, (levelPercent / 100) * 80));
+  const liquidHeight = Math.max(0, Math.min(80, (levelPercent / 100) * 80));
   const liquidY = 105 - liquidHeight;
 
   return (
@@ -350,7 +360,7 @@ export const TankAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
         height={liquidHeight}
         rx="4"
         fill="rgba(16, 185, 129, 0.28)"
-        style={{ animation: isRunning ? 'pf-shimmer 3s ease-in-out infinite' : 'none' }}
+        style={{ animation: isRunning ? 'pf-shimmer 3s ease-in-out infinite' : 'none', transition: 'y 0.6s ease, height 0.6s ease' }}
       />
       {/* Liquid Top Wave Line */}
       <path
@@ -624,9 +634,11 @@ export interface UnitAnimProps {
   dressing?: UnitOpDressing;
   isRunning?: boolean;
   colorAccent?: string;
+  /** A tank's level or a reactor's contents, 0..1, from the simulation. */
+  levelFraction?: number;
 }
 
-export const UnitAnim: React.FC<UnitAnimProps> = ({ kind, dressing, isRunning = true, colorAccent }) => {
+export const UnitAnim: React.FC<UnitAnimProps> = ({ kind, dressing, isRunning = true, colorAccent, levelFraction }) => {
   const { palette } = useTheme();
   const OsakaJadePalette = palette;
   useEffect(() => {
@@ -656,12 +668,13 @@ export const UnitAnim: React.FC<UnitAnimProps> = ({ kind, dressing, isRunning = 
           isRunning={isRunning}
           hasJacket={internals?.hasJacket ?? true}
           agitatorType={internals?.agitatorType ?? 'pitched_blade'}
+          {...(levelFraction !== undefined ? { levelFraction } : {})}
         />
       );
 
     case 'SURGE_TANK':
     case 'tank':
-      return <TankAnim stroke={stroke} isRunning={isRunning} levelPercent={74} />;
+      return <TankAnim stroke={stroke} isRunning={isRunning} levelPercent={levelFraction === undefined ? 74 : levelFraction * 100} />;
 
     case 'SEPARATOR':
     case 'separator':

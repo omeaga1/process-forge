@@ -1,3 +1,4 @@
+import { bottleneckAdvice } from './bottleneckAdvice.js';
 import { validateProcessGraph, type ProcessGraph } from '@process-forge/protocol';
 import { SimulationEngine } from '@process-forge/simulation-core';
 import { AVAILABLE_TEMPLATES } from '../templates.js';
@@ -25,6 +26,8 @@ export interface SimulationResultPayload {
     scrapped: number;
     starvedSeconds: number;
     blockedSeconds: number;
+    /** Reactors, tanks, pumps: gallons in, out and held at the end. */
+    liquid?: { receivedGallons: number; deliveredGallons: number; levelGallons: number; batches?: number };
   }>;
   engineeringDiagnosis: string;
 }
@@ -61,11 +64,13 @@ export function executeSimulateLine(params: SimulateLineParams): SimulationResul
       produced: report?.unitsProduced ?? 0,
       scrapped: report?.unitsScrapped ?? 0,
       starvedSeconds: Math.round((report?.starvedTimeSeconds ?? 0) * 10) / 10,
-      blockedSeconds: Math.round((report?.blockedTimeSeconds ?? 0) * 10) / 10
+      blockedSeconds: Math.round((report?.blockedTimeSeconds ?? 0) * 10) / 10,
+      ...(report?.fluid ? { liquid: report.fluid } : {})
     };
   });
 
-  const diagnosis = `Simulation completed for ${duration} minutes. Identified primary line constraint at "${bottleneckName}" with maximum sustained processing capacity of ${validation.bottlenecks.maximumSystemThroughputUnitsPerMin} units/min. Upstream units accumulated backpressure while downstream units suffered from starvation. Recommended engineering action: size buffer accumulator or upgrade machine indexing speed.`;
+  const liquid = result.totalFluidDeliveredGallons > 0 ? ` ${result.totalFluidDeliveredGallons} gal of liquid left the line from units with no outlet.` : '';
+  const diagnosis = `Simulated ${duration} minutes: ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.${liquid} ${bottleneckAdvice(bottleneckNode, validation.bottlenecks.maximumSystemThroughputUnitsPerMin)}`;
 
   return {
     success: true,

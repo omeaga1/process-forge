@@ -4,6 +4,7 @@ import {
   type ProcessGraph,
   type ProcessNode
 } from '@process-forge/protocol';
+import { isFluidEdge } from '@process-forge/simulation-core';
 
 /**
  * What a unit does, in the terms the simulation engine actually uses.
@@ -20,8 +21,10 @@ export interface UnitBehavior {
   headline: string;
   /** How the engine models it, one fact per line. */
   details: string[];
-  /** Top rate in units per minute, as the engine would run it; null if not simulated. */
+  /** Top rate per minute, as the engine would run it; null if it has none. */
   capacityPerMin: number | null;
+  /** What the rate counts: whole units, or gallons of liquid. */
+  rateUnit?: 'units' | 'gal';
   /** Config keys the engine reads for this unit. Every other numeric key is inert. */
   engineKeys: string[];
   role: 'source' | 'inline' | 'end' | 'unconnected';
@@ -41,11 +44,12 @@ export function formatDuration(seconds: number): string {
   return `${round(seconds / 3600)} h`;
 }
 
-/** Units per minute as people say it: "48 /min", or "2 /h" for slow units. */
-export function formatRate(perMin: number | null): { value: string; per: string } {
+/** A rate as people say it: "48 /min", "2 /h" for slow units, "12 gal/min" for liquid. */
+export function formatRate(perMin: number | null, unit: 'units' | 'gal' = 'units'): { value: string; per: string } {
   if (perMin === null || !Number.isFinite(perMin)) return { value: '—', per: '' };
-  if (perMin > 0 && perMin < 1) return { value: round(perMin * 60), per: '/h' };
-  return { value: round(perMin), per: '/min' };
+  const prefix = unit === 'gal' ? ' gal' : '';
+  if (perMin > 0 && perMin < 1) return { value: round(perMin * 60), per: `${prefix}/h` };
+  return { value: round(perMin), per: `${prefix}/min` };
 }
 
 function round(v: number): string {
@@ -66,11 +70,28 @@ function roleOf(node: ProcessNode, graph: ProcessGraph): UnitBehavior['role'] {
 
 const NOT_SIMULATED =
   'The line simulation does not step this kind of unit yet: nothing passes through it, so its settings do not change the results. Whatever feeds it queues up and then backs up the line.';
+const NOT_SIMULATED_NO_PIPE =
+  'No liquid pipe connects to it, so nothing flows through it in the simulation and its settings do not change the results.';
+/** Kinds that pass liquid on when piped (the engine's fluid network, simulation-core/fluid.ts). */
+const PASS_THROUGH = new Set(['PUMP', 'HEAT_EXCHANGER', 'SEPARATOR', 'MIXER', 'DISTILLATION_COLUMN', 'SCRUBBER', 'SPRAY_CHAMBER', 'CUSTOM_UNIT_OP']);
+
+/** Names of the units on the other end of this unit's liquid pipes. */
+function liquidNeighbours(node: ProcessNode, graph: ProcessGraph, dir: 'in' | 'out'): string[] {
+  return graph.edges
+    .filter((e) => (dir === 'in' ? e.targetNodeId === node.id : e.sourceNodeId === node.id) && isFluidEdge(e, graph))
+    .map((e) => graph.nodes.find((n) => n.id === (dir === 'in' ? e.sourceNodeId : e.targetNodeId))?.name)
+    .filter((n): n is string => Boolean(n));
+}
+
+const list = (names: string[]) => (names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`);
 
 export function describeUnitBehavior(node: ProcessNode, graph: ProcessGraph): UnitBehavior {
   const c = node.config as Record<string, unknown>;
   const role = roleOf(node, graph);
   const leavesLine = role === 'end' || role === 'unconnected';
+  const feeds = liquidNeighbours(node, graph, 'in');
+  const sendsTo = liquidNeighbours(node, graph, 'out');
+  const onLiquidPath = feeds.length > 0 || sendsTo.length > 0;
 
   // ---- designed by contract ---------------------------------------------------
   if (c.contract !== undefined) {
@@ -108,8 +129,11 @@ export function describeUnitBehavior(node: ProcessNode, graph: ProcessGraph): Un
     if (b.mode === 'DISCRETE_CYCLE') {
       const isSource = role === 'source' || role === 'unconnected';
       const good = b.unitsPerCycle * (1 - b.scrapFraction);
+      const liquidFed = feeds.length > 0;
       const details = [
-        isSource
+        liquidFed
+          ? `Its liquid feed from ${list(feeds)} is not drawn down by the simulation: each cycle starts on its own.`
+          : isSource
           ? `Nothing feeds it, so it is a source: every cycle starts on its own.`
           : `Each cycle takes up to ${plural(b.unitsPerCycle, 'unit')} from its queue, and waits when the queue is empty.`,
         b.scrapFraction > 0
@@ -122,7 +146,7 @@ export function describeUnitBehavior(node: ProcessNode, graph: ProcessGraph): Un
       if (failing) details.unshift(`${plural(failing, 'check')} fail, so the simulation refuses to run this unit until they pass.`);
       return {
         simulated: failing === 0,
-        headline: `${isSource ? 'Makes' : 'Processes'} ${plural(b.unitsPerCycle, 'unit')} every ${formatDuration(b.cycleSeconds)}${
+        headline: `${isSource || liquidFed ? 'Makes' : 'Processes'} ${plural(b.unitsPerCycle, 'unit')} every ${formatDuration(b.cycleSeconds)}${
           good !== b.unitsPerCycle ? `, ${round(good)} good` : ''
         }.`,
         details,
@@ -159,19 +183,27 @@ export function describeUnitBehavior(node: ProcessNode, graph: ProcessGraph): Un
       const index = num(c.indexTimePerCycleSeconds, 2);
       const reject = num(c.rejectRatePercentage, 0.5);
       const cycle = fill + index;
+      const gallons = num(c.containerVolumeGallons, 1);
+      const pipeFed = feeds.length > 0;
       return {
         simulated: true,
         headline: `Fills ${plural(n, 'container')} every ${formatDuration(cycle)}.`,
         details: [
           `${formatDuration(fill)} filling and ${formatDuration(index)} indexing per cycle.`,
-          role === 'inline' || role === 'end'
-            ? 'It starts on its own: the fluid feed is drawn but not simulated, so the filler never waits for product.'
-            : 'It starts on its own, like every filler in the simulation.',
+          pipeFed
+            ? `Each cycle draws ${round(n * gallons)} gal from ${list(feeds)} (${plural(n, 'container')} of ${round(gallons)} gal), about ${round(((n * gallons) / cycle) * 60)} gal/min flat out. When the feed runs short, it waits.`
+            : 'No feed pipe, so it fills on its own and never waits for product.',
           `On ${round(reject)}% of cycles one container is rejected.`,
           leavesLine ? 'Nothing downstream: filled containers count as finished output.' : 'If the next unit is full, the filler stops until it has room.'
         ],
         capacityPerMin: (n / cycle) * 60 - ((reject / 100) * 60) / cycle,
-        engineKeys: ['nozzleCount', 'fillTimePerCycleSeconds', 'indexTimePerCycleSeconds', 'rejectRatePercentage'],
+        engineKeys: [
+          'nozzleCount',
+          'fillTimePerCycleSeconds',
+          'indexTimePerCycleSeconds',
+          'rejectRatePercentage',
+          ...(pipeFed ? ['containerVolumeGallons'] : [])
+        ],
         role
       };
     }
@@ -227,29 +259,98 @@ export function describeUnitBehavior(node: ProcessNode, graph: ProcessGraph): Un
         role
       };
     }
-    case 'SURGE_TANK': {
-      const cap = num(c.capacityGallons, 1000);
+    case 'BATCH_REACTOR': {
+      const batch = num(c.batchVolumeGallons, 800);
+      const fillMin = num(c.fillDurationMinutes, 15);
+      const reactMin = num(c.reactionDurationMinutes, 30);
+      const discharge = Math.max(1e-6, num(c.dischargeRateGpm, 50));
+      const dischargeMin = batch / discharge;
+      const cycleMin = fillMin + reactMin + dischargeMin;
       return {
-        simulated: false,
-        headline: `A buffer that holds up to ${round(cap)}.`,
+        simulated: true,
+        headline: `Makes ${round(batch)} gal batches, one every ${formatDuration(cycleMin * 60)}.`,
         details: [
-          'The simulation counts what the tank holds in units, not gallons.',
-          'It does not drain tanks yet: the tank fills, then holds back whatever feeds it.'
+          `${formatDuration(fillMin * 60)} filling, ${formatDuration(reactMin * 60)} reacting, then ${formatDuration(dischargeMin * 60)} discharging at ${round(discharge)} gpm.`,
+          feeds.length
+            ? `It fills from ${list(feeds)}, and waits when that runs dry.`
+            : 'No feed pipe, so it charges itself: the raw materials are not modelled.',
+          sendsTo.length
+            ? `It discharges to ${list(sendsTo)}; if that is full, the batch waits in the reactor.`
+            : 'Nothing downstream: each batch leaves the line when it discharges.',
+          `On average that is ${round(batch / cycleMin)} gal/min, however fast the discharge.`
         ],
-        capacityPerMin: null,
-        engineKeys: ['capacityGallons'],
+        capacityPerMin: batch / cycleMin,
+        rateUnit: 'gal',
+        engineKeys: ['batchVolumeGallons', 'fillDurationMinutes', 'reactionDurationMinutes', 'dischargeRateGpm'],
         role
       };
     }
-    default:
+    case 'SURGE_TANK': {
+      const cap = num(c.capacityGallons, 1000);
+      if (!onLiquidPath) {
+        return {
+          simulated: false,
+          headline: `A tank that holds up to ${round(cap)} gal.`,
+          details: ['No liquid pipe connects to it, so the simulation has nothing to put in it or take out.'],
+          capacityPerMin: null,
+          engineKeys: [],
+          role
+        };
+      }
+      const start = Math.min(cap, num(c.initialLevelGallons, 0));
+      const maxOut = num(c.maxDischargeRateGpm, 0);
       return {
-        simulated: false,
-        headline: designHeadline(node),
-        details: [NOT_SIMULATED],
-        capacityPerMin: null,
-        engineKeys: [],
+        simulated: true,
+        headline: `Holds up to ${round(cap)} gal, starting at ${round(start)} gal.`,
+        details: [
+          feeds.length ? `Fed by ${list(feeds)}.` : 'Nothing feeds it: it only drains what it starts with.',
+          sendsTo.length
+            ? `It sends to ${list(sendsTo)}${maxOut > 0 ? ` at up to ${round(maxOut)} gpm` : ''}.`
+            : 'Nothing downstream: it collects what reaches it.',
+          'Its level rises while it is fed faster than it drains, and falls otherwise. Full, it backs up what feeds it; empty, what it feeds waits.'
+        ],
+        capacityPerMin: sendsTo.length && maxOut > 0 ? maxOut : null,
+        rateUnit: 'gal',
+        engineKeys: ['capacityGallons', 'initialLevelGallons', 'maxDischargeRateGpm'],
         role
       };
+    }
+    default: {
+      if (!onLiquidPath || !PASS_THROUGH.has(node.kind)) {
+        return {
+          simulated: false,
+          headline: designHeadline(node),
+          details: [onLiquidPath ? NOT_SIMULATED : `${NOT_SIMULATED_NO_PIPE}`],
+          capacityPerMin: null,
+          engineKeys: [],
+          role
+        };
+      }
+      // Pumps, exchangers, separators and other process units pass liquid on.
+      const cap =
+        node.kind === 'PUMP' ? c.designFlowRateGpm : node.kind === 'HEAT_EXCHANGER' ? c.shellSideFlowGpm : node.kind === 'CUSTOM_UNIT_OP' ? c.designThroughput : undefined;
+      const capGpm = typeof cap === 'number' && cap > 0 ? cap : null;
+      const capKey = node.kind === 'PUMP' ? 'designFlowRateGpm' : node.kind === 'HEAT_EXCHANGER' ? 'shellSideFlowGpm' : node.kind === 'CUSTOM_UNIT_OP' ? 'designThroughput' : null;
+      const details = [
+        feeds.length ? `It passes on what reaches it from ${list(feeds)}, holding none.` : 'Nothing feeds it, so nothing flows through it.',
+        capGpm !== null ? `At most ${round(capGpm)} gpm, and only as fast as what is downstream takes it.` : 'It does not limit the flow itself: what is up- and downstream does.',
+        sendsTo.length ? `It sends to ${list(sendsTo)}.` : 'Nothing downstream: what passes through leaves the line.'
+      ];
+      if (node.kind === 'SEPARATOR') {
+        const ratio = Math.min(1, Math.max(0, num(c.vaporSplitRatio, 0.25)));
+        details.splice(1, 0, `It splits the flow: ${round(ratio * 100)}% to its first outlet (${node.outputs[0]?.name ?? 'overhead'}), ${round((1 - ratio) * 100)}% to the rest.`);
+      }
+      if (node.kind === 'HEAT_EXCHANGER') details.push('Its heat duty is recorded with the design; the line simulation moves the flow but does not model the heat.');
+      return {
+        simulated: true,
+        headline: node.kind === 'SEPARATOR' ? `Splits its feed by the vapor ratio.` : capGpm !== null ? `Moves up to ${round(capGpm)} gpm.` : `Passes liquid through.`,
+        details,
+        capacityPerMin: capGpm,
+        rateUnit: 'gal',
+        engineKeys: [...(capKey ? [capKey] : []), ...(node.kind === 'SEPARATOR' ? ['vaporSplitRatio'] : [])],
+        role
+      };
+    }
   }
 }
 

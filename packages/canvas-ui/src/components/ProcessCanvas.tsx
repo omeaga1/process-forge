@@ -87,6 +87,23 @@ function neighbourContext(graph: ProcessGraph, nodeId: string): { upstreamContex
   };
 }
 
+/** The liquid part of a unit's telemetry, for its node on the canvas. */
+function liquidOf(t: NodeTelemetrySnapshot | undefined): Partial<CanvasNodeData> {
+  if (!t || t.levelGallons === undefined) return { levelFraction: undefined, levelGallons: undefined, flowGpm: undefined, phase: undefined };
+  return {
+    levelFraction: t.levelFraction,
+    levelGallons: t.levelGallons,
+    flowGpm: t.flowGpm,
+    phase: t.phase
+  };
+}
+
+/** What a pipe carries now: gallons a minute for liquid, units a minute otherwise. */
+function flowOut(t: NodeTelemetrySnapshot | undefined): number {
+  if (!t) return 0;
+  return t.flowGpm ?? t.instantaneousRatePerMin;
+}
+
 /** Every toolbar button: one height, one type size, never wrapping. */
 const toolbarButton: React.CSSProperties = {
   display: 'inline-flex',
@@ -341,6 +358,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             unitsScrapped: snapshotByNode.get(pNode.id)?.unitsScrapped ?? 0,
             bufferLevel: snapshotByNode.get(pNode.id)?.bufferLevel ?? 0,
             instantaneousRate: snapshotByNode.get(pNode.id)?.instantaneousRatePerMin ?? 0,
+            ...liquidOf(snapshotByNode.get(pNode.id)),
             activeSubAgentId: pNode.assignedSubAgentId || `subagent-${pNode.id}`,
             subAgentChatHistory: [],
             onOpenPopOutStudio: (id: string) => setPopOutNodeId(id)
@@ -362,7 +380,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           processEdge: pEdge,
           // Blocked upstream, as the engine reports it.
           isBackpressureBlocked: snapshotByNode.get(pEdge.sourceNodeId)?.state === 'BLOCKED',
-          activeFlowRate: snapshotByNode.get(pEdge.sourceNodeId)?.instantaneousRatePerMin ?? 0
+          activeFlowRate: flowOut(snapshotByNode.get(pEdge.sourceNodeId))
         } satisfies CanvasEdgeData
       }))
     );
@@ -381,7 +399,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             unitsProduced: snapshotByNode.get(pNode.id)?.unitsProduced ?? 0,
             unitsScrapped: snapshotByNode.get(pNode.id)?.unitsScrapped ?? 0,
             bufferLevel: snapshotByNode.get(pNode.id)?.bufferLevel ?? 0,
-            instantaneousRate: snapshotByNode.get(pNode.id)?.instantaneousRatePerMin ?? 0
+            instantaneousRate: snapshotByNode.get(pNode.id)?.instantaneousRatePerMin ?? 0,
+            ...liquidOf(snapshotByNode.get(pNode.id))
           }
         };
       })
@@ -395,9 +414,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           isBackpressureBlocked:
             snapshotByNode.get((e.data as CanvasEdgeData).processEdge.sourceNodeId)?.state ===
             'BLOCKED',
-          activeFlowRate:
-            snapshotByNode.get((e.data as CanvasEdgeData).processEdge.sourceNodeId)
-              ?.instantaneousRatePerMin ?? 0
+          activeFlowRate: flowOut(snapshotByNode.get((e.data as CanvasEdgeData).processEdge.sourceNodeId))
         }
       }))
     );
@@ -495,15 +512,24 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   // first render (the field view or a loading state can come first), so an
   // effect that ran once found no element and never watched the width.
   const [compactToolbar, setCompactToolbar] = useState(false);
+  // Narrower still (the 1024 px window with the dock open): drop the status
+  // word and the unit count too; the dock shows both.
+  const [tightToolbar, setTightToolbar] = useState(false);
   const observerRef = useRef<ResizeObserver | null>(null);
   const canvasAreaRef = useCallback((el: HTMLDivElement | null) => {
     observerRef.current?.disconnect();
     observerRef.current = null;
     if (!el) return;
     // Measure now, so the first paint is right without waiting for the observer.
-    setCompactToolbar(el.getBoundingClientRect().width < 1060);
+    const w0 = el.getBoundingClientRect().width;
+    setCompactToolbar(w0 < 1060);
+    setTightToolbar(w0 < 820);
     if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(([entry]) => setCompactToolbar((entry?.contentRect.width ?? 1200) < 1060));
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry?.contentRect.width ?? 1200;
+      setCompactToolbar(w < 1060);
+      setTightToolbar(w < 820);
+    });
     ro.observe(el);
     observerRef.current = ro;
   }, []);
@@ -974,7 +1000,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                     border: `1.5px solid ${isRunning ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted}`
                   }}
                 />
-                <span style={{ minWidth: '7ch' }}>{isRunning ? 'Running' : 'Stopped'}</span>
+                {!tightToolbar && <span style={{ minWidth: '7ch' }}>{isRunning ? 'Running' : 'Stopped'}</span>}
               </span>
               {/* Fixed widths and tabular digits: the bar keeps its size as the counts climb. */}
               <span
@@ -984,6 +1010,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                 {Math.round(telemetry.averageRatePerMin)}
                 <span style={{ color: OsakaJadePalette.text.muted }}>/min</span>
               </span>
+              {!tightToolbar && (
               <span
                 title="Units finished"
                 style={{ fontFamily: font.mono, color: OsakaJadePalette.text.primary, minWidth: '11ch', fontVariantNumeric: 'tabular-nums' }}
@@ -991,6 +1018,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                 {telemetry.totalPackaged.toLocaleString()}
                 <span style={{ color: OsakaJadePalette.text.muted }}> units</span>
               </span>
+              )}
               {(() => {
                 // The unit that limits the line: from the run while there is
                 // one, from the static analysis before. Shown either way, so

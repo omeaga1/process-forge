@@ -68,9 +68,52 @@ $$\text{OEE} = \text{Availability} \times \text{Performance} \times \text{Qualit
 Theoretical speed is the filler's nozzle capacity or the labeler's maximum
 speed. Other units use a default of 40 units/min.
 
+## Liquid
+
+Reactors, tanks, pumps and the other process units carry liquid. The engine
+steps liquid once every simulated second (`packages/simulation-core/src/fluid.ts`).
+A pipe carries liquid when the port it leaves from is continuous. Each step has
+two passes:
+
+1. **Backward, in reverse flow order.** Each unit states how much it can take:
+   - a tank: its free space;
+   - a filling reactor: the rest of its batch, at $V_{batch}/t_{fill}$;
+   - a pipe-fed filler: its bowl, which holds two cycles' worth;
+   - a pump or other pass-through unit: its rate limit, capped by what the
+     units downstream of it can take.
+2. **Forward, in flow order.** Each unit offers what it can send:
+   - a discharging reactor: at its discharge rate;
+   - a tank: at up to its maximum discharge rate;
+   - a pump: whatever just reached it.
+
+   The offer is split among the unit's outlets without exceeding what each one
+   can take. A separator splits it by its vapor ratio.
+
+So a full tank backs up whatever feeds it, and an empty tank starves whatever
+it feeds.
+
+**Batch reactors.** A batch reactor cycles through filling, reacting for
+$t_{react}$, and then discharging. A reactor with no feed pipe fills itself,
+because its raw materials are not modelled. Its long-run rate is
+
+$$\frac{V_{batch}}{t_{fill} + t_{react} + V_{batch}/Q_{discharge}}$$
+
+**Pipe-fed fillers.** A pipe-fed filler draws $N_{nozzles} \times V_{container}$
+gallons at the start of each cycle, and waits while its bowl holds less than
+that. A filler with no feed pipe fills on its own.
+
+**Static bottleneck analysis.** The static analysis converts reactors, pumps
+and tank outlets into containers per minute: their gallons per minute divided
+by the container volume of the pipe-fed filler.
+
 ## Limits
 
-- Reactors, tanks and pumps are not stepped by the event loop. Tank levels are
-  not integrated over time, and the filler cycles as if it is always fed.
-- Machine breakdowns (MTBF/MTTR) are part of the filler schema but are not
-  simulated, so no unit enters the FAILED state and $T_{down}$ is zero.
+- **Heat exchangers:** heat duty is not modelled. A heat exchanger passes flow
+  up to its shell-side flow rate.
+- **Continuous designed units:** a designed continuous unit (CONTINUOUS_RATE)
+  is checked at steady state, but it does not limit the flow.
+- **Liquid-fed cycle units:** a designed cycle unit fed by a liquid pipe does
+  not draw the liquid down. It starts each cycle on its own.
+- **Breakdowns:** machine breakdowns (MTBF/MTTR) are part of the filler schema
+  but are not simulated, so no unit enters the FAILED state and $T_{down}$ is
+  zero.

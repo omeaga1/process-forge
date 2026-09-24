@@ -23,6 +23,8 @@ interface EquipmentFigureProps {
   kind: NodeKind | string;
   dressing?: UnitOpDressing;
   isRunning?: boolean;
+  /** A tank's level or a reactor's contents, 0..1, from the simulation. */
+  levelFraction?: number;
   /** Overrides the canvas width; the height always follows the drawing's proportions. */
   width?: number;
   /** Nozzles to draw as stubs with flanges. */
@@ -41,6 +43,7 @@ export const EquipmentFigure: React.FC<EquipmentFigureProps> = ({
   kind,
   dressing,
   isRunning = false,
+  levelFraction,
   width,
   stubs = [],
   stubScale = 1,
@@ -55,7 +58,13 @@ export const EquipmentFigure: React.FC<EquipmentFigureProps> = ({
   return (
     <div style={{ position: 'relative', width: w, height: h, flex: '0 0 auto', ...style }}>
       <div style={{ position: 'absolute', inset: 0 }}>
-        <UnitAnim kind={kind} dressing={dressing} isRunning={isRunning} colorAccent={dressing?.colorAccent} />
+        <UnitAnim
+          kind={kind}
+          dressing={dressing}
+          isRunning={isRunning}
+          colorAccent={dressing?.colorAccent}
+          {...(levelFraction !== undefined ? { levelFraction } : {})}
+        />
       </div>
       {stubs.length > 0 && (
         <svg
