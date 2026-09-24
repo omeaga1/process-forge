@@ -1,6 +1,6 @@
 [package]
 name = "process-forge-desktop"
-version = "0.1.20"
+version = "0.1.21"
 description = "ProcessForge Desktop native shell"
 authors = ["omeaga1"]
 license = "Apache-2.0"
