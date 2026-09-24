@@ -401,12 +401,11 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         <Zone n="03" title="Bring your own AI">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 0, border: RULE }}>
             <div style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
-              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>In the app, with a sign-in, a key, or a local model</div>
+              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>In the app, with OpenRouter</div>
               <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>
                 Chat about your flowsheet and design unit operations without leaving ProcessForge. Sign in
-                with OpenRouter to use Claude, GPT, Gemini and others on one account, paste a key from a
-                provider, or run a model locally in Ollama. A key stays on your device and is sent only to
-                its provider.
+                with OpenRouter once and use Claude, GPT, Gemini and others, paying as you go. Prefer your
+                own provider key, or a free local model in Ollama? Those are under Other options.
               </p>
             </div>
             <div style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>

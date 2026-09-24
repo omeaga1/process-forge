@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Server,
   ShieldCheck,
+  ChevronRight,
   Eye,
   EyeOff,
   Trash2,
@@ -38,14 +39,32 @@ import {
   type ConnectionTestResult
 } from '../../ai/aiModelManager.js';
 import { draftingRadius } from '@process-forge/theme';
-import { setAssistantRoute, useAssistantRoute, ROUTE_LABELS } from '../../ai/assistantRoute.js';
+import { setAssistantRoute, useAssistantRoute, getAssistantRoute, ROUTE_LABELS } from '../../ai/assistantRoute.js';
 import { signInWithOpenRouter } from '../../ai/openRouterAuth.js';
 
 export interface AiModelModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfigChanged?: (config: AiModelConfig) => void;
+  /** Shown once, the first time the studio opens with no AI set up. */
+  firstRun?: boolean;
 }
+
+/** The two ways ProcessForge is built to use AI; everything else is under "Other options". */
+const MAIN_CHOICES: { id: 'mcp' | 'openrouter'; title: string; best: string; detail: string }[] = [
+  {
+    id: 'mcp',
+    title: 'Claude Desktop (MCP)',
+    best: 'Best if you already pay for Claude',
+    detail: 'Chat in Claude Desktop or Cursor on your subscription, at no extra cost. It reads this flowsheet and adds the units it designs.'
+  },
+  {
+    id: 'openrouter',
+    title: 'OpenRouter',
+    best: 'Best for AI inside ProcessForge',
+    detail: 'Sign in once, pay as you go, and use Claude, GPT, Gemini and others right here in the app.'
+  }
+];
 
 interface ProviderMeta {
   id: LlmProvider | 'mcp';
@@ -146,7 +165,8 @@ const PROVIDERS: ProviderMeta[] = [
 export const AiModelModal: React.FC<AiModelModalProps> = ({
   isOpen,
   onClose,
-  onConfigChanged
+  onConfigChanged,
+  firstRun = false
 }) => {
   const { theme, palette, font } = useTheme();
   const route = useAssistantRoute();
@@ -162,13 +182,20 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
   const [purgeFeedback, setPurgeFeedback] = useState<boolean>(false);
   const [inputFocused, setInputFocused] = useState<boolean>(false);
   const [orSignIn, setOrSignIn] = useState<{ busy: boolean; error?: string }>({ busy: false });
+  const [showOther, setShowOther] = useState<boolean>(false);
+  const [showPasteKey, setShowPasteKey] = useState<boolean>(false);
 
   useEffect(() => {
     if (isOpen) {
       const loaded = getLlmCredentials();
       setCreds(loaded);
-      // Open on the provider in use; with no key saved yet, on Claude.
-      setActiveProvider(hasValidCredentials(loaded) ? loaded.provider : 'claude');
+      // Open on what is in use: the MCP client, a saved provider, or with
+      // nothing set up, the MCP choice (no extra cost for Claude subscribers).
+      const start: LlmProvider | 'mcp' =
+        getAssistantRoute() === 'claude-desktop' ? 'mcp' : hasValidCredentials(loaded) ? loaded.provider : 'mcp';
+      setActiveProvider(start);
+      setShowOther(start !== 'mcp' && start !== 'openrouter');
+      setShowPasteKey(false);
       setTestResult(null);
       setSaveFeedback(false);
     }
@@ -262,6 +289,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
       setSaveFeedback(true);
       setTimeout(() => setSaveFeedback(false), 2200);
       onConfigChanged?.({ provider: 'openrouter' as any, mode: 'openrouter' as any, modelId });
+      if (firstRun) onClose();
     } catch (err: any) {
       setOrSignIn({ busy: false, error: err?.message || String(err) });
     }
@@ -388,25 +416,10 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     letterSpacing: '-0.01em'
                   }}
                 >
-                  AI model
+                  {firstRun ? 'How do you want to use AI?' : 'AI model'}
                 </h2>
                 <span style={{ fontSize: 11, color: textMuted }} aria-live="polite">
                   Now: {ROUTE_LABELS[route]}
-                </span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    padding: '2px 7px',
-                    borderRadius: draftingRadius.sharp,
-                    backgroundColor: `${currentProviderMeta.accentColor}20`,
-                    color: currentProviderMeta.accentColor,
-                    border: `1px solid ${currentProviderMeta.accentColor}40`
-                  }}
-                >
-                  {currentProviderMeta.badge}
                 </span>
               </div>
               <p
@@ -416,7 +429,9 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   color: textMuted
                 }}
               >
-                API keys, OpenRouter sign-in, a local model, or an MCP client
+                {firstRun
+                  ? 'Pick one now or later. The engine checks every design either way.'
+                  : 'Claude Desktop over MCP, or OpenRouter in the app. Other options below.'}
               </p>
             </div>
           </div>
@@ -451,107 +466,123 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
           </button>
         </div>
 
-        {/* Provider Segmented Bar */}
+        {/* The two main choices, then the rest under "Other options". */}
         <div
           style={{
-            padding: '12px 24px 0 24px',
+            padding: '14px 24px 0 24px',
             background: isDark ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.02)'
           }}
         >
-          <div
-            role="tablist"
-            style={{
-              display: 'grid',
-              // Six routes: two even rows of three. This was 'repeat(5, 1fr)' from
-              // before OpenRouter, which left "MCP client" alone on a second row.
-              gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 4,
-              padding: 4,
-              borderRadius: draftingRadius.soft,
-              backgroundColor: cardBg,
-              border: `1px solid ${borderColor}`
-            }}
-          >
-            {PROVIDERS.map((tab) => {
-              const isSelected = activeProvider === tab.id;
-              const isActiveEngine = creds.provider === tab.id;
-              const hasKey = hasConfiguredKey(tab.id);
-              const Icon = tab.icon;
-
+          <div role="tablist" aria-label="How to use AI" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {MAIN_CHOICES.map((c) => {
+              const meta = PROVIDERS.find((p) => p.id === c.id)!;
+              const Icon = meta.icon;
+              const selected = activeProvider === c.id;
+              const inUse = c.id === 'mcp' ? route === 'claude-desktop' : route === 'api-key' && creds.provider === 'openrouter';
               return (
                 <button
-                  key={tab.id}
+                  key={c.id}
+                  type="button"
                   role="tab"
-                  aria-selected={isSelected}
-                  onClick={() => handleProviderSelect(tab.id)}
+                  aria-selected={selected}
+                  onClick={() => handleProviderSelect(c.id)}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '8px 4px',
+                    gap: 4,
+                    padding: '12px 14px',
+                    textAlign: 'left',
                     borderRadius: draftingRadius.soft,
-                    border: isSelected
-                      ? `1px solid ${tab.accentColor}50`
-                      : '1px solid transparent',
-                    backgroundColor: isSelected
-                      ? isDark
-                        ? 'rgba(255, 255, 255, 0.07)'
-                        : '#ffffff'
-                      : 'transparent',
-                    color: isSelected ? textColor : textMuted,
+                    border: `1.5px solid ${selected ? meta.accentColor : borderColor}`,
+                    backgroundColor: selected ? (isDark ? 'rgba(255, 255, 255, 0.06)' : '#ffffff') : cardBg,
+                    boxShadow: selected ? `0 0 0 3px ${meta.accentGlow}` : 'none',
+                    color: textColor,
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    position: 'relative'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)';
-                      e.currentTarget.style.color = textColor;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = textMuted;
-                    }
+                    transition: 'all 0.15s ease'
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Icon
-                      size={14}
-                      color={isSelected ? tab.accentColor : textMuted}
-                    />
-                    <span style={{ fontSize: 11, fontWeight: isSelected ? 700 : 500 }}>
-                      {tab.label.replace('Google ', '').replace('Anthropic ', '').replace('Local ', '')}
-                    </span>
-                    {/* Status dot */}
-                    {isActiveEngine && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Icon size={16} color={meta.accentColor} />
+                    <span style={{ fontSize: 14, fontWeight: 700 }}>{c.title}</span>
+                    {inUse && (
                       <span
-                        title="Active Engine"
                         style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          backgroundColor: '#10b981',
+                          marginLeft: 'auto',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '1px 7px',
+                          borderRadius: 999,
+                          color: '#10b981',
+                          backgroundColor: 'rgba(16, 185, 129, 0.14)'
                         }}
-                      />
+                      >
+                        In use
+                      </span>
                     )}
-                    {!isActiveEngine && hasKey && (
-                      <span
-                        title="Configured"
-                        style={{
-                          width: 5,
-                          height: 5,
-                          borderRadius: '50%',
-                          backgroundColor: textDim
-                        }}
-                      />
-                    )}
-                  </div>
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: meta.accentColor }}>{c.best}</span>
+                  <span style={{ fontSize: 12, color: textMuted, lineHeight: 1.45 }}>{c.detail}</span>
                 </button>
               );
             })}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: '10px 0 12px' }}>
+            <button
+              type="button"
+              onClick={() => setShowOther((v) => !v)}
+              aria-expanded={showOther}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                background: 'none',
+                border: 'none',
+                padding: '4px 0',
+                color: textMuted,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <ChevronRight size={13} style={{ transform: showOther ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }} />
+              Other options
+            </button>
+            {showOther &&
+              PROVIDERS.filter((p) => p.id !== 'mcp' && p.id !== 'openrouter').map((p) => {
+                const selected = activeProvider === p.id;
+                const Icon = p.icon;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    onClick={() => handleProviderSelect(p.id)}
+                    title={p.description}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      height: 28,
+                      padding: '0 10px',
+                      borderRadius: 999,
+                      border: `1px solid ${selected ? p.accentColor : borderColor}`,
+                      backgroundColor: selected ? (isDark ? 'rgba(255, 255, 255, 0.07)' : '#ffffff') : 'transparent',
+                      color: selected ? textColor : textMuted,
+                      fontSize: 12,
+                      fontWeight: selected ? 700 : 500,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Icon size={12} color={selected ? p.accentColor : textMuted} />
+                    {p.id === 'ollama' ? 'Local Ollama (free, offline)' : `${p.label.replace('Google ', '').replace('Anthropic ', '')} key`}
+                    {hasConfiguredKey(p.id) && (
+                      <span title="Set up" style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#10b981' }} />
+                    )}
+                  </button>
+                );
+              })}
           </div>
         </div>
 
@@ -647,12 +678,23 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     </div>
                   )}
                   <div style={{ fontSize: 11, color: textMuted, lineHeight: 1.45 }}>
-                    Or paste a key you created yourself. Either way, give it a spending limit in OpenRouter.
+                    Opens OpenRouter in your browser; approve there and you are set. Give the key a spending limit in
+                    your OpenRouter settings.{' '}
+                    {!showPasteKey && (
+                      <button
+                        type="button"
+                        onClick={() => setShowPasteKey(true)}
+                        style={{ background: 'none', border: 'none', padding: 0, color: currentProviderMeta.accentColor, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Paste a key instead
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* API Key Input Field */}
+              {(activeProvider !== 'openrouter' || showPasteKey) && (
               <div>
                 <div
                   style={{
@@ -786,6 +828,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   </button>
                 </div>
               </div>
+              )}
 
               {/* Model Selection Dropdown */}
               <div>
@@ -1157,6 +1200,37 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 {currentProviderMeta.description}
               </div>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setAssistantRoute(route === 'claude-desktop' ? 'none' : 'claude-desktop');
+                  if (firstRun && route !== 'claude-desktop') onClose();
+                }}
+                aria-pressed={route === 'claude-desktop'}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '10px 14px',
+                  borderRadius: draftingRadius.soft,
+                  border: route === 'claude-desktop' ? `1px solid ${borderColor}` : 'none',
+                  background: route === 'claude-desktop' ? 'transparent' : currentProviderMeta.accentColor,
+                  color: route === 'claude-desktop' ? textColor : '#ffffff',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {route === 'claude-desktop' ? (
+                  <>
+                    <Check size={14} /> Using your MCP client. Stop using it
+                  </>
+                ) : (
+                  'Use my MCP client as the assistant'
+                )}
+              </button>
+
               {/* One-click install for Claude Desktop (a .mcpb extension). */}
               <div
                 style={{
@@ -1169,7 +1243,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   gap: 10
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 700, color: textColor }}>Claude Desktop</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: textColor }}>Set up Claude Desktop (once)</div>
                 <a
                   href={CLAUDE_EXTENSION_URL}
                   target="_blank"
@@ -1179,10 +1253,11 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
-                    padding: '10px 14px',
+                    padding: '9px 14px',
                     borderRadius: draftingRadius.soft,
-                    background: currentProviderMeta.accentColor,
-                    color: '#ffffff',
+                    background: 'transparent',
+                    border: `1px solid ${currentProviderMeta.accentColor}`,
+                    color: currentProviderMeta.accentColor,
                     fontSize: 13,
                     fontWeight: 700,
                     textDecoration: 'none'
@@ -1276,26 +1351,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
 
               <p style={{ margin: 0, fontSize: 11, color: textDim, lineHeight: 1.4 }}>
                 Add this to the client's MCP configuration (in Claude Desktop: Settings, Developer, Edit
-                Config) and restart it. Then choose this route below.
+                Config) and restart it.
               </p>
-              <button
-                type="button"
-                onClick={() => setAssistantRoute(route === 'claude-desktop' ? 'none' : 'claude-desktop')}
-                aria-pressed={route === 'claude-desktop'}
-                style={{
-                  padding: '9px 14px',
-                  borderRadius: draftingRadius.soft,
-                  border: `1px solid ${borderColor}`,
-                  backgroundColor: route === 'claude-desktop' ? 'rgba(168, 85, 247, 0.18)' : 'transparent',
-                  color: textColor,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  alignSelf: 'flex-start'
-                }}
-              >
-                {route === 'claude-desktop' ? 'Using an MCP client — stop' : 'Use an MCP client as my assistant'}
-              </button>
             </div>
           )}
 
@@ -1375,6 +1432,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
             alignItems: 'center'
           }}
         >
+          {firstRun ? <span /> : (
           <button
             type="button"
             onClick={handlePurgeCredentials}
@@ -1401,14 +1459,19 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
             }}
           >
             <Trash2 size={12} />
-            <span>{purgeFeedback ? 'All Keys Cleared!' : 'Purge All Keys'}</span>
+            <span>{purgeFeedback ? 'All keys removed' : 'Remove all keys'}</span>
           </button>
+          )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 11, color: textDim }}>
-              Active Engine:{' '}
+              In use:{' '}
               <strong style={{ color: textColor }}>
-                {PROVIDERS.find((p) => p.id === creds.provider)?.label || 'Offline'}
+                {route === 'claude-desktop'
+                  ? 'MCP client'
+                  : route === 'api-key'
+                    ? PROVIDERS.find((p) => p.id === creds.provider)?.label ?? 'AI in the app'
+                    : 'nothing yet'}
               </strong>
             </span>
             <button
@@ -1432,7 +1495,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 e.currentTarget.style.backgroundColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
               }}
             >
-              Done
+              {firstRun ? 'Decide later' : 'Done'}
             </button>
           </div>
         </div>

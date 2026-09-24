@@ -135,6 +135,21 @@ const AppInner: React.FC = () => {
     setProject((prev) => ({ ...prev, name, updatedAt: new Date().toISOString() }));
   }, []);
 
+  // The first time the studio opens with no AI set up, ask once how to use
+  // it, rather than leaving people to find the AI model button.
+  const [isAiFirstRun, setIsAiFirstRun] = useState(false);
+  useEffect(() => {
+    if (viewMode !== 'studio' || assistantRoute !== 'none') return;
+    try {
+      if (localStorage.getItem('pf_ai_setup_asked')) return;
+      localStorage.setItem('pf_ai_setup_asked', new Date().toISOString());
+    } catch {
+      return;
+    }
+    setIsAiFirstRun(true);
+    setIsAiModalOpen(true);
+  }, [viewMode, assistantRoute]);
+
   const openProjectBrowser = useCallback(() => setIsProjectBrowserOpen(true), []);
   useProjectBrowserShortcut(openProjectBrowser, viewMode === 'studio');
 
@@ -279,7 +294,7 @@ const AppInner: React.FC = () => {
     // local Ollama model. The engine judges the result either way.
     if (!hasValidCredentials(creds)) {
       throw new Error(
-        'Add an API key in AI settings (Claude, GPT or Gemini), or connect a local Ollama model, to have AI design this. Or paste a contract below.'
+        'Set up AI to have it design this: sign in with OpenRouter under AI model, or ask Claude Desktop over MCP. Or paste a contract below.'
       );
     }
     const providerName = { claude: 'Claude', openai: 'GPT', gemini: 'Gemini', ollama: 'your local model', openrouter: 'your OpenRouter model' }[creds.provider] ?? creds.provider;
@@ -424,7 +439,11 @@ const AppInner: React.FC = () => {
       {/* Modals */}
       <AiModelModal
         isOpen={isAiModalOpen}
-        onClose={() => setIsAiModalOpen(false)}
+        firstRun={isAiFirstRun}
+        onClose={() => {
+          setIsAiModalOpen(false);
+          setIsAiFirstRun(false);
+        }}
         onConfigChanged={(cfg) => setAiConfig(cfg)}
       />
 
