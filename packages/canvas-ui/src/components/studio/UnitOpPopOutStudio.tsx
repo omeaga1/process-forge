@@ -19,7 +19,10 @@ import {
 } from '../../ai/aiModelManager.js';
 import { dispatchUnitOpMessage } from '../../ai/aiDispatch.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, Network, KeyRound, Copy, Trash2 } from 'lucide-react';
+import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, KeyRound, Copy, Trash2, Workflow } from 'lucide-react';
+import type { ProcessGraph } from '@process-forge/protocol';
+import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
+import { UnitOverviewPanel } from './UnitOverviewPanel.js';
 import { draftingRadius } from '@process-forge/theme';
 
 interface UnitOpPopOutStudioProps {
@@ -41,9 +44,16 @@ interface UnitOpPopOutStudioProps {
   onDuplicate?: (nodeId: string) => void;
   upstreamContext?: string;
   downstreamContext?: string;
+  /** The whole flowsheet, for what feeds this unit and what it feeds. */
+  graph?: ProcessGraph;
+  bottleneckNodeId?: string | null;
+  /** This unit at the simulation's playhead, when there is a run. */
+  live?: NodeTelemetrySnapshot | undefined;
+  /** Open a neighbouring unit from its name in the flow. */
+  onOpenUnit?: (nodeId: string) => void;
 }
 
-type StudioTab = 'CHAT' | 'PARAMETERS' | 'DRESSING' | 'SYSTEM_CONTEXT';
+type StudioTab = 'OVERVIEW' | 'CHAT' | 'PARAMETERS' | 'DRESSING';
 
 export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   node,
@@ -57,12 +67,16 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   connectedPortIds,
   onPublishToForgeHub,
   upstreamContext = 'Nothing feeds this unit: it is a source.',
-  downstreamContext = 'Nothing downstream: its output leaves the line.'
+  downstreamContext = 'Nothing downstream: its output leaves the line.',
+  graph,
+  bottleneckNodeId,
+  live,
+  onOpenUnit
 }) => {
   const { palette, radius: r } = useTheme();
   const OsakaJadePalette = palette;
   const route = useAssistantRoute();
-  const [activeTab, setActiveTab] = useState<StudioTab>('PARAMETERS');
+  const [activeTab, setActiveTab] = useState<StudioTab>('OVERVIEW');
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
@@ -103,12 +117,12 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
 
   const config = node.config as Record<string, unknown>;
   const tabs: { id: StudioTab; label: string; Icon: React.ElementType }[] = [
+    ...(graph ? [{ id: 'OVERVIEW' as const, label: 'How it works', Icon: Workflow }] : []),
     { id: 'PARAMETERS', label: 'Parameters', Icon: Sliders },
     { id: 'DRESSING', label: 'Drawing & nozzles', Icon: Palette },
-    ...(route === 'claude-desktop' ? [] : [{ id: 'CHAT' as const, label: 'Ask AI', Icon: MessageSquare }]),
-    { id: 'SYSTEM_CONTEXT', label: 'Connections', Icon: Network }
+    ...(route === 'claude-desktop' ? [] : [{ id: 'CHAT' as const, label: 'Ask AI', Icon: MessageSquare }])
   ];
-  const shownTab: StudioTab = tabs.some((t) => t.id === activeTab) ? activeTab : 'PARAMETERS';
+  const shownTab: StudioTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]!.id;
 
   const handleSendMessage = async (textToSend?: string) => {
     const message = textToSend || inputText;
@@ -215,37 +229,11 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Unit-Op Studio
+                {/* What this unit is: its kind, or "designed unit" for a contract. */}
+                {(node.config as { contract?: unknown }).contract !== undefined
+                  ? 'Designed unit op'
+                  : node.kind.replace(/_/g, ' ').toLowerCase()}
               </span>
-              <button
-                type="button"
-                onClick={() => setIsAiModalOpen(true)}
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  padding: '2px 8px',
-                  borderRadius: draftingRadius.sharp,
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  color: OsakaJadePalette.jade.glow,
-                  border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  cursor: 'pointer'
-                }}
-                title="Configure AI Model / Provider"
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: r.full,
-                    backgroundColor: lockStatus.unlocked ? OsakaJadePalette.jade.glow : OsakaJadePalette.streams.continuousFluid,
-                    display: 'inline-block'
-                  }}
-                />
-                <span>{lockStatus.unlocked ? (PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant') : 'Local Engine'}</span>
-              </button>
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
               {node.name}
@@ -659,21 +647,15 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       )}
 
       {/* Tab 4: Upstream/Downstream Boundary Context */}
-      {shownTab === 'SYSTEM_CONTEXT' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-            Upstream and downstream flowsheet boundary conditions:
-          </div>
-
-          <div style={{ backgroundColor: OsakaJadePalette.background.surface, padding: 12, borderRadius: 8, border: `1px solid ${OsakaJadePalette.border.default}` }}>
-            <div style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700 }}>UPSTREAM FEED CONTEXT</div>
-            <div style={{ fontSize: 13, marginTop: 4, fontWeight: 600 }}>{upstreamContext}</div>
-          </div>
-
-          <div style={{ backgroundColor: OsakaJadePalette.background.surface, padding: 12, borderRadius: 8, border: `1px solid ${OsakaJadePalette.border.default}` }}>
-            <div style={{ fontSize: 10, color: OsakaJadePalette.status.starved, fontWeight: 700 }}>DOWNSTREAM SINK CONTEXT</div>
-            <div style={{ fontSize: 13, marginTop: 4, fontWeight: 600 }}>{downstreamContext}</div>
-          </div>
+      {shownTab === 'OVERVIEW' && graph && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+          <UnitOverviewPanel
+            node={node}
+            graph={graph}
+            bottleneckNodeId={bottleneckNodeId ?? null}
+            live={live}
+            {...(onOpenUnit ? { onOpenUnit } : {})}
+          />
         </div>
       )}
 
