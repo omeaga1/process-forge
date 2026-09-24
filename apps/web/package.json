@@ -2,7 +2,7 @@
   "name": "@process-forge/web",
   "version": "0.1.0",
   "private": true,
-  "description": "ProcessForge interactive web studio for industrial process simulation and agent orchestration",
+  "description": "The ProcessForge studio web app (also bundled into the desktop app)",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -11,8 +11,7 @@
     "test": "tsc && node --test dist/__tests__/**/*.test.js",
     "preview": "vite preview",
     "deploy": "tsc && vite build && wrangler pages deploy dist --project-name process-forge",
-    "typecheck": "tsc --noEmit",
-    "lint": "echo \"Web app lint clean\""
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@process-forge/canvas-ui": "workspace:*",

@@ -25,10 +25,9 @@ interface InternalNodeRuntime {
   maxBuffer: number;
   /**
    * Finished units that could not leave because every downstream buffer was
-   * full. Kept apart from the input queue: the contract handler used to put
-   * held output back into bufferCans, where the next cycle processed -- and
-   * scrapped -- it a second time. (The filler has no input queue and still
-   * holds its output in bufferCans.)
+   * full. Kept apart from the input queue, so held output is not processed (and
+   * scrapped) a second time. (The filler has no input queue and holds its
+   * output in bufferCans.)
    */
   heldUnits: number;
   fluidLevelGallons: number;
@@ -162,11 +161,9 @@ export class SimulationEngine {
   /**
    * Adds the time since the last state change to the current state's bucket.
    *
-   * Split out of setNodeState so finalization can call it directly. Finalizing
-   * by transitioning every node to IDLE silently skipped any node already
-   * IDLE -- setNodeState returns early on an unchanged state -- so a node that
-   * was never activated ended the run with zero seconds in every bucket. That
-   * was hidden by reporting totalTime as Math.max(simTime, sum of buckets).
+   * Split out of setNodeState so finalization can call it directly:
+   * setNodeState returns early on an unchanged state, so a node that is IDLE
+   * all run would otherwise end with zero seconds in every bucket.
    */
   private creditElapsed(runtime: InternalNodeRuntime): void {
     const duration = this.currentTimeSeconds - runtime.stateStartTime;
@@ -527,10 +524,8 @@ export class SimulationEngine {
   /**
    * Gives a blocked node another chance to push its held output downstream,
    * and restarts it if everything got out.
-   *
-   * Previously a blocked node of a kind with no branch here -- a contract node
-   * -- was set BUSY with no event scheduled, so it accrued busy time forever
-   * while doing nothing.
+   * Every kind is handled, including contract nodes, so a node is never BUSY
+   * without an event scheduled.
    */
   private resumeBlocked(upstream: InternalNodeRuntime): void {
     const id = upstream.node.id;
@@ -608,8 +603,7 @@ export class SimulationEngine {
    * handler can overfill a buffer.
    *
    * With several outgoing edges, units are dealt round-robin to targets that
-   * have room. The engine used to take `edges.find()` -- the first edge -- so
-   * a second branch never received anything.
+   * have room.
    */
   private routeUnits(from: InternalNodeRuntime, count: number): number {
     const targets = this.downstreamRuntimes(from.node.id);

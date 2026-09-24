@@ -59,9 +59,9 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
         meanTimeToRepairMinutes: 12
       };
 
-      softwareEngineerResponse = `[Unit-Op Software Forge for ${unitName}]: Synthesized equipment configuration for ${containerVol}-gal viscous fluid filling (${viscosity} cP latex).
-1. Configured ${nozzleCount} active filling nozzles and calibrated default stroke dwell to ${recommendedConfig.fillTimePerCycleSeconds}s.
-2. Synthesized dynamic UI parameters below. You can adjust nozzle count and dimensions directly on the flowsheet canvas.`;
+      softwareEngineerResponse = `Preset for ${unitName}: configuration for ${containerVol}-gal viscous fluid filling (${viscosity} cP latex).
+1. ${nozzleCount} filling nozzles, fill time ${recommendedConfig.fillTimePerCycleSeconds}s per cycle.
+2. Parameter controls are below. You can adjust nozzle count and dimensions directly on the flowsheet canvas.`;
 
       generativeUiSchema = {
         widgetType: 'ROTARY_FILLER_INSPECTOR',
@@ -130,7 +130,7 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
         rejectChuteEnabled: true
       };
 
-      softwareEngineerResponse = `[Unit-Op Software Forge for ${unitName}]: Synthesized high-speed rotary labeler unit-op definition. Configured max rated speed at ${maxSpeed} units/min with vision rejection chute enabled. Ready for placement and refinement on the flowsheet.`;
+      softwareEngineerResponse = `Preset for ${unitName}: rotary labeler. Configured max rated speed at ${maxSpeed} units/min with vision rejection chute enabled. Ready for placement and refinement on the flowsheet.`;
 
       generativeUiSchema = {
         widgetType: 'LABELER_INSPECTOR',
@@ -168,7 +168,7 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
     }
 
     default: {
-      softwareEngineerResponse = `[Unit-Op Software Forge for ${unitName}]: Synthesized general unit operation definition (${machineType}) for inquiry "${inquiry}". Port boundaries and baseline parameters generated for flowsheet placement.`;
+      softwareEngineerResponse = `Preset for ${unitName}: a general ${machineType} with baseline ports and parameters, for "${inquiry}".`;
       generativeUiSchema = {
         widgetType: 'BOTTLENECK_ALERT_PANEL',
         nodeId: subAgentId,
@@ -213,7 +213,7 @@ export function executeQueryUnitSubAgent(params: QueryUnitSubAgentParams): UnitS
       kind: machineType,
       machineName: unitName
     });
-    softwareEngineerResponse += `\n\n[Equipment CAD Engine]: Synthesized vector CAD equipment drawing for ${unitName}. Shell & details generated with ${equipmentDrawing.nozzles.length} perimeter nozzles ready for flowsheet placement.`;
+    softwareEngineerResponse += `\n\nTemplate drawing for ${unitName}: ${equipmentDrawing.nozzles.length} nozzles.`;
   }
 
   return {

@@ -101,10 +101,9 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   }, [activeMode, onViewModeChange]);
 
   const [graph, setGraph] = useState<ProcessGraph>(externalGraph || SHERWIN_WILLIAMS_PAINT_LINE);
-  // Every edit goes through updateGraph. It used to call onGraphChange from
-  // inside setGraph's updater, which is a parent setState during a child's
-  // render ("Cannot update a component while rendering a different
-  // component") and runs twice under StrictMode.
+  // Every edit goes through updateGraph, which calls onGraphChange outside
+  // setGraph's updater (a parent setState inside it would run during a child's
+  // render, and twice under StrictMode).
   const graphRef = useRef(graph);
   graphRef.current = graph;
   const updateGraph = useCallback(
@@ -158,15 +157,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   /**
    * The engine's own result, and a playhead into the telemetry it recorded.
    *
-   * Playback replays what the engine computed. It previously animated a random
-   * walk -- `Math.floor(Math.random() * 3) + 2` units per tick with a rate
-   * pinned to `35 * simSpeed` -- which overwrote the real result within one
-   * interval and drifted further from it every tick. Per-node values were
-   * constants keyed to one demo graph's node ids, so every other flowsheet
-   * displayed another line's numbers.
-   *
-   * Nothing on this canvas is invented now: every figure comes from
-   * SimulationResult.
+   * Playback replays the telemetry the engine recorded; every figure on the
+   * canvas comes from SimulationResult.
    */
   const [simResult, setSimResult] = useState<SimulationResult | null>(null);
   const [playheadIndex, setPlayheadIndex] = useState(0);
@@ -259,8 +251,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         type: 'animatedStreamEdge',
         data: {
           processEdge: pEdge,
-          // Blocked upstream is a real state the engine reports, not a
-          // decoration pinned to one demo edge.
+          // Blocked upstream, as the engine reports it.
           isBackpressureBlocked: snapshotByNode.get(pEdge.sourceNodeId)?.state === 'BLOCKED',
           activeFlowRate: snapshotByNode.get(pEdge.sourceNodeId)?.instantaneousRatePerMin ?? 0
         } satisfies CanvasEdgeData
@@ -341,8 +332,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      // The stream type follows the port it leaves from. Every new connection
-      // used to be a 45 gpm liquid, so two conveyors were joined by "45 gpm".
+      // The stream type follows the port it leaves from (fluid or containers).
       const sourceNode = graphRef.current.nodes.find((n) => n.id === connection.source);
       const sourcePort =
         sourceNode?.outputs.find((p) => p.id === connection.sourceHandle) ?? sourceNode?.outputs[0];

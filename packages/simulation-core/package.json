@@ -10,8 +10,7 @@
   "scripts": {
     "build": "tsc",
     "test": "node --test dist/__tests__/**/*.test.js",
-    "typecheck": "tsc --noEmit",
-    "lint": "echo \"Simulation core lint clean\""
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@process-forge/protocol": "workspace:*"

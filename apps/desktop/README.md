@@ -1,30 +1,46 @@
 # @process-forge/desktop
 
-The native desktop distribution shell for **ProcessForge**, built with **Tauri v2** and Rust.
+The ProcessForge desktop app: a Tauri v2 shell around the `apps/web` build.
+The studio code is the same as on the web; this package adds native pieces in
+Rust (`src-tauri/src`):
 
----
+- **Keychain** (`main.rs`): `save_secure_token`, `get_secure_token` and
+  `delete_secure_token` store secrets such as model API keys in the OS
+  credential store (Windows Credential Manager, macOS Keychain, Linux Secret
+  Service) using the `keyring` crate.
+- **Updater** (`main.rs`): `check_for_updates` and `install_and_restart_update`
+  use `tauri-plugin-updater` against the `latest.json` published with each
+  GitHub release.
+- **OAuth loopback** (`oauth_loopback.rs`): Google and OpenRouter sign-in open
+  the system browser and receive the redirect on a one-shot listener on
+  `127.0.0.1`.
+- **MCP bridge** (`mcp_bridge.rs`): a listener on `127.0.0.1` with a
+  per-launch token, so the MCP server can read the open flowsheet and add unit
+  ops to it. See [packages/mcp-server/README.md](../../packages/mcp-server/README.md).
 
-## Architectural Highlights
-
-1. **Lightweight Native Binary (<20MB):** Uses the OS webview rather than an embedded Chromium instance, reducing memory consumption by 85% compared to Electron.
-2. **Zero Raw API Keys (OS Keychain Integration):** All enterprise OAuth tokens, SSO keys, and session identities are stored directly in the OS-native vault via `keyring-rs`:
-   - **Windows:** DPAPI & Windows Credential Manager
-   - **macOS:** Apple Keychain
-   - **Linux:** Secret Service API / FreeDesktop `libsecret`
-3. **100% Offline & Air-Gapped Operation:** All physical flow calculations and discrete queue events are executed on-device by the embedded WebAssembly/Rust engine. Zero telemetry egress is required.
-
----
+The window's Content-Security-Policy is `app.security.csp` in
+`src-tauri/tauri.conf.json`.
 
 ## Development
 
+Requires Rust and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
+for your OS.
+
 ```bash
-# Start frontend and Tauri development window
-pnpm --filter @process-forge/desktop tauri dev
+# from the repository root
+pnpm install
+pnpm run build
+pnpm --filter @process-forge/desktop tauri dev   # starts the web dev server and the app window
 ```
 
-## Production Packaging
+## Building installers
+
+The installer bundles `apps/web/dist`, so build the web app first:
 
 ```bash
-# Build standalone native installer (.exe / .msi on Windows, .dmg on macOS, .AppImage on Linux)
+pnpm --filter @process-forge/web build
 pnpm --filter @process-forge/desktop tauri build
 ```
+
+Releases are built by CI when a `v*` tag is pushed. See
+[docs/ops/desktop-releases.md](../../docs/ops/desktop-releases.md).

@@ -1,19 +1,8 @@
 name: Deploy Web Studio to Cloudflare Pages
 
-# WHY THIS EXISTS
-#
-# Cloudflare's own Git-connected build failed on every commit it attempted, and
-# wrangler exposes neither the build configuration nor the build log, so the
-# cause was not diagnosable from outside the dashboard.
-#
-# Rather than keep guessing at an opaque build environment, the build moves here
-# -- to the same steps that already run green on every push in
-# ci-simulation-test.yml. Cloudflare then receives a finished directory and does
-# not build anything.
-#
-# That is better regardless of what was wrong: the deploy now uses the exact
-# Node version, package manager and build ordering the tests use, so a green CI
-# run and a good deploy cannot disagree.
+# Builds the web studio here, with the same Node version, package manager and
+# build order as CI, and uploads the finished directory to Cloudflare Pages
+# (which builds nothing itself). See docs/ops/cloudflare-pages.md.
 
 on:
   push:

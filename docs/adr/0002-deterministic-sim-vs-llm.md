@@ -1,22 +1,34 @@
-# ADR-0002: Decoupling Deterministic Simulation from LLM Inference
+# ADR-0002: AI writes configuration; a deterministic engine does the math
 
 * **Status:** Accepted
 * **Date:** 2026-09-12
-* **Deciders:** Lead Systems Architect, Orchestration Engineer
+* **Deciders:** maintainer
 
 ## Context
-Industrial process simulations must be physically rigorous, mathematically conserved ($\sum \text{Mass}_{in} = \sum \text{Mass}_{out}$), and capable of running millions of event ticks across 24-hour manufacturing shifts in seconds. Large Language Models are probabilistic token predictors that hallucinate values, accumulate floating-point drift, and take hundreds of milliseconds per token generation.
+
+A simulation must give the same answer every time for the same inputs, and
+its numbers must come from equations that can be inspected. Language models
+are useful for turning a description into a configuration, but they are not
+reliable at arithmetic and their output varies between calls.
 
 ## Decision
-We strictly decouple the role of AI from the execution of simulation math:
-1. **AI Role:** Generative synthesis, natural language translation, machine configuration parameter estimation, CopilotKit dynamic UI generation, and root-cause bottleneck diagnosis.
-2. **Engine Role:** A high-speed, deterministic **Discrete-Event Simulation (DES) & Continuous Flow Engine** ([`@process-forge/simulation-core`](../../packages/simulation-core/README.md)) running natively in Rust/Wasm and strict TypeScript.
+
+Keep the model out of the simulation loop.
+
+1. **AI role:** turn an engineer's description into data: a unit-op contract
+   (parameters, derived-value expressions, constraints, behavior, drawing), or
+   parameter suggestions for a standard unit.
+2. **Engine role:** [`@process-forge/simulation-core`](../../packages/simulation-core/README.md),
+   a TypeScript discrete-event engine, runs the flowsheet. Contract expressions
+   are evaluated by a restricted evaluator in `@process-forge/protocol`, not by
+   the model.
+3. The engine, not the model, decides whether a contract is accepted.
 
 ## Consequences
-### Positive
-- Simulation runs at >10,000x real-time speed (<10ms for a 30-minute factory run).
-- 100% deterministic reproducibility with fixed random seeds.
-- Zero risk of hallucinated calculus or violated conservation laws.
 
-### Trade-offs
-- Machine types must have well-defined configuration contracts in `@process-forge/protocol`.
+- Runs are reproducible: the engine uses a seeded random number generator and
+  reports the seed with each result.
+- A model can still write a physically wrong contract. The constraint checks
+  catch what the contract declares, not everything.
+- Every machine type needs a well-defined configuration schema in
+  `@process-forge/protocol`.

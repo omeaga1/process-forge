@@ -1,12 +1,9 @@
 /**
  * Priority queue backed by a binary min-heap for deterministic discrete-event scheduling.
  *
- * Entries are ordered by (priority, insertion sequence). Without the sequence,
- * events at the same timestamp came out in whatever order the heap's shape
- * happened to leave them -- deterministic for a given run, but not FIFO, and
- * it changed whenever an unrelated event was added. For a discrete-event
- * simulation, "these happened at the same instant" must resolve in the order
- * they were scheduled. See docs/audit/02-engine.md §1.
+ * Entries are ordered by (priority, insertion sequence), so events at the same
+ * instant come out in the order they were scheduled (FIFO) rather than in
+ * whatever order the heap's shape leaves them.
  */
 interface Entry<T> {
   priority: number;

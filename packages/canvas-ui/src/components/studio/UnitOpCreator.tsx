@@ -23,12 +23,8 @@ const D = drafting('dark');
  * not exist yet, a sub-agent designs it, and the ENGINE decides whether it is
  * real before it is allowed onto the canvas.
  *
- * The important property of this panel is that nothing it shows is decorative.
  * Every derived number comes from evaluateUnitOp(), and every pass/fail badge
- * is a constraint the engine actually evaluated. There is no place in this
- * component where a validation result is written by hand -- which is the
- * failure mode the audit found in the previous sub-agent surface, where a
- * `status: 'PASS'` badge was a string literal.
+ * is a check the engine actually ran; no result is written by hand.
  *
  * Contract authoring is injected via `onPropose`. The desktop and web apps wire
  * it to authorUnitOpContract (ai/unitOpAuthor.ts): Claude, on the engineer's
@@ -612,9 +608,8 @@ export function UnitOpCreator({
           onClick={() => {
             const contract = reviewState.contract;
             if (!contract) return;
-            // Add the design the gates actually passed: with the engineer's
-            // "what if?" edits folded in. It used to add the original values,
-            // which had not necessarily passed.
+            // Add the design the gates actually passed, with the engineer's
+            // "what if?" edits folded in.
             onAccept({
               ...contract,
               parameters: contract.parameters.map((p) =>

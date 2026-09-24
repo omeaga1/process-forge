@@ -1,11 +1,6 @@
 # Plan 0001: A Decision Layer for the Unit-Op Sub-Agents
 
-* **Status:** In progress. The interface and the heuristic provider are in
-  place, and all four seams are wired to it: drawing requests (PR #21),
-  creation and equipment kind (PR #22), and the drawing template (seam 4).
-  Every seam now reports a tie as a tie rather than taking the first match. The
-  Jev provider and the fixture harness are built but not wired in; measuring
-  Jev needs an API key, and where that key lives is still §8.2. See Appendix B.
+* **Status:** In progress. See [Status](#status) at the end.
 * **Date:** 2026-09-22
 * **Scope:** `@process-forge/protocol`, `@process-forge/canvas-ui`, `@process-forge/mcp-server`
 * **Relates to:** [ADR-0002](../adr/0002-deterministic-sim-vs-llm.md), [ADR-0005](../adr/0005-zero-raw-keys-and-agent-driven-packages.md), [ADR-0006](../adr/0006-model-context-protocol-mcp.md)
@@ -324,7 +319,7 @@ wrapper." The `DecisionProvider` split makes Jev optional, which softens the
 conflict but does not dissolve it. Someone has to decide between:
 
 * **(a)** a fifth entry in `LlmProvider`, accepting an explicit ADR-0005 carve-out;
-* **(b)** routing through a ForgeHub-side proxy, which reintroduces a middleman;
+* **(b)** routing through the cloud API worker as a proxy, which reintroduces a middleman;
 * **(c)** shipping it disabled and letting only self-hosters turn it on.
 
 ### 8.3 The MCP server has never performed inference
@@ -366,169 +361,51 @@ a home for the fixtures. And promoting the eight equipment families from an
 
 ---
 
-## Appendix A — Verification (2026-09-22)
+## Status
 
-§8.1 makes reading the real Jev documentation a hard gate before any
-implementation. This appendix records the result of running that gate, and of
-checking §2's claims against the source.
+As of 2026-09-22.
 
-### A.1 Jev exists, and §3 describes it accurately
+**Built**
 
-Released 2026-09-15 by TypeSafe AI. The three primitives are as described —
-Noul, Choice, Score — questions in one request are evaluated in parallel, and
-published pricing is $0.042 per million input tokens with output unmetered.
-Reported latency is 70–500 ms end to end.
+- The `DecisionProvider` interface and the heuristic provider
+  (`packages/protocol/src/decisions`). The interface is batch-shaped: `ask()`
+  takes every question at once and returns every answer, matching the Jev API.
+  §5.1 shows an earlier per-question shape.
+- All four seams in §2 go through the heuristic provider, and each reports a
+  tie as a tie instead of taking the first match. Template selection returns
+  `decided: false` with the alternatives, and `forge_equipment_drawing`
+  accepts a `templateFamily` to resolve it.
+- `JevDecisionProvider` (`decisions/jev.ts`): batched, with a timeout and a
+  fall-through to the heuristic on error, timeout or an unknown option. It
+  takes a transport, so it does not decide where the key lives.
+- `ROUTING_FIXTURES` (`decisions/fixtures.ts`): 36 phrasings across the four
+  seams, 12 of them marked hard (paraphrase, politeness, negation).
+- `packages/protocol/scripts/measure-decisions.mjs`: scores the heuristic, and
+  Jev when `TYPESAFE_API_KEY` is set, and lists the cases where they differ.
 
-### A.2 The real API shape, which §5.1 does not match
+**Baseline:** the heuristic passes 25 of 36 fixtures and 1 of the 12 hard ones.
+The non-hard cases are pinned in CI.
 
-From the Cloudflare model documentation (`typesafe/jev`), a request carries
-**all questions at once**, keyed:
+**Not built**
 
-```json
-{
-  "state": "string or object",
-  "questions": {
-    "equipment_family": {
-      "type": "choice",
-      "instructions": "...",
-      "criteria": { "column": "...", "reactor": "..." }
-    }
-  }
-}
-```
+- The Jev provider is not wired into the app or the MCP server.
+- Jev has not been measured against the fixtures (needs an API key).
+- §8.2 is still open. The app now accepts user API keys, so option (a) no
+  longer conflicts with ADR-0005, which is superseded; the question is only
+  whether to offer it.
 
-and the response returns them together:
+**Facts checked since §8.1 was written**
 
-```json
-{
-  "model": "jev-1.13.0",
-  "answers": { "equipment_family": { "type": "choice", "choice": "column",
-               "confidence": 0.8, "probabilities": { } } },
-  "usage": { "input_tokens": 0, "output_tokens": 0 }
-}
-```
+- The endpoint is `POST https://api.typesafe.ai/v1/systemone` with a bearer
+  key; there is an npm SDK, `@typesafe-ai/sdk`. Browser (CORS) access is not
+  documented and should be assumed unsupported until tested.
+- Two details in §2 were wrong: the count of `.includes()` tests (92 in source,
+  excluding tests), and the "10 inch nozzle" example, which renders the generic
+  fallback. The tray bug was real in a different form: "distillation column
+  with a 10 inch nozzle" rendered a 10-tray column, and "absorption column
+  with 6 trays" rendered a packed column because the packing test ran first.
+  Both are fixed in `equipmentCadEngine.ts`: a tray count must be a count of
+  trays, and an explicit count outranks a packing keyword.
 
-Context window is 32,000 tokens. No documented ceiling on question count.
-
-**This contradicts the `DecisionProvider` interface in §5.1.** That interface is
-per-question — `choice()`, `noul()` and `score()` each take a state and return
-one answer. Called against the real API it would issue N round trips for N
-questions, which:
-
-- forfeits the parallel evaluation that is Jev's central advantage, and
-- re-sends the state N times, so a 500-token state asked four questions costs
-  4× what the batched form costs.
-
-The interface should be batch-shaped to match:
-
-```ts
-ask<Q extends QuestionSet>(state: DecisionState, questions: Q): Promise<AnswersFor<Q>>;
-```
-
-with the per-question helpers kept as thin conveniences over a single-entry
-batch. The heuristic provider satisfies the same signature trivially.
-
-### A.3 §2 claims, checked against the source
-
-| Claim | Result |
-|---|---|
-| `isCadRequest` is twelve OR'd substring tests including bare `reactor`, `tank`, `column` (`aiDispatch.ts:80`) | **Confirmed** — exactly twelve |
-| "the reactor feed pump is fine, don't change anything" trips CAD synthesis | **Confirmed** — the string contains `reactor` |
-| Kind ladder tests `pump` before `reactor` (`aiDispatch.ts:419`) | **Confirmed** — "add a reactor with a feed pump" yields `PUMP` |
-| `trayCount` reads a bare `'10'` out of the prompt (`equipmentCadEngine.ts:51`) | **Confirmed** — the line is as quoted |
-| "135 `.includes()` tests across the source packages" | **Wrong.** 92 excluding tests and dist; 195 including tests. Neither figure is 135 |
-| "add a 10 inch nozzle" renders a ten-tray column | **Wrong.** It renders the generic Custom Unit fallback — the column family requires `distill`/`fractionat`/`column`/`tower` to match first |
-
-The tray bug is real, but its trigger is worse than the one given, because the
-prompt that trips it is one an engineer would actually write:
-
-```
-"distillation column with a 10 inch nozzle"  ->  Distillation Column, 10 trays
-```
-
-### A.4 A further bug in the same function, not in §2
-
-```
-"absorption column with 6 trays"  ->  Packed Absorption Column, packing cross-hatching
-```
-
-`isPacked` is tested before the tray count is used, and `absorption` sets it. An
-explicit, unambiguous "6 trays" is discarded in favour of packing. This is the
-same class of defect and belongs in the motivation.
-
-### A.5 Recommendation
-
-The motivation survives verification. Two figures in §2 need correcting and one
-example needs replacing, but the defects they point at are real and one is worse
-than stated.
-
-The decision layer is worth building **for the interface alone**, before any
-provider question is settled: it turns four unnamed branch points into declared
-questions with fixtures, which is what makes them testable at all. §4's own
-framing is right — the `includes()` ladder can be tested but cannot be improved,
-because every fix is one more substring that breaks a neighbouring case.
-
-Recommended sequencing change: build the batch-shaped interface and the
-heuristic provider first and ship that on its own. It requires no network, no
-key, and no new dependency, and it is independently valuable. Treat the Jev
-provider as a second, separable change once the seams have fixtures to be
-measured against.
-
----
-
-## Appendix B — Phase 3 built, Phase 4 waiting on a key (2026-09-22)
-
-### B.1 Correction to A.2
-
-A.2 described Jev as a Cloudflare Workers AI model (`typesafe/jev`). **That was
-wrong.** Neither this account's Workers AI catalog nor Cloudflare's public model
-list contains it. Jev is TypeSafe's own endpoint (docs.typesafe.ai/api):
-
-    POST https://api.typesafe.ai/v1/systemone
-    Authorization: Bearer <key>
-    { "model": "jev-latest", "state": ..., "questions": { key: { type, instructions, criteria } } }
-
-The request and response shapes A.2 gave are otherwise right, and match the
-`DecisionProvider` question types field for field: choice criteria as an
-option → description map (up to 255 options), score criteria as an ordered
-array, noul criteria as `{ true, false }`. A noul answer carries no confidence;
-ours is defined as distance from 0.5, the same as the heuristic's.
-
-§8.1 is partly answered: there is an npm SDK (`@typesafe-ai/sdk`) and a plain
-HTTP contract. The docs say nothing about browser origins, so direct browser
-calls should be assumed unsupported until tested.
-
-### B.2 What exists
-
-- `JevDecisionProvider` (`packages/protocol/src/decisions/jev.ts`): batched,
-  timeout (default 1.5 s), heuristic fall-through on error, timeout, or any
-  answer that names an option the question does not have; session memo.
-  It takes a **transport**, so §8.2 can be answered either way without
-  changing it. **It is not wired into the app.**
-- `ROUTING_FIXTURES` and `scoreProvider` (`decisions/fixtures.ts`): 36 phrasings
-  across the four seams, 12 marked hard (paraphrase, politeness, negation).
-- `scripts/measure-decisions.mjs`: scores the heuristic, and Jev when
-  `TYPESAFE_API_KEY` is set, and lists every case they disagree on.
-
-### B.3 Baseline
-
-| Provider | All | Hard |
-|---|---|---|
-| heuristic (keyword rules) | 25/36 | **1/12** |
-| Jev | not yet measured | not yet measured |
-
-The non-hard cases all pass; that is pinned in CI. The hard ones are the case
-for a decision model: "could you add a pump after the tank?", "don't add a
-pump", "something to cool the product stream", "a tall vessel with trays for
-splitting light and heavy ends". Each is a phrasing the keyword rules either
-miss or get backwards.
-
-### B.4 Still open
-
-- **§8.2 — where the key lives.** Options, given what now exists: (a) a key in
-  the desktop OS keychain, which now works (PR #27), for self-hosters; (b) the
-  cloud Worker holds one key and answers for signed-in users, which puts the
-  cost on the project and makes the Worker a middleman; (c) off entirely.
-- **Phase 4 measurement.** Needs one run of the script with a key. Proceed to
-  wiring a seam only if Jev clearly beats 1/12 on the hard cases without
-  losing any of the 24 others.
+Next step: run the measurement script with a key. Wire Jev into a seam only if
+it clearly beats 1/12 on the hard cases without losing any of the others.

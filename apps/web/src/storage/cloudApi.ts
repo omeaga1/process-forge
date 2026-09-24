@@ -1,8 +1,5 @@
 /**
  * The one place the cloud API's address is decided.
- *
- * Two modules used to hard-code it separately, and the account module also
- * posted to relative `/api/auth/*` paths that exist on no deployed origin.
  */
 export function cloudApiBase(): string {
   if (typeof window !== 'undefined' && (window as any).__PF_CLOUD_API_URL__) {

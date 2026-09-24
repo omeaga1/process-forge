@@ -229,7 +229,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by equipment, author, ASME spec, or tag..."
+              placeholder="Search by equipment, author, or tag..."
               style={{
                 width: '100%',
                 background: 'none',

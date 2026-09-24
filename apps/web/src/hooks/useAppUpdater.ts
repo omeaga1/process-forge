@@ -6,10 +6,7 @@ import {
   invokeTauriCommand
 } from '../components/UpdateNotificationBanner.js';
 
-/**
- * How often a running desktop app re-checks. The app used to check once, at
- * launch, so a studio left open for a week never heard about a release.
- */
+/** How often a running desktop app re-checks, so one left open still hears about a release. */
 const RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 /** Refocusing the window re-checks too, but not more often than this. */
 const FOCUS_RECHECK_MIN_MS = 30 * 60 * 1000;

@@ -70,10 +70,8 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
   /**
    * The template card's figures, computed from the template itself.
    *
-   * It previously read "6 Machines • 120 CPM". The machine count was right; the
-   * rate was not -- the engine gives roughly a third of that for this line. A
-   * number typed into a card is a number that will be wrong, so this one is
-   * derived: the node count from the graph, the throughput from an actual run.
+   * Derived rather than typed: the node count from the graph, the throughput
+   * from an actual engine run.
    */
   const paintLineSummary = useMemo(() => {
     const machines = SHERWIN_WILLIAMS_PAINT_LINE.nodes.length;

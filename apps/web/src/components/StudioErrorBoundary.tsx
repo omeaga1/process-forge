@@ -44,9 +44,8 @@ export class StudioErrorBoundary extends Component<Props, State> {
   };
 
   /**
-   * Starts over without the current project. This used to delete it silently,
-   * behind a button labelled "Return to Dashboard"; it now asks, and the
-   * screen offers a download first.
+   * Starts over without the current project. It asks first, and the screen
+   * offers a download of the project before that.
    */
   private handleStartOver = () => {
     if (!window.confirm('Start over without this project? Download a copy first if you want to keep it.')) return;

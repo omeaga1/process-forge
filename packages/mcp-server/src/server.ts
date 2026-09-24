@@ -36,7 +36,7 @@ export function createProcessForgeMcpServer(): Server {
         {
           name: 'simulate_process_line',
           description:
-            'Executes a high-precision deterministic discrete-event and continuous flow simulation of an industrial manufacturing line. Returns production throughput, scrap rates, machine states, and line bottleneck analysis.',
+            'Runs a deterministic discrete-event simulation of a manufacturing line. Returns production throughput, scrap rates, machine states, and line bottleneck analysis.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -59,7 +59,7 @@ export function createProcessForgeMcpServer(): Server {
         {
           name: 'diagnose_bottlenecks',
           description:
-            'Audits process flow topology, detects continuous/discrete port mismatches, audits conservation of mass/volume, and pinpoints line bottlenecks and queue accumulations.',
+            'Checks a flowsheet for continuous/discrete port mismatches and finds its bottlenecks and where queues build up.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -78,7 +78,7 @@ export function createProcessForgeMcpServer(): Server {
         {
           name: 'query_unit_subagent',
           description:
-            'Consults with the dedicated machine-level Sub-Agent acting as a software and domain engineer for a specific Unit Operation (e.g. Rotary Filler, Reactor, Labeler). Synthesizes machine parameters and dynamic Generative UI controls.',
+            'Returns preset parameter controls and a starting configuration for a standard unit type (rotary filler, labeler, reactor, and so on). It uses fixed presets, not a model; to design a new unit, use design_unit_op.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -116,7 +116,7 @@ export function createProcessForgeMcpServer(): Server {
         {
           name: 'package_unit_op',
           description:
-            'Packages a validated Unit-Op and its Sub-Agent into an Obsidian-style .pfu plugin bundle ready for distribution on the Community UnitOp Library or local import.',
+            'Packages a unit op (its node definition and metadata) into a .pfu bundle for the community library or local import.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -147,7 +147,7 @@ export function createProcessForgeMcpServer(): Server {
         {
           name: 'forge_equipment_drawing',
           description:
-            'Selects an ISA-5.1 compliant CAD equipment vector drawing (SVG geometry, viewBox, nozzles, internals, and aspect ratio) from a fixed template library, matching a natural language engineering description against known equipment families by keyword. Templates are pre-authored, with a few parameters (tray count, agitator type, bottom head style) interpolated from the description; unmatched descriptions return a generic vertical vessel.',
+            'Picks a template equipment drawing (SVG, viewBox, nozzles, internals) from a fixed library of nine families by matching keywords in the description. For a unit op you are designing, draw it in the contract instead (see design_unit_op). Templates are pre-authored, with a few parameters (tray count, agitator type, bottom head style) interpolated from the description; unmatched descriptions return a generic vertical vessel.',
           inputSchema: {
             type: 'object',
             properties: {

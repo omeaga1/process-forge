@@ -206,9 +206,7 @@ const AppInner: React.FC = () => {
       setProject(imported);
       setTemplateKey(inferTemplateKeyFromProject(imported));
       saveLocalProject(imported);
-      // Importing a file used to upload it to the cloud as a side effect, for
-      // every user including guests. An import stays on this device; uploading
-      // is a separate, explicit Save to Cloud.
+      // An import stays on this device; uploading is a separate, explicit Save to Cloud.
       setIsCloudProjectsModalOpen(false);
       alert(`Imported "${imported.name}" on this device.`);
     } catch (err: any) {
@@ -328,10 +326,8 @@ const AppInner: React.FC = () => {
     setViewMode('studio');
   }, []);
 
-  // Opens the studio on the project already in progress. This used to start a
-  // blank canvas and save it over the current one -- "Open Studio" on the
-  // portal, and the floating copilot's button inside the studio, both threw
-  // the engineer's flowsheet away.
+  // Opens the studio on the project already in progress, never a blank canvas
+  // saved over it.
   const handleOpenStudio = useCallback(() => {
     setViewMode('studio');
   }, []);
@@ -416,10 +412,8 @@ const AppInner: React.FC = () => {
         </>
       )}
 
-      {/* Update banner, on every screen. It used to render only inside the
-          studio, and the desktop app opens on the portal, so an engineer who
-          launched the app and never opened a flowsheet was never told. It hides
-          itself outside the desktop app. */}
+      {/* Update banner, on every screen (the desktop app opens on the portal,
+          not the studio). It hides itself outside the desktop app. */}
       <UpdateNotificationBanner
         status={updater.status}
         updateInfo={updater.updateInfo}

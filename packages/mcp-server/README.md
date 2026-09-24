@@ -1,27 +1,26 @@
 # @process-forge/mcp-server
 
-The official **Model Context Protocol (MCP)** server for **ProcessForge**.
+A Model Context Protocol (MCP) server for ProcessForge.
 
-This package turns frontier AI models (such as Claude Desktop, Gemini CLI, Cursor, and ChatGPT) into **domain-specialized software engineers** for industrial manufacturing and process simulation.
+It gives an MCP client (Claude Desktop, Cursor, Gemini CLI and others) tools
+to design and validate unit-op contracts, run simulations, and, when the
+ProcessForge desktop app is open, add unit ops to the open flowsheet. The
+server does no model inference itself: your MCP client is the model.
 
----
+## Tools
 
-## Capabilities & Registered Tools
-
-| Tool Name | Purpose |
+| Tool | What it does |
 | :--- | :--- |
-| `simulate_process_line` | Runs high-precision deterministic discrete-event & continuous simulations; calculates cycle times, throughput (ppm), OEE metrics, and identifies line bottlenecks. |
-| `diagnose_bottlenecks` | Audits process flow graph topology, detects continuous/discrete port mismatches, audits conservation of mass/volume, and pinpoints backpressure accumulation. |
-| `query_unit_subagent` | Consults with the unit-level Sub-Agent acting as a software engineer for a machine (e.g. Rotary Filler, Reactor, Labeler), synthesizing dynamic parameters and Generative UI schemas. |
-| `package_unit_op` | Packages validated Unit-Ops and their Sub-Agents into Obsidian-style `.pfu` plugin bundles ready for ForgeHub sharing. |
-| `forge_equipment_drawing` | **Built.** Selects a 2D CAD equipment drawing from a fixed template library by keyword-matching the description against known equipment families, returning SVG geometry, nozzle placements, and internals. A few parameters (tray count, agitator type, bottom head style) are interpolated from the description; unmatched descriptions return a generic vertical vessel. |
-| `design_unit_op` | Returns the brief a model needs to write a unit operation contract: the format, the expression rules, the drawing rules, and a worked example. The model (your MCP client) writes the contract. |
-| `validate_unit_op` | The engine checks a contract: schema, every expression resolves, every ERROR constraint holds, and the drawing gives every port a nozzle. Returns the failures to fix. |
+| `design_unit_op` | Returns what a model needs to write a unit-op contract: the format, the expression rules, the drawing rules and a worked example. The client writes the contract. |
+| `validate_unit_op` | Checks a contract through the engine's gates: schema, every expression resolves, every ERROR constraint holds, and the drawing gives every port a nozzle. Returns the failures to fix. Accepts parameter overrides to test another operating point. |
 | `get_open_flowsheet` | Reads the flowsheet open in ProcessForge Desktop on this computer. |
 | `add_unit_op_to_flowsheet` | Validates a contract and adds it to the flowsheet open in ProcessForge Desktop, drawn from its contract with pipes attaching at its nozzles. |
-| `list_digital_twin_templates` | Lists all available pre-configured digital twins (e.g. Sherwin-Williams paint canning line, beverage bottling line). |
-
----
+| `simulate_process_line` | Runs the discrete-event simulation on a built-in template or a graph you pass. Returns throughput, scrap, per-unit states and the bottleneck. |
+| `diagnose_bottlenecks` | Runs graph validation on a template or graph: port and flow-dimension errors, the capacity bottleneck, and fixed recommendations (for example, add an accumulation conveyor). |
+| `list_digital_twin_templates` | Lists the built-in example lines (a paint canning line and a beverage bottling line). |
+| `query_unit_subagent` | Returns preset configuration values and inspector controls for a standard machine type. Rotary fillers and labelers have presets; other types get a generic response. No model is called. |
+| `package_unit_op` | Wraps a node in a JSON bundle with author, category, tags and metadata, for sharing. |
+| `forge_equipment_drawing` | Picks one of the template drawings (column, reactor, exchanger, pump, cyclone, spray, sphere, drum or a generic vessel) by keyword-matching the description, and fills in a few parameters such as tray count and agitator type. Returns SVG geometry and nozzle positions. When the match is a tie it says so, and a second call can name the family. |
 
 ## Designing a unit op from your MCP client
 
@@ -67,6 +66,12 @@ pnpm --filter @process-forge/mcp-server run bundle
 node packages/mcp-server/bundle/cli.js
 ```
 
+## Privacy
+
+The server runs locally as a subprocess of your MCP client. It needs no API
+key and sends nothing to ProcessForge. What your MCP client sends to its own
+model provider is up to that client.
+
 ## Publishing
 
 The published package is a single file, `bundle/cli.js`, with the engine
@@ -80,8 +85,5 @@ cd packages/mcp-server
 npm publish
 ```
 
-The `@process-forge` scope must exist on npm first (a free organization at
-npmjs.com/org/create), and you must be signed in (`npm login`).
-
-### Zero Raw API Keys
-ProcessForge runs its deterministic mathematical solvers locally inside Node.js/Wasm. You never need to supply raw API keys or send proprietary plant parameters to external third-party cloud servers.
+You must be signed in to npm (`npm login`) with publish rights to the
+`@process-forge` scope.

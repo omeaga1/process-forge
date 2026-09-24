@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
-import { getInitials } from '../auth/accountManager.js';
+import { getInitials, hasCloudSession } from '../auth/accountManager.js';
 import { isDesktopRuntime } from '../runtime/desktop.js';
 import { isDesktopGoogleSignInConfigured } from '../auth/desktopGoogleSignIn.js';
 import { draftingRadius } from '@process-forge/theme';
@@ -50,9 +50,8 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const [orgInput, setOrgInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // The site's own OAuth client. It used to be overridable from localStorage,
-  // but the cloud API only accepts tokens issued for its configured clients,
-  // so an override could never have produced a working sign-in.
+  // The site's own OAuth client. It is not configurable at runtime: the cloud
+  // API only accepts tokens issued for its configured clients.
   const googleClientId: string = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
   const googleButtonContainerRef = useRef<HTMLDivElement>(null);
 
@@ -307,19 +306,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     <div style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {user.name}
                     </div>
-                    <span
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: draftingRadius.soft,
-                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                        border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                        color: OsakaJadePalette.text.accent,
-                        fontSize: 10,
-                        fontWeight: 700
-                      }}
-                    >
-                      {user.plan}
-                    </span>
                   </div>
 
                   <div style={{ fontSize: 12, color: OsakaJadePalette.text.muted, marginTop: 2 }}>
@@ -330,48 +316,31 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     <Building2 size={12} />
                     <span>{user.organization || 'Process Engineering'}</span>
                     <span>•</span>
-                    <span style={{ textTransform: 'capitalize' }}>{user.provider} Account</span>
+                    <span>{user.provider === 'google' ? 'Google account' : 'Local profile'}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Cloud Storage Quota Bar */}
+              {/* Where this account's projects are saved */}
               <div
                 style={{
-                  padding: 14,
+                  padding: 12,
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: draftingRadius.soft
+                  borderRadius: draftingRadius.soft,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 12,
+                  color: OsakaJadePalette.text.secondary
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                    <Cloud size={14} color={OsakaJadePalette.jade[400]} />
-                    <span>Cloud Storage Capacity</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>
-                    {user.cloudStorageQuota?.usedProjects || 0} / {user.cloudStorageQuota?.maxProjects || 50} Simulations
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    width: '100%',
-                    height: 6,
-                    borderRadius: draftingRadius.soft,
-                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                    overflow: 'hidden'
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${Math.min(100, (((user.cloudStorageQuota?.usedProjects || 0)) / (user.cloudStorageQuota?.maxProjects || 50)) * 100)}%`,
-                      height: '100%',
-                      backgroundColor: OsakaJadePalette.jade[500],
-                      borderRadius: draftingRadius.soft
-                    }}
-                  />
-                </div>
+                <Cloud size={14} color={OsakaJadePalette.jade[400]} />
+                <span>
+                  {hasCloudSession(user)
+                    ? 'Projects you save are kept on this device and in ProcessForge Cloud.'
+                    : 'A local profile: projects are kept on this device only. Sign in with Google to save to the cloud.'}
+                </span>
               </div>
 
               {/* Actions */}

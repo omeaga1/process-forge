@@ -1,7 +1,7 @@
 /**
- * "Sign in with OpenRouter" and the OpenRouter provider, plus the model-id
- * migration that used to rewrite real models (gemini-3.8-flash, claude-opus-5)
- * as if they were fictional.
+ * "Sign in with OpenRouter" and the OpenRouter provider, and the stored-model
+ * migration, which must leave current models (gemini-3.8-flash, claude-opus-5)
+ * alone.
  */
 import { describe, it, afterEach } from 'node:test';
 import * as assert from 'node:assert/strict';

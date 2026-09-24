@@ -115,8 +115,9 @@ it with more suspicion.
 Until 2026-09-23 the site also served an `irm https://…/install.ps1 | iex`
 script that purged any existing install, downloaded a zip from several
 fallback URLs (one pinned to v0.1.1), unpacked it and ran an unsigned launcher
-exe that opened a local web server. That is a textbook dropper pattern, and it
-is gone, along with the "portable" build it delivered. The Tauri installer is
+exe that opened a local web server. Security tools treat that sequence as
+malware behaviour, so the script was removed, along with the "portable" build
+it delivered. The Tauri installer is
 the only Windows download.
 
 To sign, pick one:

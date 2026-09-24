@@ -5,12 +5,10 @@ import { checkUnitOpDrawing } from './drawing.js';
 /**
  * The engine's verdict on a proposed unit operation.
  *
- * This is the half of the design loop that cannot be delegated to a model. A
- * sub-agent asserting that its design is sound is worth nothing -- that is
- * precisely the failure the audit found, where a `status: 'PASS'` badge was a
- * string literal rather than the outcome of a check. Here the verdict is
- * computed: expressions are evaluated, constraints are tested, and the failures
- * that come back are the actual reasons.
+ * This is the half of the design loop that cannot be delegated to a model: a
+ * model saying its design is sound proves nothing. The verdict is computed --
+ * expressions are evaluated, constraints tested, the drawing checked -- and the
+ * failures that come back are the actual reasons.
  *
  * The result is deliberately shaped to be fed straight back as the next turn's
  * context. `revisionGuidance` is written for a model to act on.

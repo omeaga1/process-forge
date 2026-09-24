@@ -133,11 +133,8 @@ export async function dispatchUnitOpMessage(
   const creds = await loadLlmCredentials();
   const hasCreds = hasValidCredentials(creds);
   const config = overrideConfig || getAiConfig();
-  const conn = getAiConnection();
-  let mode = config.provider || conn.mode;
-  if (hasCreds && mode !== 'mcp' && mode !== 'oauth') {
-    mode = creds.provider;
-  }
+  let mode = config.provider || getAiConnection().mode;
+  if (hasCreds) mode = creds.provider;
 
   // 1. Does the engineer actually want geometry drawn?
   //
@@ -185,7 +182,7 @@ export async function dispatchUnitOpMessage(
   // 2. Offline Mode
   if (mode === 'offline') {
     return {
-      text: `Unit-Op Studio for "${ctx.node.name}" is in local offline mode. You have 100% offline access to all created and plugin-installed unit operations, nozzle dressing, and local simulation. Connect via Model Context Protocol (MCP) or sign in with OAuth to generate new CAD equipment or custom unit operations.`,
+      text: `No AI model is connected, so "${ctx.node.name}" can be edited and simulated but not redesigned by AI. Everything you have built or installed still works. Connect a model in AI settings, or use an MCP client, to design new equipment.`,
       senderBadge: 'Offline (Local Only)',
       isOfflineSolver: true,
       errorNotice: 'Unit-Op Studio offline.',
@@ -194,56 +191,12 @@ export async function dispatchUnitOpMessage(
     };
   }
 
-  // 3. MCP Connected Mode
-  if (mode === 'mcp') {
-    if (conn.mcp.status === 'connected') {
-      const server = conn.mcp.serverName || 'process-forge-mcp';
-      const text = cadDrawing
-        ? `[MCP Tool: forge_equipment_drawing] Generated ASME/ISA-5.1 vector CAD geometry for "${ctx.node.name}". Generated ${cadDrawing.nozzles.length} perimeter nozzles, calibrated viewBox to "${cadDrawing.viewBox}".`
-        : `[MCP Connected: ${server}] Ready to generate custom equipment CAD, nozzles, or unit operation definitions for "${ctx.node.name}".`;
-
-      return {
-        text,
-        senderBadge: 'MCP Connected',
-        isOfflineSolver: false,
-        cadDrawing,
-        newDressing
-      };
-    }
-
-    return {
-      text: `[Configuration Required]: MCP server disconnected. Connect your Gemini, Claude, or OpenAI API key in AI settings to generate equipment.`,
-      senderBadge: 'MCP Offline',
-      isOfflineSolver: true,
-      errorNotice: 'MCP server disconnected.',
-      cadDrawing,
-      newDressing
-    };
-  }
-
-  // 4. OAuth 2.0 PKCE Enterprise Mode
-  if (mode === 'oauth') {
-    const org = conn.oauth.organization || 'Enterprise Engineering';
-    const user = conn.oauth.userName || 'Process Engineer';
-    const text = cadDrawing
-      ? `[Enterprise SSO • ${org}] Authenticated as ${user}. Generated production-ready vector CAD equipment for "${ctx.node.name}" with ${cadDrawing.nozzles.length} nozzles per ASME B16.5 standards.`
-      : `[Enterprise SSO • ${org}] Authenticated as ${user}. Ready to generate equipment CAD, nozzles, or port schemas for "${ctx.node.name}".`;
-
-    return {
-      text,
-      senderBadge: 'Enterprise SSO',
-      isOfflineSolver: false,
-      cadDrawing,
-      newDressing
-    };
-  }
-
-  // 5. Direct LLM Provider (Gemini, Claude, OpenAI, Ollama)
+  // 3. An AI provider in the app (Gemini, Claude, OpenAI, OpenRouter, Ollama)
   if (!hasValidCredentials(creds)) {
     if (cadDrawing) {
       return {
-        text: `Generated ASME/ISA-5.1 vector CAD geometry with ${cadDrawing.nozzles.length} nozzle ports for "${ctx.node.name}". Click "Apply Equipment Dressing" below to update the canvas node symbol.`,
-        senderBadge: 'CAD Synthesizer',
+        text: `Matched a template drawing with ${cadDrawing.nozzles.length} nozzles for "${ctx.node.name}". Apply it below to use it on the canvas.`,
+        senderBadge: 'Template drawing',
         isOfflineSolver: true,
         cadDrawing,
         newDressing
@@ -251,8 +204,8 @@ export async function dispatchUnitOpMessage(
     }
 
     return {
-      text: `Unit-Op Studio offline solver active for "${ctx.node.name}". You can request vector CAD geometry adjustments (e.g. "add 3 nozzles" or "add cooling jacket"). To enable generative engineering explanations, connect an API key in AI Tools.`,
-      senderBadge: 'Offline CAD Solver',
+      text: `No AI model is connected. You can still ask for a template drawing (e.g. "draw a jacketed reactor"), and edit nozzles in the Dressing tab. Connect a model in AI settings for design help.`,
+      senderBadge: 'No AI model',
       isOfflineSolver: true,
       cadDrawing,
       newDressing
@@ -299,20 +252,14 @@ export async function dispatchMasterOrchestratorMessage(
   const creds = await loadLlmCredentials();
   const hasCreds = hasValidCredentials(creds);
   const config = overrideConfig || getAiConfig();
-  const conn = getAiConnection();
-  let mode = config.provider || conn.mode;
-  if (hasCreds && mode !== 'mcp' && mode !== 'oauth') {
-    mode = creds.provider;
-  }
+  let mode = config.provider || getAiConnection().mode;
+  if (hasCreds) mode = creds.provider;
 
-  // 1. Offline Mode
+  // 1. No model
   //
-  // This used to refuse every message, including "add a pump" -- which needs no
-  // model at all. Offline is the DEFAULT with no key configured, so the product
-  // claimed "100% offline and local execution" while declining to place a
-  // standard pump without a connection. Adding catalogue equipment is decided by
-  // the declared questions in protocol/decisions, which run offline with no
-  // network and no key; only genuinely generative work needs a model.
+  // Adding standard equipment needs no model: it is decided by the declared
+  // questions in protocol/decisions, which run offline. Only generative work
+  // needs a model.
   if (mode === 'offline') {
     const { createdNode, clarification } = await parseUnitOpToolCall('', message);
     if (clarification) {
@@ -338,36 +285,7 @@ export async function dispatchMasterOrchestratorMessage(
     };
   }
 
-  // 2. MCP Mode
-  if (mode === 'mcp') {
-    if (conn.mcp.status === 'connected') {
-      const server = conn.mcp.serverName || 'process-forge-mcp';
-      return {
-        text: `[MCP Connected: ${server}] Process Copilot ready for "${ctx.graphName}" (${ctx.nodeCount} unit operations).`,
-        senderBadge: 'MCP Connected',
-        isOfflineSolver: false
-      };
-    }
-
-    return {
-      text: `[Configuration Required]: MCP server disconnected. Click "Configure AI" to add your API key or start your MCP server.`,
-      senderBadge: 'MCP Offline',
-      isOfflineSolver: true,
-      errorNotice: 'MCP server disconnected.'
-    };
-  }
-
-  // 3. OAuth Mode
-  if (mode === 'oauth') {
-    const org = conn.oauth.organization || 'Enterprise Systems';
-    return {
-      text: `[Enterprise SSO • ${org}] Environment ready for "${ctx.graphName}" (${ctx.nodeCount} unit operations).`,
-      senderBadge: 'Enterprise SSO',
-      isOfflineSolver: false
-    };
-  }
-
-  // 4. Direct LLM Provider (Offline Heuristic / Solver Fallback)
+  // 2. An AI provider in the app, or the offline solver without one
   if (!hasValidCredentials(creds)) {
     const { createdNode, clarification } = await parseUnitOpToolCall('', message);
 

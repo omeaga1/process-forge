@@ -67,7 +67,7 @@ const PROVIDERS: ProviderMeta[] = [
   {
     id: 'gemini',
     label: 'Google Gemini',
-    badge: 'Fast & Multimodal',
+    badge: 'Your Google key',
     icon: Sparkles,
     accentColor: '#2dd5b7',
     accentGlow: 'rgba(45, 213, 183, 0.25)',
@@ -80,7 +80,7 @@ const PROVIDERS: ProviderMeta[] = [
   {
     id: 'claude',
     label: 'Anthropic Claude',
-    badge: 'Deep Reasoning',
+    badge: 'Your Anthropic key',
     icon: Zap,
     accentColor: '#f59e0b',
     accentGlow: 'rgba(245, 158, 11, 0.25)',
@@ -93,7 +93,7 @@ const PROVIDERS: ProviderMeta[] = [
   {
     id: 'openai',
     label: 'OpenAI',
-    badge: 'Industry Standard',
+    badge: 'Your OpenAI key',
     icon: Globe,
     accentColor: '#10b981',
     accentGlow: 'rgba(16, 185, 129, 0.25)',
@@ -120,12 +120,12 @@ const PROVIDERS: ProviderMeta[] = [
   {
     id: 'ollama',
     label: 'Local Ollama',
-    badge: 'Offline & Free',
+    badge: 'On this computer',
     icon: Terminal,
     accentColor: '#38bdf8',
     accentGlow: 'rgba(56, 189, 248, 0.25)',
     apiKeyField: undefined,
-    description: 'Run open-weight models directly on your GPU/workstation with 100% offline privacy.'
+    description: 'Run an open-weight model in Ollama on this computer. Nothing is sent anywhere.'
   },
   {
     id: 'mcp',
@@ -195,8 +195,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     setTestResult(null);
     setShowApiKey(false);
     // Selecting a tab shows that provider's settings; only Save changes what
-    // the app uses. It used to switch the active provider on click, keeping
-    // the previous provider's model id (a Claude model under Gemini).
+    // the app uses, and the model id always belongs to the selected provider.
     if (provider !== 'mcp') {
       const models = DEFAULT_PROVIDER_MODELS[provider];
       const keepModel = models.models.some((m) => m.id === creds.modelId);
@@ -209,10 +208,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     setIsTesting(true);
     setTestResult(null);
     try {
-      // On desktop a saved key is in the OS keychain, not in `creds`, so the
-      // test used to run without it ("key is missing") -- or the button was
-      // disabled outright. Load it only now, for the call; a key typed into
-      // the field takes precedence over the saved one.
+      // On desktop a saved key is in the OS keychain, not in `creds`: load it
+      // only for the call. A key typed into the field wins over the saved one.
       const stored = await loadLlmCredentials();
       const typed = Object.fromEntries(Object.entries(creds).filter(([, v]) => v !== '' && v !== undefined));
       const result = await testLlmConnection({
@@ -416,7 +413,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                   color: textMuted
                 }}
               >
-                Configure direct browser inference keys, local models, and MCP tool servers
+                API keys, OpenRouter sign-in, a local model, or an MCP client
               </p>
             </div>
           </div>

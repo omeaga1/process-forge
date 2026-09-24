@@ -71,8 +71,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   }, [isOpen]);
 
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  // The panel stays mounted between units, so a conversation belongs to the
-  // unit it was about. It used to carry over: unit B showed unit A's chat.
+  // The panel stays mounted between units, so each unit keeps its own conversation.
   useEffect(() => {
     setChatHistory([]);
     setInputText('');
@@ -565,7 +564,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                 color: OsakaJadePalette.text.secondary
               }}
             >
-              <span>Local CAD & mechanical solver active</span>
+              <span>No AI model: template drawings and editing only</span>
               <button
                 onClick={() => setIsAiModalOpen(true)}
                 style={{
@@ -667,7 +666,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             if (key === 'meanTimeBetweenFailuresMinutes' || key === 'meanTimeToRepairMinutes') return null;
             if (typeof val === 'number') {
               const humanized = key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
-              // Fractions stay fractions: min 1 used to snap 0.5 % up to 1 %.
+              // Fractions stay fractions (0.5 % is not rounded up to 1 %).
               const step = Math.abs(val) < 1 ? 0.01 : Math.abs(val) < 10 ? 0.1 : 1;
               const max = Math.max(val * 2, Math.abs(val) < 1 ? 1 : 100);
               return (

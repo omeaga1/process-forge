@@ -1,25 +1,37 @@
 # @process-forge/canvas-ui
 
-Interactive Osaka Jade React Flow canvas, Master Orchestrator dock, and Unit-Op pop-out machine studio for ProcessForge.
+React components for the ProcessForge studio, built on React Flow.
 
----
+## Contents
 
-## Features
-- **Osaka Jade Theme Integration:** Deep mineral slate surfaces (`#0c1214`), active imperial jade glows (`#10b981`), and animated continuous/discrete stream wires.
-- **Custom Industrial Node Cards:** Real-time state badges (`Operating`, `Blocked`, `Starved`, `Jammed`), telemetry counters, and port handles.
-- **Double-Click Pop-Out Machine Studio:** Double-clicking any unit opens a dedicated side drawer with its **Unit-Op Forge interface**, parameter controls, boundary context, and `[Publish to ForgeHub]` button.
-- **Environment & Unit-Op Dock:** System-level flowsheet status, whole-plant throughput tracking, bottleneck analysis, and playback controls (`[Play]`, `[Pause]`, `[Reset]`).
-- **ForgeHub In-App Marketplace Modal:** Search, filter, and 1-click insert community-engineered Unit-Op plugins directly into the active flowsheet.
+- **`ProcessCanvas`:** the flowsheet editor. Units are drawn as equipment;
+  streams attach at nozzles that the user can place
+  (`src/nozzles/NozzlePlacementEditor.tsx`). Streams show their state in the
+  theme's status colours during a run.
+- **Equipment palette:** the standard unit operations.
+- **Unit-op creator** (`UnitOpCreator`): the user describes a unit op, the
+  configured model writes a contract, and the protocol's review gates check it
+  (`src/ai/unitOpAuthor.ts`).
+- **Unit pop-out studio:** click a unit to edit its parameters, see its
+  drawing, chat about it, and publish it to the community library.
+- **Engineer Studio dock:** flowsheet status, bottleneck summary, run controls
+  and a chat with the configured model.
+- **Community library modal:** browse published unit ops and insert them into
+  the flowsheet (`src/marketplace/communityLibraryClient.ts`).
+- **Model clients** (`src/ai`): Claude, OpenAI, Gemini, OpenRouter (with
+  OAuth sign-in) and Ollama. Keys are kept in the OS keychain on desktop and
+  in local storage in the browser (`aiModelManager.ts`).
+- A mobile field view for narrow screens.
 
----
-
-## Quick Usage
+## Usage
 
 ```tsx
-import React from 'react';
 import { ProcessCanvas } from '@process-forge/canvas-ui';
 
 export function App() {
-  return <ProcessCanvas />;
+  return <ProcessCanvas graph={graph} onGraphChange={setGraph} />;
 }
 ```
+
+`graph` and `onGraphChange` are optional. Without `graph` the canvas starts
+with the example paint line and keeps its own state.

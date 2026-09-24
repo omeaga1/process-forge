@@ -1,60 +1,68 @@
-# ProcessForge Documentation Hub
+# ProcessForge documentation
 
-Welcome to the **ProcessForge** documentation. This knowledge base is structured using the **Diátaxis Framework** (Tutorials, How-To Guides, Technical Reference, and Architectural Explanations) alongside **Architecture Decision Records (ADRs)** to provide transparent, human-readable technical documentation.
+## Architecture
 
----
+- [System overview](architecture/01-system-overview.md): the packages, how a
+  flowsheet is built, how AI-written unit ops are checked, and how a run works.
+- [Trust and security](architecture/02-trust-and-security.md): where API keys
+  are stored, the Content-Security-Policy, and cloud sign-in.
+- [Simulation math](architecture/04-simulation-math.md): the balances, cycle
+  times and OEE formulas the engine uses.
+- [Osaka Jade design](architecture/05-osaka-jade-design.md): the colour tokens
+  for dark and light themes and what the status colours mean.
 
-## Documentation Map
+## Architecture decision records
 
-### 1. Architecture & Mental Models (Explanation)
-Understand the foundational engineering design and trade-offs behind ProcessForge:
-* [**01: System Overview**](architecture/01-system-overview.md) — The end-to-end topology, monorepo packages, and runtime dataflow.
-* [**02: Trust, Security & Credentials**](architecture/02-trust-and-security.md) — Solving the "Vercel + Supabase wrapper" stigma via native OS vaults, enterprise ZDR gateways, and on-prem deployments.
-* [**03: Agentic Orchestration & CopilotKit**](architecture/03-agentic-orchestration.md) — Master Orchestrator, dynamically spawned Unit-Op sub-agents, and Generative UI drawers.
-* [**04: Simulation Math & Deterministic Core**](architecture/04-simulation-math.md) — Continuous flow conservation, discrete-event queues, cycle time formulas, and OEE analytics.
-* [**05: Osaka Jade Design System**](architecture/05-osaka-jade-design.md) — Palette science, visual tokens, and aesthetic cues inspired by the Omarchy Linux desktop.
+Records of decisions at the time they were made. Some have been superseded;
+each says so at the top.
 
----
+- [ADR-0001](adr/0001-tauri-web-monorepo.md): Tauri v2 desktop app and web
+  studio in one monorepo.
+- [ADR-0002](adr/0002-deterministic-sim-vs-llm.md): AI writes configuration;
+  a deterministic engine does the math.
+- [ADR-0003](adr/0003-osaka-jade-theme.md): Osaka Jade as the default theme.
+- [ADR-0005](adr/0005-zero-raw-keys-and-agent-driven-packages.md): no raw API
+  keys (superseded).
+- [ADR-0006](adr/0006-model-context-protocol-mcp.md): an MCP server so
+  external AI clients can use ProcessForge.
+- [ADR-0007](adr/0007-whole-simulation-storage-and-guest-mode.md): the
+  project file format and guest mode.
+- [ADR-0008](adr/0008-desktop-auto-update-and-landing-distribution.md):
+  desktop auto-update and web hosting.
 
-### 2. Architecture Decision Records (ADRs)
-Historical log of foundational engineering decisions, their context, and consequences:
-* [**ADR-0001: Tauri v2 + React Monorepo**](adr/0001-tauri-web-monorepo.md) — Unifying native desktop installers with web collaboration.
-* [**ADR-0002: Deterministic Simulation vs. LLM Math**](adr/0002-deterministic-sim-vs-llm.md) — Decoupling probabilistic AI compilation from deterministic calculus.
-* [**ADR-0003: Osaka Jade Default Theme**](adr/0003-osaka-jade-theme.md) — Adopting a deep mineral slate and luminous jade aesthetic.
-* [**ADR-0004: Anti-Laziness Protocol & Scaffold Manifest**](adr/0004-anti-laziness-registry.md) — Zero-tolerance AST enforcement for placeholders and temporary scaffolding.
-* [**ADR-0005: Zero Raw API Keys, ForgeHub & Agent-Driven Packages**](adr/0005-zero-raw-keys-and-agent-driven-packages.md) — OAuth authentication, self-contained community plugins, and sub-agent capability recommendations.
-* [**ADR-0006: Model Context Protocol (MCP) Server Architecture**](adr/0006-model-context-protocol-mcp.md) — Connecting Claude Desktop, Gemini CLI, and ChatGPT as domain software engineers.
-* [**ADR-0007: Whole-Simulation Project Storage & Zero-Friction Guest Mode**](adr/0007-whole-simulation-storage-and-guest-mode.md) — Portable `.pfg.json` bundles, complete digital twin serialization, and friction-free trial.
-* [**ADR-0008: Desktop Auto-Update Protocol & GitHub Pages Showcase Distribution**](adr/0008-desktop-auto-update-and-landing-distribution.md) — GitHub Pages showcase site, one-click multi-platform installers, and Tauri v2 in-app update prompts.
+ADR-0004 was removed along with the tooling it described.
 
----
+## Plans
 
-### 3. Plans (Proposed, Not Yet Accepted)
-Design proposals under consideration. A plan is not a decision — when one is adopted it graduates into an ADR:
-* [**Plan 0001: A Decision Layer for the Unit-Op Sub-Agents**](plans/0001-jev-decision-layer.md) — Replacing keyword-match routing with typed, confidence-scored decisions, optionally backed by the Jev decision model.
+Proposals that are not decisions yet.
 
----
+- [Plan 0001](plans/0001-jev-decision-layer.md): a decision layer for the
+  keyword-matching branch points in the AI pipeline.
 
-### 4. How-To Guides (Practical Recipes)
-Step-by-step solutions to concrete engineering workflows:
-* [**Diagnosing Plant Bottlenecks**](guides/diagnosing-bottlenecks.md) — Pinpointing buffer backpressure, machine starvation, and throughput throttling.
+## Guides
 
----
+- [Diagnosing bottlenecks](guides/diagnosing-bottlenecks.md): reading
+  busy/blocked/starved time to find the unit that limits a line.
 
-### 5. Technical Reference (Specifications)
-Authoritative contracts, schemas, and API documentation:
-* [**Protocol Schemas & Machine Configs**](reference/protocol-schemas.md) — Zod schemas for nodes, ports, streams, and agent messages.
+## Reference
 
----
+- [Protocol schemas](reference/protocol-schemas.md): machine configurations,
+  port dimensions and stream types in `@process-forge/protocol`.
 
-## Package & Application Guides
-Each workspace package and app includes an in-depth README for localized development:
-* [`@process-forge/protocol`](../packages/protocol/README.md) — Data contracts, physical units, and validation.
-* [`@process-forge/simulation-core`](../packages/simulation-core/README.md) — High-speed discrete-event and continuous simulation engine.
-* [`@process-forge/theme`](../packages/theme/README.md) — Osaka Jade palette, CSS variables, and Tailwind preset.
-* [`@process-forge/canvas-ui`](../packages/canvas-ui/README.md) — Interactive React Flow canvas, Master dock, and Sub-Agent pop-out studio.
-* [`@process-forge/mcp-server`](../packages/mcp-server/README.md) — Model Context Protocol server for Claude, Gemini, and Cursor.
-* [`@process-forge/web`](../apps/web) — Modern browser-based digital twin studio.
-* [`@process-forge/docs-landing`](../apps/docs-landing) — Showcase landing page and installer download portal hosted on GitHub Pages.
-* [`@process-forge/desktop`](../apps/desktop/README.md) — Tauri v2 desktop shell with OS keychain integration.
-* [`@process-forge/scaffold-registry`](../packages/scaffold-registry/README.md) — Anti-laziness manifest, AST scanner, and CLI.
+## Operations (maintainer runbooks)
+
+- [Cloud API](ops/cloud-api.md): the Cloudflare Worker and D1 database, auth
+  routes, secrets and deployment.
+- [Cloudflare Pages](ops/cloudflare-pages.md): how the web studio is built and
+  deployed.
+- [Desktop releases](ops/desktop-releases.md): tagging a release, updater
+  signing, and Windows code signing.
+
+## Package READMEs
+
+- [`@process-forge/protocol`](../packages/protocol/README.md)
+- [`@process-forge/simulation-core`](../packages/simulation-core/README.md)
+- [`@process-forge/canvas-ui`](../packages/canvas-ui/README.md)
+- [`@process-forge/mcp-server`](../packages/mcp-server/README.md)
+- [`@process-forge/theme`](../packages/theme/README.md)
+- [`@process-forge/desktop`](../apps/desktop/README.md)

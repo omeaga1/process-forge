@@ -53,3 +53,6 @@ apps/desktop/installer/staging/
 
 # Published MCP server bundle (built by packages/mcp-server/scripts/bundle.mjs)
 packages/mcp-server/bundle/
+
+# Local editor/assistant tooling
+.claude/

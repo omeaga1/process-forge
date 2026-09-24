@@ -1,17 +1,8 @@
 /**
  * Seeded pseudo-random number generator for the simulation engine.
  *
- * WHY THIS EXISTS
- *
- * The engine documented a guarantee it did not provide: "rerunning the same
- * seed must produce the exact same can count". There was no seed. Two call
- * sites used `Math.random()` directly -- the filler reject check and the
- * labeler optical inspection -- and 200 runs of one unchanged graph produced
- * 59 distinct outcomes. See docs/audit/02-engine.md section 5.
- *
- * A simulator whose results move between runs cannot be used to compare two
- * designs, because any difference you observe might be noise. That is the whole
- * value proposition, so the fix is not cosmetic.
+ * The same seed gives the same result. A simulator whose results move between
+ * runs cannot compare two designs, because any difference might be noise.
  *
  * mulberry32 is used here: 32-bit state, a handful of integer operations, no
  * dependency, and statistical quality far beyond what machine failure sampling

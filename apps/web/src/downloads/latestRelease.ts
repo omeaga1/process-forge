@@ -32,7 +32,7 @@ const LATEST_RELEASE_API =
  */
 const ASSET_PATTERNS: Record<DesktopOs, RegExp[]> = {
   // Prefer the NSIS setup over the MSI: it installs per-user without elevation.
-  windows: [/x64-setup\.exe$/i, /x64_en-US\.msi$/i, /windows-portable.*\.zip$/i],
+  windows: [/x64-setup\.exe$/i, /x64_en-US\.msi$/i],
   macos: [/aarch64\.dmg$/i, /x64\.dmg$/i, /\.dmg$/i],
   linux: [/\.AppImage$/i, /amd64\.deb$/i]
 };

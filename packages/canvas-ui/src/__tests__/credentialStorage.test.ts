@@ -1,13 +1,6 @@
 /**
- * API keys must not sit in plaintext localStorage when an OS keychain is
- * available.
- *
- * The audited state: `saveLlmCredentials` wrote every key to localStorage
- * unconditionally and first; the keychain copy covered only gemini and openai
- * (never claude); and `get_secure_token` was defined in Rust and registered as
- * a handler but never invoked from TypeScript, so the read path was always
- * localStorage. The vault was write-only decoration and every key was in
- * plaintext regardless. See docs/audit/01-claims.md.
+ * With an OS keychain available (the desktop app), API keys are stored there
+ * and never in localStorage, for every provider, and read back from it.
  */
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import * as assert from 'node:assert/strict';
@@ -134,7 +127,7 @@ describe('Desktop: secrets go to the keychain, never to localStorage', () => {
     assert.equal(
       vault.store.get('claude:api_key'),
       'c-key',
-      'claude was previously missing from the vault entirely'
+      'claude is stored in the vault too'
     );
   });
 

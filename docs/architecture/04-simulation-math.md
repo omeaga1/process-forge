@@ -1,51 +1,76 @@
-# Architecture: Simulation Mathematics & Deterministic Engine
+# Simulation math
 
-## 1. Why Decouple AI from Simulation Mathematics?
+The AI writes configurations and contracts. `@process-forge/simulation-core`
+and the evaluator in `@process-forge/protocol` do all the arithmetic, so a run
+can be repeated and every number traced to a formula. See
+[ADR-0002](../adr/0002-deterministic-sim-vs-llm.md).
 
-Large Language Models are probabilistic next-token predictors. If an LLM is tasked with calculating fluid mass balances or advancing event clocks on every millisecond of a factory shift:
-1. It is orders of magnitude too slow (>1,000ms per clock tick vs <0.001ms in native code).
-2. It suffers from cumulative rounding errors and mathematical hallucinations.
-3. It cannot provide deterministic reproducibility (rerunning the same seed must produce the exact same can count).
+## Discrete-event loop
 
-In ProcessForge, **AI writes and compiles the declarative machine configurations, but `@process-forge/simulation-core` executes the deterministic mathematics.**
+The engine keeps a priority queue of events ordered by time. Each event is a
+unit finishing a cycle or a transfer. Handling an event moves units to the
+next buffer, updates the unit's state and schedules its next event. The run
+stops when the queue is empty or the next event is past the run duration.
 
----
+Every second of a unit's time is attributed to one state: BUSY, BLOCKED,
+STARVED, FAILED or IDLE.
 
-## 2. Core Mathematical Formulas
+Random draws (filler rejects, labeler inspection failures) come from a seeded
+generator. The seed is returned with the result; passing it back reproduces
+the run exactly.
 
-### Continuous Fluid Flow Balance (Surge Tanks & Accumulators)
-Fluid accumulation inside a tank or accumulator is governed by the continuous conservation equation:
+## Cycle time and capacity
 
-$$V(t) = V(0) + \int_0^t \Big( \sum Q_{in}(\tau) - \sum Q_{out}(\tau) \Big) d\tau$$
-
-Where:
-- $V(t)$ is current liquid volume in gallons.
-- $Q_{in}(\tau)$ is the volumetric infeed rate from upstream reactors/pumps in GPM.
-- $Q_{out}(\tau)$ is discharge rate to filling heads in GPM.
-
----
-
-### Discrete Canning Conversion & Cycle Time
-When a continuous fluid stream feeds an automated filling machine, discrete container production rate is governed by container volume:
-
-$$\text{Throughput} \ (\text{cans/min}) = \frac{Q_{in} \ (\text{gal/min})}{V_{can} \ (\text{gal/can})}$$
-
-For a machine with $N$ nozzles:
+For a rotary filler with $N$ nozzles:
 
 $$T_{cycle} = T_{fill} + T_{index}$$
 
-$$\text{Max Capacity} \ (\text{cans/min}) = \frac{N}{T_{cycle}} \times 60$$
+$$\text{Capacity (units/min)} = \frac{N}{T_{cycle}} \times 60$$
 
----
+Container throughput from a fluid flow:
 
-### Overall Equipment Effectiveness (OEE)
-ProcessForge calculates machine and plant-wide OEE according to international manufacturing standards:
+$$\text{Throughput (units/min)} = \frac{Q_{in}\ (\text{gal/min})}{V_{container}\ (\text{gal/unit})}$$
+
+(`UnitConverters.volumetricRateToDiscreteUnitsPerMin` in `protocol/src/units.ts`.)
+
+A palletizer's capacity is containers per layer divided by seconds per layer,
+times 60. A labeler's capacity is its configured maximum speed.
+
+## Static bottleneck estimate
+
+`validateProcessGraph` computes the capacity of each filler, labeler and
+palletizer and names the lowest as the bottleneck. Each unit's utilization is
+the bottleneck capacity divided by its own capacity. This needs no simulation
+run. The simulation's busy/blocked/starved times show the same thing
+dynamically (see [the bottleneck guide](../guides/diagnosing-bottlenecks.md)).
+
+## Contract behavior
+
+- `DISCRETE_CYCLE`: the unit processes `unitsPerCycle` every `cycleSeconds`,
+  scrapping `scrapFraction` of them. All three are expressions evaluated once
+  before the run. A unit with no inbound stream is a source and starts
+  immediately; others wait for input. It blocks when downstream buffers are
+  full, like the filler.
+- `CONTINUOUS_RATE`: `throughputPerMinute` (and optionally `dutyKw` and
+  `residenceTimeSeconds`) are evaluated at steady state. The engine does not
+  integrate anything over time.
+
+## OEE
+
+For each unit:
 
 $$\text{OEE} = \text{Availability} \times \text{Performance} \times \text{Quality}$$
 
-1. **Availability:**
-   $$\text{Availability} = \frac{\text{Operating Time}}{\text{Planned Production Time}} = \frac{T_{busy}}{T_{total} - T_{down}}$$
-2. **Performance:**
-   $$\text{Performance} = \frac{\text{Total Units Produced}}{\text{Operating Time} \times \text{Theoretical Speed}}$$
-3. **Quality:**
-   $$\text{Quality} = \frac{\text{Good Units Packaged}}{\text{Total Units Produced}} = \frac{U_{good}}{U_{good} + U_{scrapped}}$$
+- $\text{Availability} = \dfrac{T_{busy}}{T_{total} - T_{down}}$
+- $\text{Performance} = \min\left(1,\ \dfrac{U_{good} + U_{scrapped}}{(T_{busy}/60) \times \text{theoretical speed}}\right)$
+- $\text{Quality} = \dfrac{U_{good}}{U_{good} + U_{scrapped}}$
+
+Theoretical speed is the filler's nozzle capacity or the labeler's maximum
+speed. Other units use a default of 40 units/min.
+
+## Limits
+
+- Reactors, tanks and pumps are not stepped by the event loop. Tank levels are
+  not integrated over time, and the filler cycles as if it is always fed.
+- Machine breakdowns (MTBF/MTTR) are part of the filler schema but are not
+  simulated, so no unit enters the FAILED state and $T_{down}$ is zero.

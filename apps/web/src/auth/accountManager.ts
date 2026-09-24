@@ -19,7 +19,8 @@ export interface UserSession {
   name: string;
   avatarUrl?: string;
   organization: string;
-  provider: 'github' | 'google' | 'microsoft' | 'email';
+  /** google: verified by the cloud API. email: a local profile on this device only. */
+  provider: 'google' | 'email';
   token: string;
   /**
    * A session issued by the cloud API after it verified a Google sign-in.
@@ -29,11 +30,6 @@ export interface UserSession {
    */
   cloudToken?: string;
   cloudTokenExpiresAt?: string;
-  plan: 'Community' | 'Professional' | 'Enterprise';
-  cloudStorageQuota: {
-    usedProjects: number;
-    maxProjects: number;
-  };
   createdAt: string;
 }
 
@@ -52,7 +48,6 @@ export interface StoredUserAccount {
   passwordHash: string;
   salt: string;
   avatarUrl?: string;
-  plan: 'Community' | 'Professional' | 'Enterprise';
   createdAt: string;
 }
 
@@ -177,37 +172,10 @@ export async function registerUser(credentials: {
     throw new Error('Password must be at least 8 characters long.');
   }
 
-  // 1. Try backend API (/api/auth/register)
-  try {
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name, organization })
-    });
+  // A local profile: stored on this device only. There is no account server for
+  // email/password; cloud accounts use Google sign-in.
 
-    if (res.ok) {
-      const data = (await res.json()) as { success: boolean; user: UserSession };
-      if (data.success && data.user) {
-        if (!data.user.avatarUrl) {
-          data.user.avatarUrl = generateInitialsAvatar(data.user.name, data.user.email);
-        }
-        localStorage.setItem(STORAGE_KEY_USER_SESSION, JSON.stringify(data.user));
-        return data.user;
-      }
-    } else {
-      const err = await res.json().catch(() => ({}));
-      if (err.error) {
-        throw new Error(err.error);
-      }
-    }
-  } catch (err: any) {
-    if (err.message && err.message.includes('already exists')) {
-      throw err;
-    }
-    // Fall back to local secure storage
-  }
-
-  // 2. Local fallback registration
+  // Stored with a salted hash of the password.
   const users = getRegisteredUsers();
   const existing = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
   if (existing) {
@@ -229,7 +197,6 @@ export async function registerUser(credentials: {
     passwordHash,
     salt,
     avatarUrl,
-    plan: 'Professional',
     createdAt: new Date().toISOString()
   };
 
@@ -244,8 +211,6 @@ export async function registerUser(credentials: {
     organization: userOrg,
     provider: 'email',
     token: `pf_jwt_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
-    plan: 'Professional',
-    cloudStorageQuota: { usedProjects: 0, maxProjects: 50 },
     createdAt: new Date().toISOString()
   };
 
@@ -269,43 +234,10 @@ export async function loginWithPassword(credentials: {
     throw new Error('Email and password are required.');
   }
 
-  // 1. Try backend API (/api/auth/login)
-  try {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
+  // A local profile: stored on this device only. There is no account server for
+  // email/password; cloud accounts use Google sign-in.
 
-    if (res.ok) {
-      const data = (await res.json()) as { success: boolean; user: UserSession };
-      if (data.success && data.user) {
-        if (!data.user.avatarUrl) {
-          data.user.avatarUrl = generateInitialsAvatar(data.user.name, data.user.email);
-        }
-        localStorage.setItem(STORAGE_KEY_USER_SESSION, JSON.stringify(data.user));
-        return data.user;
-      }
-    } else {
-      const err = await res.json().catch(() => ({}));
-      if (res.status === 401 || err.error?.includes('Incorrect password')) {
-        throw new Error('Incorrect password. Please verify your credentials.');
-      }
-      if (res.status === 404 || err.error?.includes('No account found')) {
-        throw new Error('No account found with this email. Please register first.');
-      }
-      if (err.error) {
-        throw new Error(err.error);
-      }
-    }
-  } catch (err: any) {
-    if (err.message && (err.message.includes('Incorrect password') || err.message.includes('No account found'))) {
-      throw err;
-    }
-    // Fall back to local secure storage
-  }
-
-  // 2. Local fallback verification
+  // Checked against the salted hash stored on this device.
   const users = getRegisteredUsers();
   const account = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
   if (!account) {
@@ -326,8 +258,6 @@ export async function loginWithPassword(credentials: {
     organization: account.organization,
     provider: 'email',
     token: `pf_jwt_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
-    plan: account.plan,
-    cloudStorageQuota: { usedProjects: 0, maxProjects: 50 },
     createdAt: new Date().toISOString()
   };
 
@@ -350,8 +280,6 @@ function sessionFromCloud(signIn: CloudSignIn): UserSession {
     token: signIn.token,
     cloudToken: signIn.token,
     cloudTokenExpiresAt: signIn.expiresAt,
-    plan: 'Community',
-    cloudStorageQuota: { usedProjects: 0, maxProjects: 50 },
     createdAt: new Date().toISOString()
   };
   if (typeof localStorage !== 'undefined') {
@@ -368,10 +296,8 @@ function sessionFromCloud(signIn: CloudSignIn): UserSession {
  * Sign in with a Google Identity Services credential (the web button).
  *
  * The credential goes to the cloud API, which verifies Google's signature and
- * issues a session. This used to base64-decode the token in the browser and
- * trust whatever it said -- so any hand-made token with any email "signed in"
- * as that person. Nothing is accepted locally now; if the API cannot verify
- * the credential, sign-in fails.
+ * issues a session. Nothing is accepted locally: if the API cannot verify the
+ * credential, sign-in fails.
  */
 export async function loginWithGoogleCredential(credentialToken: string): Promise<UserSession> {
   return sessionFromCloud(await postCloudSignIn('/auth/google', { credential: credentialToken }));
@@ -388,74 +314,6 @@ export async function loginWithGoogleCode(params: {
   redirectUri: string;
 }): Promise<UserSession> {
   return sessionFromCloud(await postCloudSignIn('/auth/google/code', params));
-}
-
-const TEST_FALLBACKS: Record<string, { name: string; organization: string; plan: 'Professional' | 'Enterprise' }> = {
-  github: {
-    name: 'Lead Process Engineer',
-    organization: 'Process Engineering Team',
-    plan: 'Professional'
-  },
-  google: {
-    name: 'Process Engineer',
-    organization: 'Google Account Workspace',
-    plan: 'Professional'
-  },
-  microsoft: {
-    name: 'Automation Architect',
-    organization: 'Industrial Automation Consortium',
-    plan: 'Enterprise'
-  },
-  email: {
-    name: 'Process Engineer',
-    organization: 'Process Engineering Team',
-    plan: 'Professional'
-  }
-};
-
-/**
- * Authenticate the user with chosen identity provider (maintained for backward-compatible test suites)
- */
-export async function loginUser(
-  provider: 'github' | 'google' | 'microsoft' | 'email',
-  details?: { email?: string; name?: string; organization?: string; avatarUrl?: string }
-): Promise<UserSession> {
-  const fallback = TEST_FALLBACKS[provider] || {
-    name: 'Process Engineer',
-    organization: 'Process Engineering Team',
-    plan: 'Professional' as const
-  };
-  const email = details?.email || `${provider}_engineer@process-forge.io`;
-  const name = details?.name || fallback.name;
-  const organization = details?.organization || fallback.organization;
-  const avatarUrl = details?.avatarUrl || generateInitialsAvatar(name, email);
-  const userId = `usr_${provider}_${Date.now().toString(36)}`;
-
-  const session: UserSession = {
-    id: userId,
-    email,
-    name,
-    avatarUrl,
-    organization,
-    provider,
-    token: `pf_jwt_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`,
-    plan: details ? 'Professional' : fallback.plan,
-    cloudStorageQuota: {
-      usedProjects: 1,
-      maxProjects: provider === 'microsoft' ? 100 : 50
-    },
-    createdAt: new Date().toISOString()
-  };
-
-  if (typeof localStorage !== 'undefined') {
-    try {
-      localStorage.setItem(STORAGE_KEY_USER_SESSION, JSON.stringify(session));
-    } catch (e) {
-      console.error('Failed to save user session to localStorage:', e);
-    }
-  }
-
-  return session;
 }
 
 /**

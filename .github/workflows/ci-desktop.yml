@@ -1,8 +1,6 @@
 name: Desktop Shell
 
-# The Rust shell used to be compiled only when a release was tagged, so a
-# change that broke it was discovered by the release. This compiles and tests
-# it on every pull request that touches it.
+# Compiles and tests the Rust shell on every pull request that touches it.
 
 on:
   push:

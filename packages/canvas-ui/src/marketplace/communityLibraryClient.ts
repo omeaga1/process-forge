@@ -3,19 +3,11 @@ import type { ProcessNode } from '@process-forge/protocol';
 /**
  * The community unit-op library, backed by the cloud API.
  *
- * What this replaced, and why:
- * - Listings came with star ratings, download counts and compliance badges
- *   ("ASME B31.3 Fluid Code Compliant") that nothing ever measured, and the
- *   offline fallback was a set of invented plugins attributed to real OEMs.
- *   A listing now shows what its author wrote and nothing else.
- * - "Creator Account" sign-in made up a session with a fake email and token,
- *   with no OAuth at all. Publishing now uses the app's own Google sign-in,
- *   which the cloud API verifies.
- * - A failed publish was reported as "saved locally to Community Library
- *   (Offline Mode)". Nothing was published; it now says so.
- * - The list endpoint does not include each listing's equipment definition,
- *   so adding one from the live library inserted nothing. It is fetched when
- *   the listing is added.
+ * - A listing shows what its author wrote; nothing is rated or certified.
+ * - Publishing uses the app's Google sign-in, which the cloud API verifies. A
+ *   failed publish says so.
+ * - The list endpoint leaves out each listing's equipment definition, so it is
+ *   fetched when a listing is added to a flowsheet.
  */
 
 export interface CommunityUnitOpItem {

@@ -184,7 +184,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           userSelect: 'none'
         }}
         onClick={onToggleCollapse}
-        title="Click to expand Software Engineer Studio (Alt+D)"
+        title="Expand the assistant (Alt+D)"
       >
         <button
           onClick={(e) => {

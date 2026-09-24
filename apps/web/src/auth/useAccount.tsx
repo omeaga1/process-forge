@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import {
   getUserSession,
-  loginUser,
   registerUser,
   loginWithPassword,
   loginWithGoogleCredential as doLoginWithGoogleCredential,
@@ -27,10 +26,6 @@ interface AccountContextValue {
     email: string;
     password: string;
   }) => Promise<UserSession>;
-  signIn: (
-    provider: 'github' | 'google' | 'microsoft' | 'email',
-    details?: { email?: string; name?: string; organization?: string; avatarUrl?: string }
-  ) => Promise<UserSession>;
   signInWithGoogleCredential: (credentialToken: string) => Promise<UserSession | null>;
   /** Desktop only: system browser + loopback. See desktopGoogleSignIn.ts. */
   signInWithGoogleDesktop: () => Promise<UserSession>;
@@ -78,15 +73,6 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     return session;
   };
 
-  const signIn = async (
-    provider: 'github' | 'google' | 'microsoft' | 'email',
-    details?: { email?: string; name?: string; organization?: string; avatarUrl?: string }
-  ) => {
-    const session = await loginUser(provider, details);
-    setUser(session);
-    return session;
-  };
-
   const signInWithGoogleCredential = async (credentialToken: string) => {
     const session = await doLoginWithGoogleCredential(credentialToken);
     if (session) {
@@ -123,7 +109,6 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         closeAccountModal,
         register,
         login,
-        signIn,
         signInWithGoogleCredential,
         signInWithGoogleDesktop,
         signOut,

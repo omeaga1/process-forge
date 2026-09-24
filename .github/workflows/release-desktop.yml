@@ -189,20 +189,12 @@ jobs:
             apps/desktop/src-tauri/target/release/bundle/appimage/*.sig
 
 
-  # There is no "portable" build any more. It was the web bundle plus a C#
-  # launcher compiled in CI: an unsigned exe that ran a local web server, had
-  # no updater and no keychain, and was delivered by an irm|iex script that
-  # purged, downloaded and ran it -- a textbook dropper pattern that antivirus
-  # heuristics flag. The Tauri installer above is the only Windows download.
+  # The Tauri installer above is the only Windows download.
 
   # ── Updater manifest ────────────────────────────────────────────────────────
-  # Without this job the in-app updater is permanently blind: tauri.conf.json
-  # polls releases/latest/download/latest.json, and that file has never existed,
-  # so check_for_updates has always failed silently. Every published release
-  # since v0.1.0 has been undiscoverable to installed clients.
-  #
-  # It runs after every platform build so it can reference all three artifacts
-  # in one manifest.
+  # Publishes latest.json, which the in-app updater polls
+  # (releases/latest/download/latest.json in tauri.conf.json). It runs after
+  # every platform build so one manifest references all three.
   publish-updater-manifest:
     name: Publish latest.json
     needs: build-desktop-installers
