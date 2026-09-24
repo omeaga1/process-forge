@@ -24,26 +24,15 @@ describe('Landing and portal layout', () => {
   const landingHubPath = findSourceFile('LandingPageHub.tsx');
   const landingHubContent = fs.readFileSync(landingHubPath, 'utf8');
 
-  it('enforces single primary call-to-action (CTA) in Hero section', () => {
-    // Extract the Hero section button area
-    const heroSectionMatch = landingHubContent.match(/\{\/\* Primary Action Buttons \*\/\}[\s\S]*?<\/section>/);
-    assert.ok(heroSectionMatch, 'LandingPageHub must contain Primary Action Buttons section');
-    const heroSection = heroSectionMatch[0];
+  it('has one primary button, and it continues the open project', () => {
+    const primaries = landingHubContent.match(/backgroundColor:\s*palette\.jade\[600\]/g);
+    assert.strictEqual(primaries?.length, 1, 'The hub has exactly one primary button');
+    assert.ok(landingHubContent.includes('Continue “{currentProject.name}”'), 'The primary button continues the current project');
+  });
 
-    // Find all primary styled buttons (backgroundColor: OsakaJadePalette.jade[600])
-    const primaryButtonMatches = heroSection.match(/backgroundColor:\s*OsakaJadePalette\.jade\[600\]/g);
-    assert.strictEqual(
-      primaryButtonMatches?.length,
-      1,
-      'The hero has exactly one primary button'
-    );
-
-    // The primary button resumes the project in progress, and only says "open"
-    // when there is none.
-    assert.ok(
-      heroSection.includes('`Resume ${currentProject.name}`') && heroSection.includes("'Open the studio'"),
-      'Hero section primary button must resume the current project'
-    );
+  it('lists projects with the same browser the studio uses', () => {
+    assert.ok(landingHubContent.includes('<ProjectBrowser'), 'The hub embeds ProjectBrowser');
+    assert.ok(landingHubContent.includes('variant="page"'), 'as a page, not a dialog');
   });
 
   it('forbids duplicate primary "Open Studio" buttons in the top navbar', () => {
@@ -72,15 +61,14 @@ describe('Landing and portal layout', () => {
 
   it('verifies essential Hub action handlers are wired in component props', () => {
     const requiredProps = [
-      'onCreateBlank',
-      'onSelectTemplate',
+      'onNewProject',
       'onOpenProject',
       'onImportFile',
+      'onRenameCurrent',
       'onOpenStudio',
       'onOpenForgeHub',
       'onOpenAiModal',
-      'onOpenAccountModal',
-      'onOpenCloudProjectsModal'
+      'onOpenAccountModal'
     ];
 
     for (const prop of requiredProps) {

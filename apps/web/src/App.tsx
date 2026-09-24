@@ -1,8 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   ProcessCanvas,
-  SHERWIN_WILLIAMS_PAINT_LINE,
-  BEVERAGE_BOTTLING_LINE,
   BLANK_LINE,
   AiModelModal,
   CommunityUnitOpLibraryModal,
@@ -29,7 +27,8 @@ import { contractToProcessNode } from './unitop/contractToNode.js';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
 import { AccountModal } from './components/AccountModal.js';
-import { CloudProjectsModal } from './components/CloudProjectsModal.js';
+import { ProjectBrowser, useProjectBrowserShortcut } from './components/ProjectBrowser.js';
+import { findTemplate, uniqueName } from './projects/templates.js';
 import { StudioErrorBoundary } from './components/StudioErrorBoundary.js';
 import { LandingPageHub } from './components/LandingPageHub.js';
 import { ProductLandingPage } from './components/ProductLandingPage.js';
@@ -44,31 +43,16 @@ import {
   saveLocalProject,
   loadCurrentLocalProject,
   downloadProjectFile,
-  readProjectFromFile
+  readProjectFromFile,
+  listLocalProjects
 } from './storage/localStorageAdapter.js';
-
-function inferTemplateKeyFromProject(proj: SimulationProject): string {
-  if (!proj || !proj.graph) return 'blank';
-  const name = (proj.name || '').toLowerCase();
-  const graphId = (proj.graph.id || '').toLowerCase();
-  if (graphId === 'beverage-bottling-line' || name.includes('beverage')) {
-    return 'beverage-bottling-line';
-  }
-  if (graphId === 'blank' || proj.graph.nodes.length === 0 || name.includes('custom')) {
-    return 'blank';
-  }
-  if (graphId === 'sherwin-williams-paint-line' || name.includes('paint') || name.includes('sherwin')) {
-    return 'sherwin-williams-paint-line';
-  }
-  return 'blank';
-}
 
 const AppInner: React.FC = () => {
   const updater = useAppUpdater();
   const assistantRoute = useAssistantRoute();
   const { isAccountModalOpen, accountModalTab, openAccountModal, closeAccountModal, isAuthenticated, user } = useAccount();
   const [isEntryGateOpen, setIsEntryGateOpen] = useState<boolean>(false);
-  const [isCloudProjectsModalOpen, setIsCloudProjectsModalOpen] = useState<boolean>(false);
+  const [isProjectBrowserOpen, setIsProjectBrowserOpen] = useState<boolean>(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(() => getAiConfig());
   const [isGuestModalOpen, setIsGuestModalOpen] = useState<boolean>(false);
@@ -97,7 +81,6 @@ const AppInner: React.FC = () => {
     );
   });
 
-  const [templateKey, setTemplateKey] = useState<string>(() => inferTemplateKeyFromProject(project));
 
 
 
@@ -123,27 +106,37 @@ const AppInner: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleSelectTemplate = useCallback((key: string) => {
-    setTemplateKey(key);
-    let targetGraph = SHERWIN_WILLIAMS_PAINT_LINE;
-    let targetName = 'Architectural Paint Canning Line';
-    let targetDesc = 'Industrial paint blending, filling, labeling, and palletizing line';
-    if (key === 'beverage-bottling-line') {
-      targetGraph = BEVERAGE_BOTTLING_LINE;
-      targetName = 'High-Speed Beverage Bottling Line';
-      targetDesc = 'High-speed carbonated beverage bottling and packaging line';
-    } else if (key === 'blank') {
-      targetGraph = BLANK_LINE;
-      targetName = 'Custom Process Flow';
-      targetDesc = 'Custom industrial process line';
-    }
-    const updated = createSimulationProject(targetName, targetGraph, {
-      description: targetDesc,
-      isGuest: project.isGuestProject
-    });
-    setProject(updated);
-    saveLocalProject(updated);
-  }, [project.isGuestProject]);
+  /**
+   * A new project, blank or from a template. The one that was open is already
+   * saved on this device (every edit is), so nothing is lost.
+   */
+  const handleNewProject = useCallback((key: string) => {
+    const template = findTemplate(key);
+    const taken = listLocalProjects().map((p) => p.name);
+    const created = createSimulationProject(
+      uniqueName(key === 'blank' ? 'Untitled flowsheet' : template.name, taken),
+      structuredClone(template.graph),
+      { description: key === 'blank' ? '' : template.description, isGuest: !isAuthenticated }
+    );
+    setProject(created);
+    saveLocalProject(created);
+    setIsProjectBrowserOpen(false);
+    setViewMode('studio');
+  }, [isAuthenticated]);
+
+  const handleOpenProject = useCallback((loaded: SimulationProject) => {
+    setProject(loaded);
+    saveLocalProject(loaded);
+    setIsProjectBrowserOpen(false);
+    setViewMode('studio');
+  }, []);
+
+  const handleRenameCurrent = useCallback((name: string) => {
+    setProject((prev) => ({ ...prev, name, updatedAt: new Date().toISOString() }));
+  }, []);
+
+  const openProjectBrowser = useCallback(() => setIsProjectBrowserOpen(true), []);
+  useProjectBrowserShortcut(openProjectBrowser, viewMode === 'studio');
 
   const handleGraphChange = useCallback((updatedGraph: ProcessGraph) => {
     setProject((prev) => {
@@ -244,38 +237,14 @@ const AppInner: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [handleQuickCloudSave, viewMode]);
 
-  const handleSelectCloudProject = useCallback((loaded: SimulationProject) => {
-    setProject(loaded);
-    setTemplateKey(inferTemplateKeyFromProject(loaded));
-    saveLocalProject(loaded);
-    setIsCloudProjectsModalOpen(false);
-  }, []);
-
-  const handleUploadLocalFile = useCallback(async (file: File) => {
-    try {
-      const imported = await readProjectFromFile(file);
-      setProject(imported);
-      setTemplateKey(inferTemplateKeyFromProject(imported));
-      saveLocalProject(imported);
-      // An import stays on this device; uploading is a separate, explicit Save to Cloud.
-      setIsCloudProjectsModalOpen(false);
-      alert(`Imported "${imported.name}" on this device.`);
-    } catch (err: any) {
-      alert(`Error importing file: ${err?.message || String(err)}`);
-    }
-  }, []);
-
   const handleImportFile = useCallback(async (file: File) => {
     try {
       const imported = await readProjectFromFile(file);
-      setProject(imported);
-      setTemplateKey(inferTemplateKeyFromProject(imported));
-      saveLocalProject(imported);
-      alert(`Successfully loaded project: "${imported.name}" with ${imported.graph.nodes.length} machines.`);
+      handleOpenProject(imported);
     } catch (err: any) {
-      alert(`Error loading project file: ${err?.message || String(err)}`);
+      alert(`That file could not be opened: ${err?.message || String(err)}`);
     }
-  }, []);
+  }, [handleOpenProject]);
 
   const handleInsertCommunityNode = useCallback((newNode: ProcessNode) => {
     setProject((prev) => {
@@ -340,38 +309,11 @@ const AppInner: React.FC = () => {
     [handleInsertCommunityNode]
   );
 
-  const handleCreateBlank = useCallback(() => {
-    const blank = createSimulationProject('Custom Process Forge', BLANK_LINE, {
-      description: 'Clean slate industrial process flowsheet',
-      isGuest: project.isGuestProject
-    });
-    setTemplateKey('blank');
-    setProject(blank);
-    saveLocalProject(blank);
-    setViewMode('studio');
-  }, [project.isGuestProject]);
-
-  const handleSelectTemplateAndLaunch = useCallback((key: string) => {
-    handleSelectTemplate(key);
-    setViewMode('studio');
-  }, [handleSelectTemplate]);
-
-  const handleSelectCloudProjectAndLaunch = useCallback((loaded: SimulationProject) => {
-    handleSelectCloudProject(loaded);
-    setViewMode('studio');
-  }, [handleSelectCloudProject]);
-
-  const handleImportFileAndLaunch = useCallback(async (file: File) => {
-    await handleImportFile(file);
-    setViewMode('studio');
-  }, [handleImportFile]);
-
   const handleEnterStudioWithBlankCanvas = useCallback((asGuest: boolean = false) => {
     const blank = createSimulationProject('Custom Process Flow', BLANK_LINE, {
       description: 'Clean slate industrial process flowsheet',
       isGuest: asGuest
     });
-    setTemplateKey('blank');
     setProject(blank);
     saveLocalProject(blank);
     setViewMode('studio');
@@ -418,36 +360,33 @@ const AppInner: React.FC = () => {
         <LandingPageHub
           currentProject={project}
           {...(isDesktopRuntime() ? {} : { onNavigateLanding: handleNavigateHome })}
-          onCreateBlank={handleCreateBlank}
-          onSelectTemplate={handleSelectTemplateAndLaunch}
-          onOpenProject={handleSelectCloudProjectAndLaunch}
-          onImportFile={handleImportFileAndLaunch}
+          onNewProject={handleNewProject}
+          onOpenProject={handleOpenProject}
+          onImportFile={handleImportFile}
+          onRenameCurrent={handleRenameCurrent}
           onOpenStudio={handleOpenStudio}
           onOpenForgeHub={() => setIsCommunityLibraryOpen(true)}
           onOpenAiModal={() => setIsAiModalOpen(true)}
           onOpenAccountModal={openAccountModal}
-          onOpenCloudProjectsModal={() => setIsCloudProjectsModalOpen(true)}
         />
       ) : (
         <>
           {/* Top Application Navigation */}
           <HeaderBar
-            currentTemplate={templateKey}
+            projectName={project.name}
+            onOpenProjects={openProjectBrowser}
             // "Guest" means not signed in now, not "this project was started signed out".
             isGuestMode={!isAuthenticated}
             activeAiProvider={aiConfig.provider}
             onNavigateHome={handleOpenPortal}
-            onSelectTemplate={handleSelectTemplate}
             onOpenAiModal={() => setIsAiModalOpen(true)}
             onOpenForgeHub={() => setIsCommunityLibraryOpen(true)}
-            onOpenUnitOpCreator={() => setIsUnitOpCreatorOpen(true)}
             onOpenSaveModal={() => setIsSaveModalOpen(true)}
             cloudSaveStatus={cloudSaveStatus}
             onQuickCloudSave={() => void handleQuickCloudSave()}
             onOpenGuestModal={() => setIsGuestModalOpen(true)}
             onImportFile={handleImportFile}
             onOpenAccountModal={openAccountModal}
-            onOpenCloudProjects={() => setIsCloudProjectsModalOpen(true)}
             onCheckForUpdates={() => updater.checkForUpdates(true)}
             isCheckingUpdates={updater.isChecking}
             hasUpdateAvailable={updater.hasUpdate}
@@ -565,18 +504,20 @@ const AppInner: React.FC = () => {
         onClose={closeAccountModal}
         onOpenCloudProjects={() => {
           closeAccountModal();
-          setIsCloudProjectsModalOpen(true);
+          setIsProjectBrowserOpen(true);
         }}
       />
 
-      <CloudProjectsModal
-        isOpen={isCloudProjectsModalOpen}
-        onClose={() => setIsCloudProjectsModalOpen(false)}
-        onSelectProject={handleSelectCloudProjectAndLaunch}
-        onUploadLocalFile={async (file) => {
-          await handleUploadLocalFile(file);
-          setViewMode('studio');
-        }}
+      <ProjectBrowser
+        variant="modal"
+        isOpen={isProjectBrowserOpen}
+        onClose={() => setIsProjectBrowserOpen(false)}
+        currentProject={project}
+        onOpenProject={handleOpenProject}
+        onNewProject={handleNewProject}
+        onImportFile={(file) => void handleImportFile(file)}
+        onRenameCurrent={handleRenameCurrent}
+        onSignIn={() => openAccountModal('google')}
       />
     </div>
   );
