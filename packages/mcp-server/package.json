@@ -14,13 +14,15 @@
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "bundle": "node scripts/bundle.mjs",
-    "prepublishOnly": "npm run build && npm run bundle && node scripts/smoke.mjs"
+    "prepublishOnly": "npm run build && npm run bundle && node scripts/smoke.mjs",
+    "pack:mcpb": "node scripts/pack-mcpb.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
     "@process-forge/protocol": "workspace:*",
     "@process-forge/simulation-core": "workspace:*",
     "@process-forge/theme": "workspace:*",

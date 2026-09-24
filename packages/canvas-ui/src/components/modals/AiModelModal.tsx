@@ -63,6 +63,9 @@ interface ProviderMeta {
 
 type SecretKeyField = NonNullable<LlmCredentials['vaulted']>[number];
 
+/** The Claude Desktop extension attached to every release (see mcp-server/scripts/pack-mcpb.mjs). */
+const CLAUDE_EXTENSION_URL = 'https://github.com/omeaga1/process-forge/releases/latest/download/process-forge.mcpb';
+
 const PROVIDERS: ProviderMeta[] = [
   {
     id: 'gemini',
@@ -563,7 +566,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
             flex: 1
           }}
         >
-          {/* Security Assurance Banner */}
+          {/* Where the key goes: only for providers that take one. */}
+          {keyField && (
           <div
             style={{
               padding: '10px 14px',
@@ -598,6 +602,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 : 'this provider. No ProcessForge server is in between.'}
             </div>
           </div>
+          )}
 
           {/* Form for API-key-based providers (Gemini, Claude, OpenAI) */}
           {activeProvider !== 'ollama' && activeProvider !== 'mcp' && (
@@ -1152,6 +1157,48 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 {currentProviderMeta.description}
               </div>
 
+              {/* One-click install for Claude Desktop (a .mcpb extension). */}
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: draftingRadius.soft,
+                  backgroundColor: cardBg,
+                  border: `1px solid ${currentProviderMeta.accentColor}55`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10
+                }}
+              >
+                <div style={{ fontSize: 13, fontWeight: 700, color: textColor }}>Claude Desktop</div>
+                <a
+                  href={CLAUDE_EXTENSION_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    padding: '10px 14px',
+                    borderRadius: draftingRadius.soft,
+                    background: currentProviderMeta.accentColor,
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    textDecoration: 'none'
+                  }}
+                >
+                  <ExternalLink size={14} /> Add to Claude Desktop
+                </a>
+                <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: textMuted, lineHeight: 1.6 }}>
+                  <li>This downloads <code style={{ fontFamily: font.mono }}>process-forge.mcpb</code>.</li>
+                  <li>Open the file. Claude Desktop shows ProcessForge and its tools; click Install.</li>
+                  <li>Keep this app open, then ask Claude to design a unit and add it to your flowsheet.</li>
+                </ol>
+              </div>
+
+              <div style={{ fontSize: 12, color: textMuted }}>Other MCP clients (Cursor and others), or manual setup:</div>
+
               <div
                 style={{
                   padding: 14,
@@ -1228,9 +1275,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
               </div>
 
               <p style={{ margin: 0, fontSize: 11, color: textDim, lineHeight: 1.4 }}>
-                Add this to your MCP client's configuration (for Claude Desktop, claude_desktop_config.json)
-                and restart it. The app cannot detect that connection -- it lives inside the client -- so
-                choose this route below once it is set up.
+                Add this to the client's MCP configuration (in Claude Desktop: Settings, Developer, Edit
+                Config) and restart it. Then choose this route below.
               </p>
               <button
                 type="button"

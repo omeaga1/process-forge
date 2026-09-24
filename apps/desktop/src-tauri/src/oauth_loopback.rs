@@ -104,7 +104,7 @@ fn query_param(query: &str, name: &str) -> Option<String> {
 
 /// Opens a URL in the default browser without a shell, so nothing in the URL
 /// is interpreted as a command. The URL has already been checked to be Google's.
-fn open_in_browser(url: &str) -> Result<(), String> {
+pub(crate) fn open_in_browser(url: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     let status = std::process::Command::new("rundll32")
         .args(["url.dll,FileProtocolHandler", url])

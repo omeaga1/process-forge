@@ -4,6 +4,18 @@
 mod oauth_loopback;
 mod mcp_bridge;
 
+/// Opens an https link in the user's browser. The web view is not a browser:
+/// without this, links such as "Get an API key" or a release download do
+/// nothing in the desktop app. Only https URLs, with no whitespace, are opened,
+/// and never through a shell.
+#[tauri::command]
+fn open_external(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") || url.len() > 2048 || url.chars().any(char::is_whitespace) {
+        return Err("Only https links can be opened.".into());
+    }
+    oauth_loopback::open_in_browser(&url)
+}
+
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
@@ -155,7 +167,8 @@ fn main() {
             mcp_bridge::bridge_take_pending,
             mcp_bridge::bridge_report,
             mcp_bridge::bridge_set_flowsheet,
-            mcp_bridge::bridge_status
+            mcp_bridge::bridge_status,
+            open_external
         ])
         .setup(|app| {
             // The link MCP clients use to add unit ops to the open flowsheet.

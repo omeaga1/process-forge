@@ -56,3 +56,6 @@ packages/mcp-server/bundle/
 
 # Local editor/assistant tooling
 .claude/
+
+# Claude Desktop extension build (packages/mcp-server/scripts/pack-mcpb.mjs)
+packages/mcp-server/build/

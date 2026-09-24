@@ -195,6 +195,33 @@ jobs:
   # Publishes latest.json, which the in-app updater polls
   # (releases/latest/download/latest.json in tauri.conf.json). It runs after
   # every platform build so one manifest references all three.
+  # The Claude Desktop extension (one-click install of the MCP server). One
+  # file for every platform, attached to the release as process-forge.mcpb so
+  # releases/latest/download/process-forge.mcpb always points at the newest.
+  claude-desktop-extension:
+    name: Build Claude Desktop extension (.mcpb)
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Pack and validate the extension
+        run: pnpm --filter @process-forge/mcp-server run pack:mcpb
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.4' }}"
+          files: packages/mcp-server/build/process-forge.mcpb
+
   publish-updater-manifest:
     name: Publish latest.json
     needs: build-desktop-installers
