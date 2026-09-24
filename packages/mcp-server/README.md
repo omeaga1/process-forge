@@ -38,8 +38,17 @@ The desktop app accepts these requests only from this computer: it listens on 12
 Any MCP client that can start a local (stdio) server works. The server runs
 on your machine with Node.js 20 or later; `npx` fetches it on first use.
 
-### Claude Desktop
-Add this to `claude_desktop_config.json`, then restart Claude Desktop:
+### Claude Desktop (one click)
+Download [process-forge.mcpb](https://github.com/omeaga1/process-forge/releases/latest/download/process-forge.mcpb)
+and open it. Claude Desktop shows ProcessForge and its tools; click Install. It
+needs no Node.js install: Claude Desktop runs the bundled server itself.
+
+The extension is built by `pnpm --filter @process-forge/mcp-server run pack:mcpb`
+(one bundled file, manifest generated from the server's own tool list, checked
+with `@anthropic-ai/mcpb`) and attached to every GitHub release.
+
+### Claude Desktop (manual)
+Add this to `claude_desktop_config.json` (Settings, Developer, Edit Config), then restart Claude Desktop:
 
 ```json
 {

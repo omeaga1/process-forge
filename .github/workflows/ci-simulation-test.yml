@@ -39,3 +39,8 @@ jobs:
       # (MCP handshake over stdio, tools listed) before anyone publishes it.
       - name: Bundle & smoke-test the MCP server package
         run: pnpm --filter @process-forge/mcp-server run bundle && pnpm --filter @process-forge/mcp-server run smoke
+
+      # The Claude Desktop extension: bundled with every dependency, manifest
+      # built from the server's own tool list, checked by Anthropic's validator.
+      - name: Pack and validate the Claude Desktop extension
+        run: pnpm --filter @process-forge/mcp-server run pack:mcpb

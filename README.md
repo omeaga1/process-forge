@@ -53,8 +53,14 @@ On desktop, keys are stored in the OS keychain. In the browser, they are stored
 in the browser's local storage. The app sends them only to the provider you
 chose.
 
-**From an MCP client** (Claude Desktop, Cursor, and others). Add the MCP server
-to the client's configuration:
+**From an MCP client** (Claude Desktop, Cursor, and others).
+
+- **Claude Desktop:** download
+  [process-forge.mcpb](https://github.com/omeaga1/process-forge/releases/latest/download/process-forge.mcpb)
+  and open it; Claude Desktop installs it with one click. (It is also linked in
+  the app under AI model, MCP client.)
+- **Any other client, or manual setup:** add the MCP server to the client's
+  configuration:
 
 ```json
 {
