@@ -46,13 +46,13 @@ describe('What a unit does, in the engine\'s terms', () => {
     assert.deepStrictEqual(b.engineKeys.sort(), ['maxSpeedUnitsPerMinute', 'opticalInspectionFailRate']);
   });
 
-  it('says a pump is not simulated and that none of its settings change the results', () => {
+  it('says an unpiped pump has nothing flowing through it', () => {
     const pump = at('PUMP', 'p');
     const b = describeUnitBehavior(pump, graphOf([pump]));
     assert.strictEqual(b.simulated, false);
     assert.strictEqual(b.capacityPerMin, null);
     assert.deepStrictEqual(engineKeysOf(pump), []);
-    assert.match(b.details.join(' '), /does not step this kind of unit/);
+    assert.match(b.details.join(' '), /No liquid pipe connects to it/);
   });
 
   it('warns that a palletizer layer over 100 never starts', () => {
@@ -94,6 +94,36 @@ describe('What a unit does, in the engine\'s terms', () => {
     assert.ok(b.simulated, b.details.join(' | '));
     assert.match(b.headline, /Makes 1 unit every 30 min/);
     assert.deepStrictEqual(formatRate(b.capacityPerMin), { value: '2', per: '/h' });
+  });
+
+  it('a piped tank, pump and filler are simulated, with liquid rates', () => {
+    const tank = at('SURGE_TANK', 'tank', { capacityGallons: 800, initialLevelGallons: 400, maxDischargeRateGpm: 45 });
+    const pump = at('PUMP', 'pump', { designFlowRateGpm: 40 });
+    const filler = at('ROTARY_FILLER', 'filler');
+    const g = graphOf([tank, pump, filler], [['tank', 'pump'], ['pump', 'filler']]);
+
+    const t = describeUnitBehavior(tank, g);
+    assert.ok(t.simulated);
+    assert.strictEqual(t.rateUnit, 'gal');
+    assert.match(t.headline, /800 gal, starting at 400 gal/);
+    assert.ok(engineKeysOf(tank).includes('maxDischargeRateGpm') || t.engineKeys.includes('maxDischargeRateGpm'));
+
+    const p = describeUnitBehavior(pump, g);
+    assert.ok(p.simulated);
+    assert.strictEqual(p.capacityPerMin, 40);
+    assert.deepStrictEqual(formatRate(p.capacityPerMin, 'gal'), { value: '40', per: ' gal/min' });
+
+    const f = describeUnitBehavior(filler, g);
+    assert.match(f.details.join(' '), /draws .* gal from/);
+    assert.ok(f.engineKeys.includes('containerVolumeGallons'));
+  });
+
+  it('a batch reactor states its batch cycle and average rate', () => {
+    const reactor = at('BATCH_REACTOR', 'r', { batchVolumeGallons: 1000, fillDurationMinutes: 20, reactionDurationMinutes: 45, dischargeRateGpm: 50 });
+    const b = describeUnitBehavior(reactor, graphOf([reactor]));
+    assert.ok(b.simulated);
+    assert.match(b.headline, /1,000 gal batches, one every 85 min/);
+    assert.ok(Math.abs(b.capacityPerMin! - 1000 / 85) < 1e-9);
   });
 
   it('formats slow rates per hour and long cycles in minutes', () => {

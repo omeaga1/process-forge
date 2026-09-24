@@ -10,7 +10,7 @@ import { createProcessForgeMcpServer } from '../server.js';
 import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates.js';
 
 describe('ProcessForge MCP Server Tools', () => {
-  it('executes simulate_process_line on Sherwin-Williams paint line and detects labeler bottleneck', () => {
+  it('executes simulate_process_line on the paint line and finds the reactor limits it', () => {
     const res = executeSimulateLine({
       templateName: 'sherwin-williams-paint-line',
       durationMinutes: 15
@@ -19,9 +19,12 @@ describe('ProcessForge MCP Server Tools', () => {
     assert.strictEqual(res.success, true);
     assert.strictEqual(res.durationMinutes, 15);
     assert.ok(res.totalUnitsPackaged > 0, 'Packaged units should be greater than 0');
-    assert.strictEqual(res.identifiedBottleneckNodeId, 'labeler-500');
+    // 1000 gal every 20 + 45 + 20 min is about 11.8 gal/min: the reactor, not the
+    // labeler (35/min), limits the paint line once liquid is simulated.
+    assert.strictEqual(res.identifiedBottleneckNodeId, 'reactor-101');
     assert.ok(res.machineMetrics.length === 6, 'Should report metrics for all 6 machines');
-    assert.ok(res.engineeringDiagnosis.includes('LB-500') || res.engineeringDiagnosis.includes('labeler'));
+    assert.match(res.engineeringDiagnosis, /second reactor/);
+    assert.ok(res.machineMetrics.find((m) => m.nodeId === 'surge-tank-200')?.liquid, 'reports the tank\'s liquid');
   });
 
   it('diagnoses bottlenecks and validates topology', () => {
@@ -31,8 +34,8 @@ describe('ProcessForge MCP Server Tools', () => {
 
     assert.strictEqual(res.success, true);
     assert.strictEqual(res.isValidTopology, true);
-    assert.strictEqual(res.bottleneckNodeId, 'labeler-500');
-    assert.strictEqual(res.maxLineThroughputPpm, 35);
+    assert.strictEqual(res.bottleneckNodeId, 'reactor-101');
+    assert.ok(Math.abs(res.maxLineThroughputPpm - 1000 / 85) < 0.01);
     assert.ok(res.actionableRecommendations.length > 0);
   });
 

@@ -37,6 +37,11 @@ export interface CanvasNodeData extends Record<string, unknown> {
   unitsScrapped: number;
   bufferLevel: number;
   instantaneousRate: number;
+  /** Liquid units, from the simulation. */
+  levelFraction?: number;
+  levelGallons?: number;
+  flowGpm?: number;
+  phase?: 'FILLING' | 'REACTING' | 'DISCHARGING';
   activeSubAgentId: string;
   subAgentChatHistory: ChatMessage[];
   onOpenPopOutStudio?: (nodeId: string) => void;

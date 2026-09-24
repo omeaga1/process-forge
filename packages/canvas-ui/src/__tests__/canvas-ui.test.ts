@@ -22,10 +22,12 @@ describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
     assert.ok(nodeKinds.includes('PALLETIZER'));
   });
 
-  it('correctly identifies the line bottleneck at the high-speed labeler', () => {
+  it('identifies the batch reactor as what limits the paint line', () => {
+    // 1000 gal every 20 + 45 + 20 min is about 11.8 gal/min: the reactor, not the
+    // labeler (35/min), limits the paint line once liquid is simulated.
     const result = validateProcessGraph(SHERWIN_WILLIAMS_PAINT_LINE);
-    assert.equal(result.bottlenecks.bottleneckNodeId, 'labeler-500');
-    assert.equal(result.bottlenecks.maximumSystemThroughputUnitsPerMin, 35);
+    assert.equal(result.bottlenecks.bottleneckNodeId, 'reactor-101');
+    assert.ok(Math.abs(result.bottlenecks.maximumSystemThroughputUnitsPerMin - 1000 / 85) < 0.01);
   });
 
   it('verifies all nodes have assigned Sub-Agent identifiers', () => {

@@ -25,7 +25,9 @@ const PAD = 18;
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { palette, machineVisuals, font, size, weight, radius: r, motion } = useTheme();
   const nodeData = data as unknown as CanvasNodeData;
-  const { processNode, state, instantaneousRate, bufferLevel } = nodeData;
+  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, phase } = nodeData;
+  // A pipe-fed filler has a product bowl, but what matters there is containers.
+  const isLiquid = levelGallons !== undefined && processNode.kind !== 'ROTARY_FILLER';
   const [hovered, setHovered] = useState(false);
   const updateNodeInternals = useUpdateNodeInternals();
   const edges = useEdges();
@@ -101,7 +103,13 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           transition: `background-color ${motion.fast}, box-shadow ${motion.normal}`
         }}
       >
-        <EquipmentFigure kind={processNode.kind} dressing={processNode.dressing} isRunning={isRunning} stubs={figureStubs}>
+        <EquipmentFigure
+          kind={processNode.kind}
+          dressing={processNode.dressing}
+          isRunning={isRunning}
+          stubs={figureStubs}
+          {...(levelFraction !== undefined ? { levelFraction } : {})}
+        >
           {layout.anchors.map((a) => {
             const at = a.nozzle ? flangePoint(a.x, a.y, a.side, width, height) : { x: (a.x / 100) * width, y: (a.y / 100) * height };
             const color = streamColor(a.port.flowDimension);
@@ -184,7 +192,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           {tag ?? processNode.kind.replace(/_/g, ' ')}
         </div>
         <div style={{ fontSize: size.sm, fontWeight: weight.semibold, color: palette.text.primary }}>{title}</div>
-        {(state !== 'IDLE' || instantaneousRate > 0) && (
+        {(state !== 'IDLE' || instantaneousRate > 0 || isLiquid) && (
           <div
             style={{
               display: 'inline-flex',
@@ -200,9 +208,20 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               border: `1px solid ${visualState.badgeText}40`
             }}
           >
-            <span>{visualState.label}</span>
-            {instantaneousRate > 0 && <span style={{ fontFamily: font.mono }}>{Math.round(instantaneousRate)}/min</span>}
-            {bufferLevel > 0 && <span style={{ fontFamily: font.mono }}>{bufferLevel} queued</span>}
+            <span>{phase ? phase.charAt(0) + phase.slice(1).toLowerCase() : visualState.label}</span>
+            {isLiquid ? (
+              <>
+                {levelFraction !== undefined && processNode.kind !== 'PUMP' && (
+                  <span style={{ fontFamily: font.mono }}>{Math.round(levelFraction * 100)}%</span>
+                )}
+                {(flowGpm ?? 0) > 0 && <span style={{ fontFamily: font.mono }}>{Math.round(flowGpm!)} gpm</span>}
+              </>
+            ) : (
+              <>
+                {instantaneousRate > 0 && <span style={{ fontFamily: font.mono }}>{Math.round(instantaneousRate)}/min</span>}
+                {bufferLevel > 0 && <span style={{ fontFamily: font.mono }}>{bufferLevel} queued</span>}
+              </>
+            )}
           </div>
         )}
       </div>

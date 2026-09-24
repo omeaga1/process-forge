@@ -131,20 +131,55 @@ function computeBottlenecks(
 ): BottleneckAnalysis {
   const capacities: Record<string, number> = {};
 
+  // Liquid units limit a line in gallons a minute; a pipe-fed filler turns
+  // gallons into containers, so their capacity is counted in its containers.
+  const isLiquidPipe = (e: ProcessGraph['edges'][number]) => {
+    const port = graph.nodes.find((n) => n.id === e.sourceNodeId)?.outputs.find((p) => p.id === e.sourcePortId);
+    return port ? String(port.flowDimension).startsWith('CONTINUOUS') : false;
+  };
+  const liquidPipes = graph.edges.filter(isLiquidPipe);
+  const onLiquidPath = new Set(liquidPipes.flatMap((e) => [e.sourceNodeId, e.targetNodeId]));
+  const pipeFedFiller = graph.nodes.find(
+    (n) => n.kind === 'ROTARY_FILLER' && liquidPipes.some((e) => e.targetNodeId === n.id)
+  );
+  const gallonsPerContainer = (pipeFedFiller?.config as { containerVolumeGallons?: number } | undefined)
+    ?.containerVolumeGallons;
+  const perContainer = typeof gallonsPerContainer === 'number' && gallonsPerContainer > 0 ? gallonsPerContainer : 1;
+
   for (const node of graph.nodes) {
+    // Defaults match the simulation engine's, so the figures agree with a run.
     if (node.kind === 'ROTARY_FILLER') {
       const config = node.config as {
         nozzleCount?: number;
         fillTimePerCycleSeconds?: number;
         indexTimePerCycleSeconds?: number;
       };
-      const nozzles = config.nozzleCount ?? 1;
+      const nozzles = config.nozzleCount ?? 10;
       const cycleTime = (config.fillTimePerCycleSeconds ?? 10) + (config.indexTimePerCycleSeconds ?? 2);
       const cansPerMinute = (nozzles / cycleTime) * 60;
       capacities[node.id] = cansPerMinute;
+    } else if (pipeFedFiller && onLiquidPath.has(node.id) && node.kind === 'BATCH_REACTOR') {
+      // One batch every fill + reaction + discharge.
+      const c = node.config as {
+        batchVolumeGallons?: number;
+        fillDurationMinutes?: number;
+        reactionDurationMinutes?: number;
+        dischargeRateGpm?: number;
+      };
+      const batch = c.batchVolumeGallons ?? 800;
+      const cycleMin = (c.fillDurationMinutes ?? 15) + (c.reactionDurationMinutes ?? 30) + batch / Math.max(1e-6, c.dischargeRateGpm ?? 50);
+      capacities[node.id] = batch / cycleMin / perContainer;
+    } else if (pipeFedFiller && onLiquidPath.has(node.id) && node.kind === 'PUMP') {
+      const gpm = (node.config as { designFlowRateGpm?: number }).designFlowRateGpm;
+      if (typeof gpm === 'number' && gpm > 0) capacities[node.id] = gpm / perContainer;
+    } else if (pipeFedFiller && onLiquidPath.has(node.id) && node.kind === 'SURGE_TANK') {
+      const gpm = (node.config as { maxDischargeRateGpm?: number }).maxDischargeRateGpm;
+      if (typeof gpm === 'number' && gpm > 0 && liquidPipes.some((e) => e.sourceNodeId === node.id)) {
+        capacities[node.id] = gpm / perContainer;
+      }
     } else if (node.kind === 'LABELER') {
       const config = node.config as { maxSpeedUnitsPerMinute?: number };
-      capacities[node.id] = config.maxSpeedUnitsPerMinute ?? 60;
+      capacities[node.id] = config.maxSpeedUnitsPerMinute ?? 40;
     } else if (node.kind === 'PALLETIZER') {
       const config = node.config as {
         containersPerLayer?: number;

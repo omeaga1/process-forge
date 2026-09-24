@@ -1,6 +1,7 @@
 import type { ProcessGraph, ProcessNode, UnitOpContract, UnitOpEvaluation } from '@process-forge/protocol';
 import { evaluateUnitOp, blockingViolations } from '@process-forge/protocol';
 import { PriorityQueue } from './priority-queue.js';
+import { FluidNetwork, fillerDemandGallons, isFluidEdge } from './fluid.js';
 import { createRng, seedFromString, type SeededRng } from './rng.js';
 import type {
   MachineOeeReport,
@@ -49,6 +50,12 @@ export class SimulationEngine {
   private lastTelemetrySnapshotMinute = -1;
   /** Round-robin position per node with more than one outgoing edge. */
   private routeCursor = new Map<string, number>();
+  /** Liquid: reactors, tanks, pumps, and what pipe-fed fillers draw. */
+  private readonly fluid: FluidNetwork;
+  /** Seconds between fluid steps. */
+  private static readonly FLUID_DT = 1;
+  /** Edges that carry containers or parts, not liquid. */
+  private readonly discreteEdges: ProcessGraph['edges'];
 
   private readonly rng: SeededRng;
 
@@ -65,6 +72,8 @@ export class SimulationEngine {
     options: { seed?: number } = {}
   ) {
     this.rng = createRng(options.seed ?? seedFromString(graph.id));
+    this.discreteEdges = graph.edges.filter((e) => !isFluidEdge(e, graph));
+    this.fluid = new FluidNetwork(graph);
     this.initializeNodes();
   }
 
@@ -197,13 +206,7 @@ export class SimulationEngine {
     // Bootstrap initial events for machine nodes
     for (const runtime of this.nodes.values()) {
       if (runtime.node.kind === 'ROTARY_FILLER') {
-        this.setNodeState(runtime, 'BUSY');
-        const cfg = runtime.node.config as {
-          fillTimePerCycleSeconds?: number;
-          indexTimePerCycleSeconds?: number;
-        };
-        const cycleTime = (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2);
-        this.scheduleEvent(cycleTime, runtime.node.id, 'FILLER_CYCLE_COMPLETE');
+        this.startFillerCycle(runtime);
       } else if (runtime.node.kind === 'LABELER') {
         this.setNodeState(runtime, 'STARVED');
       } else if (runtime.node.kind === 'PALLETIZER') {
@@ -225,6 +228,8 @@ export class SimulationEngine {
         }
       }
     }
+
+    if (this.fluid.active) this.scheduleEvent(SimulationEngine.FLUID_DT, '__fluid__', 'FLUID_TICK');
 
     // Main discrete-event loop
     while (!this.queue.isEmpty()) {
@@ -257,6 +262,10 @@ export class SimulationEngine {
   }
 
   private handleEvent(event: SimEvent): void {
+    if (event.type === 'FLUID_TICK') {
+      this.handleFluidTick();
+      return;
+    }
     const runtime = this.nodes.get(event.nodeId);
     if (!runtime) return;
 
@@ -288,11 +297,8 @@ export class SimulationEngine {
           }
         }
 
-        // Schedule next filler cycle if not blocked
-        if (runtime.state === 'BUSY') {
-          const cycleTime = (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2);
-          this.scheduleEvent(cycleTime, runtime.node.id, 'FILLER_CYCLE_COMPLETE');
-        }
+        // Next cycle, unless blocked. A pipe-fed filler needs the product for it.
+        if (runtime.state === 'BUSY') this.startFillerCycle(runtime);
         break;
       }
 
@@ -404,8 +410,49 @@ export class SimulationEngine {
     }
   }
 
+  /**
+   * No inbound pipe that carries units. A unit fed only liquid it does not
+   * consume (a designed cycle unit with a feedstock pipe) still starts on its
+   * own; before, any inbound pipe made it wait forever for units.
+   */
   private isSourceNode(nodeId: string): boolean {
-    return !this.graph.edges.some((e) => e.targetNodeId === nodeId);
+    return !this.discreteEdges.some((e) => e.targetNodeId === nodeId);
+  }
+
+  /**
+   * Starts a filler cycle. A filler fed by a pipe draws one cycle's product
+   * from its bowl first, and waits (starved) until the bowl has it; a filler
+   * with no feed pipe fills on its own, as before.
+   */
+  private startFillerCycle(runtime: InternalNodeRuntime): void {
+    const cfg = runtime.node.config as { fillTimePerCycleSeconds?: number; indexTimePerCycleSeconds?: number };
+    const cycleTime = (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2);
+    if (this.fluid.isPipeFedFiller(runtime.node.id)) {
+      const need = fillerDemandGallons(runtime.node);
+      if (this.fluid.bowl(runtime.node.id) + 1e-6 < need) {
+        this.setNodeState(runtime, 'STARVED');
+        return;
+      }
+      this.fluid.draw(runtime.node.id, need);
+    }
+    this.setNodeState(runtime, 'BUSY');
+    this.scheduleEvent(cycleTime, runtime.node.id, 'FILLER_CYCLE_COMPLETE');
+  }
+
+  /** One step of the liquid, then the states it implies and the fillers it can restart. */
+  private handleFluidTick(): void {
+    this.fluid.tick(this.currentTimeSeconds, SimulationEngine.FLUID_DT);
+    for (const unit of this.fluid.units.values()) {
+      const runtime = this.nodes.get(unit.id);
+      if (!runtime) continue;
+      if (unit.role === 'filler') {
+        if (runtime.state === 'STARVED') this.startFillerCycle(runtime);
+        continue;
+      }
+      this.setNodeState(runtime, this.fluid.stateOf(unit));
+      if (unit.role === 'reactor') runtime.unitsProduced = unit.batches;
+    }
+    this.scheduleEvent(SimulationEngine.FLUID_DT, '__fluid__', 'FLUID_TICK');
   }
 
   /**
@@ -514,7 +561,7 @@ export class SimulationEngine {
   }
 
   private unblockUpstreamIfWaiting(currentNodeId: string): void {
-    for (const edge of this.graph.edges) {
+    for (const edge of this.discreteEdges) {
       if (edge.targetNodeId !== currentNodeId) continue;
       const upstream = this.nodes.get(edge.sourceNodeId);
       if (upstream && upstream.state === 'BLOCKED') this.resumeBlocked(upstream);
@@ -533,13 +580,7 @@ export class SimulationEngine {
     if (upstream.node.kind === 'ROTARY_FILLER') {
       upstream.bufferCans -= this.routeUnits(upstream, upstream.bufferCans);
       if (upstream.bufferCans > 0) return; // still full downstream: stay blocked
-      this.setNodeState(upstream, 'BUSY');
-      const cfg = upstream.node.config as { fillTimePerCycleSeconds?: number; indexTimePerCycleSeconds?: number };
-      this.scheduleEvent(
-        (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2),
-        id,
-        'FILLER_CYCLE_COMPLETE'
-      );
+      this.startFillerCycle(upstream);
       return;
     }
 
@@ -585,7 +626,7 @@ export class SimulationEngine {
 
   private downstreamRuntimes(nodeId: string): InternalNodeRuntime[] {
     const out: InternalNodeRuntime[] = [];
-    for (const e of this.graph.edges) {
+    for (const e of this.discreteEdges) {
       if (e.sourceNodeId !== nodeId) continue;
       const target = this.nodes.get(e.targetNodeId);
       if (target) out.push(target);
@@ -594,7 +635,7 @@ export class SimulationEngine {
   }
 
   private hasDownstream(nodeId: string): boolean {
-    return this.graph.edges.some((e) => e.sourceNodeId === nodeId && this.nodes.has(e.targetNodeId));
+    return this.discreteEdges.some((e) => e.sourceNodeId === nodeId && this.nodes.has(e.targetNodeId));
   }
 
   /**
@@ -643,9 +684,21 @@ export class SimulationEngine {
         unitsScrapped: r.unitsScrapped,
         bufferLevel: r.bufferCans,
         instantaneousRatePerMin:
-          this.currentTimeSeconds > 0 ? (r.unitsProduced / this.currentTimeSeconds) * 60 : 0
+          this.currentTimeSeconds > 0 ? (r.unitsProduced / this.currentTimeSeconds) * 60 : 0,
+        ...this.fluidTelemetry(r.node.id)
       });
     }
+  }
+
+  private fluidTelemetry(nodeId: string): Partial<NodeTelemetrySnapshot> {
+    const u = this.fluid.units.get(nodeId);
+    if (!u) return {};
+    return {
+      levelGallons: Math.round(u.level * 10) / 10,
+      ...(Number.isFinite(u.capacity) ? { levelFraction: Math.min(1, u.level / u.capacity) } : {}),
+      flowGpm: Math.round(u.outRate * 60 * 10) / 10,
+      ...(u.phase ? { phase: u.phase } : {})
+    };
   }
 
   private buildSimulationResult(
@@ -656,6 +709,7 @@ export class SimulationEngine {
     const totalSimTime = durationMinutes * 60;
     let totalPackaged = 0;
     let totalScrapped = 0;
+    let totalFluidDelivered = 0;
 
     for (const [nodeId, r] of this.nodes.entries()) {
       // Every second is now attributed to a state, so the total is the run.
@@ -684,8 +738,14 @@ export class SimulationEngine {
       }
 
       const theoreticalMaxUnits = (operatingTime / 60) * theoreticalSpeedPerMin;
-      const performance =
-        theoreticalMaxUnits > 0 ? Math.min(1.0, totalUnits / theoreticalMaxUnits) : 1.0;
+      // Liquid units have no container rate to compare against.
+      const fluidUnit = this.fluid.units.get(nodeId);
+      const isLiquid = Boolean(fluidUnit && fluidUnit.role !== 'filler');
+      const performance = isLiquid
+        ? 1.0
+        : theoreticalMaxUnits > 0
+          ? Math.min(1.0, totalUnits / theoreticalMaxUnits)
+          : 1.0;
 
       const overallOee = availability * performance * quality;
 
@@ -701,12 +761,23 @@ export class SimulationEngine {
         starvedTimeSeconds: Math.round(r.starvedTime),
         downTimeSeconds: Math.round(r.downTime),
         unitsProduced: r.unitsProduced,
-        unitsScrapped: r.unitsScrapped
+        unitsScrapped: r.unitsScrapped,
+        ...(isLiquid && fluidUnit
+          ? {
+              fluid: {
+                receivedGallons: Math.round(fluidUnit.receivedGallons * 10) / 10,
+                deliveredGallons: Math.round(fluidUnit.deliveredGallons * 10) / 10,
+                levelGallons: Math.round(fluidUnit.level * 10) / 10,
+                ...(fluidUnit.role === 'reactor' ? { batches: fluidUnit.batches } : {})
+              }
+            }
+          : {})
       };
+      if (fluidUnit) totalFluidDelivered += fluidUnit.leftLineGallons;
 
-      // Output is what leaves the line: the sum over every terminal node.
-      // max() under-counted a line that splits into parallel end stations.
-      if (!this.hasDownstream(nodeId)) {
+      // Output is what leaves the line: the sum over every terminal node that
+      // makes units. Liquid leaving the line is reported in gallons instead.
+      if (!this.hasDownstream(nodeId) && !isLiquid) {
         totalPackaged += r.unitsProduced;
       }
       totalScrapped += r.unitsScrapped;
@@ -721,6 +792,7 @@ export class SimulationEngine {
       totalUnitsScrapped: totalScrapped,
       averageLineThroughputUnitsPerMin:
         durationMinutes > 0 ? Math.round((totalPackaged / durationMinutes) * 10) / 10 : 0,
+      totalFluidDeliveredGallons: Math.round(totalFluidDelivered * 10) / 10,
       nodeReports,
       telemetryLog: this.telemetry
     };

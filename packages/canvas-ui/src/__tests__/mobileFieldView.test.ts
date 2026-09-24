@@ -20,13 +20,15 @@ describe('Canvas UI - Mobile Pocket Twin & Field View', () => {
 
   it('correctly reports bottleneck warning for mobile feed banner', () => {
     const validation = validateProcessGraph(SHERWIN_WILLIAMS_PAINT_LINE);
-    assert.strictEqual(validation.bottlenecks.bottleneckNodeId, 'labeler-500');
+    // 1000 gal every 20 + 45 + 20 min is about 11.8 gal/min: the reactor, not the
+    // labeler (35/min), limits the paint line once liquid is simulated.
+    assert.strictEqual(validation.bottlenecks.bottleneckNodeId, 'reactor-101');
 
     const bottleneckNode = SHERWIN_WILLIAMS_PAINT_LINE.nodes.find(
       (n) => n.id === validation.bottlenecks.bottleneckNodeId
     );
     assert.ok(bottleneckNode);
-    assert.strictEqual(bottleneckNode.name, 'High-Speed Rotary Labeler LB-500');
+    assert.match(bottleneckNode.name, /Batch Reactor B-101/);
   });
 
   it('verifies ASME nozzle dressing data is accessible for mobile bottom sheet', () => {

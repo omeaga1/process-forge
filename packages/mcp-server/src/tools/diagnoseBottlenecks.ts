@@ -1,3 +1,4 @@
+import { bottleneckAdvice } from './bottleneckAdvice.js';
 import { validateProcessGraph, type ProcessGraph, type GraphDiagnostic } from '@process-forge/protocol';
 import { AVAILABLE_TEMPLATES } from '../templates.js';
 
@@ -44,9 +45,7 @@ export function executeDiagnoseBottlenecks(params: DiagnoseBottlenecksParams): D
   const recommendations: string[] = [];
 
   if (validation.bottlenecks.bottleneckNodeId) {
-    recommendations.push(
-      `Primary Bottleneck at [${bottleneckName}]: Maximum speed is clamped at ${validation.bottlenecks.maximumSystemThroughputUnitsPerMin} units/min. Consider parallelizing this station or upgrading nozzle/label drive motors.`
-    );
+    recommendations.push(bottleneckAdvice(bottleneckNode, validation.bottlenecks.maximumSystemThroughputUnitsPerMin));
   }
 
   // Check for accumulation buffers
