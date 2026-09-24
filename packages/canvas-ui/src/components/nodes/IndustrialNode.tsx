@@ -65,6 +65,8 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
     ...layout.decorative.map((z) => ({ nozzle: z, color: palette.text.muted }))
   ];
 
+  const hasBottomNozzle = [...layout.anchors.map((a) => a.side), ...layout.decorative.map((z) => z.position)].includes('bottom');
+
   const tag = processNode.name.match(/\b[A-Z]{1,3}-\d{2,4}\b/)?.[0];
   const title = tag ? processNode.name.replace(tag, '').trim() : processNode.name;
 
@@ -163,8 +165,22 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         </EquipmentFigure>
       </div>
 
-      {/* Tag, name and state, under the drawing like a P&ID label. */}
-      <div style={{ marginTop: -6, textAlign: 'center', maxWidth: Math.max(180, width + PAD * 2), lineHeight: 1.25 }}>
+      {/* Tag, name and state, under the drawing like a P&ID label. Opaque, so a
+          pipe routed behind it (nodes draw above edges) does not strike through
+          the text; and below the flange when a nozzle faces down. */}
+      <div
+        style={{
+          marginTop: hasBottomNozzle ? 10 : -6,
+          textAlign: 'center',
+          maxWidth: Math.max(180, width + PAD * 2),
+          lineHeight: 1.25,
+          padding: '2px 8px',
+          borderRadius: r.md,
+          backgroundColor: palette.background.canvas,
+          position: 'relative',
+          zIndex: 2
+        }}
+      >
         <div style={{ fontFamily: font.mono, fontSize: size['2xs'], letterSpacing: '0.08em', color: palette.jade[400], fontWeight: weight.bold }}>
           {tag ?? processNode.kind.replace(/_/g, ' ')}
         </div>

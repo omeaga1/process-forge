@@ -70,6 +70,24 @@ function neighbourContext(graph: ProcessGraph, nodeId: string): { upstreamContex
   };
 }
 
+/** Every toolbar button: one height, one type size, never wrapping. */
+const toolbarButton: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  height: 32,
+  boxSizing: 'border-box',
+  padding: '0 12px',
+  borderRadius: draftingRadius.soft,
+  fontSize: 13,
+  fontWeight: 600,
+  lineHeight: 1,
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
+  cursor: 'pointer',
+  transition: 'background-color 0.15s ease'
+};
+
 export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   initialViewMode = 'auto',
   onViewModeChange,
@@ -79,7 +97,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   isDockCollapsed: externalIsDockCollapsed,
   onToggleDockCollapse: externalOnToggleDockCollapse
 }) => {
-  const { palette, canvasTokens } = useTheme();
+  const { palette, canvasTokens, font } = useTheme();
   const OsakaJadePalette = palette;
   const { isMobile, viewMode } = useMobileViewport();
   const [internalDockCollapsed, setInternalDockCollapsed] = useState<boolean>(() => {
@@ -376,6 +394,17 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
   const [simSpeed, setSimSpeed] = useState<number>(1);
 
+  // Toolbar labels give way to icons (with tooltips) when the canvas is narrow.
+  const canvasAreaRef = useRef<HTMLDivElement>(null);
+  const [compactToolbar, setCompactToolbar] = useState(false);
+  useEffect(() => {
+    const el = canvasAreaRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => setCompactToolbar((entry?.contentRect.width ?? 1200) < 1060));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Keyboard shortcut: Spacebar to toggle simulation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -547,216 +576,208 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       }}
     >
       {/* Center Interactive Flow Canvas */}
-      <div style={{ flex: 1, position: 'relative', height: '100%', minWidth: 0, minHeight: 0 }}>
-        {/* Floating Top Precision CAD Simulation & Telemetry Bar */}
+      <div ref={canvasAreaRef} style={{ flex: 1, position: 'relative', height: '100%', minWidth: 0, minHeight: 0 }}>
+        {/* Simulation toolbar. Centred by a full-width row rather than
+            left: 50% + translate, which gives an absolutely positioned box only
+            half the canvas to lay out in and made every label wrap. */}
         <div
           style={{
             position: 'absolute',
-            top: 14,
-            left: '50%',
-            transform: 'translateX(-50%)',
+            top: 12,
+            left: 12,
+            right: 12,
             zIndex: 10,
             display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '5px 10px',
-            borderRadius: draftingRadius.soft,
-            backgroundColor: OsakaJadePalette.background.surfaceElevated,
-            // A ruled instrument band. The run state is carried by the rule
-            // colour, which is information; a glow would only be decoration.
-            border: `1px solid ${isRunning ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
-            transition: 'border-color 0.15s ease',
-            pointerEvents: 'auto',
-            maxWidth: '92vw'
+            justifyContent: 'center',
+            pointerEvents: 'none'
           }}
         >
-          {/* Play / Pause Action Button */}
-          <button
-            onClick={handleToggleSimulation}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 12px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: isRunning ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[500],
-              color: OsakaJadePalette.text.inverse,
-              border: 'none',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'background-color 0.15s ease'
-            }}
-            title="Press Spacebar to toggle simulation"
-          >
-            {isRunning ? <Pause size={13} /> : <Play size={13} />}
-            <span>{isRunning ? 'Pause Simulation' : 'Run Simulation'}</span>
-          </button>
-
-          {onDesignUnitOp && (
-            <button
-            onClick={onDesignUnitOp}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 11px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.jade[600],
-              color: OsakaJadePalette.text.inverse,
-              border: `1px solid ${OsakaJadePalette.jade[500]}`,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-            title="Describe equipment that has no model yet. Your AI model writes it as a contract; the engine checks the physics."
-          >
-            <Sparkles size={13} />
-            <span>Design a unit op</span>
-          </button>
-          )}
-
-          {/* Standard equipment palette */}
-          <button
-            onClick={() => setIsEquipmentPaletteOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 11px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.background.surface,
-              color: OsakaJadePalette.jade[300],
-              border: `1px solid ${OsakaJadePalette.border.strong}`,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-            title="Stock pumps, tanks, reactors, fillers and conveyors"
-          >
-            <Plus size={13} color={OsakaJadePalette.jade[400]} />
-            <span>Standard equipment</span>
-          </button>
-
-          {/* Reset Action Button */}
-          <button
-            onClick={handleResetSimulation}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 28,
-              height: 28,
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              color: OsakaJadePalette.text.secondary,
-              cursor: 'pointer'
-            }}
-            title="Reset Simulation Time and Counters"
-          >
-            <RotateCcw size={12} />
-          </button>
-
-          <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle }} />
-
-          {/* Speed Multiplier Segmented Control */}
           <div
+            role="toolbar"
+            aria-label="Simulation"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 1,
-              backgroundColor: OsakaJadePalette.background.surface,
-              padding: 2,
+              gap: 8,
+              padding: 6,
               borderRadius: draftingRadius.soft,
-              border: `1px solid ${OsakaJadePalette.border.subtle}`
+              backgroundColor: OsakaJadePalette.background.surfaceElevated,
+              // The run state is carried by the rule colour.
+              border: `1px solid ${isRunning ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
+              transition: 'border-color 0.15s ease',
+              pointerEvents: 'auto',
+              whiteSpace: 'nowrap',
+              maxWidth: '100%',
+              overflowX: 'auto'
             }}
           >
-            {[1, 2, 5].map((speed) => (
-              <button
-                key={speed}
-                onClick={() => setSimSpeed(speed)}
-                style={{
-                  padding: '3px 7px',
-                  borderRadius: draftingRadius.soft,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  border: 'none',
-                  backgroundColor: simSpeed === speed ? OsakaJadePalette.jade.muted : 'transparent',
-                  color: simSpeed === speed ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.muted,
-                  cursor: 'pointer'
-                }}
-              >
-                {speed}x
-              </button>
-            ))}
-          </div>
-
-          <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle }} />
-
-          {/* Real-time Status Badge & Telemetry */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
-            <span
+            <button
+              type="button"
+              onClick={handleToggleSimulation}
+              title={`${isRunning ? 'Pause' : 'Run'} the simulation (Space)`}
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                color: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-                fontWeight: 700,
-                fontSize: 10,
-                letterSpacing: '0.04em'
+                ...toolbarButton,
+                backgroundColor: isRunning ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[500],
+                color: OsakaJadePalette.text.inverse,
+                border: 'none',
+                fontWeight: 700
               }}
             >
-              <span
+              {isRunning ? <Pause size={15} /> : <Play size={15} />}
+              {!compactToolbar && <span>{isRunning ? 'Pause' : 'Run'}</span>}
+            </button>
+
+            {onDesignUnitOp && (
+              <button
+                type="button"
+                onClick={onDesignUnitOp}
+                title="Design a unit op: describe equipment that has no model yet; your AI model writes it and the engine checks the physics"
                 style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 0,
-                  backgroundColor: isRunning ? OsakaJadePalette.jade[400] : 'transparent',
-                  border: `1px solid ${isRunning ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted}`
+                  ...toolbarButton,
+                  backgroundColor: OsakaJadePalette.jade[600],
+                  color: OsakaJadePalette.text.inverse,
+                  border: `1px solid ${OsakaJadePalette.jade[500]}`,
+                  fontWeight: 700
                 }}
-              />
-              {isRunning ? 'RUNNING' : 'STANDBY'}
-            </span>
+              >
+                <Sparkles size={15} />
+                {!compactToolbar && <span>Design unit op</span>}
+              </button>
+            )}
 
-            <span style={{ color: OsakaJadePalette.text.muted }}>|</span>
+            <button
+              type="button"
+              onClick={() => setIsEquipmentPaletteOpen(true)}
+              title="Add standard equipment: pumps, tanks, reactors, fillers, conveyors"
+              style={{
+                ...toolbarButton,
+                backgroundColor: OsakaJadePalette.background.surface,
+                color: OsakaJadePalette.text.primary,
+                border: `1px solid ${OsakaJadePalette.border.strong}`
+              }}
+            >
+              <Plus size={15} color={OsakaJadePalette.jade[400]} />
+              {!compactToolbar && <span>Add equipment</span>}
+            </button>
 
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-              <span style={{ color: OsakaJadePalette.text.muted, fontSize: 10, fontWeight: 600 }}>RATE</span>
-              <span style={{ color: OsakaJadePalette.text.primary, fontFamily: 'monospace', fontWeight: 600 }}>
-                {Math.round(telemetry.averageRatePerMin)} CPM
-              </span>
-            </span>
+            <button
+              type="button"
+              onClick={handleResetSimulation}
+              title="Reset the simulation clock and counters"
+              aria-label="Reset simulation"
+              style={{
+                ...toolbarButton,
+                width: 32,
+                padding: 0,
+                justifyContent: 'center',
+                backgroundColor: OsakaJadePalette.background.surface,
+                color: OsakaJadePalette.text.secondary,
+                border: `1px solid ${OsakaJadePalette.border.default}`
+              }}
+            >
+              <RotateCcw size={14} />
+            </button>
 
-            <span style={{ color: OsakaJadePalette.text.muted }}>|</span>
+            <div style={{ width: 1, height: 20, backgroundColor: OsakaJadePalette.border.subtle, flexShrink: 0 }} />
 
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-              <span style={{ color: OsakaJadePalette.text.muted, fontSize: 10, fontWeight: 600 }}>UNITS</span>
-              <span style={{ color: OsakaJadePalette.text.primary, fontFamily: 'monospace', fontWeight: 600 }}>
-                {telemetry.totalPackaged}
-              </span>
-            </span>
+            {/* Playback speed */}
+            <div
+              role="group"
+              aria-label="Playback speed"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                height: 32,
+                boxSizing: 'border-box',
+                padding: 2,
+                borderRadius: draftingRadius.soft,
+                backgroundColor: OsakaJadePalette.background.surface,
+                border: `1px solid ${OsakaJadePalette.border.subtle}`,
+                flexShrink: 0
+              }}
+            >
+              {[1, 2, 5].map((speed) => (
+                <button
+                  key={speed}
+                  type="button"
+                  onClick={() => setSimSpeed(speed)}
+                  aria-pressed={simSpeed === speed}
+                  style={{
+                    height: 26,
+                    minWidth: 30,
+                    padding: '0 6px',
+                    borderRadius: draftingRadius.soft,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    border: 'none',
+                    backgroundColor: simSpeed === speed ? OsakaJadePalette.jade.muted : 'transparent',
+                    color: simSpeed === speed ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.muted,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {speed}×
+                </button>
+              ))}
+            </div>
 
-            {telemetry.activeBottleneck && (
+            <div style={{ width: 1, height: 20, backgroundColor: OsakaJadePalette.border.subtle, flexShrink: 0 }} />
+
+            {/* Readout */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, padding: '0 4px', flexShrink: 0 }}>
               <span
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 4,
-                  backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                  color: OsakaJadePalette.status.blocked,
-                  padding: '2px 7px',
-                  borderRadius: draftingRadius.soft,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  border: '1px solid rgba(245, 158, 11, 0.3)'
+                  gap: 6,
+                  fontWeight: 600,
+                  color: isRunning ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.muted
                 }}
               >
-                <AlertTriangle size={11} />
-                <span>{telemetry.activeBottleneck.replace(/-/g, ' ')}</span>
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: isRunning ? OsakaJadePalette.jade[400] : 'transparent',
+                    border: `1.5px solid ${isRunning ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted}`
+                  }}
+                />
+                {isRunning ? 'Running' : 'Stopped'}
               </span>
-            )}
+              <span title="Average output rate" style={{ fontFamily: font.mono, color: OsakaJadePalette.text.primary }}>
+                {Math.round(telemetry.averageRatePerMin)}
+                <span style={{ color: OsakaJadePalette.text.muted }}>/min</span>
+              </span>
+              <span title="Units finished" style={{ fontFamily: font.mono, color: OsakaJadePalette.text.primary }}>
+                {telemetry.totalPackaged.toLocaleString()}
+                <span style={{ color: OsakaJadePalette.text.muted }}> units</span>
+              </span>
+              {telemetry.activeBottleneck && (
+                <span
+                  title="The unit limiting the line"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    height: 24,
+                    padding: '0 8px',
+                    borderRadius: draftingRadius.soft,
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    color: OsakaJadePalette.status.blocked,
+                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                    fontWeight: 600
+                  }}
+                >
+                  <AlertTriangle size={13} />
+                  <span>
+                    {compactToolbar ? '' : 'Bottleneck: '}
+                    {graph.nodes.find((n) => n.id === telemetry.activeBottleneck)?.name ??
+                      telemetry.activeBottleneck.replace(/-/g, ' ')}
+                  </span>
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

@@ -359,9 +359,6 @@ export const TankAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
         stroke={OsakaJadePalette.jade.glow}
         strokeWidth="1.5"
       />
-      <text x="80" y="70" textAnchor="middle" fontSize="11" fill={OsakaJadePalette.text.primary} fontWeight="bold">
-        {levelPercent}%
-      </text>
     </svg>
   );
 };
