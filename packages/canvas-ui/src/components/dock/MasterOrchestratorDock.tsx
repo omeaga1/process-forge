@@ -11,10 +11,11 @@ import {
   type AiModelConfig
 } from '../../ai/aiModelManager.js';
 import { dispatchMasterOrchestratorMessage } from '../../ai/aiDispatch.js';
-import { useAssistantRoute, claudeDesktopFlowsheetPrompt } from '../../ai/assistantRoute.js';
+import { useAssistantRoute } from '../../ai/assistantRoute.js';
 import { createDefaultProcessNode } from '../../utils/nodeFactory.js';
 import { draftingRadius } from '@process-forge/theme';
 import { AiModelModal } from '../modals/AiModelModal.js';
+import { McpAssistantPanel } from './McpAssistantPanel.js';
 import { Cpu, Loader2, ChevronRight, ChevronLeft, Sparkles, KeyRound } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
@@ -54,13 +55,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [lockStatus, setLockStatus] = useState(() => isAgentChatUnlocked(getAiConnection(), getLlmCredentials()));
   const route = useAssistantRoute();
-  const [handoffCopied, setHandoffCopied] = useState(false);
-
-  const copyForClaudeDesktop = async () => {
-    await navigator.clipboard.writeText(claudeDesktopFlowsheetPrompt(graph, inputText));
-    setHandoffCopied(true);
-    setTimeout(() => setHandoffCopied(false), 2500);
-  };
 
   const refreshAiState = () => {
     setAiConfig(getAiConfig());
@@ -413,7 +407,8 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         </div>
       </div>
 
-      {/* Chat History with Master Orchestrator */}
+      {/* Chat history: only when the assistant runs in the app. */}
+      {route !== 'claude-desktop' && (
       <div
         style={{
           flex: 1,
@@ -593,6 +588,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Offline Solver Status Banner (Unobtrusive) */}
       {route === 'none' && (
@@ -630,66 +626,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         </div>
       )}
 
-      {route === 'claude-desktop' && (
-        <div
-          style={{
-            padding: space[3],
-            borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-            backgroundColor: OsakaJadePalette.background.base,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: space[2]
-          }}
-        >
-          <p style={{ margin: 0, fontSize: size.xs, color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
-            You chat in your MCP client (Claude Desktop, Cursor, …), on the subscription you already
-            have. It has the ProcessForge tools; this app cannot see that conversation, so hand the
-            flowsheet over.
-          </p>
-          <textarea
-            aria-label="Question for your MCP client"
-            placeholder="What should it look at? e.g. why is the labeler starved?"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            rows={2}
-            style={{
-              backgroundColor: OsakaJadePalette.background.surfaceElevated,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: draftingRadius.soft,
-              padding: `${space[2]}px ${space[2.5]}px`,
-              color: OsakaJadePalette.text.primary,
-              fontSize: size.sm,
-              fontFamily: font.sans,
-              resize: 'vertical'
-            }}
-          />
-          <div style={{ display: 'flex', gap: space[2], alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={copyForClaudeDesktop}
-              style={{
-                backgroundColor: OsakaJadePalette.jade[500],
-                color: OsakaJadePalette.text.inverse,
-                border: 'none',
-                borderRadius: draftingRadius.soft,
-                padding: `${space[2]}px ${space[3]}px`,
-                fontWeight: weight.bold,
-                fontSize: size.xs,
-                cursor: 'pointer'
-              }}
-            >
-              {handoffCopied ? 'Copied — paste it into your MCP client' : 'Copy flowsheet for your MCP client'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsAiModalOpen(true)}
-              style={{ background: 'none', border: 'none', color: OsakaJadePalette.text.muted, fontSize: size.xs, cursor: 'pointer', padding: 0 }}
-            >
-              Change AI model
-            </button>
-          </div>
-        </div>
-      )}
+      {route === 'claude-desktop' && <McpAssistantPanel graph={graph} />}
 
       {/* Chat Input Bar */}
       {route !== 'claude-desktop' && (

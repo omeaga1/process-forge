@@ -7,6 +7,8 @@ import {
 import type { ChatMessage } from '../../types.js';
 import { UnitAnim, CustomEquipmentAnim } from '../animations/EquipmentAnimations.js';
 import { UnitOpDressingTab } from './UnitOpDressingTab.js';
+import { UnitParametersPanel } from './UnitParametersPanel.js';
+import { useAssistantRoute } from '../../ai/assistantRoute.js';
 import {
   getAiConfig,
   getAiConnection,
@@ -38,6 +40,8 @@ interface UnitOpPopOutStudioProps {
   downstreamContext?: string;
 }
 
+type StudioTab = 'CHAT' | 'PARAMETERS' | 'DRESSING' | 'SYSTEM_CONTEXT';
+
 export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   node,
   isOpen,
@@ -52,7 +56,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
 }) => {
   const { palette, radius: r } = useTheme();
   const OsakaJadePalette = palette;
-  const [activeTab, setActiveTab] = useState<'CHAT' | 'PARAMETERS' | 'DRESSING' | 'SYSTEM_CONTEXT'>('CHAT');
+  const route = useAssistantRoute();
+  const [activeTab, setActiveTab] = useState<StudioTab>('PARAMETERS');
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
@@ -80,6 +85,13 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   if (!isOpen || !node) return null;
 
   const config = node.config as Record<string, unknown>;
+  const tabs: { id: StudioTab; label: string; Icon: React.ElementType }[] = [
+    { id: 'PARAMETERS', label: 'Parameters', Icon: Sliders },
+    { id: 'DRESSING', label: 'Drawing & nozzles', Icon: Palette },
+    ...(route === 'claude-desktop' ? [] : [{ id: 'CHAT' as const, label: 'Ask AI', Icon: MessageSquare }]),
+    { id: 'SYSTEM_CONTEXT', label: 'Connections', Icon: Network }
+  ];
+  const shownTab: StudioTab = tabs.some((t) => t.id === activeTab) ? activeTab : 'PARAMETERS';
 
   const handleSendMessage = async (textToSend?: string) => {
     const message = textToSend || inputText;
@@ -245,8 +257,11 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         </button>
       </div>
 
-      {/* Navigation Tabs */}
+      {/* Tabs. With an MCP client as the assistant there is no chat here: the
+          conversation happens in the client, which works on this unit through
+          the ProcessForge tools. */}
       <div
+        role="tablist"
         style={{
           display: 'flex',
           borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
@@ -254,101 +269,42 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           flexShrink: 0
         }}
       >
-        <button
-          onClick={() => setActiveTab('CHAT')}
-          style={{
-            flex: 1,
-            padding: '10px 6px',
-            backgroundColor: activeTab === 'CHAT' ? OsakaJadePalette.background.surfaceElevated : 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'CHAT' ? `2px solid ${OsakaJadePalette.jade.glow}` : '2px solid transparent',
-            color: activeTab === 'CHAT' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-            fontWeight: 600,
-            fontSize: 12,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 5,
-            whiteSpace: 'nowrap'
-          }}
-        >
-          <MessageSquare size={13} />
-          <span>Chat</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('DRESSING')}
-          style={{
-            flex: 1,
-            padding: '10px 6px',
-            backgroundColor: activeTab === 'DRESSING' ? OsakaJadePalette.background.surfaceElevated : 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'DRESSING' ? `2px solid ${OsakaJadePalette.jade.glow}` : '2px solid transparent',
-            color: activeTab === 'DRESSING' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-            fontWeight: 600,
-            fontSize: 12,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 5,
-            whiteSpace: 'nowrap'
-          }}
-        >
-          <Palette size={13} />
-          <span>Dressing & Nozzles</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('PARAMETERS')}
-          style={{
-            flex: 1,
-            padding: '10px 6px',
-            backgroundColor: activeTab === 'PARAMETERS' ? OsakaJadePalette.background.surfaceElevated : 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'PARAMETERS' ? `2px solid ${OsakaJadePalette.jade.glow}` : '2px solid transparent',
-            color: activeTab === 'PARAMETERS' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-            fontWeight: 600,
-            fontSize: 12,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 5,
-            whiteSpace: 'nowrap'
-          }}
-        >
-          <Sliders size={13} />
-          <span>Controls</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('SYSTEM_CONTEXT')}
-          style={{
-            flex: 1,
-            padding: '10px 6px',
-            backgroundColor: activeTab === 'SYSTEM_CONTEXT' ? OsakaJadePalette.background.surfaceElevated : 'transparent',
-            border: 'none',
-            borderBottom: activeTab === 'SYSTEM_CONTEXT' ? `2px solid ${OsakaJadePalette.jade.glow}` : '2px solid transparent',
-            color: activeTab === 'SYSTEM_CONTEXT' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-            fontWeight: 600,
-            fontSize: 12,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 5,
-            whiteSpace: 'nowrap'
-          }}
-        >
-          <Network size={13} />
-          <span>Context</span>
-        </button>
+        {tabs.map(({ id, label, Icon }) => {
+          const on = shownTab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => setActiveTab(id)}
+              style={{
+                flex: 1,
+                height: 40,
+                padding: '0 8px',
+                backgroundColor: on ? OsakaJadePalette.background.surfaceElevated : 'transparent',
+                border: 'none',
+                borderBottom: `2px solid ${on ? OsakaJadePalette.jade[500] : 'transparent'}`,
+                color: on ? OsakaJadePalette.text.primary : OsakaJadePalette.text.muted,
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <Icon size={14} />
+              <span>{label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab 1: Dedicated Machine Sub-Agent Chat */}
-      {activeTab === 'CHAT' && (
+      {shownTab === 'CHAT' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
             {chatHistory.map((msg) => {
@@ -642,7 +598,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       )}
 
       {/* Tab 2: Custom UnitOp Dressing & Nozzle Manager */}
-      {activeTab === 'DRESSING' && (
+      {shownTab === 'DRESSING' && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <UnitOpDressingTab
             node={node}
@@ -653,89 +609,15 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         </div>
       )}
 
-      {/* Tab 3: Generative Parameter Controls */}
-      {activeTab === 'PARAMETERS' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-            Configure mechanical design tolerances, processing rates, and operational parameters for this Unit-Op:
-          </div>
-
-          {Object.entries(config).map(([key, val]) => {
-            // Breakdowns are not simulated: the engine has no failure model, so
-            // editing these changed nothing. Hidden until they do something.
-            if (key === 'meanTimeBetweenFailuresMinutes' || key === 'meanTimeToRepairMinutes') return null;
-            if (typeof val === 'number') {
-              const humanized = key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase());
-              // Fractions stay fractions (0.5 % is not rounded up to 1 %).
-              const step = Math.abs(val) < 1 ? 0.01 : Math.abs(val) < 10 ? 0.1 : 1;
-              const max = Math.max(val * 2, Math.abs(val) < 1 ? 1 : 100);
-              return (
-                <div
-                  key={key}
-                  style={{
-                    backgroundColor: OsakaJadePalette.background.surface,
-                    border: `1px solid ${OsakaJadePalette.border.default}`,
-                    borderRadius: draftingRadius.soft,
-                    padding: '12px 14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ color: OsakaJadePalette.text.primary, fontWeight: 600, fontSize: 13 }}>
-                        {humanized}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <input
-                        type="number"
-                        min={0}
-                        step={step}
-                        max={max}
-                        value={val}
-                        onChange={(e) => {
-                          const newNum = parseFloat(e.target.value) || 0;
-                          onUpdateConfig(node.id, { ...config, [key]: newNum });
-                        }}
-                        style={{
-                          width: 75,
-                          padding: '4px 6px',
-                          borderRadius: draftingRadius.soft,
-                          backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                          border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                          color: OsakaJadePalette.jade.glow,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          fontFamily: 'monospace',
-                          textAlign: 'right'
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    step={step}
-                    max={max}
-                    value={val}
-                    onChange={(e) => {
-                      const newNum = parseFloat(e.target.value);
-                      onUpdateConfig(node.id, { ...config, [key]: newNum });
-                    }}
-                    style={{ accentColor: OsakaJadePalette.jade[500], width: '100%' }}
-                  />
-                </div>
-              );
-            }
-            return null;
-          })}
+      {/* Parameters */}
+      {shownTab === 'PARAMETERS' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 20px 20px' }}>
+          <UnitParametersPanel node={node} onUpdateConfig={onUpdateConfig} />
         </div>
       )}
 
       {/* Tab 4: Upstream/Downstream Boundary Context */}
-      {activeTab === 'SYSTEM_CONTEXT' && (
+      {shownTab === 'SYSTEM_CONTEXT' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
             Upstream and downstream flowsheet boundary conditions:

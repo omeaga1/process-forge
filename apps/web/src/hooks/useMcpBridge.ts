@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   executeValidateUnitOp,
   UnitOpContractSchema,
@@ -21,6 +21,9 @@ import { contractToProcessNode } from '../unitop/contractToNode.js';
  */
 
 const POLL_MS = 1000;
+
+/** Fired on window for every unit op an MCP client adds: { name, nodeId, at }. */
+export const MCP_ACTIVITY_EVENT = 'pf-mcp-activity';
 
 interface PendingUnitOp {
   id: string;
@@ -81,6 +84,8 @@ export function useMcpBridge(
       const node = contractToProcessNode(contract, { position: item.request.position ?? placeNextTo(graphRef.current) });
       insertRef.current(node);
       setLastArrival({ name: contract.name, at: Date.now() });
+      // The assistant panel lists what the MCP client has done.
+      window.dispatchEvent(new CustomEvent(MCP_ACTIVITY_EVENT, { detail: { name: contract.name, nodeId: node.id, at: Date.now() } }));
       return {
         added: true,
         nodeId: node.id,
@@ -117,5 +122,6 @@ export function useMcpBridge(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { lastArrival, dismiss: () => setLastArrival(null) };
+  const dismiss = useCallback(() => setLastArrival(null), []);
+  return { lastArrival, dismiss };
 }
