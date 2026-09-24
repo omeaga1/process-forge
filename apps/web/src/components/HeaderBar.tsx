@@ -11,7 +11,11 @@ import {
   RotateCw,
   Sparkles,
   User,
-  LayoutDashboard
+  LayoutDashboard,
+  CloudOff,
+  CloudUpload,
+  Check,
+  Loader2
 } from 'lucide-react';
 import { useMobileViewport, useTheme, ProcessForgeLogo } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
@@ -19,7 +23,17 @@ import { hasCloudSession } from '../auth/accountManager.js';
 import { isTauriEnvironment } from './UpdateNotificationBanner.js';
 import { draftingRadius } from '@process-forge/theme';
 
+/** Where the open project stands against its cloud copy. */
+export type CloudSaveStatus =
+  | { kind: 'signed-out' }
+  | { kind: 'unsaved' }
+  | { kind: 'saving' }
+  | { kind: 'saved'; at: number }
+  | { kind: 'error'; message: string };
+
 interface HeaderBarProps {
+  cloudSaveStatus?: CloudSaveStatus;
+  onQuickCloudSave?: () => void;
   currentTemplate: string;
   isGuestMode: boolean;
   activeAiProvider?: string;
@@ -48,6 +62,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onOpenForgeHub,
   onOpenUnitOpCreator,
   onOpenSaveModal,
+  cloudSaveStatus = { kind: 'signed-out' },
+  onQuickCloudSave,
   onOpenGuestModal,
   onImportFile,
   onOpenAccountModal,
@@ -115,7 +131,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         {/* Mobile Right Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
-            onClick={onOpenAccountModal || openAccountModal}
+            onClick={() => (onOpenAccountModal ?? openAccountModal)()}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -380,30 +396,69 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           {!compact && <span>Projects</span>}
         </button>
 
-        {/* Save Simulation Action */}
-        <button
-          onClick={onOpenSaveModal}
-          style={{
+        {/* Save to cloud in one click, and the full save options beside it. */}
+        {(() => {
+          const st = cloudSaveStatus;
+          const time = st.kind === 'saved' ? new Date(st.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+          const view =
+            st.kind === 'signed-out'
+              ? { icon: <CloudOff size={14} />, label: 'Save to cloud', hint: 'Sign in with Google to save this project to ProcessForge Cloud. It is already saved on this device.' }
+              : st.kind === 'saving'
+                ? { icon: <Loader2 size={14} className="animate-spin" />, label: 'Saving…', hint: 'Saving to ProcessForge Cloud' }
+                : st.kind === 'saved'
+                  ? { icon: <Check size={14} />, label: 'Saved', hint: `Saved to ProcessForge Cloud at ${time}. No changes since.` }
+                  : st.kind === 'error'
+                    ? { icon: <CloudOff size={14} />, label: 'Retry save', hint: st.message }
+                    : { icon: <CloudUpload size={14} />, label: 'Save to cloud', hint: 'Save this project to ProcessForge Cloud (Ctrl+S)' };
+          const quiet = st.kind === 'saved';
+          const segment: React.CSSProperties = {
             display: 'inline-flex',
             alignItems: 'center',
             gap: 5,
             height: 32,
-            backgroundColor: 'rgba(16, 185, 129, 0.15)',
-            border: `1px solid ${OsakaJadePalette.jade[600]}`,
-            borderRadius: draftingRadius.soft,
-            padding: '0 12px',
-            color: OsakaJadePalette.text.accent,
+            boxSizing: 'border-box',
+            backgroundColor: quiet ? 'transparent' : 'rgba(16, 185, 129, 0.15)',
+            border: `1px solid ${st.kind === 'error' ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[600]}`,
+            color: quiet ? OsakaJadePalette.text.secondary : OsakaJadePalette.text.accent,
             fontSize: 12,
             fontWeight: 600,
-            cursor: 'pointer',
             whiteSpace: 'nowrap',
-            boxSizing: 'border-box'
-          }}
-          title="Save simulation to Cloud Storage"
-        >
-          <Save size={14} />
-          {!compact && <span>Save</span>}
-        </button>
+            cursor: 'pointer'
+          };
+          return (
+            <div style={{ display: 'inline-flex' }}>
+              <button
+                type="button"
+                onClick={onQuickCloudSave ?? onOpenSaveModal}
+                disabled={st.kind === 'saving'}
+                title={view.hint}
+                aria-label={view.label}
+                style={{
+                  ...segment,
+                  padding: '0 10px',
+                  borderRadius: `${draftingRadius.soft} 0 0 ${draftingRadius.soft}`
+                }}
+              >
+                {view.icon}
+                {!compact && <span>{view.label}</span>}
+              </button>
+              <button
+                type="button"
+                onClick={onOpenSaveModal}
+                title="More save options: rename, save on this device, download a file"
+                aria-label="More save options"
+                style={{
+                  ...segment,
+                  padding: '0 6px',
+                  borderLeft: 'none',
+                  borderRadius: `0 ${draftingRadius.soft} ${draftingRadius.soft} 0`
+                }}
+              >
+                <ChevronDown size={13} />
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Subtle separator */}
         <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px' }} />
@@ -490,7 +545,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
         {/* User Account & Cloud Sync Button */}
         <button
-          onClick={onOpenAccountModal || openAccountModal}
+          onClick={() => (onOpenAccountModal ?? openAccountModal)()}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

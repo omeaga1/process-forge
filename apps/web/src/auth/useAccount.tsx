@@ -14,7 +14,9 @@ interface AccountContextValue {
   user: UserSession | null;
   isAuthenticated: boolean;
   isAccountModalOpen: boolean;
-  openAccountModal: () => void;
+  /** Which sign-in the dialog shows first; cloud features need Google. */
+  accountModalTab: 'email' | 'google';
+  openAccountModal: (tab?: 'email' | 'google') => void;
   closeAccountModal: () => void;
   register: (credentials: {
     email: string;
@@ -42,6 +44,7 @@ export interface AccountProviderProps {
 export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) => {
   const [user, setUser] = useState<UserSession | null>(() => getUserSession());
   const [isAccountModalOpen, setIsAccountModalOpen] = useState<boolean>(false);
+  const [accountModalTab, setAccountModalTab] = useState<'email' | 'google'>('email');
 
   useEffect(() => {
     const session = getUserSession();
@@ -50,7 +53,11 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
     }
   }, []);
 
-  const openAccountModal = () => setIsAccountModalOpen(true);
+  const openAccountModal = (tab?: unknown) => {
+    // Often passed straight to onClick, so anything but 'google' is email.
+    setAccountModalTab(tab === 'google' ? 'google' : 'email');
+    setIsAccountModalOpen(true);
+  };
   const closeAccountModal = () => setIsAccountModalOpen(false);
 
   const register = async (credentials: {
@@ -105,6 +112,7 @@ export const AccountProvider: React.FC<AccountProviderProps> = ({ children }) =>
         user,
         isAuthenticated: !!user,
         isAccountModalOpen,
+        accountModalTab,
         openAccountModal,
         closeAccountModal,
         register,

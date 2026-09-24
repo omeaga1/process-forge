@@ -25,12 +25,14 @@ export interface AccountModalProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenCloudProjects?: () => void;
+  initialTab?: 'email' | 'google';
 }
 
 export const AccountModal: React.FC<AccountModalProps> = ({
   isOpen,
   onClose,
-  onOpenCloudProjects
+  onOpenCloudProjects,
+  initialTab = 'email'
 }) => {
   const { palette } = useTheme();
   const OsakaJadePalette = palette;
@@ -40,7 +42,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   // Auth Mode: 'signin' | 'register'
   const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
   // Provider Tab: 'email' | 'google'
-  const [activeTab, setActiveTab] = useState<'email' | 'google'>('email');
+  const [activeTab, setActiveTab] = useState<'email' | 'google'>(initialTab);
+  useEffect(() => {
+    if (isOpen) setActiveTab(initialTab);
+  }, [isOpen, initialTab]);
 
   // Form inputs
   const [emailInput, setEmailInput] = useState('');

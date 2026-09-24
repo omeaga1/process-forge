@@ -15,7 +15,7 @@ import {
   ConnectionLineType
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles } from 'lucide-react';
+import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen } from 'lucide-react';
 
 import { validateProcessGraph, type ProcessGraph, type ProcessNode, type ProcessEdge } from '@process-forge/protocol';
 import { SimulationEngine, type SimulationResult, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
@@ -56,6 +56,23 @@ export interface ProcessCanvasProps {
   onDesignUnitOp?: () => void;
   isDockCollapsed?: boolean;
   onToggleDockCollapse?: () => void;
+  /**
+   * Identifies the open project. When it changes, undo history starts over,
+   * so undo never reaches back into a different project.
+   */
+  historyKey?: string;
+}
+
+/** Undo steps kept. */
+const HISTORY_LIMIT = 100;
+/** Edits to the same thing this close together are one undo step (typing, sliders). */
+const COALESCE_MS = 1000;
+
+function isTypingTarget(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName?.toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
 }
 
 /** What actually feeds a unit and what it feeds, read from the flowsheet. */
@@ -95,7 +112,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   onGraphChange,
   onDesignUnitOp,
   isDockCollapsed: externalIsDockCollapsed,
-  onToggleDockCollapse: externalOnToggleDockCollapse
+  onToggleDockCollapse: externalOnToggleDockCollapse,
+  historyKey
 }) => {
   const { palette, canvasTokens, font } = useTheme();
   const OsakaJadePalette = palette;
@@ -124,15 +142,69 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   // render, and twice under StrictMode).
   const graphRef = useRef(graph);
   graphRef.current = graph;
-  const updateGraph = useCallback(
-    (fn: (prev: ProcessGraph) => ProcessGraph) => {
-      const next = fn(graphRef.current);
+  const commitGraph = useCallback(
+    (next: ProcessGraph) => {
       graphRef.current = next;
       setGraph(next);
       onGraphChange?.(next);
     },
     [onGraphChange]
   );
+
+  // Undo history: whole flowsheets, which are small. `coalesce` names what an
+  // edit touches, so a run of keystrokes or a slider drag is one step.
+  const historyRef = useRef<{ past: ProcessGraph[]; future: ProcessGraph[]; lastKey?: string | undefined; lastAt: number }>({
+    past: [],
+    future: [],
+    lastAt: 0
+  });
+  const [historySize, setHistorySize] = useState({ past: 0, future: 0 });
+  const syncHistorySize = () =>
+    setHistorySize({ past: historyRef.current.past.length, future: historyRef.current.future.length });
+  const pushHistory = (prev: ProcessGraph, coalesce?: string) => {
+    const h = historyRef.current;
+    const now = Date.now();
+    const merge = coalesce !== undefined && h.lastKey === coalesce && now - h.lastAt < COALESCE_MS;
+    if (!merge) {
+      h.past.push(prev);
+      if (h.past.length > HISTORY_LIMIT) h.past.shift();
+    }
+    h.future = [];
+    h.lastKey = coalesce;
+    h.lastAt = now;
+    syncHistorySize();
+  };
+
+  const updateGraph = useCallback(
+    (fn: (prev: ProcessGraph) => ProcessGraph, opts?: { coalesce?: string }) => {
+      const prev = graphRef.current;
+      const next = fn(prev);
+      if (next === prev) return;
+      pushHistory(prev, opts?.coalesce);
+      commitGraph(next);
+    },
+    [commitGraph]
+  );
+
+  const undo = useCallback(() => {
+    const h = historyRef.current;
+    const prev = h.past.pop();
+    if (!prev) return;
+    h.future.push(graphRef.current);
+    h.lastKey = undefined;
+    syncHistorySize();
+    commitGraph(prev);
+  }, [commitGraph]);
+
+  const redo = useCallback(() => {
+    const h = historyRef.current;
+    const next = h.future.pop();
+    if (!next) return;
+    h.past.push(graphRef.current);
+    h.lastKey = undefined;
+    syncHistorySize();
+    commitGraph(next);
+  }, [commitGraph]);
   const [isRunning, setIsRunning] = useState(false);
   const [isForgeHubOpen, setIsForgeHubOpen] = useState(false);
   const [isEquipmentPaletteOpen, setIsEquipmentPaletteOpen] = useState(false);
@@ -154,11 +226,22 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   );
 
   // Sync external graph changes (from project import, template switcher, etc.)
+  // A graph from outside that is not the one this canvas just sent up: an MCP
+  // client adding a unit, or an import. Undoable, like any other edit; a
+  // different project (historyKey) starts a fresh history instead.
+  const lastHistoryKey = useRef(historyKey);
   useEffect(() => {
-    if (externalGraph) {
-      setGraph(externalGraph);
+    if (!externalGraph || externalGraph === graphRef.current) return;
+    if (lastHistoryKey.current !== historyKey) {
+      lastHistoryKey.current = historyKey;
+      historyRef.current = { past: [], future: [], lastAt: 0 };
+      syncHistorySize();
+    } else {
+      pushHistory(graphRef.current);
     }
-  }, [externalGraph]);
+    graphRef.current = externalGraph;
+    setGraph(externalGraph);
+  }, [externalGraph, historyKey]);
 
   const [telemetry, setTelemetry] = useState<PlantTelemetryState>(() => ({
     simulatedTimeSeconds: 0,
@@ -239,11 +322,12 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     setNodes((existingNodes) =>
       graph.nodes.map((pNode) => {
         const existing = existingNodes.find((n) => n.id === pNode.id);
-        const position = existing ? existing.position : pNode.position;
         return {
           id: pNode.id,
           type: 'industrialNode',
-          position,
+          // The flowsheet's position, so undoing a move moves the unit back.
+          position: pNode.position,
+          selected: existing?.selected ?? false,
           data: {
             processNode: pNode,
             state: snapshotByNode.get(pNode.id)?.state ?? 'IDLE',
@@ -259,9 +343,10 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       })
     );
 
-    setEdges(
+    setEdges((existingEdges) =>
       graph.edges.map((pEdge) => ({
         id: pEdge.id,
+        selected: existingEdges.find((e) => e.id === pEdge.id)?.selected ?? false,
         source: pEdge.sourceNodeId,
         target: pEdge.targetNodeId,
         sourceHandle: pEdge.sourcePortId,
@@ -322,7 +407,12 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       const removed = new Set(changes.filter((c) => c.type === 'remove').map((c) => c.id));
       const moved = new Map<string, { x: number; y: number }>();
       for (const c of changes) {
-        if (c.type === 'position' && c.position && !c.dragging) moved.set(c.id, c.position);
+        if (c.type !== 'position' || !c.position || c.dragging) continue;
+        // A click without a drag reports the same position: not an edit,
+        // and not an undo step.
+        const was = graphRef.current.nodes.find((n) => n.id === c.id)?.position;
+        if (was && was.x === c.position.x && was.y === c.position.y) continue;
+        moved.set(c.id, c.position);
       }
       if (removed.size === 0 && moved.size === 0) return;
       updateGraph((prev) => ({
@@ -404,6 +494,95 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  /** Removes units (with their streams) and streams, as one undo step. */
+  const deleteElements = useCallback(
+    (nodeIds: string[], edgeIds: string[] = []) => {
+      if (nodeIds.length === 0 && edgeIds.length === 0) return;
+      const nodeSet = new Set(nodeIds);
+      const edgeSet = new Set(edgeIds);
+      updateGraph((prev) => ({
+        ...prev,
+        nodes: prev.nodes.filter((n) => !nodeSet.has(n.id)),
+        edges: prev.edges.filter(
+          (e) => !edgeSet.has(e.id) && !nodeSet.has(e.sourceNodeId) && !nodeSet.has(e.targetNodeId)
+        )
+      }));
+      setPopOutNodeId((open) => (open && nodeSet.has(open) ? null : open));
+    },
+    [updateGraph]
+  );
+
+  const duplicateNode = useCallback(
+    (nodeId: string) => {
+      const src = graphRef.current.nodes.find((n) => n.id === nodeId);
+      if (!src) return;
+      const { assignedSubAgentId: _agent, ...rest } = structuredClone(src);
+      const copy: ProcessNode = {
+        ...rest,
+        id: `${src.kind.toLowerCase()}-${Date.now().toString(36)}`,
+        // "Pump (copy)" copied again is "Pump (copy)", not "Pump (copy) (copy)".
+        name: `${src.name.replace(/ \(copy\)$/, '')} (copy)`,
+        position: { x: src.position.x + 220, y: src.position.y + 40 }
+      };
+      updateGraph((prev) => ({ ...prev, nodes: [...prev.nodes, copy] }));
+      setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
+      setPopOutNodeId(copy.id);
+    },
+    [updateGraph]
+  );
+
+  const selectedNodeIds = useMemo(() => nodes.filter((n) => n.selected).map((n) => n.id), [nodes]);
+  const selectedEdgeIds = useMemo(() => edges.filter((e) => e.selected).map((e) => e.id), [edges]);
+  const hasSelection = selectedNodeIds.length + selectedEdgeIds.length > 0;
+  const deleteSelection = useCallback(
+    () => deleteElements(selectedNodeIds, selectedEdgeIds),
+    [deleteElements, selectedNodeIds, selectedEdgeIds]
+  );
+
+  // Right-click menu on a unit or a stream.
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; kind: 'node' | 'edge'; id: string } | null>(null);
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', close);
+    };
+  }, [contextMenu]);
+
+  // Editing shortcuts: undo, redo, delete, duplicate. Left alone while typing,
+  // so a text box keeps its own undo and Backspace.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      if (mod && key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (mod && (key === 'y' || (key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redo();
+      } else if (mod && key === 'd') {
+        const target = selectedNodeIds[0] ?? popOutNodeId;
+        if (target) {
+          e.preventDefault();
+          duplicateNode(target);
+        }
+      } else if (!mod && (e.key === 'Delete' || e.key === 'Backspace') && hasSelection) {
+        e.preventDefault();
+        deleteSelection();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo, duplicateNode, deleteSelection, hasSelection, selectedNodeIds, popOutNodeId]);
 
   // Keyboard shortcut: Spacebar to toggle simulation
   useEffect(() => {
@@ -494,7 +673,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, config: newConfig as ProcessNode['config'] } : n))
       };
       return nextGraph;
-    });
+    }, { coalesce: `config:${nodeId}` });
   };
 
   /**
@@ -540,7 +719,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, dressing: updatedDressing } : n))
       };
       return nextGraph;
-    });
+    }, { coalesce: `dressing:${nodeId}` });
   };
 
   const popOutNode = useMemo(() => {
@@ -677,6 +856,44 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             >
               <RotateCcw size={14} />
             </button>
+
+            <div style={{ width: 1, height: 20, backgroundColor: OsakaJadePalette.border.subtle, flexShrink: 0 }} />
+
+            {[
+              { label: 'Undo', hint: 'Undo (Ctrl+Z)', icon: <Undo2 size={15} />, onClick: undo, enabled: historySize.past > 0 },
+              { label: 'Redo', hint: 'Redo (Ctrl+Y)', icon: <Redo2 size={15} />, onClick: redo, enabled: historySize.future > 0 },
+              {
+                label: 'Delete',
+                hint: hasSelection
+                  ? 'Delete the selected units and streams (Delete)'
+                  : 'Select a unit or a stream to delete it (Delete)',
+                icon: <Trash2 size={15} />,
+                onClick: deleteSelection,
+                enabled: hasSelection
+              }
+            ].map((b) => (
+              <button
+                key={b.label}
+                type="button"
+                onClick={b.onClick}
+                disabled={!b.enabled}
+                title={b.hint}
+                aria-label={b.label}
+                style={{
+                  ...toolbarButton,
+                  width: 32,
+                  padding: 0,
+                  justifyContent: 'center',
+                  backgroundColor: OsakaJadePalette.background.surface,
+                  color: b.enabled ? OsakaJadePalette.text.primary : OsakaJadePalette.text.muted,
+                  border: `1px solid ${OsakaJadePalette.border.default}`,
+                  opacity: b.enabled ? 1 : 0.45,
+                  cursor: b.enabled ? 'pointer' : 'default'
+                }}
+              >
+                {b.icon}
+              </button>
+            ))}
 
             <div style={{ width: 1, height: 20, backgroundColor: OsakaJadePalette.border.subtle, flexShrink: 0 }} />
 
@@ -957,6 +1174,25 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           connectionLineStyle={{ stroke: OsakaJadePalette.jade[300], strokeWidth: 2, strokeDasharray: '6 4' }}
           connectionRadius={28}
           onNodeClick={(_event, n) => setPopOutNodeId(n.id)}
+          // Delete is handled above, so a unit and its streams go as one
+          // undo step (React Flow would report them as two changes).
+          deleteKeyCode={null}
+          onNodeContextMenu={(event, n) => {
+            event.preventDefault();
+            setNodes((nds) => nds.map((x) => ({ ...x, selected: x.id === n.id })));
+            setContextMenu({ x: event.clientX, y: event.clientY, kind: 'node', id: n.id });
+          }}
+          onEdgeContextMenu={(event, e) => {
+            event.preventDefault();
+            setEdges((eds) => eds.map((x) => ({ ...x, selected: x.id === e.id })));
+            setContextMenu({ x: event.clientX, y: event.clientY, kind: 'edge', id: e.id });
+          }}
+          onPaneClick={() => setContextMenu(null)}
+          onPaneContextMenu={(event) => {
+            event.preventDefault();
+            setContextMenu(null);
+          }}
+          onMoveStart={() => setContextMenu(null)}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
@@ -973,6 +1209,77 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             }}
           />
         </ReactFlow>
+
+        {contextMenu && (
+          <>
+            <div
+              onClick={() => setContextMenu(null)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setContextMenu(null);
+              }}
+              style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+            />
+            <div
+              role="menu"
+              style={{
+                position: 'fixed',
+                left: Math.min(contextMenu.x, window.innerWidth - 200),
+                top: Math.min(contextMenu.y, window.innerHeight - 140),
+                zIndex: 41,
+                minWidth: 184,
+                padding: 4,
+                borderRadius: draftingRadius.soft,
+                backgroundColor: OsakaJadePalette.background.surfaceElevated,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.18)',
+                fontFamily: font.sans
+              }}
+            >
+              {(contextMenu.kind === 'node'
+                ? [
+                    { label: 'Open in studio', shortcut: '', icon: <SquarePen size={14} />, danger: false, run: () => setPopOutNodeId(contextMenu.id) },
+                    { label: 'Duplicate', shortcut: 'Ctrl+D', icon: <Copy size={14} />, danger: false, run: () => duplicateNode(contextMenu.id) },
+                    { label: 'Delete unit', shortcut: 'Del', icon: <Trash2 size={14} />, danger: true, run: () => deleteElements([contextMenu.id]) }
+                  ]
+                : [
+                    { label: 'Delete stream', shortcut: 'Del', icon: <Trash2 size={14} />, danger: true, run: () => deleteElements([], [contextMenu.id]) }
+                  ]
+              ).map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setContextMenu(null);
+                    item.run();
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = OsakaJadePalette.background.surface)}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    height: 32,
+                    padding: '0 10px',
+                    border: 'none',
+                    borderRadius: draftingRadius.soft,
+                    backgroundColor: 'transparent',
+                    color: item.danger ? '#dc2626' : OsakaJadePalette.text.primary,
+                    fontSize: 13,
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {item.icon}
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {item.shortcut && <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>{item.shortcut}</span>}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Persistent Master Orchestrator Dock */}
@@ -997,6 +1304,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         {...(popOutNode ? neighbourContext(graph, popOutNode.id) : {})}
         isOpen={popOutNodeId !== null}
         onClose={() => setPopOutNodeId(null)}
+        onDelete={(id) => deleteElements([id])}
+        onDuplicate={duplicateNode}
         onUpdateConfig={handleUpdateNodeConfig}
         onUpdateDressing={handleUpdateNodeDressing}
         onUpdateShape={handleUpdateNodeShape}
