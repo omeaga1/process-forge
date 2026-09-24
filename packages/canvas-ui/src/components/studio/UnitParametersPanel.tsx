@@ -7,6 +7,7 @@ import {
 } from '@process-forge/protocol';
 import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
+import { engineKeysOf } from '../../model/unitBehavior.js';
 
 interface UnitParametersPanelProps {
   node: ProcessNode;
@@ -262,45 +263,70 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
     return <div style={{ fontSize: 13, color: palette.text.muted }}>This unit has no numeric settings.</div>;
   }
 
+  // Settings the engine reads first; the rest are kept on the unit for the
+  // record but change nothing in a run, and say so.
+  const used = new Set(engineKeysOf(node));
+  const live = numeric.filter(([k]) => used.has(k));
+  const inert = numeric.filter(([k]) => !used.has(k));
+
+  const renderRow = ([key, val]: [string, number]) => {
+    const { label, unit } = describeConfigKey(key);
+    const step = Math.abs(val) < 1 ? 0.01 : Math.abs(val) < 10 ? 0.1 : 1;
+    const max = Math.max(val * 2, Math.abs(val) < 1 ? 1 : 100);
+    return (
+      <div key={key} style={row}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>{label}</div>
+        <label style={numberBox(false)}>
+          <input
+            type="number"
+            aria-label={label}
+            min={0}
+            step={step}
+            value={val}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              if (Number.isFinite(v)) onUpdateConfig(node.id, { ...config, [key]: v });
+            }}
+            style={input}
+          />
+          {unit && <span style={unitTag}>{unit}</span>}
+        </label>
+        <input
+          type="range"
+          aria-hidden="true"
+          tabIndex={-1}
+          min={0}
+          max={max}
+          step={step}
+          value={val}
+          onChange={(e) => onUpdateConfig(node.id, { ...config, [key]: parseFloat(e.target.value) })}
+          style={{ gridColumn: '1 / -1', width: '100%', accentColor: palette.jade[500], height: 14, margin: 0 }}
+        />
+      </div>
+    );
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={heading}>Settings</div>
-      {numeric.map(([key, val]) => {
-        const { label, unit } = describeConfigKey(key);
-        const step = Math.abs(val) < 1 ? 0.01 : Math.abs(val) < 10 ? 0.1 : 1;
-        const max = Math.max(val * 2, Math.abs(val) < 1 ? 1 : 100);
-        return (
-          <div key={key} style={row}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>{label}</div>
-            <label style={numberBox(false)}>
-              <input
-                type="number"
-                aria-label={label}
-                min={0}
-                step={step}
-                value={val}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (Number.isFinite(v)) onUpdateConfig(node.id, { ...config, [key]: v });
-                }}
-                style={input}
-              />
-              {unit && <span style={unitTag}>{unit}</span>}
-            </label>
-            <input
-              type="range"
-              aria-hidden="true"
-              tabIndex={-1}
-              min={0}
-              max={max}
-              step={step}
-              value={val}
-              onChange={(e) => onUpdateConfig(node.id, { ...config, [key]: parseFloat(e.target.value) })}
-              style={{ gridColumn: '1 / -1', width: '100%', accentColor: palette.jade[500], height: 14, margin: 0 }}
-            />
+      {live.length > 0 && (
+        <>
+          <div style={heading}>Used by the simulation</div>
+          {live.map(renderRow)}
+        </>
+      )}
+      {inert.length > 0 && (
+        <details open={live.length === 0} style={{ marginTop: live.length ? 14 : 0 }}>
+          <summary style={{ ...heading, cursor: 'pointer', listStyle: 'revert' }}>
+            {live.length === 0 ? 'Design values' : 'Not used by the simulation yet'} · {inert.length}
+          </summary>
+          <div style={{ fontSize: 12, color: palette.text.muted, lineHeight: 1.5, margin: '4px 0 2px' }}>
+            {live.length === 0
+              ? 'The line simulation does not step this kind of unit yet, so these values are kept with the design but do not change the results.'
+              : 'Kept with the design; changing them does not change the simulation.'}
           </div>
-        );
-      })}
+          {inert.map(renderRow)}
+        </details>
+      )}
     </div>
   );
 };

@@ -491,15 +491,23 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const [simSpeed, setSimSpeed] = useState<number>(1);
 
   // Toolbar labels give way to icons (with tooltips) when the canvas is narrow.
-  const canvasAreaRef = useRef<HTMLDivElement>(null);
+  // A callback ref, not an effect with []: the canvas area is not in the
+  // first render (the field view or a loading state can come first), so an
+  // effect that ran once found no element and never watched the width.
   const [compactToolbar, setCompactToolbar] = useState(false);
-  useEffect(() => {
-    const el = canvasAreaRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const canvasAreaRef = useCallback((el: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    if (!el) return;
+    // Measure now, so the first paint is right without waiting for the observer.
+    setCompactToolbar(el.getBoundingClientRect().width < 1060);
+    if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(([entry]) => setCompactToolbar((entry?.contentRect.width ?? 1200) < 1060));
     ro.observe(el);
-    return () => ro.disconnect();
+    observerRef.current = ro;
   }, []);
+  useEffect(() => () => observerRef.current?.disconnect(), []);
 
   /** Removes units (with their streams) and streams, as one undo step. */
   const deleteElements = useCallback(
@@ -966,40 +974,58 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                     border: `1.5px solid ${isRunning ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted}`
                   }}
                 />
-                {isRunning ? 'Running' : 'Stopped'}
+                <span style={{ minWidth: '7ch' }}>{isRunning ? 'Running' : 'Stopped'}</span>
               </span>
-              <span title="Average output rate" style={{ fontFamily: font.mono, color: OsakaJadePalette.text.primary }}>
+              {/* Fixed widths and tabular digits: the bar keeps its size as the counts climb. */}
+              <span
+                title="Average output rate"
+                style={{ fontFamily: font.mono, color: OsakaJadePalette.text.primary, minWidth: '7ch', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
+              >
                 {Math.round(telemetry.averageRatePerMin)}
                 <span style={{ color: OsakaJadePalette.text.muted }}>/min</span>
               </span>
-              <span title="Units finished" style={{ fontFamily: font.mono, color: OsakaJadePalette.text.primary }}>
+              <span
+                title="Units finished"
+                style={{ fontFamily: font.mono, color: OsakaJadePalette.text.primary, minWidth: '11ch', fontVariantNumeric: 'tabular-nums' }}
+              >
                 {telemetry.totalPackaged.toLocaleString()}
                 <span style={{ color: OsakaJadePalette.text.muted }}> units</span>
               </span>
-              {telemetry.activeBottleneck && (
-                <span
-                  title="The unit limiting the line"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    height: 24,
-                    padding: '0 8px',
-                    borderRadius: draftingRadius.soft,
-                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-                    color: OsakaJadePalette.status.blocked,
-                    border: '1px solid rgba(245, 158, 11, 0.35)',
-                    fontWeight: 600
-                  }}
-                >
-                  <AlertTriangle size={13} />
-                  <span>
-                    {compactToolbar ? '' : 'Bottleneck: '}
-                    {graph.nodes.find((n) => n.id === telemetry.activeBottleneck)?.name ??
-                      telemetry.activeBottleneck.replace(/-/g, ' ')}
-                  </span>
-                </span>
-              )}
+              {(() => {
+                // The unit that limits the line: from the run while there is
+                // one, from the static analysis before. Shown either way, so
+                // starting a run does not add a chip and widen the bar.
+                const id = telemetry.activeBottleneck ?? telemetry.bottlenecks.bottleneckNodeId;
+                const unit = id ? graph.nodes.find((n) => n.id === id) : undefined;
+                if (!unit) return null;
+                const tag = unit.name.match(/\b[A-Z]{1,3}-\d{2,4}\b/)?.[0];
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setPopOutNodeId(unit.id)}
+                    title={`Limits the line: ${unit.name}. Click to open it.`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      height: 24,
+                      maxWidth: 150,
+                      padding: '0 8px',
+                      borderRadius: draftingRadius.soft,
+                      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                      color: OsakaJadePalette.status.blocked,
+                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      flexShrink: 0
+                    }}
+                  >
+                    <AlertTriangle size={13} style={{ flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tag ?? unit.name}</span>
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1312,6 +1338,10 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         onClose={() => setPopOutNodeId(null)}
         onDelete={(id) => deleteElements([id])}
         onDuplicate={duplicateNode}
+        graph={graph}
+        bottleneckNodeId={telemetry.activeBottleneck ?? telemetry.bottlenecks.bottleneckNodeId}
+        live={popOutNodeId && simResult ? snapshotByNode.get(popOutNodeId) : undefined}
+        onOpenUnit={(id) => setPopOutNodeId(id)}
         onUpdateConfig={handleUpdateNodeConfig}
         onUpdateDressing={handleUpdateNodeDressing}
         onUpdateShape={handleUpdateNodeShape}
