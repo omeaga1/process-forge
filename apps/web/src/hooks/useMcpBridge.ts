@@ -7,6 +7,7 @@ import {
 } from '@process-forge/protocol';
 import { isTauriEnvironment, invokeTauriCommand } from '../components/UpdateNotificationBanner.js';
 import { contractToProcessNode } from '../unitop/contractToNode.js';
+import { saveUnitOp } from '@process-forge/canvas-ui';
 
 /**
  * The app's half of the MCP bridge (apps/desktop/src-tauri/src/mcp_bridge.rs).
@@ -83,6 +84,7 @@ export function useMcpBridge(
       const contract = UnitOpContractSchema.parse(item.request.contract);
       const node = contractToProcessNode(contract, { position: item.request.position ?? placeNextTo(graphRef.current) });
       insertRef.current(node);
+      saveUnitOp(contract, 'mcp');
       setLastArrival({ name: contract.name, at: Date.now() });
       // The assistant panel lists what the MCP client has done.
       window.dispatchEvent(new CustomEvent(MCP_ACTIVITY_EVENT, { detail: { name: contract.name, nodeId: node.id, at: Date.now() } }));

@@ -67,23 +67,6 @@ export const ROUTE_LABELS: Record<AssistantRoute, string> = {
   none: 'No assistant'
 };
 
-/**
- * What to paste into Claude Desktop to have it design a unit op with the
- * ProcessForge tools, and hand back something the Unit Op Creator accepts.
- */
-export function claudeDesktopUnitOpPrompt(description: string): string {
-  return [
-    'Use the ProcessForge tools to design a unit operation.',
-    '',
-    `Description: ${description.trim() || '(describe the equipment here)'}`,
-    '',
-    '1. Call design_unit_op with that description.',
-    '2. Write the UnitOpContract it asks for.',
-    '3. Call validate_unit_op, and revise until the verdict is ACCEPTED.',
-    '4. Reply with only the accepted contract as JSON, so I can paste it into ProcessForge.'
-  ].join('\n');
-}
-
 /** A flowsheet handed to Claude Desktop, with the question the engineer wants answered. */
 export function claudeDesktopFlowsheetPrompt(graph: ProcessGraph, question = ''): string {
   return [

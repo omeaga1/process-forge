@@ -261,8 +261,8 @@ export const McpAssistantPanel: React.FC<McpAssistantPanelProps> = ({ graph, bot
         </div>
       )}
 
-      {/* Help: open while the canvas is empty, folded away after. */}
-      <details open={empty} style={{ marginTop: 'auto' }}>
+      {/* Help, folded: a click away, not a wall of examples. */}
+      <details style={{ marginTop: 'auto' }}>
         <summary style={{ ...heading, cursor: 'pointer', margin: 0, listStyle: 'revert' }}>Try asking your client</summary>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
           {EXAMPLES.map((ex, i) => (

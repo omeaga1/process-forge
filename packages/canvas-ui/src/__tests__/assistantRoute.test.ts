@@ -3,7 +3,6 @@ import * as assert from 'node:assert/strict';
 import {
   getAssistantRoute,
   setAssistantRoute,
-  claudeDesktopUnitOpPrompt,
   claudeDesktopFlowsheetPrompt
 } from '../ai/assistantRoute.js';
 import { saveLlmCredentials } from '../ai/aiModelManager.js';
@@ -52,14 +51,6 @@ describe('Assistant route', () => {
 });
 
 describe('Claude Desktop hand-offs', () => {
-  it('the design brief names the real MCP tools, and asks for pasteable JSON', () => {
-    const p = claudeDesktopUnitOpPrompt('a UV curing tunnel');
-    assert.match(p, /a UV curing tunnel/);
-    assert.match(p, /design_unit_op/);
-    assert.match(p, /validate_unit_op/);
-    assert.match(p, /ACCEPTED/);
-  });
-
   it('the flowsheet hand-off carries the graph and names tools that exist', () => {
     const graph = { id: 'g', name: 'Line', version: '1', metadata: {}, nodes: [], edges: [] } as never;
     const p = claudeDesktopFlowsheetPrompt(graph, 'why is it starved?');

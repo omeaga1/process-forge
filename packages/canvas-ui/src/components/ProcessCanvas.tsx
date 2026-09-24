@@ -27,10 +27,10 @@ import { UnitOpPopOutStudio } from './studio/UnitOpPopOutStudio.js';
 import { CommunityUnitOpLibraryModal } from './marketplace/CommunityUnitOpLibraryModal.js';
 import { CommunityLibraryService } from '../marketplace/communityLibraryClient.js';
 import { EquipmentPaletteModal } from './palette/EquipmentPaletteModal.js';
-import { createDefaultProcessNode } from '../utils/nodeFactory.js';
 import { MobileFieldView } from './mobile/MobileFieldView.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
 import { useTheme } from '../hooks/useTheme.js';
+import { useAssistantRoute } from '../ai/assistantRoute.js';
 import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates/sherwinWilliamsPaintLine.js';
 import type { CanvasNodeData, CanvasEdgeData, PlantTelemetryState } from '../types.js';
 import { draftingRadius } from '@process-forge/theme';
@@ -133,6 +133,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   historyKey
 }) => {
   const { palette, canvasTokens, font } = useTheme();
+  const assistantRoute = useAssistantRoute();
   const OsakaJadePalette = palette;
   const { isMobile, viewMode } = useMobileViewport();
   const [internalDockCollapsed, setInternalDockCollapsed] = useState<boolean>(() => {
@@ -1058,7 +1059,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           </div>
         </div>
 
-        {/* Empty Canvas Call-to-Action for Blank Flowsheets */}
+        {/* An empty flowsheet: a quiet pointer to the two ways to add a unit,
+            not a card of suggestions. It never blocks the canvas. */}
         {nodes.length === 0 && (
           <div
             style={{
@@ -1067,158 +1069,45 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               left: '50%',
               transform: 'translate(-50%, -50%)',
               zIndex: 5,
-              width: 440,
+              width: 420,
               maxWidth: 'calc(100% - 32px)',
-              backgroundColor: `${OsakaJadePalette.background.surfaceElevated}f2`,
-              backdropFilter: 'blur(16px)',
-              border: `1px solid ${OsakaJadePalette.border.glow}`,
-              borderRadius: draftingRadius.soft,
-              padding: 24,
-              // Kept deliberately. A dialog genuinely floats above the sheet;
-              // this is the one place elevation is not decoration.
-              boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
               textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 12
+              pointerEvents: 'none'
             }}
           >
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: draftingRadius.soft,
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: OsakaJadePalette.jade.glow
-              }}
-            >
-              <Layers size={22} />
-            </div>
-
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                Start your flowsheet
-              </div>
-              <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, marginTop: 4, lineHeight: 1.4 }}>
-                Design a unit operation that does not exist yet: describe it, your AI model writes it, and the engine checks the physics. Or start from standard equipment.
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 8, marginTop: 6 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: OsakaJadePalette.text.secondary }}>Empty flowsheet</div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap', pointerEvents: 'auto' }}>
               {onDesignUnitOp && (
                 <button
-            onClick={onDesignUnitOp}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.jade[600],
-              color: OsakaJadePalette.text.inverse,
-              border: `1px solid ${OsakaJadePalette.jade[500]}`,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              justifyContent: 'center',
-              padding: '10px 12px'
-            }}
-            title="Describe equipment that has no model yet. Your AI model writes it as a contract; the engine checks the physics."
-          >
-            <Sparkles size={13} />
-            <span>Design a unit operation</span>
-          </button>
+                  type="button"
+                  onClick={onDesignUnitOp}
+                  style={{
+                    ...toolbarButton,
+                    backgroundColor: OsakaJadePalette.jade[600],
+                    color: OsakaJadePalette.text.inverse,
+                    border: 'none'
+                  }}
+                >
+                  <Sparkles size={14} /> Design a unit op
+                </button>
               )}
-              <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted, marginTop: 4 }}>Or start from standard equipment</div>
               <button
-                onClick={() => handleAddNode(createDefaultProcessNode('PUMP', { flowRateGpm: 100 }))}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 12px',
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Plus size={14} color={OsakaJadePalette.jade.glow} />
-                  <span>Centrifugal Pump (100 GPM)</span>
-                </span>
-                <span style={{ fontSize: 11, color: OsakaJadePalette.jade.glow, fontWeight: 700 }}>+ Add</span>
-              </button>
-
-              <button
-                onClick={() => handleAddNode(createDefaultProcessNode('SURGE_TANK'))}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 12px',
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Plus size={14} color={OsakaJadePalette.jade.glow} />
-                  <span>Surge / Storage Tank (1,000 Gal)</span>
-                </span>
-                <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>+ Add</span>
-              </button>
-
-              <button
-                onClick={() => handleAddNode(createDefaultProcessNode('BATCH_REACTOR'))}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 12px',
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Plus size={14} color={OsakaJadePalette.jade.glow} />
-                  <span>Jacketed Batch Reactor (800 Gal)</span>
-                </span>
-                <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>+ Add</span>
-              </button>
-
-              <button
+                type="button"
                 onClick={() => setIsEquipmentPaletteOpen(true)}
                 style={{
-                  marginTop: 4,
-                  padding: '7px 10px',
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: 'transparent',
-                  border: `1px dashed ${OsakaJadePalette.border.default}`,
-                  color: OsakaJadePalette.text.secondary,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer'
+                  ...toolbarButton,
+                  backgroundColor: OsakaJadePalette.background.surface,
+                  color: OsakaJadePalette.text.primary,
+                  border: `1px solid ${OsakaJadePalette.border.strong}`
                 }}
               >
-                All standard equipment →
+                <Plus size={14} /> Add standard equipment
               </button>
+            </div>
+            <div style={{ fontSize: 12, color: OsakaJadePalette.text.muted, marginTop: 10, lineHeight: 1.5 }}>
+              {assistantRoute === 'claude-desktop'
+                ? 'Or ask your MCP client to design one; it appears here when it passes the checks.'
+                : 'A designed unit is checked by the engine before it can be placed.'}
             </div>
           </div>
         )}
