@@ -253,6 +253,12 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     bottlenecks: validateProcessGraph(graph).bottlenecks
   }));
 
+  // The static bottleneck follows the flowsheet: computed once, it went on
+  // naming a unit from the previous project after switching.
+  useEffect(() => {
+    setTelemetry((t) => ({ ...t, bottlenecks: validateProcessGraph(graph).bottlenecks }));
+  }, [graph]);
+
   const animTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   /**

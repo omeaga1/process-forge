@@ -7,7 +7,9 @@ import {
 import {
   saveLocalProject,
   loadCurrentLocalProject,
-  listLocalProjects
+  listLocalProjects,
+  loadLocalProject,
+  deleteLocalProject
 } from '../storage/localStorageAdapter.js';
 
 class MockStorage {
@@ -113,6 +115,59 @@ describe('Web Studio Local Storage Adapter', () => {
     // Most recent is at the top
     assert.strictEqual(list[0]?.name, 'Line 2');
     assert.strictEqual(list[1]?.name, 'Line 1');
+  });
+
+  it('keeps every project whole, so opening another never loses the first', () => {
+    const first = createSimulationProject('First line', testGraph);
+    const second = createSimulationProject('Second line', { ...testGraph, nodes: [] });
+    saveLocalProject(first);
+    saveLocalProject(second);
+
+    assert.strictEqual(loadCurrentLocalProject()?.id, second.id);
+    const reopened = loadLocalProject(first.id);
+    assert.ok(reopened, 'the first project is still on this device');
+    assert.strictEqual(reopened.graph.nodes.length, 1);
+  });
+
+  it('saves without opening when asked (rename or duplicate in the browser)', () => {
+    const open = createSimulationProject('Open one', testGraph);
+    const other = createSimulationProject('Other', testGraph);
+    saveLocalProject(open);
+    saveLocalProject(other, { makeCurrent: false });
+
+    assert.strictEqual(loadCurrentLocalProject()?.id, open.id);
+    assert.deepStrictEqual(
+      listLocalProjects().map((p) => p.name).sort(),
+      ['Open one', 'Other']
+    );
+  });
+
+  it('deletes a project from this device', () => {
+    const keep = createSimulationProject('Keep', testGraph);
+    const drop = createSimulationProject('Drop', testGraph);
+    saveLocalProject(drop);
+    saveLocalProject(keep);
+    deleteLocalProject(drop.id);
+
+    assert.strictEqual(loadLocalProject(drop.id), null);
+    assert.deepStrictEqual(listLocalProjects().map((p) => p.name), ['Keep']);
+  });
+
+  it('adopts projects that older versions saved under the account record list', () => {
+    const old = createSimulationProject('Saved by 0.1.20', testGraph);
+    localStorage.setItem('pf_cloud_projects_local', JSON.stringify([{ id: old.id, bundle: old }]));
+
+    const list = listLocalProjects();
+    assert.ok(list.some((p) => p.id === old.id), 'the old save is listed');
+    assert.strictEqual(loadLocalProject(old.id)?.name, 'Saved by 0.1.20');
+  });
+
+  it('does not list headers whose project copy is gone', () => {
+    localStorage.setItem(
+      'pf_saved_projects',
+      JSON.stringify([{ id: 'ghost', name: 'Ghost', description: '', updatedAt: new Date().toISOString(), isGuestProject: true, nodeCount: 0 }])
+    );
+    assert.deepStrictEqual(listLocalProjects(), []);
   });
 
   it('handles corrupted localStorage payload gracefully without throwing', () => {

@@ -400,7 +400,11 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               title={bottlenecks.bottleneckNodeId ? (graph.nodes.find(n => n.id === bottlenecks.bottleneckNodeId)?.name || bottlenecks.bottleneckNodeId) : 'None (Balanced)'}
             >
               {bottlenecks.bottleneckNodeId
-                ? (graph.nodes.find(n => n.id === bottlenecks.bottleneckNodeId)?.name.split(' ')[0] || 'Node')
+                ? (() => {
+                    // The unit's tag (P-227) when it has one; its name otherwise.
+                    const name = graph.nodes.find((n) => n.id === bottlenecks.bottleneckNodeId)?.name;
+                    return name ? name.match(/\b[A-Z]{1,3}-\d{2,4}\b/)?.[0] ?? name : '—';
+                  })()
                 : 'Balanced'}
             </span>
           </div>
@@ -626,7 +630,13 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         </div>
       )}
 
-      {route === 'claude-desktop' && <McpAssistantPanel graph={graph} />}
+      {route === 'claude-desktop' && (
+        <McpAssistantPanel
+          graph={graph}
+          bottleneckNodeId={bottlenecks.bottleneckNodeId}
+          {...(onOpenPopOutStudio ? { onOpenUnit: onOpenPopOutStudio } : {})}
+        />
+      )}
 
       {/* Chat Input Bar */}
       {route !== 'claude-desktop' && (

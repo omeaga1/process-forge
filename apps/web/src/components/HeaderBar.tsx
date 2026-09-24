@@ -34,40 +34,37 @@ export type CloudSaveStatus =
 interface HeaderBarProps {
   cloudSaveStatus?: CloudSaveStatus;
   onQuickCloudSave?: () => void;
-  currentTemplate: string;
+  /** The open project's name, shown as the way into the project browser. */
+  projectName: string;
+  onOpenProjects: () => void;
   isGuestMode: boolean;
   activeAiProvider?: string;
   onNavigateHome?: () => void;
-  onSelectTemplate: (templateKey: string) => void;
   onOpenAiModal?: () => void;
   onOpenForgeHub: () => void;
-  onOpenUnitOpCreator?: () => void;
   onOpenSaveModal: () => void;
   onOpenGuestModal: () => void;
   onImportFile: (file: File) => void;
   onOpenAccountModal?: () => void;
-  onOpenCloudProjects?: () => void;
   onCheckForUpdates?: () => void;
   isCheckingUpdates?: boolean;
   hasUpdateAvailable?: boolean;
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
-  currentTemplate,
+  projectName,
+  onOpenProjects,
   isGuestMode,
   activeAiProvider: _activeAiProvider = 'mcp',
   onNavigateHome,
-  onSelectTemplate,
   onOpenAiModal,
   onOpenForgeHub,
-  onOpenUnitOpCreator,
   onOpenSaveModal,
   cloudSaveStatus = { kind: 'signed-out' },
   onQuickCloudSave,
   onOpenGuestModal,
   onImportFile,
   onOpenAccountModal,
-  onOpenCloudProjects,
   onCheckForUpdates,
   isCheckingUpdates = false,
   hasUpdateAvailable = false
@@ -297,45 +294,34 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         {/* Subtle separator */}
         <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px', flexShrink: 0 }} />
 
-        {/* Digital Twin Flowsheet Selector */}
-        <div style={{ position: 'relative', width: 220, minWidth: 120, flexShrink: 1 }}>
-          <select
-            value={currentTemplate}
-            onChange={(e) => onSelectTemplate(e.target.value)}
-            style={{
-              appearance: 'none',
-              width: '100%',
-              height: 32,
-              boxSizing: 'border-box',
-              backgroundColor: OsakaJadePalette.background.canvas,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: draftingRadius.soft,
-              padding: '0 26px 0 10px',
-              color: OsakaJadePalette.text.primary,
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: 'pointer',
-              outline: 'none',
-              textOverflow: 'ellipsis',
-              overflow: 'hidden',
-              whiteSpace: 'nowrap'
-            }}
-            title="Switch Process Flowsheet Template"
-          >
-            <option value="blank">Custom Blank Canvas</option>
-            <option value="sherwin-williams-paint-line">
-              Architectural Paint Canning Line
-            </option>
-            <option value="beverage-bottling-line">
-              High-Speed Beverage Bottling Line
-            </option>
-          </select>
-          <ChevronDown
-            size={13}
-            color={OsakaJadePalette.text.secondary}
-            style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-          />
-        </div>
+        {/* The open project: click for every project, templates and files (Ctrl+O). */}
+        <button
+          type="button"
+          onClick={onOpenProjects}
+          title="Projects: open another, start a new one, or open a file (Ctrl+O)"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            height: 32,
+            maxWidth: 300,
+            minWidth: 120,
+            flexShrink: 1,
+            boxSizing: 'border-box',
+            padding: '0 8px 0 10px',
+            borderRadius: draftingRadius.soft,
+            backgroundColor: OsakaJadePalette.background.canvas,
+            border: `1px solid ${OsakaJadePalette.border.default}`,
+            color: OsakaJadePalette.text.primary,
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          <FolderOpen size={14} color={OsakaJadePalette.jade[400]} style={{ flexShrink: 0 }} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{projectName}</span>
+          <ChevronDown size={13} color={OsakaJadePalette.text.secondary} style={{ flexShrink: 0 }} />
+        </button>
 
         {/* Subtle separator */}
         <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px', flexShrink: 0 }} />
@@ -371,31 +357,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
       {/* Right: Actions, User Account, Tools */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-        {/* Cloud Projects Browser */}
-        <button
-          onClick={onOpenCloudProjects || (() => fileInputRef.current?.click())}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            height: 32,
-            backgroundColor: 'transparent',
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            borderRadius: draftingRadius.soft,
-            padding: '0 10px',
-            color: OsakaJadePalette.text.secondary,
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            boxSizing: 'border-box'
-          }}
-          title="Open or browse Cloud Simulation Projects"
-        >
-          <FolderOpen size={14} />
-          {!compact && <span>Projects</span>}
-        </button>
-
         {/* Save to cloud in one click, and the full save options beside it. */}
         {(() => {
           const st = cloudSaveStatus;
@@ -487,33 +448,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <Cpu size={14} color={OsakaJadePalette.jade.glow} />
           {!compact && <span>AI Tools</span>}
         </button>
-
-        {/* Create a unit operation that does not exist yet */}
-        {onOpenUnitOpCreator && (
-          <button
-            onClick={onOpenUnitOpCreator}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              height: 32,
-              backgroundColor: 'rgba(113, 206, 173, 0.12)',
-              border: `1px solid ${OsakaJadePalette.jade[600]}`,
-              borderRadius: draftingRadius.soft,
-              padding: '0 10px',
-              color: OsakaJadePalette.text.accent,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              boxSizing: 'border-box'
-            }}
-            title="New Unit Op — describe equipment that has no model yet; the engine checks it against your physics before it reaches the canvas"
-          >
-            <Sparkles size={14} />
-            {!compact && <span>New Unit Op</span>}
-          </button>
-        )}
 
         {/* Community UnitOp Library */}
         <button
