@@ -168,7 +168,9 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
   const cloudShown = cloud.records.filter((r) => matches(r.name, r.description));
 
   const openLocal = (id: string) => {
-    if (id === currentProject.id) return onClose?.();
+    // The open project: back to it. On the hub there is no dialog to close,
+    // so this used to do nothing at all.
+    if (id === currentProject.id) return onClose ? onClose() : onOpenProject(currentProject);
     const p = loadLocalProject(id);
     if (p) onOpenProject(p);
   };
@@ -551,7 +553,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
       <div style={{ flex: '999 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ padding: '10px 16px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div role="tablist" style={{ display: 'flex', flex: 1 }}>
-            {tabButton('device', 'On this device', <HardDrive size={14} />, local.length)}
+            {tabButton('device', 'This computer', <HardDrive size={14} />, local.length)}
             {tabButton('cloud', 'Cloud', <Cloud size={14} />, signedIn ? cloud.records.length : null)}
           </div>
           <label
@@ -588,6 +590,12 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
           </label>
         </div>
         <div style={{ borderBottom: `1px solid ${palette.border.subtle}` }} />
+        {/* What the two places are, since "on this device" says little. */}
+        <div style={{ padding: '8px 16px 0', fontSize: 12, color: palette.text.muted, lineHeight: 1.45 }}>
+          {tab === 'device'
+            ? 'Saved automatically on this computer as you work, in ProcessForge itself. Nothing leaves the computer, and nobody else can open them. Click one to open it.'
+            : 'Copies you saved to ProcessForge Cloud with Save to cloud. They open on any computer you sign in on. Click one to open it.'}
+        </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 8, minHeight: 200 }}>
           {tab === 'device' &&
@@ -652,7 +660,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
                   graph: r.bundle?.graph ?? (r.id === currentProject.id ? currentProject.graph : graphs.get(r.id)),
                   detail: `${counts(r.nodeCount, r.streamCount)} · saved ${relativeTime(r.updatedAt)}`,
                   badges: r.id === currentProject.id ? badge('Open', <Check size={10} />) : null,
-                  onOpen: () => (r.id === currentProject.id ? onClose?.() : void openCloud(r))
+                  onOpen: () => (r.id === currentProject.id ? (onClose ? onClose() : onOpenProject(currentProject)) : void openCloud(r))
                 })
               ))
             ))}

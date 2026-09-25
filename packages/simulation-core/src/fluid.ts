@@ -1,4 +1,4 @@
-import type { ProcessEdge, ProcessGraph, ProcessNode, UnitOpContract } from '@process-forge/protocol';
+import { terminalRole, terminalSupplyRate, type ProcessEdge, type ProcessGraph, type ProcessNode, type UnitOpContract } from '@process-forge/protocol';
 import type { MachineOperationalState } from './types.js';
 
 /**
@@ -19,9 +19,13 @@ import type { MachineOperationalState } from './types.js';
  * So flow is limited by the slowest thing on the path, a full tank backs up
  * whatever feeds it, and an empty one starves whatever it feeds -- the same
  * backpressure discipline the discrete side has.
+ *
+ * Feeds and outlets (TERMINAL nodes) are the network's edges: a feed offers
+ * up to its supply rate (or, with none set, whatever its pipes take), and an
+ * outlet takes everything it is sent.
  */
 
-export type FluidRole = 'reactor' | 'tank' | 'pass' | 'filler';
+export type FluidRole = 'reactor' | 'tank' | 'pass' | 'filler' | 'feed' | 'sink';
 export type ReactorPhase = 'FILLING' | 'REACTING' | 'DISCHARGING';
 
 export interface FluidUnit {
@@ -82,7 +86,11 @@ export class FluidNetwork {
     for (const node of graph.nodes) {
       const c = node.config as Record<string, unknown>;
       let role: FluidRole | null = null;
-      if (node.kind === 'BATCH_REACTOR') role = 'reactor';
+      if (node.kind === 'TERMINAL') {
+        const t = terminalRole(node);
+        if (t === 'feed' && this.outEdges.has(node.id)) role = 'feed';
+        else if (t !== 'feed' && this.inEdges.has(node.id)) role = 'sink';
+      } else if (node.kind === 'BATCH_REACTOR') role = 'reactor';
       else if (node.kind === 'SURGE_TANK' && touches(node.id)) role = 'tank';
       else if (node.kind === 'ROTARY_FILLER' && this.inEdges.has(node.id)) role = 'filler';
       else if (PASS_KINDS.has(node.kind) && touches(node.id) && !hasDiscreteContract(node)) role = 'pass';
@@ -188,6 +196,14 @@ export class FluidNetwork {
     return edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, share: 1 / edges.length }));
   }
 
+  /** The design flow of a unit's outlet pipes, gal/min (45 each by default). */
+  private pipeDesignGpm(u: FluidUnit): number {
+    return (this.outEdges.get(u.id) ?? []).reduce((sum, e) => {
+      const gpm = (e.stream as { designFlowRateGpm?: unknown }).designFlowRateGpm;
+      return sum + (typeof gpm === 'number' && gpm > 0 ? gpm : 45);
+    }, 0);
+  }
+
   /** Gallons per second a pass-through unit can move. */
   private passRate(u: FluidUnit): number {
     const c = u.node.config as Record<string, unknown>;
@@ -240,6 +256,12 @@ export class FluidNetwork {
         case 'filler':
           u.accept = Math.max(0, u.capacity - u.level);
           break;
+        case 'sink':
+          u.accept = Infinity;
+          break;
+        case 'feed':
+          u.accept = 0;
+          break;
         case 'reactor':
           u.accept =
             u.phase === 'FILLING' && this.inEdges.has(u.id)
@@ -269,6 +291,10 @@ export class FluidNetwork {
         const max = num((u.node.config as Record<string, unknown>).maxDischargeRateGpm, 0);
         offer = Math.min(u.level, max > 0 ? (max / 60) * dt : Infinity);
       } else if (u.role === 'pass') offer = u.level + u.inbox;
+      else if (u.role === 'feed') {
+        const rate = terminalSupplyRate(u.node);
+        offer = rate > 0 ? (rate / 60) * dt : Infinity;
+      }
       if (offer <= EPS) {
         if (u.role === 'pass') u.level = offer;
         continue;
@@ -286,7 +312,10 @@ export class FluidNetwork {
         }
       } else {
         // Largest total that respects every outlet's share and room.
-        const total = Math.min(offer, ...outs.map((o) => (o.share > 0 ? remaining.get(o.target.id)! / o.share : Infinity)));
+        let total = Math.min(offer, ...outs.map((o) => (o.share > 0 ? remaining.get(o.target.id)! / o.share : Infinity)));
+        // A feed with no supply rate into units with no limit of their own
+        // (an unrated mixer, an outlet): the pipes' design flow is the limit.
+        if (!Number.isFinite(total)) total = this.pipeDesignGpm(u) / 60 * dt;
         for (const o of outs) {
           const x = total * o.share;
           if (x <= 0) continue;
@@ -334,6 +363,10 @@ export class FluidNetwork {
       case 'pass':
         if (u.outRate > EPS) return 'BUSY';
         return u.level > EPS ? 'BLOCKED' : 'STARVED';
+      case 'feed':
+        return u.outRate > EPS ? 'BUSY' : 'IDLE';
+      case 'sink':
+        return u.inRate > EPS ? 'BUSY' : 'IDLE';
       default:
         return 'IDLE';
     }

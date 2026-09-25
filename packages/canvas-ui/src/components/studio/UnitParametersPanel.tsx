@@ -2,6 +2,11 @@ import React, { useMemo } from 'react';
 import {
   evaluateUnitOp,
   UnitOpContractSchema,
+  TERMINAL_ROLE_LABEL,
+  terminalCarries,
+  terminalMaterial,
+  terminalRole,
+  terminalSupplyRate,
   type ProcessNode,
   type UnitOpContract
 } from '@process-forge/protocol';
@@ -246,6 +251,87 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
             })}
           </>
         )}
+      </div>
+    );
+  }
+
+  // ---- a feed or outlet arrow -------------------------------------------------
+  const tRole = terminalRole(node);
+  if (tRole) {
+    const items = terminalCarries(node) === 'items';
+    const textBox: React.CSSProperties = { ...numberBox(false), width: 200, padding: '5px 8px' };
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={heading}>{tRole === 'feed' ? 'Feed' : 'Outlet'}</div>
+        {tRole !== 'feed' && (
+          <div style={row}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>Leaves as</div>
+              <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>Only product counts toward the line's output.</div>
+            </div>
+            <div role="radiogroup" aria-label="Leaves as" style={{ display: 'flex', gap: 4 }}>
+              {(['product', 'byproduct', 'waste'] as const).map((r2) => (
+                <button
+                  key={r2}
+                  type="button"
+                  role="radio"
+                  aria-checked={tRole === r2}
+                  onClick={() => onUpdateConfig(node.id, { ...config, role: r2 })}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: r.md,
+                    fontSize: 12,
+                    fontWeight: tRole === r2 ? 700 : 500,
+                    border: `1px solid ${tRole === r2 ? palette.jade[500] : palette.border.subtle}`,
+                    background: tRole === r2 ? `${palette.jade[500]}22` : 'transparent',
+                    color: tRole === r2 ? palette.text.primary : palette.text.secondary,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {TERMINAL_ROLE_LABEL[r2]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={row}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>Material</div>
+          <label style={textBox}>
+            <input
+              type="text"
+              aria-label="Material"
+              value={terminalMaterial(node)}
+              onChange={(e) => onUpdateConfig(node.id, { ...config, material: e.target.value })}
+              style={{ ...input, textAlign: 'left' }}
+            />
+          </label>
+        </div>
+        {tRole === 'feed' && (
+          <div style={row}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>Supply rate</div>
+              <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>0 supplies whatever the line takes.</div>
+            </div>
+            <label style={numberBox(false)}>
+              <input
+                type="number"
+                aria-label="Supply rate"
+                min={0}
+                step="any"
+                value={terminalSupplyRate(node)}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (Number.isFinite(v) && v >= 0) onUpdateConfig(node.id, { ...config, supplyRate: v });
+                }}
+                style={input}
+              />
+              <span style={unitTag}>{items ? 'items/min' : 'gal/min'}</span>
+            </label>
+          </div>
+        )}
+        <div style={{ fontSize: 12, color: palette.text.muted, lineHeight: 1.5, marginTop: 10 }}>
+          Carries {items ? 'whole items' : 'liquid'}. An arrow with nothing piped to it takes on the kind of the first unit you pipe it to.
+        </div>
       </div>
     );
   }

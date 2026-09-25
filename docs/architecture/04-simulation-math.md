@@ -120,6 +120,42 @@ that. A filler with no feed pipe fills on its own.
 and tank outlets into containers per minute: their gallons per minute divided
 by the container volume of the pipe-fed filler.
 
+## Feeds and outlets
+
+Arrows at the edge of the flowsheet mark where material enters and leaves it
+(`packages/protocol/src/terminals.ts`). They are one node kind, `TERMINAL`,
+with a role:
+
+| Role | Port | In the simulation |
+| --- | --- | --- |
+| Feed | one outlet | Supplies what the units it feeds take, or up to its supply rate. |
+| Product | one inlet | Takes everything it is sent. Counts as the line's output. |
+| Byproduct | one inlet | Takes everything it is sent. Totalled on its own. |
+| Waste | one inlet | Takes everything it is sent. Totalled on its own. |
+
+An arrow's port has no fixed kind until it is piped: it takes on the kind of
+the unit at the other end, liquid or items (`addStreamToGraph`). After that it
+keeps that kind, like any other port.
+
+**Feeds.** A liquid feed takes part in the fluid step. Its offer is its supply
+rate $Q_{supply} \cdot \Delta t$; with no rate set, the offer is unlimited and
+the units downstream set the flow. When nothing downstream has a limit either
+(an unrated mixer straight into an outlet), the design flow of its pipes is
+the limit. An items feed with a supply rate releases one item every
+$60 / Q_{supply}$ seconds and holds it while the next buffer is full. With no
+rate set, it keeps every buffer it feeds full, so the units it feeds are never
+starved.
+
+**Outlets.** An outlet never holds up the line. Every run reports each arrow's
+totals in `terminals` (items and gallons). The line's output is the sum over
+Product outlets, plus what leaves the end of a line with no outlet, as before.
+Byproduct and waste do not count toward it. A palletizer passes its layers on
+to whatever follows it, such as a Product outlet.
+
+**Static bottleneck analysis.** A feed with a supply rate is a capacity: items
+per minute, or for liquid, its gallons per minute divided by the pipe-fed
+filler's container volume.
+
 ## Limits
 
 - **Heat exchangers:** heat duty is not modelled. A heat exchanger passes flow

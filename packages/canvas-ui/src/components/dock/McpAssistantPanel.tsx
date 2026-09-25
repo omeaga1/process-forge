@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { validateProcessGraph, type ProcessGraph } from '@process-forge/protocol';
+import { validateProcessGraph, kindLabel, type ProcessGraph } from '@process-forge/protocol';
 import { AlertTriangle, XCircle, Copy, Check, ExternalLink, Sparkles, ChevronRight } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
 import { claudeDesktopFlowsheetPrompt } from '../../ai/assistantRoute.js';
@@ -189,7 +189,7 @@ export const McpAssistantPanel: React.FC<McpAssistantPanelProps> = ({ graph, bot
                     {n.name}
                   </span>
                   <span style={{ display: 'block', fontSize: 11, color: palette.text.muted }}>
-                    {n.kind.replace(/_/g, ' ').toLowerCase()} · {connections} stream{connections === 1 ? '' : 's'}
+                    {kindLabel(n)} · {connections} stream{connections === 1 ? '' : 's'}
                   </span>
                 </span>
                 {isBottleneck && (

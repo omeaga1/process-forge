@@ -1,6 +1,6 @@
 import { bottleneckAdvice } from './bottleneckAdvice.js';
 import { validateProcessGraph, type ProcessGraph } from '@process-forge/protocol';
-import { SimulationEngine } from '@process-forge/simulation-core';
+import { SimulationEngine, type TerminalReport } from '@process-forge/simulation-core';
 import { AVAILABLE_TEMPLATES } from '../templates.js';
 
 export interface SimulateLineParams {
@@ -29,6 +29,8 @@ export interface SimulationResultPayload {
     /** Reactors, tanks, pumps: gallons in, out and held at the end. */
     liquid?: { receivedGallons: number; deliveredGallons: number; levelGallons: number; batches?: number };
   }>;
+  /** Feeds, products, byproducts and waste: what came in and went out, and where. */
+  streams: TerminalReport[];
   engineeringDiagnosis: string;
 }
 
@@ -56,7 +58,7 @@ export function executeSimulateLine(params: SimulateLineParams): SimulationResul
   const bottleneckName = bottleneckNode ? bottleneckNode.name : bottleneckId;
 
   // Compile machine metrics
-  const machineMetrics = graphToRun.nodes.map((node) => {
+  const machineMetrics = graphToRun.nodes.filter((node) => node.kind !== 'TERMINAL').map((node) => {
     const report = result.nodeReports[node.id];
     return {
       nodeId: node.id,
@@ -69,8 +71,13 @@ export function executeSimulateLine(params: SimulateLineParams): SimulationResul
     };
   });
 
-  const liquid = result.totalFluidDeliveredGallons > 0 ? ` ${result.totalFluidDeliveredGallons} gal of liquid left the line from units with no outlet.` : '';
-  const diagnosis = `Simulated ${duration} minutes: ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.${liquid} ${bottleneckAdvice(bottleneckNode, validation.bottlenecks.maximumSystemThroughputUnitsPerMin)}`;
+  const liquid = result.totalFluidDeliveredGallons > 0 ? ` ${result.totalFluidDeliveredGallons} gal of liquid product left the line.` : '';
+  const amount = (t: TerminalReport) => (t.carries === 'items' ? `${t.units} items` : `${t.gallons} gal`);
+  const sides = result.terminals.filter((t) => t.role === 'byproduct' || t.role === 'waste');
+  const side = sides.length ? ` Also out: ${sides.map((t) => `${amount(t)} of ${t.material} as ${t.role}`).join('; ')}.` : '';
+  const feeds = result.terminals.filter((t) => t.role === 'feed');
+  const fed = feeds.length ? ` Fed: ${feeds.map((t) => `${amount(t)} of ${t.material}`).join('; ')}.` : '';
+  const diagnosis = `Simulated ${duration} minutes: ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.${liquid}${fed}${side} ${bottleneckAdvice(bottleneckNode, validation.bottlenecks.maximumSystemThroughputUnitsPerMin)}`;
 
   return {
     success: true,
@@ -83,6 +90,7 @@ export function executeSimulateLine(params: SimulateLineParams): SimulationResul
     identifiedBottleneckNodeId: bottleneckId,
     identifiedBottleneckMachine: bottleneckName,
     machineMetrics,
+    streams: result.terminals,
     engineeringDiagnosis: diagnosis
   };
 }

@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { planStream } from '../connect.js';
+import { addStreamToGraph, createTerminalNode, setTerminalRole } from '../terminals.js';
+import { validateProcessGraph } from '../graph.js';
 import { ProcessEdgeSchema } from '../streams.js';
 import type { ProcessGraph } from '../graph.js';
 
@@ -69,5 +71,39 @@ describe('planStream: piping units together', () => {
     const bad = planStream(g, { from: 'filler-1', fromPort: 'bottles', to: 'labeler-1' });
     assert.equal(bad.ok, false);
     assert.match((bad as { error: string }).error, /It has: cans/);
+  });
+});
+
+describe('Feeds and outlets: the arrows at the edge of the flowsheet', () => {
+  it('an outlet takes on the kind of what is piped into it, liquid or items', () => {
+    let g = graph();
+    g = { ...g, nodes: [...g.nodes, createTerminalNode('waste', { id: 'waste-1' }), createTerminalNode('product', { id: 'cans-out' })] };
+    const liquid = planStream(g, { from: 'tank-1', to: 'waste-1' });
+    assert.ok(liquid.ok);
+    assert.equal(liquid.carries, 'liquid');
+    const items = planStream(g, { from: 'labeler-1', to: 'cans-out' });
+    assert.ok(items.ok, 'an unpiped liquid-default outlet takes items');
+    assert.equal(items.carries, 'items');
+    g = addStreamToGraph(g, items.edge);
+    assert.equal(g.nodes.find((n) => n.id === 'cans-out')!.inputs[0]!.flowDimension, 'DISCRETE_CONTAINER');
+    assert.equal(validateProcessGraph(g).valid, true, 'the retyped port matches its pipe');
+  });
+
+  it('a feed with a supply rate is the bottleneck when it is the slowest thing', () => {
+    let g = graph();
+    g = { ...g, nodes: [...g.nodes, createTerminalNode('feed', { id: 'feed-1', carries: 'items', supplyRate: 5 })] };
+    const plan = planStream(g, { from: 'feed-1', to: 'labeler-1' });
+    assert.ok(plan.ok);
+    g = addStreamToGraph(g, plan.edge);
+    const b = validateProcessGraph(g).bottlenecks;
+    assert.equal(b.bottleneckNodeId, 'feed-1');
+    assert.equal(b.maximumSystemThroughputUnitsPerMin, 5);
+  });
+
+  it('only outlets change between product, byproduct and waste; a feed stays a feed', () => {
+    const out = createTerminalNode('product');
+    assert.equal((setTerminalRole(out, 'waste').config as { role: string }).role, 'waste');
+    const feed = createTerminalNode('feed');
+    assert.equal(setTerminalRole(feed, 'waste'), feed);
   });
 });

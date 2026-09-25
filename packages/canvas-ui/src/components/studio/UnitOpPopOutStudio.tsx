@@ -6,6 +6,8 @@ import {
 } from '@process-forge/protocol';
 import type { ChatMessage } from '../../types.js';
 import { UnitAnim, CustomEquipmentAnim } from '../animations/EquipmentAnimations.js';
+import { TerminalArrow, terminalColor } from '../nodes/TerminalNode.js';
+import { terminalRole, TERMINAL_ROLE_LABEL } from '@process-forge/protocol';
 import { UnitOpDressingTab } from './UnitOpDressingTab.js';
 import { UnitParametersPanel } from './UnitParametersPanel.js';
 import { useAssistantRoute } from '../../ai/assistantRoute.js';
@@ -137,10 +139,12 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   };
 
   const config = node.config as Record<string, unknown>;
+  const tRole = terminalRole(node);
   const tabs: { id: StudioTab; label: string; Icon: React.ElementType }[] = [
     ...(graph ? [{ id: 'OVERVIEW' as const, label: 'How it works', Icon: Workflow }] : []),
     { id: 'PARAMETERS', label: 'Parameters', Icon: Sliders },
-    { id: 'DRESSING', label: 'Drawing & nozzles', Icon: Palette },
+    // A feed or outlet is an arrow: it has no drawing or nozzles to edit.
+    ...(tRole ? [] : [{ id: 'DRESSING' as const, label: 'Drawing & nozzles', Icon: Palette }]),
     ...(route === 'claude-desktop' ? [] : [{ id: 'CHAT' as const, label: 'Ask AI', Icon: MessageSquare }])
   ];
   const shownTab: StudioTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]!.id;
@@ -245,15 +249,23 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
               flexShrink: 0
             }}
           >
-            <UnitAnim kind={node.kind} dressing={node.dressing} isRunning={true} />
+            {tRole ? (
+              <TerminalArrow role={tRole} color={terminalColor(tRole, OsakaJadePalette)} fill={`${terminalColor(tRole, OsakaJadePalette)}1f`} width={36} height={20} />
+            ) : (
+              <UnitAnim kind={node.kind} dressing={node.dressing} isRunning={true} />
+            )}
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {/* What this unit is: its kind, or "designed unit" for a contract. */}
-                {(node.config as { contract?: unknown }).contract !== undefined
-                  ? 'Designed unit op'
-                  : node.kind.replace(/_/g, ' ').toLowerCase()}
+                {tRole
+                  ? tRole === 'feed'
+                    ? 'Feed · stream in'
+                    : `${TERMINAL_ROLE_LABEL[tRole]} · stream out`
+                  : (node.config as { contract?: unknown }).contract !== undefined
+                    ? 'Designed unit op'
+                    : node.kind.replace(/_/g, ' ').toLowerCase()}
               </span>
             </div>
             {editingName !== null && onRename ? (

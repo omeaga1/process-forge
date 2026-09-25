@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTheme } from '../../hooks/useTheme.js';
-import type { NodeKind, ProcessNode } from '@process-forge/protocol';
-import { createDefaultProcessNode } from '../../utils/nodeFactory.js';
+import type { ProcessNode } from '@process-forge/protocol';
+import { STANDARD_EQUIPMENT_CATALOG, createStandardUnitOp, type EquipmentPaletteItem } from '@process-forge/protocol';
+import { TerminalArrow, terminalColor } from '../nodes/TerminalNode.js';
 import { drawingToDressing } from '@process-forge/protocol';
 import { useSavedUnitOps, removeSavedUnitOp, type SavedUnitOp } from '../../library/savedUnitOps.js';
 import { contractToProcessNode } from '../../unitop/contractToNode.js';
@@ -18,96 +19,8 @@ import {
 } from 'lucide-react';
 import { draftingRadius } from '@process-forge/theme';
 
-export interface EquipmentPaletteItem {
-  kind: NodeKind;
-  category: 'FLUID_PROCESSING' | 'STORAGE_HEAT' | 'PACKAGING';
-  title: string;
-  subtitle: string;
-  defaultFlowGpm?: number;
-  description: string;
-  tags: string[];
-}
-
-export const STANDARD_EQUIPMENT_CATALOG: EquipmentPaletteItem[] = [
-  {
-    kind: 'PUMP',
-    category: 'FLUID_PROCESSING',
-    title: 'Centrifugal Pump',
-    subtitle: 'End-suction process fluid transfer pump',
-    defaultFlowGpm: 100,
-    description: 'Dynamic pressure head boost for liquid streams. Configurable TDH, motor horsepower, and suction/discharge pipe sizing.',
-    tags: ['pump', 'fluid', 'pressure', 'transfer', 'impeller', 'continuous']
-  },
-  {
-    kind: 'SURGE_TANK',
-    category: 'STORAGE_HEAT',
-    title: 'Surge Buffer Tank',
-    subtitle: 'Atmospheric fluid accumulation and surge damping',
-    defaultFlowGpm: 60,
-    description: 'Dampens batch surges and flow oscillations. Includes level telemetry, high/low alarms, and bottom sump suction port.',
-    tags: ['tank', 'vessel', 'buffer', 'storage', 'damping', 'fluid']
-  },
-  {
-    kind: 'BATCH_REACTOR',
-    category: 'FLUID_PROCESSING',
-    title: 'CSTR / Batch Reactor',
-    subtitle: 'Jacketed reaction vessel with mechanical agitation',
-    defaultFlowGpm: 50,
-    description: 'Models chemical synthesis, dispersion, and blending with turbine agitators, cooling/heating jackets, and reflux ports.',
-    tags: ['reactor', 'cstr', 'batch', 'mixing', 'jacket', 'agitator', 'blending']
-  },
-  {
-    kind: 'HEAT_EXCHANGER',
-    category: 'STORAGE_HEAT',
-    title: 'Shell & Tube Heat Exchanger',
-    subtitle: 'Multi-pass industrial thermal conditioning',
-    defaultFlowGpm: 80,
-    description: 'Continuous thermal duty exchange between shell-side process fluid and tube-side cooling/heating utilities.',
-    tags: ['exchanger', 'heat', 'thermal', 'cooling', 'heating', 'shell', 'tube']
-  },
-  {
-    kind: 'SEPARATOR',
-    category: 'FLUID_PROCESSING',
-    title: 'Flash Separation Drum',
-    subtitle: 'Two-phase vapor-liquid separation vessel',
-    defaultFlowGpm: 75,
-    description: 'Gravity-driven separation of mixed multiphase fluids into top vapor discharge and bottom liquid streams with demister pads.',
-    tags: ['separator', 'flash', 'drum', 'vapor', 'liquid', 'multiphase']
-  },
-  {
-    kind: 'ROTARY_FILLER',
-    category: 'PACKAGING',
-    title: 'Rotary Container Filler',
-    subtitle: 'High-speed rotary piston liquid filling cell',
-    defaultFlowGpm: 45,
-    description: 'Phase transition interface converting continuous fluid infeed into discrete filled cans or bottles with reject telemetry.',
-    tags: ['filler', 'packaging', 'rotary', 'liquid', 'bottling', 'canning', 'discrete']
-  },
-  {
-    kind: 'CONVEYOR',
-    category: 'PACKAGING',
-    title: 'Accumulation Belt Conveyor',
-    subtitle: 'Continuous discrete unit transport & queuing buffer',
-    description: 'Transfers packaged containers between processing cells. Features item spacing, velocity control, and backpressure monitoring.',
-    tags: ['conveyor', 'belt', 'accumulation', 'discrete', 'packaging', 'transport']
-  },
-  {
-    kind: 'LABELER',
-    category: 'PACKAGING',
-    title: 'High-Speed Container Labeler',
-    subtitle: 'Continuous optical inspection & rotary labeling station',
-    description: 'High-cadence labeling cell with vision inspection cameras, defect detection, and pneumatic reject diverter chutes.',
-    tags: ['labeler', 'optical', 'inspection', 'packaging', 'discrete', 'reject']
-  },
-  {
-    kind: 'PALLETIZER',
-    category: 'PACKAGING',
-    title: 'Automated Palletizer Cell',
-    subtitle: 'End-of-line robotic layer palletizing & skid staging',
-    description: 'Packs finished containers into layer patterns and skids with changeover buffers and packaged throughput meters.',
-    tags: ['palletizer', 'skid', 'end-of-line', 'layer', 'packaging', 'discrete']
-  }
-];
+/** The catalog lives in the protocol package, so the MCP server lists the same units. */
+export { STANDARD_EQUIPMENT_CATALOG, type EquipmentPaletteItem };
 
 export interface EquipmentPaletteModalProps {
   isOpen: boolean;
@@ -126,7 +39,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
   const { palette, radius: r } = useTheme();
   const OsakaJadePalette = palette;
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<'MINE' | 'ALL' | 'FLUID_PROCESSING' | 'STORAGE_HEAT' | 'PACKAGING'>('ALL');
+  const [selectedCategory, setSelectedCategory] = useState<'MINE' | 'ALL' | EquipmentPaletteItem['category']>('ALL');
   const [justAddedKind, setJustAddedKind] = useState<string | null>(null);
   const saved = useSavedUnitOps();
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -172,11 +85,8 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
   }, [searchQuery, selectedCategory]);
 
   const handleInsert = (item: EquipmentPaletteItem) => {
-    const newNode = createDefaultProcessNode(item.kind, {
-      flowRateGpm: item.defaultFlowGpm
-    });
-    onInsertNode(newNode);
-    setJustAddedKind(item.kind);
+    onInsertNode(createStandardUnitOp(item));
+    setJustAddedKind(item.id);
     setTimeout(() => {
       setJustAddedKind(null);
       onClose();
@@ -352,7 +262,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
             />
             <input
               type="text"
-              placeholder="Search pumps, tanks, reactors, fillers..."
+              placeholder="Search feeds, pumps, tanks, reactors, fillers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -374,6 +284,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
             {[
               { id: 'MINE', label: `My unit ops · ${saved.length}` },
               { id: 'ALL', label: 'All Equipment' },
+              { id: 'FEEDS_OUTLETS', label: 'Feeds & outlets' },
               { id: 'FLUID_PROCESSING', label: 'Fluid & Pumping' },
               { id: 'STORAGE_HEAT', label: 'Storage & Thermal' },
               { id: 'PACKAGING', label: 'Packaging & Conveying' }
@@ -547,10 +458,11 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
               );
             })}
           {selectedCategory !== 'MINE' && filteredItems.map((item) => {
-            const isAdded = justAddedKind === item.kind;
+            const isAdded = justAddedKind === item.id;
+            const role = item.terminalRole;
             return (
               <div
-                key={item.kind}
+                key={item.id}
                 style={{
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${isAdded ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
@@ -573,7 +485,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                         color: OsakaJadePalette.jade[400]
                       }}
                     >
-                      {item.kind.replace(/_/g, ' ')}
+                      {role ? (role === 'feed' ? 'Stream in' : 'Stream out') : item.kind.replace(/_/g, ' ')}
                     </span>
                     {item.defaultFlowGpm && (
                       <span
@@ -589,6 +501,17 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                     )}
                   </div>
 
+                  {role && (
+                    <div style={{ margin: '4px 0 10px' }}>
+                      <TerminalArrow
+                        role={role}
+                        color={terminalColor(role, OsakaJadePalette)}
+                        fill={`${terminalColor(role, OsakaJadePalette)}14`}
+                        width={120}
+                        height={30}
+                      />
+                    </div>
+                  )}
                   <div style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary, marginBottom: 4 }}>
                     {item.title}
                   </div>

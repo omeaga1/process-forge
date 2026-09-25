@@ -1,6 +1,7 @@
 import type { ProcessGraph } from './graph.js';
 import type { ProcessNode } from './nodes.js';
 import type { ProcessEdge } from './streams.js';
+import { effectivePortKind, portsFit, type Carries } from './terminals.js';
 
 /**
  * Pipes one unit into another: the same rules the canvas applies when an
@@ -10,6 +11,9 @@ import type { ProcessEdge } from './streams.js';
  * A stream leaves an outlet and enters an inlet of a different unit, and
  * carries one kind of thing: liquid (a continuous port) or whole items (a
  * discrete one). Units can be named by id, by name, or by tag (P-101).
+ *
+ * Add the planned edge with addStreamToGraph (terminals.ts): a feed or outlet
+ * arrow not yet piped takes on the kind of the unit it is piped to.
  */
 
 export interface StreamRequest {
@@ -67,8 +71,9 @@ const describe = (ports: Port[]) =>
   ports.map((p) => `${p.name} (${discrete(p) ? 'items' : 'liquid'})`).join(', ') || 'none';
 
 /** A default stream for a new pipe, of the kind its outlet carries. The engine reads only the ends. */
-export function defaultStreamFor(port: Port): ProcessEdge['stream'] {
-  return discrete(port)
+export function defaultStreamFor(port: Port | Carries): ProcessEdge['stream'] {
+  const items = typeof port === 'string' ? port === 'items' : discrete(port);
+  return items
     ? { type: 'DISCRETE_CONTAINER_STREAM', targetPiecesPerMinute: 40, containerVolumeGallons: 1, containerType: 'CAN_1_GAL' }
     : {
         type: 'CONTINUOUS_FLUID',
@@ -97,7 +102,8 @@ export function planStream(graph: ProcessGraph, req: StreamRequest, now: number 
   const pairs: { out: Port; in: Port; free: number }[] = [];
   for (const o of outs) {
     for (const i of ins) {
-      if (discrete(o) !== discrete(i)) continue;
+      // Liquid to liquid, items to items; a terminal not yet piped takes either.
+      if (!portsFit(graph, from, o, to, i)) continue;
       const free = (used.has(`out:${from.id}:${o.id}`) ? 0 : 1) + (used.has(`in:${to.id}:${i.id}`) ? 0 : 1);
       pairs.push({ out: o, in: i, free });
     }
@@ -116,19 +122,20 @@ export function planStream(graph: ProcessGraph, req: StreamRequest, now: number 
   );
   if (duplicate) return { ok: false, error: `${from.name} ${best.out.name} is already piped to ${to.name} ${best.in.name}.` };
 
+  const carries = effectivePortKind(graph, from, best.out, to, best.in);
   const edge: ProcessEdge = {
     id: `e-${from.id}-${to.id}-${now.toString(36)}`,
     sourceNodeId: from.id,
     sourcePortId: best.out.id,
     targetNodeId: to.id,
     targetPortId: best.in.id,
-    stream: defaultStreamFor(best.out)
+    stream: defaultStreamFor(carries)
   };
   return {
     ok: true,
     edge,
     from: { id: from.id, name: from.name, port: best.out.name },
     to: { id: to.id, name: to.name, port: best.in.name },
-    carries: discrete(best.out) ? 'items' : 'liquid'
+    carries
   };
 }
