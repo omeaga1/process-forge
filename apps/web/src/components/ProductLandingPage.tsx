@@ -5,19 +5,21 @@ import {
   formatSize,
   type DesktopOs
 } from '../downloads/latestRelease.js';
-import { OsakaJadeLightPalette as L, OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
+import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
 import { ProcessForgeEmblem, ThemeScope } from '@process-forge/canvas-ui';
 import { LineDemo } from '../landing/LineDemo.js';
+import { EquipmentExplorer } from '../landing/EquipmentExplorer.js';
+import { DesignLoop } from '../landing/DesignLoop.js';
+import { McpDemo } from '../landing/McpDemo.js';
 
 /**
- * The public landing page.
+ * The public landing page, in the studio's own Osaka Jade: obsidian
+ * surfaces, jade for what matters, amber only for what limits the line.
  *
- * Osaka Jade in two registers: the hero and footer are the studio's own dark
- * obsidian and jade, and the reading sections between are the light theme's
- * rice paper, ruled like a drawing sheet with jade zone numbers.
- *
- * The example in the hero is not a picture: it is a small paint line that
- * the real engine simulates in the visitor's browser (landing/demoLine.ts).
+ * Every section is something to use rather than read: the hero plays back a
+ * shift the real engine simulates in the page (landing/demoLine.ts), the
+ * equipment is the studio's catalog with its drawings, and the design loop
+ * shows the engine's own verdicts.
  */
 
 export interface ProductLandingPageProps {
@@ -31,69 +33,52 @@ interface PlatformInfo {
   fileLabel: string;
 }
 
-const RULE = `1px solid ${L.border.default}`;
-const HAIRLINE = `1px solid ${L.border.subtle}`;
 const GUTTER = 'clamp(16px, 4vw, 32px)';
 const REPO = 'https://github.com/omeaga1/process-forge';
+const NPX = 'npx -y @process-forge/mcp-server';
 
 const mono: React.CSSProperties = { fontFamily: fontFamily.mono, fontVariantNumeric: 'tabular-nums' };
 const sans: React.CSSProperties = { fontFamily: fontFamily.sans };
 
-/** A drawing zone: a numbered, ruled band down the sheet. */
-function Zone({ n, title, note, children }: { n: string; title: string; note?: string; children: React.ReactNode }) {
+function Section({ id, n, kicker, title, note, children }: {
+  id: string; n: string; kicker: string; title: string; note?: string; children: React.ReactNode;
+}) {
   return (
-    <section style={{ borderTop: RULE, display: 'flex', alignItems: 'stretch' }}>
-      <div
-        style={{
-          ...mono,
-          width: 'clamp(36px, 8vw, 64px)',
-          flexShrink: 0,
-          borderRight: RULE,
-          padding: '24px 0 0',
-          textAlign: 'center',
-          fontSize: 12,
-          fontWeight: 600,
-          color: L.jade[500],
-          letterSpacing: '0.1em'
-        }}
-      >
-        {n}
+    <section id={id} style={{ maxWidth: 1120, margin: '0 auto', padding: `clamp(56px, 9vw, 104px) ${GUTTER} 0` }}>
+      <div style={{ ...mono, fontSize: 11.5, letterSpacing: '0.16em', color: D.jade.glow }}>
+        {n} <span style={{ color: D.text.muted }}>·</span> {kicker}
       </div>
-      <div style={{ flex: 1, padding: `24px ${GUTTER} 40px`, minWidth: 0 }}>
-        <h2 style={{ ...sans, margin: 0, fontSize: '1.4rem', fontWeight: 650, letterSpacing: '-0.015em', color: L.text.primary }}>{title}</h2>
-        {note && <p style={{ ...sans, margin: '8px 0 0', fontSize: '0.95rem', color: L.text.secondary, maxWidth: '64ch', lineHeight: 1.6 }}>{note}</p>}
-        <div style={{ marginTop: 22 }}>{children}</div>
-      </div>
+      <h2 style={{ ...sans, margin: '10px 0 0', fontSize: 'clamp(1.6rem, 3.4vw, 2.2rem)', fontWeight: 650, letterSpacing: '-0.025em', lineHeight: 1.12, color: D.text.primary, maxWidth: '26ch' }}>
+        {title}
+      </h2>
+      {note && <p style={{ ...sans, margin: '12px 0 0', fontSize: '1rem', lineHeight: 1.6, color: D.text.secondary, maxWidth: '62ch' }}>{note}</p>}
+      <div style={{ marginTop: 28 }}>{children}</div>
     </section>
   );
 }
 
-/** A cell in a ruled grid of cards. */
-function Cell({ kicker, title, children }: { kicker?: string; title: string; children: React.ReactNode }) {
+function CopyCommand({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
   return (
-    <div style={{ padding: '18px 20px', borderRight: HAIRLINE, borderBottom: HAIRLINE, background: L.background.surface }}>
-      {kicker && <div style={{ ...mono, fontSize: 11, fontWeight: 600, color: L.jade[500], letterSpacing: '0.1em' }}>{kicker}</div>}
-      <div style={{ ...sans, marginTop: kicker ? 6 : 0, fontSize: '1.02rem', fontWeight: 600, color: L.text.primary }}>{title}</div>
-      <div style={{ ...sans, marginTop: 6, fontSize: '0.9rem', lineHeight: 1.6, color: L.text.secondary }}>{children}</div>
+    <div style={{ display: 'flex', alignItems: 'stretch', border: `1px solid ${D.border.strong}`, borderRadius: 8, overflow: 'hidden', background: D.background.base }}>
+      <code style={{ ...mono, flex: 1, minWidth: 0, padding: '10px 12px', fontSize: '0.84rem', color: D.jade.glow, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+        <span style={{ color: D.text.muted }}>$ </span>
+        {text}
+      </code>
+      <button
+        type="button"
+        className="pf-copy"
+        onClick={() => {
+          void navigator.clipboard?.writeText(text).then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1600);
+          });
+        }}
+        style={{ ...sans, fontSize: 12, fontWeight: 600, padding: '0 14px', border: 'none', borderLeft: `1px solid ${D.border.strong}`, background: D.background.surfaceElevated, color: copied ? D.jade.glow : D.text.primary, cursor: 'pointer' }}
+      >
+        {copied ? 'Copied' : 'Copy'}
+      </button>
     </div>
-  );
-}
-
-function Tool({ name }: { name: string }) {
-  return (
-    <code
-      style={{
-        ...mono,
-        fontSize: '0.74rem',
-        padding: '3px 8px',
-        borderRadius: 4,
-        background: L.jade.muted,
-        color: L.jade[700],
-        whiteSpace: 'nowrap'
-      }}
-    >
-      {name}
-    </code>
   );
 }
 
@@ -124,251 +109,232 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
     let cancelled = false;
     void fetchLatestInstaller(platform.os as DesktopOs).then((found) => {
       if (cancelled || !found) return;
-      setPlatform((prev) => ({
-        ...prev,
-        downloadUrl: found.url,
-        fileLabel: `${prev.fileLabel} · ${found.version} · ${formatSize(found.sizeBytes)}`
-      }));
+      setPlatform((prev) => ({ ...prev, downloadUrl: found.url, fileLabel: `${prev.fileLabel} · ${found.version} · ${formatSize(found.sizeBytes)}` }));
     });
     return () => {
       cancelled = true;
     };
   }, [platform.os]);
 
-  const darkLink: React.CSSProperties = { ...sans, fontSize: 13.5, color: D.text.secondary, textDecoration: 'none' };
+  const navLink: React.CSSProperties = { ...sans, fontSize: 13.5, color: D.text.secondary, textDecoration: 'none' };
+  const card: React.CSSProperties = { border: `1px solid ${D.border.default}`, borderRadius: 14, background: D.background.surface, padding: '20px 22px' };
+
+  const primary = (
+    <a
+      className="pf-cta-primary"
+      href={platform.downloadUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ ...sans, display: 'inline-flex', alignItems: 'center', padding: '12px 22px', borderRadius: 9, background: D.jade.glow, color: D.text.inverse, fontWeight: 650, fontSize: '0.95rem', textDecoration: 'none', boxShadow: `0 0 28px ${D.jade.glow}45` }}
+    >
+      Download for {platform.name}
+    </a>
+  );
+  const secondary = (
+    <button
+      className="pf-cta-secondary"
+      onClick={onLaunchStudio}
+      style={{ ...sans, padding: '12px 22px', borderRadius: 9, background: 'transparent', color: D.text.primary, border: `1px solid ${D.border.strong}`, fontWeight: 600, fontSize: '0.95rem', cursor: 'pointer' }}
+    >
+      Open in your browser
+    </button>
+  );
 
   return (
     // flexShrink 0: the app's frame is a fixed-height flex column, and a
     // shrinking page painted its background only one screen deep.
-    <div style={{ minHeight: '100vh', flexShrink: 0, background: L.background.base, color: L.text.primary, ...sans }}>
+    <div
+      className="pf-landing"
+      style={{
+        minHeight: '100vh',
+        flexShrink: 0,
+        background: D.background.base,
+        backgroundImage: `radial-gradient(ellipse 60% 40% at 80% 0%, ${D.jade.glow}1c, transparent 70%), radial-gradient(ellipse 50% 30% at 0% 55%, ${D.jade[500]}14, transparent 70%)`,
+        backgroundRepeat: 'no-repeat',
+        color: D.text.primary,
+        ...sans
+      }}
+    >
       <style>{`
-        .pf-landing a:focus-visible, .pf-landing button:focus-visible { outline: 2px solid ${D.jade.glow}; outline-offset: 2px; }
-        .pf-landing .pf-cta-primary:hover { filter: brightness(1.08); }
-        .pf-landing .pf-cta-secondary:hover { background: ${D.background.surfaceHover}; }
-        .pf-landing .pf-dark-link:hover { color: ${D.jade.glow}; }
+        .pf-landing a:focus-visible, .pf-landing button:focus-visible, .pf-landing input:focus-visible { outline: 2px solid ${D.jade.glow}; outline-offset: 2px; }
+        .pf-landing .pf-cta-primary { transition: transform .15s ease, filter .15s ease; }
+        .pf-landing .pf-cta-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+        .pf-landing .pf-cta-secondary:hover, .pf-landing .pf-copy:hover { background: ${D.background.surfaceHover} !important; }
+        .pf-landing .pf-nav-link:hover { color: ${D.jade.glow} !important; }
+        .pf-landing .pf-chip:hover { border-color: ${D.jade[400]} !important; color: ${D.text.primary} !important; }
+        .pf-landing .pf-ghost-btn:not(:disabled):hover { border-color: ${D.jade.glow} !important; color: ${D.jade.glow} !important; }
+        @keyframes pf-pop-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+        .pf-landing .pf-pop { animation: pf-pop-in .25s ease; }
+        @media (max-width: 560px) { .pf-landing .pf-explorer-detail { grid-template-columns: 1fr !important; } }
+        @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } }
       `}</style>
-      <div className="pf-landing">
-        {/* ── Hero: the studio's own dark Osaka Jade ─────────────────── */}
-        <ThemeScope mode="dark">
-          <header
-            style={{
-              background: D.background.base,
-              backgroundImage: `radial-gradient(ellipse 70% 55% at 78% 0%, ${D.jade.glow}1f, transparent 70%), linear-gradient(${D.border.subtle} 1px, transparent 1px), linear-gradient(90deg, ${D.border.subtle} 1px, transparent 1px)`,
-              backgroundSize: '100% 100%, 32px 32px, 32px 32px',
-              color: D.text.primary,
-              borderBottom: `1px solid ${D.border.strong}`
-            }}
-          >
-            <div style={{ maxWidth: 1120, margin: '0 auto', padding: `0 ${GUTTER}` }}>
-              {/* Nav */}
-              <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 0', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <ProcessForgeEmblem size={30} />
-                  <span style={{ fontSize: 17, fontWeight: 650, letterSpacing: '-0.01em' }}>
-                    Process<span style={{ color: D.jade.glow }}>Forge</span>
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-                  <a className="pf-dark-link" style={darkLink} href={REPO} target="_blank" rel="noopener noreferrer">GitHub</a>
-                  <a className="pf-dark-link" style={darkLink} href={RELEASES_PAGE} target="_blank" rel="noopener noreferrer">Releases</a>
-                  <a className="pf-dark-link" style={darkLink} href={`${REPO}/tree/main/packages/mcp-server#readme`} target="_blank" rel="noopener noreferrer">MCP server</a>
-                </div>
-              </nav>
-
-              {/* Pitch */}
-              <div style={{ padding: 'clamp(28px, 6vw, 64px) 0 clamp(24px, 4vw, 40px)', maxWidth: 760 }}>
-                <div style={{ ...mono, fontSize: 11.5, letterSpacing: '0.18em', color: D.jade.glow }}>OPEN-SOURCE PROCESS SIMULATION</div>
-                <h1
-                  style={{
-                    margin: '14px 0 0',
-                    fontSize: 'clamp(2.1rem, 5.4vw, 3.5rem)',
-                    fontWeight: 680,
-                    letterSpacing: '-0.035em',
-                    lineHeight: 1.04,
-                    color: D.text.primary
-                  }}
+      <ThemeScope mode="dark">
+        {/* Nav: stays in reach while the page scrolls. */}
+        <nav
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            background: `${D.background.base}cc`,
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
+            borderBottom: `1px solid ${D.border.subtle}`
+          }}
+        >
+          <div style={{ maxWidth: 1120, margin: '0 auto', padding: `12px ${GUTTER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <a href="#top" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: D.text.primary }}>
+              <ProcessForgeEmblem size={28} />
+              <span style={{ fontSize: 16.5, fontWeight: 650, letterSpacing: '-0.01em' }}>
+                Process<span style={{ color: D.jade.glow }}>Forge</span>
+              </span>
+            </a>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+              {[
+                ['Equipment', '#equipment'],
+                ['Design', '#design'],
+                ['AI', '#ai'],
+                ['GitHub', REPO]
+              ].map(([label, href]) => (
+                <a
+                  key={label}
+                  className="pf-nav-link"
+                  style={navLink}
+                  href={href}
+                  {...(href!.startsWith('http') ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
                 >
-                  Find the bottleneck
-                  <br />
-                  <span style={{ color: D.jade[400] }}>before you build the line.</span>
-                </h1>
-                <p style={{ margin: '18px 0 0', fontSize: 'clamp(1rem, 2vw, 1.12rem)', lineHeight: 1.6, color: D.text.secondary, maxWidth: '60ch' }}>
-                  Lay out reactors, tanks, pumps, fillers and conveyors, mark where material comes in and goes out, and simulate
-                  the shift: every machine&apos;s busy, blocked and starved time, the throughput, and what holds it back. For
-                  equipment nobody ships a model for, your AI designs one and the engine checks its physics first.
+                  {label}
+                </a>
+              ))}
+            </div>
+          </div>
+        </nav>
+
+        {/* Hero, with the line running under it. */}
+        <header id="top" style={{ maxWidth: 1120, margin: '0 auto', padding: `clamp(40px, 7vw, 80px) ${GUTTER} 0` }}>
+          <div style={{ ...mono, fontSize: 11.5, letterSpacing: '0.18em', color: D.jade.glow }}>OPEN-SOURCE PROCESS SIMULATION</div>
+          <h1 style={{ margin: '14px 0 0', fontSize: 'clamp(2.2rem, 5.6vw, 3.8rem)', fontWeight: 680, letterSpacing: '-0.04em', lineHeight: 1.02, maxWidth: '21ch' }}>
+            Find the bottleneck <span style={{ color: D.jade[400] }}>before you build the line.</span>
+          </h1>
+          <p style={{ margin: '20px 0 0', fontSize: 'clamp(1rem, 2vw, 1.14rem)', lineHeight: 1.6, color: D.text.secondary, maxWidth: '58ch' }}>
+            Lay out reactors, tanks, fillers and conveyors, and simulate the shift: when each machine runs, waits or backs up,
+            and which one holds the line back. For equipment nobody ships a model for, your AI designs one, and the engine checks
+            its physics first.
+          </p>
+          <div style={{ display: 'flex', gap: 10, marginTop: 28, flexWrap: 'wrap', alignItems: 'center' }}>
+            {primary}
+            {secondary}
+          </div>
+          <div style={{ ...mono, fontSize: 11, color: D.text.muted, marginTop: 12 }}>{platform.fileLabel} · free and open source</div>
+
+          <div style={{ marginTop: 'clamp(36px, 6vw, 56px)' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+              <div style={{ fontSize: 14, color: D.text.secondary }}>
+                <span style={{ color: D.text.primary, fontWeight: 600 }}>Try it:</span> a paint line, simulated in this page. Move a slider
+                and the shift runs again.
+              </div>
+              <div style={{ ...mono, fontSize: 10.5, letterSpacing: '0.1em', color: D.text.muted }}>THE APP’S OWN ENGINE</div>
+            </div>
+            <LineDemo />
+          </div>
+        </header>
+
+        <Section
+          id="equipment"
+          n="01"
+          kicker="EQUIPMENT"
+          title="Standard units come with their model."
+          note="Drop them on the canvas, pipe them together, and they behave the way the equipment does. Point at one to see how."
+        >
+          <EquipmentExplorer />
+        </Section>
+
+        <Section
+          id="design"
+          n="02"
+          kicker="DESIGN"
+          title="For equipment nobody ships, describe it."
+          note="Your AI writes the unit as parameters, equations and limits. The engine evaluates every limit, and a design that breaks one goes back with the reason, until it holds."
+        >
+          <DesignLoop />
+        </Section>
+
+        <Section
+          id="ai"
+          n="03"
+          kicker="YOUR AI"
+          title="Use the model you already pay for."
+          note="The engine does the physics; the AI only writes designs for it to check and drives the studio for you."
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={card}>
+                <div style={{ fontSize: 16, fontWeight: 650 }}>From Claude Desktop, Cursor, or any MCP client</div>
+                <p style={{ margin: '8px 0 14px', fontSize: 14, lineHeight: 1.6, color: D.text.secondary }}>
+                  On your existing subscription. The client designs units, places standard equipment, pulls units from the community
+                  library, pipes them together and simulates. Add the server (Node.js 20 or later):
                 </p>
-                <div style={{ display: 'flex', gap: 10, marginTop: 26, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <a
-                    className="pf-cta-primary"
-                    href={platform.downloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      ...sans,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '12px 22px',
-                      borderRadius: 8,
-                      background: D.jade.glow,
-                      color: D.text.inverse,
-                      fontWeight: 650,
-                      fontSize: '0.95rem',
-                      textDecoration: 'none',
-                      boxShadow: `0 0 24px ${D.jade.glow}40`
-                    }}
-                  >
-                    Download for {platform.name}
-                  </a>
-                  <button
-                    className="pf-cta-secondary"
-                    onClick={onLaunchStudio}
-                    style={{
-                      ...sans,
-                      padding: '12px 22px',
-                      borderRadius: 8,
-                      background: 'transparent',
-                      color: D.text.primary,
-                      border: `1px solid ${D.border.strong}`,
-                      fontWeight: 600,
-                      fontSize: '0.95rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Open in your browser
-                  </button>
-                </div>
-                <div style={{ ...mono, fontSize: 11, color: D.text.muted, marginTop: 12 }}>{platform.fileLabel} · free, Apache-2.0</div>
+                <CopyCommand text={NPX} />
               </div>
-
-              {/* The live example */}
-              <div style={{ paddingBottom: 'clamp(32px, 5vw, 56px)' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: D.text.primary }}>
-                    A paint line, simulated in this page
-                    <span style={{ color: D.text.muted, fontWeight: 400 }}> · move a slider and the engine runs the shift again</span>
-                  </div>
-                  <div style={{ ...mono, fontSize: 10.5, letterSpacing: '0.1em', color: D.text.muted }}>SAME ENGINE AS THE APP</div>
-                </div>
-                <LineDemo />
+              <div style={card}>
+                <div style={{ fontSize: 16, fontWeight: 650 }}>In the app, with OpenRouter</div>
+                <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.6, color: D.text.secondary }}>
+                  Sign in once and chat with Claude, GPT, Gemini and others, paying as you go. Your own provider key, or a free local model
+                  in Ollama, also work.
+                </p>
               </div>
             </div>
-          </header>
-        </ThemeScope>
+            <McpDemo />
+          </div>
+        </Section>
 
-        {/* ── The sheet ─────────────────────────────────────────────────── */}
-        <main style={{ maxWidth: 1120, margin: '0 auto', borderLeft: RULE, borderRight: RULE, background: L.background.base }}>
-          <Zone
-            n="01"
-            title="How it works"
-            note="Standard equipment comes with its model. Anything else, you describe, and it is checked before it can affect a result."
-          >
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', border: RULE, borderRight: 'none', borderBottom: 'none' }}>
-              <Cell kicker="STEP 1" title="Draw the line">
-                Place pumps, tanks, reactors, heat exchangers, separators, fillers, conveyors, labelers and palletizers, and pipe
-                them together. Feed, product, byproduct and waste arrows mark where material enters and leaves.
-              </Cell>
-              <Cell kicker="STEP 2" title="Design what is missing">
-                Describe the unit in plain words: “a water-cooled steel belt that solidifies molten wax, 16 m by 1.2 m.” Your AI
-                writes it as parameters, equations and limits. The engine evaluates every limit, and sends failures back with
-                the reason until the design holds.
-              </Cell>
-              <Cell kicker="STEP 3" title="Simulate and fix the constraint">
-                Run a shift. Liquid flows through tanks and pumps second by second; containers move as discrete events. See
-                throughput, OEE and breakdowns per machine, and which unit to change first.
-              </Cell>
-            </div>
-          </Zone>
-
-          <Zone
-            n="02"
-            title="Bring your own AI"
-            note="The engine does the physics; the AI only writes designs for it to check. Use whichever model you already pay for."
-          >
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', border: RULE, borderRight: 'none', borderBottom: 'none' }}>
-              <Cell title="In the app, with OpenRouter">
-                Chat about your flowsheet and design unit operations without leaving ProcessForge. Sign in with OpenRouter once and
-                use Claude, GPT, Gemini and others, paying as you go. Prefer your own provider key, or a free local model in
-                Ollama? Those are under Other options.
-              </Cell>
-              <Cell title="From an MCP client, on your subscription">
-                Claude Desktop, Cursor or any MCP client can build and run your line on the plan you already have: design units,
-                place standard equipment, pull units from the community library, pipe them together and simulate. Add the server
-                (Node.js 20 or later):
-                <code
-                  style={{
-                    ...mono,
-                    display: 'block',
-                    marginTop: 10,
-                    padding: '9px 12px',
-                    fontSize: '0.82rem',
-                    borderRadius: 6,
-                    background: D.background.base,
-                    color: D.jade.glow,
-                    overflowX: 'auto',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  npx -y @process-forge/mcp-server
-                </code>
-                <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-                  {['design_unit_op', 'add_standard_unit_op', 'search_community_unit_ops', 'add_stream', 'simulate_process_line'].map((t) => (
-                    <Tool key={t} name={t} />
-                  ))}
-                </span>
-              </Cell>
-            </div>
-          </Zone>
-
-          <Zone n="03" title="What it does not do yet">
+        <Section id="limits" n="04" kicker="HONESTLY" title="What it does not do yet.">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
             {[
-              'Heat is not modelled in the line simulation: a heat exchanger passes flow up to its rated rate.',
-              'A designed unit that runs continuously is checked at steady state, but does not limit the flow.',
-              'Splits of whole items go evenly down each branch. Liquid splits only at a separator, by its vapor ratio.',
-              'AI inside the app is billed per use, through OpenRouter or a provider key, or runs free in Ollama. Subscriptions such as Claude Pro or ChatGPT Plus cannot be used by other apps; they work through an MCP client instead.',
-              'Results depend on the model. Smaller models write designs the engine rejects more often.'
-            ].map((t) => (
-              <div key={t} style={{ display: 'flex', gap: 12, padding: '9px 0', borderBottom: HAIRLINE, fontSize: '0.9rem', lineHeight: 1.55 }}>
-                <span style={{ ...mono, color: L.jade[500] }}>—</span>
-                <span style={{ color: L.text.secondary }}>{t}</span>
+              ['Heat', 'Heat is not simulated along the line: a heat exchanger passes flow up to its rated rate.'],
+              ['Continuous designs', 'A designed unit that runs continuously is checked at steady state, but does not limit the flow.'],
+              ['Splits', 'Whole items split evenly down each branch. Liquid splits only at a separator, by its vapor ratio.'],
+              ['Subscriptions', 'Claude Pro or ChatGPT Plus cannot be used inside other apps; they work through an MCP client. In-app AI is billed per use.'],
+              ['The model matters', 'Smaller models write designs the engine rejects more often.']
+            ].map(([k, t]) => (
+              <div key={k} style={{ border: `1px solid ${D.border.subtle}`, borderRadius: 10, padding: '12px 14px', background: `${D.background.surface}99` }}>
+                <div style={{ fontSize: 13, fontWeight: 650, color: D.text.primary }}>{k}</div>
+                <div style={{ fontSize: 13, lineHeight: 1.55, color: D.text.secondary, marginTop: 4 }}>{t}</div>
               </div>
-            ))}
-          </Zone>
-        </main>
-
-        {/* ── Footer: back to the dark ─────────────────────────────────── */}
-        <footer style={{ background: D.background.base, borderTop: `1px solid ${D.border.strong}` }}>
-          <div
-            style={{
-              maxWidth: 1120,
-              margin: '0 auto',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              ...mono,
-              fontSize: 11
-            }}
-          >
-            {[
-              ['REPOSITORY', 'github.com/omeaga1/process-forge', REPO],
-              ['RELEASES', 'all platforms', RELEASES_PAGE],
-              ['LICENCE', 'Apache-2.0', `${REPO}/blob/main/LICENSE`],
-              ['PRIVACY', 'what goes where', '/privacy.html'],
-              ['CODE SIGNING', 'policy', '/code-signing.html']
-            ].map(([k, v, href]) => (
-              <a
-                key={k}
-                className="pf-dark-link"
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ padding: `18px ${GUTTER}`, borderRight: `1px solid ${D.border.subtle}`, textDecoration: 'none', color: D.text.secondary }}
-              >
-                <div style={{ color: D.text.muted, letterSpacing: '0.1em', fontSize: 9.5 }}>{k}</div>
-                <div style={{ marginTop: 4 }}>{v}</div>
-              </a>
             ))}
           </div>
+        </Section>
+
+        {/* Close: the call to action once more, then the links. */}
+        <section style={{ maxWidth: 1120, margin: '0 auto', padding: `clamp(64px, 10vw, 112px) ${GUTTER} clamp(48px, 7vw, 72px)`, textAlign: 'center' }}>
+          <ProcessForgeEmblem size={44} />
+          <h2 style={{ margin: '16px auto 0', fontSize: 'clamp(1.6rem, 3.4vw, 2.2rem)', fontWeight: 650, letterSpacing: '-0.025em', maxWidth: '22ch' }}>
+            Simulate your line before you pour the concrete.
+          </h2>
+          <div style={{ display: 'flex', gap: 10, marginTop: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {primary}
+            {secondary}
+          </div>
+        </section>
+
+        <footer style={{ borderTop: `1px solid ${D.border.default}` }}>
+          <div style={{ maxWidth: 1120, margin: '0 auto', padding: `18px ${GUTTER}`, display: 'flex', flexWrap: 'wrap', gap: '8px 24px', justifyContent: 'space-between', ...mono, fontSize: 11.5 }}>
+            <span style={{ color: D.text.muted }}>ProcessForge · Apache-2.0</span>
+            <span style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px' }}>
+              {[
+                ['GitHub', REPO],
+                ['Releases', RELEASES_PAGE],
+                ['MCP server', `${REPO}/tree/main/packages/mcp-server#readme`],
+                ['Privacy', '/privacy.html'],
+                ['Code signing', '/code-signing.html']
+              ].map(([k, href]) => (
+                <a key={k} className="pf-nav-link" href={href} target="_blank" rel="noopener noreferrer" style={{ color: D.text.secondary, textDecoration: 'none' }}>
+                  {k}
+                </a>
+              ))}
+            </span>
+          </div>
         </footer>
-      </div>
+      </ThemeScope>
     </div>
   );
 };

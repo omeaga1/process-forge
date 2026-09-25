@@ -63,7 +63,7 @@ export function buildDemoLine(s: DemoSettings, faster?: Stage): ProcessGraph {
             batchVolumeGallons: 1000,
             fillDurationMinutes: 20 * t,
             reactionDurationMinutes: 45 * t,
-            dischargeRateGpm: 50 / t
+            dischargeRateGpm: 70 / t
           }
         })
       )
@@ -129,11 +129,25 @@ export interface UnitShare {
   starved: number;
 }
 
+/** One unit at one minute of the shift, as the engine recorded it. */
+export interface UnitFrame {
+  state: 'IDLE' | 'BUSY' | 'BLOCKED' | 'STARVED' | 'FAILED';
+  /** Tanks and reactors: how full, 0..1. */
+  level?: number;
+  /** Liquid leaving it now, gal/min. */
+  flow?: number;
+  phase?: 'FILLING' | 'REACTING' | 'DISCHARGING';
+  /** Items made (or, for the product outlet, received) so far. */
+  made: number;
+}
+
 export interface DemoRun {
   /** Filled cans a minute, over the shift. */
   rate: number;
   total: number;
   shares: Record<string, UnitShare>;
+  /** The shift minute by minute, for playback: frames[m][nodeId]. */
+  frames: Record<string, UnitFrame>[];
 }
 
 /** One shift of the line; the same seed every time, so a setting always gives the same answer. */
@@ -144,7 +158,30 @@ export function runDemo(s: DemoSettings, faster?: Stage): DemoRun {
   for (const [id, rep] of Object.entries(r.nodeReports)) {
     shares[id] = { id, busy: rep.busyTimeSeconds / secs, blocked: rep.blockedTimeSeconds / secs, starved: rep.starvedTimeSeconds / secs };
   }
-  return { rate: r.averageLineThroughputUnitsPerMin, total: r.totalUnitsPackaged, shares };
+  // The engine snapshots every unit once a simulated minute; a minute with no
+  // snapshot carries the last one forward.
+  const frames: Record<string, UnitFrame>[] = [];
+  const byMinute = new Map<number, typeof r.telemetryLog>();
+  for (const t of r.telemetryLog) {
+    const m = Math.floor(t.timeSeconds / 60);
+    (byMinute.get(m) ?? byMinute.set(m, []).get(m)!).push(t);
+  }
+  let last: Record<string, UnitFrame> = {};
+  for (let m = 0; m < DEMO_MINUTES; m++) {
+    const next = { ...last };
+    for (const t of byMinute.get(m) ?? []) {
+      next[t.nodeId] = {
+        state: t.state,
+        made: t.unitsProduced,
+        ...(t.levelFraction !== undefined ? { level: t.levelFraction } : {}),
+        ...(t.flowGpm !== undefined ? { flow: t.flowGpm } : {}),
+        ...(t.phase ? { phase: t.phase } : {})
+      };
+    }
+    frames.push(next);
+    last = next;
+  }
+  return { rate: r.averageLineThroughputUnitsPerMin, total: r.totalUnitsPackaged, shares, frames };
 }
 
 export interface Constraint {
