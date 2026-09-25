@@ -36,6 +36,8 @@ export interface NodeTelemetrySnapshot {
   flowGpm?: number;
   /** Liquid units: °C of what the unit holds (a pass-through unit: what it last sent). */
   temperatureC?: number;
+  /** Designed batch units: the name of the phase it is in. */
+  phaseName?: string;
   /** Batch reactors: where the batch is. HEATING: coming up to reaction temperature on its jacket. */
   phase?: 'FILLING' | 'HEATING' | 'REACTING' | 'DISCHARGING';
 }
@@ -76,7 +78,7 @@ export interface MachineOeeReport {
 }
 
 export interface DesignedUnitReport {
-  /** Times it was evaluated at live inlet conditions (once per second of flow). */
+  /** Times it was evaluated: at live inlet conditions (once per second of flow), or at each batch phase's start. */
   liveEvaluations: number;
   /** Constraints broken at some point in the run, with for how long. ERROR ones first. */
   brokenConstraints: { id: string; message: string; severity: 'ERROR' | 'WARNING'; seconds: number }[];
@@ -85,6 +87,8 @@ export interface DesignedUnitReport {
   evaluationErrorSeconds?: number;
   /** Its capacity at the end of the run, gal/min, when it declares one. */
   capacityGpm?: number;
+  /** Designed batch units: seconds spent in each phase over the run. */
+  secondsByPhase?: Record<string, number>;
 }
 
 export interface HeatReport {

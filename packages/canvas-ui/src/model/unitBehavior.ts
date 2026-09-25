@@ -204,19 +204,28 @@ function describeCore(node: ProcessNode, graph: ProcessGraph): UnitBehavior {
     const b = ev.behavior;
     if (b.mode === 'DISCRETE_CYCLE') {
       const isSource = role === 'source' || role === 'unconnected';
-      const good = b.unitsPerCycle * (1 - b.scrapFraction);
+      const good = b.outputs
+        ? b.outputs.filter((o) => !o.scrap).reduce((sum, o) => sum + o.perCycle, 0)
+        : b.unitsPerCycle * (1 - b.scrapFraction);
       const liquidFed = feeds.length > 0;
+      const kit = b.inputs?.map((x) => `${x.perCycle} from ${x.port}`).join(' and ');
       const details = [
         liquidFed
-          ? `Its liquid feed from ${list(feeds)} is not drawn down by the simulation: each cycle starts on its own.`
-          : isSource
-          ? `Nothing feeds it, so it is a source: every cycle starts on its own.`
-          : `Each cycle takes up to ${plural(b.unitsPerCycle, 'unit')} from its queue, and waits when the queue is empty.`,
-        b.scrapFraction > 0
-          ? `Scraps ${round(b.scrapFraction * 100)}% of each cycle, rounded down to whole units${
-              b.unitsPerCycle * b.scrapFraction < 1 ? ' (so none at this batch size)' : ''
-            }.`
-          : 'No scrap.',
+          ? b.liquidPerCycleGallons !== undefined
+            ? `Each cycle draws ${round(b.liquidPerCycleGallons)} gal from ${list(feeds)}, and waits when it is not there.`
+            : `Its liquid feed from ${list(feeds)} is not drawn: set liquidPerCycleGallons for it to draw liquid each cycle.`
+          : kit
+            ? `Each cycle takes a whole kit, ${kit}, and waits until every part is there.`
+            : isSource
+              ? `Nothing feeds it, so it is a source: every cycle starts on its own.`
+              : `Each cycle takes up to ${plural(b.unitsPerCycle, 'unit')} from its queue, and waits when the queue is empty.`,
+        b.outputs
+          ? `Each cycle sends ${b.outputs.map((o) => `${o.perCycle} to ${o.port}${o.scrap ? ' (rejects)' : ''}`).join(', ')}.`
+          : b.scrapFraction > 0
+            ? `Scraps ${round(b.scrapFraction * 100)}% of each cycle, rounded down to whole units${
+                b.unitsPerCycle * b.scrapFraction < 1 ? ' (so none at this batch size)' : ''
+              }.`
+            : 'No scrap.',
         leavesLine ? 'Nothing downstream: what it makes counts as finished output.' : 'Output goes to the next unit; if that is full, this unit waits.'
       ];
       if (failing) details.unshift(`${plural(failing, 'check')} fail, so the simulation refuses to run this unit until they pass.`);
@@ -226,25 +235,49 @@ function describeCore(node: ProcessNode, graph: ProcessGraph): UnitBehavior {
           good !== b.unitsPerCycle ? `, ${round(good)} good` : ''
         }.`,
         details,
-        capacityPerMin: failing === 0 ? b.unitsPerMinute * (1 - b.scrapFraction) : null,
+        capacityPerMin: failing === 0 ? (good / b.cycleSeconds) * 60 : null,
         engineKeys: ['contract', 'bufferCapacity'],
         role,
         keyFigures
       };
     }
+    if (b.mode === 'BATCH') {
+      const steps = b.phases.map((ph) =>
+        ph.kind === 'HOLD'
+          ? `${ph.name}: hold ${formatDuration(ph.seconds ?? 0)}${ph.temperatureC !== undefined ? ` to ${round(ph.temperatureC)} °C` : ''}`
+          : `${ph.name}: ${ph.kind === 'FILL' ? 'fill' : 'drain'} ${round(ph.gallons ?? b.batchGallons)} gal${ph.rateGpm !== undefined ? ` at ${round(ph.rateGpm)} gpm` : ''}${ph.port ? ` to ${ph.port}` : ''}`
+      );
+      return {
+        simulated: failing === 0,
+        headline: `Runs ${round(b.batchGallons)} gal batches${b.cycleSecondsEstimate > 0 ? `, about one every ${formatDuration(b.cycleSecondsEstimate)}` : ''}.`,
+        details: [
+          ...(failing ? [`${plural(failing, 'check')} fail, so the simulation refuses to run this unit until they pass.`] : []),
+          `${steps.join('; ')}.`,
+          feeds.length ? `It fills from ${list(feeds)}, and waits when that runs dry.` : 'No feed pipe, so it charges itself: its raw materials are not modelled.',
+          sendsTo.length ? `It drains to ${list(sendsTo)}; if that is full, the batch waits.` : 'Nothing downstream: each batch leaves the line when it drains.',
+          'Each phase is worked out when it starts, from the batch as it is then, so times and amounts can follow its volume and temperature.'
+        ],
+        capacityPerMin: failing === 0 && Number.isFinite(b.gallonsPerMinute) ? b.gallonsPerMinute : null,
+        rateUnit: 'gal',
+        engineKeys: ['contract'],
+        role,
+        keyFigures
+      };
+    }
+    const cap = b.capacityGpm;
     return {
-      simulated: false,
-      headline: contract.description?.trim() || `A continuous unit, checked by the engine at steady state.`,
+      simulated: failing === 0,
+      headline: contract.description?.trim() || 'A continuous unit, evaluated at the stream that reaches it.',
       details: [
-        `At steady state: ${round(b.throughputPerMinute)} per minute through it${b.dutyKw !== undefined ? `, ${round(b.dutyKw)} kW duty` : ''}${
+        ...(failing ? [`${plural(failing, 'check')} fail at its design point, so the simulation refuses to run it until they pass.`] : []),
+        `At its design point: ${round(b.throughputPerMinute)} per minute${b.dutyKw !== undefined ? `, ${round(b.dutyKw)} kW duty` : ''}${
           b.residenceTimeSeconds !== undefined ? `, ${formatDuration(b.residenceTimeSeconds)} residence` : ''
         }.`,
-        failing
-          ? `${plural(failing, 'check')} fail at this operating point.`
-          : 'Every physics check passes at this operating point.',
-        'The line simulation checks continuous units but does not step them yet, so it does not pace the line.'
+        cap !== undefined ? `Passes at most ${round(cap)} gpm, and only as fast as what is downstream takes it.` : 'It sets no flow limit of its own: what is up- and downstream does.',
+        'In a run it is re-evaluated every second at the stream that actually reaches it; any check that breaks there is reported with how long it was broken.'
       ],
-      capacityPerMin: null,
+      capacityPerMin: failing === 0 && cap !== undefined ? cap : null,
+      rateUnit: 'gal',
       engineKeys: ['contract'],
       role,
       keyFigures
