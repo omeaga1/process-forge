@@ -1,7 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../hooks/useTheme.js';
 import { ProcessForgeEmblem } from '../brand/ProcessForgeLogo.js';
-import type { ProcessNode } from '@process-forge/protocol';
+import {
+  CASE_PACKER_CONTRACT,
+  CRYSTALLISER_CONTRACT,
+  EVAPORATOR_CONTRACT,
+  FDM_PRINTER_CONTRACT,
+  JUICE_CONCENTRATOR_CONTRACT,
+  NEUTRALISER_CONTRACT,
+  WAX_COOLING_BELT_CONTRACT,
+  type ProcessNode,
+  type UnitOpContract
+} from '@process-forge/protocol';
+import { contractToProcessNode } from '../../unitop/contractToNode.js';
 import {
   X,
   Search,
@@ -9,7 +20,10 @@ import {
   Cloud,
   WifiOff,
   UserCheck,
-  Check
+  Check,
+  ShieldCheck,
+  EyeOff,
+  Upload
 } from 'lucide-react';
 import {
   CommunityLibraryService,
@@ -23,6 +37,19 @@ export interface CommunityUnitOpLibraryModalProps {
   onClose: () => void;
   onInsertNode: (node: ProcessNode) => void;
 }
+
+type LibraryTab = 'community' | 'examples' | 'mine';
+
+/** The engine's worked examples: real, validated contracts, shown as examples and never as someone's listing. */
+const EXAMPLES: { contract: UnitOpContract; category: CommunityUnitOpItem['category'] }[] = [
+  { contract: EVAPORATOR_CONTRACT, category: 'FLUID_PROCESSING' },
+  { contract: JUICE_CONCENTRATOR_CONTRACT, category: 'FLUID_PROCESSING' },
+  { contract: NEUTRALISER_CONTRACT, category: 'FLUID_PROCESSING' },
+  { contract: CRYSTALLISER_CONTRACT, category: 'FLUID_PROCESSING' },
+  { contract: WAX_COOLING_BELT_CONTRACT, category: 'MATERIAL_HANDLING' },
+  { contract: CASE_PACKER_CONTRACT, category: 'PACKAGING' },
+  { contract: FDM_PRINTER_CONTRACT, category: 'MATERIAL_HANDLING' }
+];
 
 export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalProps> = ({
   isOpen,
@@ -39,6 +66,10 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
   const [creatorSession, setCreatorSession] = useState<CreatorSession | null>(null);
   const [insertError, setInsertError] = useState<string | null>(null);
   const [insertedId, setInsertedId] = useState<string | null>(null);
+  const [tab, setTab] = useState<LibraryTab>('community');
+  const [mine, setMine] = useState<CommunityUnitOpItem[]>([]);
+  const [mineError, setMineError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -46,6 +77,40 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
       setCreatorSession(CommunityLibraryService.getSession());
     }
   }, [isOpen, searchQuery, selectedCategory]);
+
+  useEffect(() => {
+    if (isOpen && tab === 'mine') loadMine();
+  }, [isOpen, tab]);
+
+  const loadMine = async () => {
+    const { items, error } = await CommunityLibraryService.fetchMine();
+    setMine(items);
+    setMineError(error ?? null);
+  };
+
+  const examples = useMemo<CommunityUnitOpItem[]>(
+    () =>
+      EXAMPLES.map(({ contract, category }) => ({
+        id: `example:${contract.id}`,
+        name: contract.name,
+        author: 'ProcessForge example',
+        category,
+        description: contract.description,
+        engineChecked: true,
+        nodeTemplate: contractToProcessNode(contract)
+      })).filter((e) => {
+        const q = searchQuery.trim().toLowerCase();
+        return (selectedCategory === 'ALL' || e.category === selectedCategory) && (!q || `${e.name} ${e.description}`.toLowerCase().includes(q));
+      }),
+    [searchQuery, selectedCategory]
+  );
+
+  const setListed = async (item: CommunityUnitOpItem, listed: boolean) => {
+    const r = listed ? await CommunityLibraryService.updateUnitOp(item.id, null, {}) : await CommunityLibraryService.unpublishUnitOp(item.id);
+    setNotice(r.message);
+    await loadMine();
+    await loadLibraryData();
+  };
 
   const loadLibraryData = async () => {
     setIsLoading(true);
@@ -166,7 +231,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                 </span>
               </div>
               <span style={{ fontSize: size.xs, color: OsakaJadePalette.text.secondary }}>
-                Unit operations other engineers have published. Each is a contract the engine checks when you add it.
+                Unit operations other engineers have published, and worked examples to start from.
               </span>
             </div>
           </div>
@@ -195,6 +260,45 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
         {insertError && (
           <div role="alert" style={{ padding: '8px 24px', fontSize: 12, color: OsakaJadePalette.text.primary, borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
             {insertError}
+          </div>
+        )}
+
+        {/* Which library */}
+        <div role="tablist" style={{ display: 'flex', gap: 4, padding: '10px 24px 0', borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
+          {(
+            [
+              ['community', 'Community'],
+              ['examples', 'Examples by ProcessForge'],
+              ['mine', 'Published by me']
+            ] as [LibraryTab, string][]
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => {
+                setTab(id);
+                setNotice(null);
+              }}
+              style={{
+                padding: '8px 12px',
+                background: 'none',
+                border: 'none',
+                borderBottom: `2px solid ${tab === id ? OsakaJadePalette.jade[500] : 'transparent'}`,
+                color: tab === id ? OsakaJadePalette.text.primary : OsakaJadePalette.text.secondary,
+                fontSize: 13,
+                fontWeight: tab === id ? 700 : 500,
+                cursor: 'pointer'
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {notice && (
+          <div role="status" style={{ padding: '8px 24px', fontSize: 12, color: OsakaJadePalette.text.primary, borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
+            {notice}
           </div>
         )}
 
@@ -284,16 +388,30 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
             gap: 14
           }}
         >
-          {isLoading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: OsakaJadePalette.text.secondary, fontSize: 13 }}>
-              Loading Community UnitOp Library...
+          {tab === 'examples' && (
+            <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
+              Worked examples that ship with ProcessForge: complete designs the engine accepts, to use as they are or as a starting point. They are not listings by anyone.
             </div>
-          ) : plugins.length === 0 ? (
+          )}
+          {tab === 'mine' && mineError && (
+            <div style={{ padding: 24, textAlign: 'center', color: OsakaJadePalette.text.secondary, fontSize: 13 }}>{mineError}</div>
+          )}
+          {tab === 'community' && isLoading ? (
             <div style={{ padding: 40, textAlign: 'center', color: OsakaJadePalette.text.secondary, fontSize: 13 }}>
-              No community UnitOps match your filter. Try searching for a different keyword or category.
+              Loading the community library...
+            </div>
+          ) : (tab === 'community' ? plugins : tab === 'examples' ? examples : mine).length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: OsakaJadePalette.text.secondary, fontSize: 13 }}>
+              {tab === 'mine'
+                ? mineError
+                  ? ''
+                  : 'You have not published anything yet. Click a unit on the flowsheet and choose Publish to community library.'
+                : tab === 'community' && !searchQuery && selectedCategory === 'ALL'
+                  ? 'Nothing has been published yet. Be the first: click a unit on the flowsheet and choose Publish to community library, or start from an example.'
+                  : 'Nothing matches your filter. Try a different word or category.'}
             </div>
           ) : (
-            plugins.map((plugin) => (
+            (tab === 'community' ? plugins : tab === 'examples' ? examples : mine).map((plugin) => (
               <div
                 key={plugin.id}
                 style={{
@@ -333,10 +451,51 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                     {plugin.description}
                   </p>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: OsakaJadePalette.text.muted }}>
-                    <span>Author: <strong style={{ color: OsakaJadePalette.text.primary }}>{plugin.author}</strong></span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: OsakaJadePalette.text.muted, flexWrap: 'wrap' }}>
+                    <span>{tab === 'examples' ? 'From' : 'Author'}: <strong style={{ color: OsakaJadePalette.text.primary }}>{plugin.author}</strong></span>
+                    {plugin.version && <span style={{ fontFamily: font.mono }}>v{plugin.version}</span>}
+                    {plugin.engineChecked && (
+                      <span
+                        title="A designed unit whose contract passed the engine's checks (schema, references, physics, drawing) when it was published. It is not a review of the design."
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: OsakaJadePalette.jade[400] }}
+                      >
+                        <ShieldCheck size={12} /> Engine-checked
+                      </span>
+                    )}
+                    {tab === 'mine' && plugin.status === 'unpublished' && (
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <EyeOff size={12} /> Unpublished
+                      </span>
+                    )}
                   </div>
+                  {tab === 'community' && (
+                    <div style={{ marginTop: 6, fontSize: 11, color: OsakaJadePalette.text.muted }}>
+                      What its author wrote; ProcessForge does not review listings.
+                    </div>
+                  )}
                 </div>
+
+                {tab === 'mine' && (
+                  <button
+                    onClick={() => setListed(plugin, plugin.status === 'unpublished')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: `${space[2]}px ${space[3]}px`,
+                      borderRadius: r.md,
+                      background: 'transparent',
+                      border: `1px solid ${OsakaJadePalette.border.default}`,
+                      color: OsakaJadePalette.text.secondary,
+                      fontSize: size.sm,
+                      cursor: 'pointer',
+                      flexShrink: 0
+                    }}
+                  >
+                    {plugin.status === 'unpublished' ? <Upload size={14} /> : <EyeOff size={14} />}
+                    {plugin.status === 'unpublished' ? 'Publish again' : 'Unpublish'}
+                  </button>
+                )}
 
                 {/* 1-Click Insert Button */}
                 <button
@@ -380,7 +539,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
           }}
         >
           <span>
-            To publish your own, click a unit on the flowsheet and choose <strong>Publish to community library</strong> in its panel. You need to be signed in with Google.
+            To publish your own, or a new version of one you published, click the unit on the flowsheet and choose <strong>Publish to community library</strong>. You need to be signed in with Google.
           </span>
           <button
             onClick={onClose}

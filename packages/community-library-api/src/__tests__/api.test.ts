@@ -3,6 +3,7 @@ import * as assert from 'node:assert/strict';
 import { createHandler, type Env } from '../index.js';
 import { signSession, verifySession, verifyGoogleIdToken, type Jwk } from '../auth.js';
 import { createFakeD1 } from './fakeD1.js';
+import { createDefaultProcessNode, EVAPORATOR_CONTRACT } from '@process-forge/protocol';
 
 const WEB_CLIENT = 'web-client.apps.googleusercontent.com';
 const SECRET = 'x'.repeat(48);
@@ -82,6 +83,10 @@ function setup() {
 }
 
 const bundle = { graph: { nodes: [], edges: [] } };
+/** A unit ProcessForge can place: a standard pump. */
+const unitBundle = createDefaultProcessNode('PUMP', { name: 'Transfer Pump P-101' });
+/** A designed unit, carrying its contract. */
+const designedBundle = { ...createDefaultProcessNode('PUMP'), kind: 'CUSTOM_UNIT_OP', name: 'Evaporator', config: { contract: EVAPORATOR_CONTRACT } };
 
 // ── Google token verification ──────────────────────────────────────────────
 
@@ -273,7 +278,7 @@ describe('Community library', () => {
       description: 'd',
       author_id: 'user-serac',
       author_name: 'Serac Systems OEM',
-      bundle
+      bundle: unitBundle
     };
     assert.equal((await call('POST', '/api/unitops/publish', { body })).status, 401);
 
@@ -291,6 +296,85 @@ describe('Community library', () => {
     const r = await call('GET', '/api/projects', { token: alice });
     assert.equal(r.status, 500);
     assert.ok(!JSON.stringify(r.body).includes('secret_things'));
+  });
+});
+
+describe('Community library: versions, unpublishing, and what is published', () => {
+  const listing = (extra: Record<string, unknown> = {}) => ({ name: 'Evaporator', category: 'FLUID_PROCESSING', description: 'Boils water off.', bundle: designedBundle, ...extra });
+
+  it('the placeholder listings written as if real companies had published them are gone', async () => {
+    const { DB } = setup();
+    const n = (DB.raw.prepare("SELECT COUNT(*) AS n FROM unitops WHERE id IN ('plugin-serac-10-filler','plugin-high-shear-mixer','plugin-case-packer')").get() as { n: number }).n;
+    const u = (DB.raw.prepare("SELECT COUNT(*) AS n FROM users WHERE id IN ('user-serac','user-coatingstech','user-packsys')").get() as { n: number }).n;
+    assert.equal(n + u, 0);
+  });
+
+  it('checks a designed unit with the engine before publishing it, and refuses one that fails', async () => {
+    const { call, signIn } = setup();
+    const alice = await signIn();
+    const ok = await call('POST', '/api/unitops/publish', { token: alice, body: listing() });
+    assert.equal(ok.status, 201, JSON.stringify(ok.body));
+    assert.equal(ok.body.engineChecked, true);
+    assert.equal(ok.body.version, '1.0.0');
+    const broken = structuredClone(designedBundle) as any;
+    broken.config.contract.parameters[0].value = -5; // steam duty below its minimum
+    const bad = await call('POST', '/api/unitops/publish', { token: alice, body: listing({ bundle: broken }) });
+    assert.equal(bad.status, 422);
+    assert.match(bad.body.error, /does not pass the engine's checks/);
+    const junk = await call('POST', '/api/unitops/publish', { token: alice, body: listing({ bundle: { hello: 'world' } }) });
+    assert.equal(junk.status, 422);
+  });
+
+  it('the author publishes new versions, and every version can still be pulled', async () => {
+    const { call, signIn } = setup();
+    const alice = await signIn();
+    const id = (await call('POST', '/api/unitops/publish', { token: alice, body: listing() })).body.pluginId;
+    const v2 = structuredClone(designedBundle) as any;
+    v2.config.contract.parameters[0].value = 1800;
+    const up = await call('PUT', `/api/unitops/${id}`, { token: alice, body: { bundle: v2, releaseNotes: 'More steam.' } });
+    assert.equal(up.status, 200, JSON.stringify(up.body));
+    assert.equal(up.body.version, '1.1.0');
+    const versions = (await call('GET', `/api/unitops/${id}/versions`)).body.versions.map((v: any) => v.version);
+    assert.deepEqual(versions, ['1.1.0', '1.0.0']);
+    const latest = (await call('GET', `/api/unitops/${id}`)).body.unitop;
+    assert.equal(latest.bundle.config.contract.parameters[0].value, 1800);
+    const first = (await call('GET', `/api/unitops/${id}?version=1.0.0`)).body.unitop;
+    assert.equal(first.bundle.config.contract.parameters[0].value, 1500);
+    assert.equal((await call('PUT', `/api/unitops/${id}`, { token: alice, body: { bundle: v2, version: '1.0.5' } })).status, 400, 'versions only go up');
+  });
+
+  it('only the author can update or unpublish, and an unpublished listing disappears for everyone else', async () => {
+    const { call, signIn } = setup();
+    const alice = await signIn();
+    const bob = await signIn({ sub: '2002', email: 'bob@example.com', name: 'Bob' });
+    const id = (await call('POST', '/api/unitops/publish', { token: alice, body: listing() })).body.pluginId;
+    assert.equal((await call('PUT', `/api/unitops/${id}`, { token: bob, body: { description: 'mine now' } })).status, 404);
+    assert.equal((await call('DELETE', `/api/unitops/${id}`, { token: bob })).status, 404);
+    assert.equal((await call('DELETE', `/api/unitops/${id}`)).status, 401);
+
+    assert.equal((await call('DELETE', `/api/unitops/${id}`, { token: alice })).status, 200);
+    assert.equal((await call('GET', '/api/unitops')).body.unitops.length, 0, 'not in search');
+    assert.equal((await call('GET', `/api/unitops/${id}`)).status, 404, 'not for others');
+    assert.equal((await call('GET', `/api/unitops/${id}`, { token: alice })).status, 200, 'still for its author');
+    const mine = (await call('GET', '/api/unitops/mine', { token: alice })).body.unitops;
+    assert.equal(mine.length, 1);
+    assert.equal(mine[0].status, 'unpublished');
+
+    // An update publishes it again.
+    assert.equal((await call('PUT', `/api/unitops/${id}`, { token: alice, body: { description: 'Back.' } })).status, 200);
+    assert.equal((await call('GET', '/api/unitops')).body.unitops.length, 1);
+  });
+
+  it('lists only your own listings under /mine, and needs a session for it', async () => {
+    const { call, signIn } = setup();
+    const alice = await signIn();
+    const bob = await signIn({ sub: '2002', email: 'bob@example.com', name: 'Bob' });
+    await call('POST', '/api/unitops/publish', { token: alice, body: listing() });
+    await call('POST', '/api/unitops/publish', { token: bob, body: listing({ name: 'Bob pump', bundle: unitBundle }) });
+    assert.equal((await call('GET', '/api/unitops/mine')).status, 401);
+    const mine = (await call('GET', '/api/unitops/mine', { token: bob })).body.unitops;
+    assert.deepEqual(mine.map((u: any) => u.name), ['Bob pump']);
+    assert.equal(mine[0].engine_checked, 0, 'a standard unit has no contract to check');
   });
 });
 
