@@ -19,6 +19,7 @@ import {
   type JwksFetcher,
   type Session
 } from './auth.js';
+import { ProcessNodeSchema, executeValidateUnitOp } from '@process-forge/protocol';
 
 export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -58,6 +59,113 @@ export interface UnitOpRecord {
   tags?: string;
   bundle_json: string;
   created_at: string;
+  updated_at?: string;
+  status?: 'published' | 'unpublished';
+  engine_checked?: number;
+  release_notes?: string | null;
+}
+
+interface PublishBody {
+  name?: string;
+  category?: string;
+  description?: string;
+  tags?: string | string[];
+  bundle?: unknown;
+  /** PUT only: the new version; by default the next minor version. */
+  version?: string;
+  releaseNotes?: string;
+}
+
+const CATEGORIES = ['PACKAGING', 'FLUID_PROCESSING', 'MATERIAL_HANDLING', 'QUALITY'];
+const LISTING_COLUMNS =
+  'id, name, author_id, author_name, category, description, version, download_count, tags, status, engine_checked, release_notes, created_at, updated_at';
+
+function checkListing(body: PublishBody, isNew: boolean): string | null {
+  if (isNew && (!body.name || !body.category || !body.description)) {
+    return 'Missing required fields: name, category, and description are required.';
+  }
+  if (body.category !== undefined && !CATEGORIES.includes(body.category)) {
+    return `Invalid category. Must be one of: ${CATEGORIES.join(', ')}`;
+  }
+  if (body.name !== undefined && (typeof body.name !== 'string' || !body.name.trim() || body.name.length > 120)) return 'name must be 1 to 120 characters.';
+  if (body.description !== undefined && (typeof body.description !== 'string' || body.description.length > 4000)) {
+    return 'description must be at most 4000 characters.';
+  }
+  if (body.releaseNotes !== undefined && (typeof body.releaseNotes !== 'string' || body.releaseNotes.length > 2000)) {
+    return 'releaseNotes must be at most 2000 characters.';
+  }
+  if (isNew && body.bundle === undefined) return 'Missing bundle: the unit to publish.';
+  return null;
+}
+
+function tagsOf(tags: PublishBody['tags']): string {
+  const list = Array.isArray(tags) ? tags : typeof tags === 'string' ? tags.split(',') : [];
+  return list.map((t) => String(t).trim().toLowerCase()).filter(Boolean).slice(0, 12).join(',');
+}
+
+/**
+ * A listing must be a unit ProcessForge can place. A designed unit's contract
+ * must pass the engine's checks (the same gates as validate_unit_op): a
+ * listing that cannot run is refused with the reasons, not published.
+ */
+function checkBundle(bundle: unknown): { json: string; engineChecked: 0 | 1 } | { error: string } {
+  const json = typeof bundle === 'string' ? bundle : JSON.stringify(bundle ?? null);
+  if (json.length > MAX_BUNDLE_BYTES) return { error: 'Bundle is too large.' };
+  let node: unknown;
+  try {
+    node = typeof bundle === 'string' ? JSON.parse(bundle) : bundle;
+  } catch {
+    return { error: 'The bundle is not valid JSON.' };
+  }
+  const parsed = ProcessNodeSchema.safeParse(node);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { error: `The bundle is not a unit ProcessForge can place: ${issue?.path.join('.') || 'node'}: ${issue?.message ?? 'invalid'}.` };
+  }
+  const contract = (parsed.data.config as { contract?: unknown }).contract;
+  if (contract === undefined) return { json, engineChecked: 0 };
+  const verdict = executeValidateUnitOp({ contract });
+  if (verdict.verdict !== 'ACCEPTED') {
+    const reasons = Object.values(verdict.gates).flatMap((g) => g.errors);
+    return { error: `Its design does not pass the engine's checks, so it was not published: ${reasons.slice(0, 5).join('; ')}` };
+  }
+  return { json, engineChecked: 1 };
+}
+
+/** The next version: the one asked for if it is higher, else the next minor. Null if the one asked for is not higher. */
+function nextVersion(current: string, wanted?: string): string | null {
+  const parse = (v: string) => {
+    const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(v.trim());
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+  };
+  const now = parse(current) ?? [1, 0, 0];
+  if (wanted !== undefined) {
+    const w = parse(wanted);
+    if (!w) return null;
+    for (let i = 0; i < 3; i++) {
+      if (w[i]! > now[i]!) return w.join('.');
+      if (w[i]! < now[i]!) return null;
+    }
+    return null;
+  }
+  return `${now[0]}.${now[1]! + 1}.0`;
+}
+
+/** A listing anyone may see: published, or unpublished but the caller's own. */
+async function visibleListing(request: Request, env: Env, id: string): Promise<UnitOpRecord | null> {
+  const record = await env.DB.prepare('SELECT * FROM unitops WHERE id = ?').bind(id).first<UnitOpRecord>();
+  if (!record) return null;
+  if ((record.status ?? 'published') === 'published') return record;
+  try {
+    const s = await requireSession(request, env);
+    return s.uid === record.author_id ? record : null;
+  } catch {
+    return null;
+  }
+}
+
+async function ownListing(env: Env, id: string, uid: string): Promise<UnitOpRecord | null> {
+  return env.DB.prepare('SELECT * FROM unitops WHERE id = ? AND author_id = ?').bind(id, uid).first<UnitOpRecord>();
 }
 
 /** A flowsheet bundle larger than this is almost certainly not a flowsheet. */
@@ -210,14 +318,13 @@ export function createHandler(deps: { jwks?: JwksFetcher } = {}) {
         return errorResponse('This endpoint was removed. Sign in with POST /api/auth/google.', 410);
       }
 
-      // ── GET /api/unitops — public search ────────────────────────────────
+      // ── GET /api/unitops — public search, published listings only ───────
       if (path === '/api/unitops' && method === 'GET') {
         const query = url.searchParams.get('q') || '';
         const category = url.searchParams.get('category') || 'ALL';
         const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 100);
 
-        let sql =
-          'SELECT id, name, author_id, author_name, category, description, version, rating, download_count, asme_rating, tags, created_at FROM unitops WHERE 1=1';
+        let sql = `SELECT ${LISTING_COLUMNS} FROM unitops WHERE status = 'published'`;
         const params: unknown[] = [];
         if (category && category !== 'ALL') {
           sql += ' AND category = ?';
@@ -228,69 +335,161 @@ export function createHandler(deps: { jwks?: JwksFetcher } = {}) {
           const pattern = `%${query}%`;
           params.push(pattern, pattern, pattern, pattern);
         }
-        sql += ' ORDER BY download_count DESC, rating DESC LIMIT ?';
+        sql += ' ORDER BY download_count DESC, updated_at DESC LIMIT ?';
         params.push(limit);
 
         const results = await env.DB.prepare(sql).bind(...params).all<Omit<UnitOpRecord, 'bundle_json'>>();
         return jsonResponse({ success: true, count: results.results?.length || 0, unitops: results.results || [] });
       }
 
-      // ── GET /api/unitops/:id — public pull ──────────────────────────────
-      const unitOpMatch = path.match(/^\/api\/unitops\/([^/]+)$/);
-      if (unitOpMatch && method === 'GET') {
-        const id = decodeURIComponent(unitOpMatch[1]!);
-        const record = await env.DB.prepare('SELECT * FROM unitops WHERE id = ?').bind(id).first<UnitOpRecord>();
-        if (!record) return errorResponse(`UnitOp plugin "${id}" not found.`, 404);
-
-        await env.DB.prepare('UPDATE unitops SET download_count = download_count + 1 WHERE id = ?').bind(id).run();
-
-        let bundle: unknown = {};
-        try {
-          bundle = JSON.parse(record.bundle_json);
-        } catch {
-          bundle = { raw: record.bundle_json };
-        }
-        return jsonResponse({ success: true, unitop: { ...record, bundle } });
+      // ── GET /api/unitops/mine — the signed-in author's listings ─────────
+      if (path === '/api/unitops/mine' && method === 'GET') {
+        const s = await requireSession(request, env);
+        const results = await env.DB.prepare(`SELECT ${LISTING_COLUMNS} FROM unitops WHERE author_id = ? ORDER BY updated_at DESC`)
+          .bind(s.uid)
+          .all<Omit<UnitOpRecord, 'bundle_json'>>();
+        return jsonResponse({ success: true, count: results.results?.length || 0, unitops: results.results || [] });
       }
 
       // ── POST /api/unitops/publish — signed-in ───────────────────────────
       if (path === '/api/unitops/publish' && method === 'POST') {
         const s = await requireSession(request, env);
-        const body = await readJson<Partial<UnitOpRecord> & { bundle?: unknown }>(request);
-
-        if (!body.name || !body.category || !body.description) {
-          return errorResponse('Missing required fields: name, category, and description are required.');
-        }
-        const validCategories = ['PACKAGING', 'FLUID_PROCESSING', 'MATERIAL_HANDLING', 'QUALITY'];
-        if (!validCategories.includes(body.category)) {
-          return errorResponse(`Invalid category. Must be one of: ${validCategories.join(', ')}`);
-        }
-        const bundleJson =
-          typeof body.bundle === 'string' ? body.bundle : JSON.stringify(body.bundle ?? body.bundle_json ?? {});
-        if (bundleJson.length > MAX_BUNDLE_BYTES) return errorResponse('Bundle is too large.', 413);
+        const body = await readJson<PublishBody>(request);
+        const bad = checkListing(body, true);
+        if (bad) return errorResponse(bad);
+        const checked = checkBundle(body.bundle);
+        if ('error' in checked) return errorResponse(checked.error, 422);
 
         // The id is always server-generated, and the author is always the
         // session: a client-chosen author_id let anyone publish as anyone.
         const id = `plugin-${crypto.randomUUID()}`;
+        const version = '1.0.0';
         await env.DB.prepare(
-          `INSERT INTO unitops (id, name, author_id, author_name, category, description, version, rating, download_count, asme_rating, tags, bundle_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)`
+          `INSERT INTO unitops (id, name, author_id, author_name, category, description, version, rating, download_count, asme_rating, tags, bundle_json, status, engine_checked, release_notes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, ?, ?, 'published', ?, ?)`
         )
-          .bind(
-            id,
-            body.name,
-            s.uid,
-            s.name,
-            body.category,
-            body.description,
-            body.version || '1.0.0',
-            body.asme_rating || null,
-            body.tags || '',
-            bundleJson
-          )
+          .bind(id, body.name, s.uid, s.name, body.category, body.description, version, tagsOf(body.tags), checked.json, checked.engineChecked, body.releaseNotes ?? null)
+          .run();
+        await env.DB.prepare('INSERT INTO unitop_versions (unitop_id, version, bundle_json, release_notes) VALUES (?, ?, ?, ?)')
+          .bind(id, version, checked.json, body.releaseNotes ?? null)
           .run();
 
-        return jsonResponse({ success: true, message: `Published "${body.name}".`, pluginId: id }, 201);
+        return jsonResponse(
+          { success: true, message: `Published "${body.name}".`, pluginId: id, version, engineChecked: checked.engineChecked === 1 },
+          201
+        );
+      }
+
+      const versionsMatch = path.match(/^\/api\/unitops\/([^/]+)\/versions$/);
+      const unitOpMatch = path.match(/^\/api\/unitops\/([^/]+)$/);
+
+      // ── GET /api/unitops/:id/versions — public for published listings ───
+      if (versionsMatch && method === 'GET') {
+        const id = decodeURIComponent(versionsMatch[1]!);
+        const record = await visibleListing(request, env, id);
+        if (!record) return errorResponse(`UnitOp plugin "${id}" not found.`, 404);
+        const results = await env.DB.prepare(
+          'SELECT version, release_notes, created_at FROM unitop_versions WHERE unitop_id = ? ORDER BY created_at DESC, rowid DESC'
+        )
+          .bind(id)
+          .all<{ version: string; release_notes: string | null; created_at: string }>();
+        return jsonResponse({ success: true, versions: results.results || [] });
+      }
+
+      // ── GET /api/unitops/:id — public pull (optionally ?version=) ───────
+      if (unitOpMatch && method === 'GET') {
+        const id = decodeURIComponent(unitOpMatch[1]!);
+        const record = await visibleListing(request, env, id);
+        if (!record) return errorResponse(`UnitOp plugin "${id}" not found.`, 404);
+
+        let bundleJson = record.bundle_json;
+        const wanted = url.searchParams.get('version');
+        if (wanted && wanted !== record.version) {
+          const old = await env.DB.prepare('SELECT bundle_json FROM unitop_versions WHERE unitop_id = ? AND version = ?')
+            .bind(id, wanted)
+            .first<{ bundle_json: string }>();
+          if (!old) return errorResponse(`"${record.name}" has no version ${wanted}.`, 404);
+          bundleJson = old.bundle_json;
+        }
+        await env.DB.prepare('UPDATE unitops SET download_count = download_count + 1 WHERE id = ?').bind(id).run();
+
+        let bundle: unknown = {};
+        try {
+          bundle = JSON.parse(bundleJson);
+        } catch {
+          bundle = { raw: bundleJson };
+        }
+        const { bundle_json: _omit, ...listing } = record;
+        return jsonResponse({ success: true, unitop: { ...listing, ...(wanted ? { version: wanted } : {}), bundle } });
+      }
+
+      // ── PUT /api/unitops/:id — the author publishes a new version ───────
+      if (unitOpMatch && method === 'PUT') {
+        const s = await requireSession(request, env);
+        const id = decodeURIComponent(unitOpMatch[1]!);
+        const record = await ownListing(env, id, s.uid);
+        if (!record) return errorResponse(`You have no listing "${id}".`, 404);
+        const body = await readJson<PublishBody>(request);
+        const bad = checkListing(body, false);
+        if (bad) return errorResponse(bad);
+
+        let json = record.bundle_json;
+        let engineChecked = record.engine_checked ?? 0;
+        let version = record.version;
+        if (body.bundle !== undefined) {
+          const checked = checkBundle(body.bundle);
+          if ('error' in checked) return errorResponse(checked.error, 422);
+          json = checked.json;
+          engineChecked = checked.engineChecked;
+          const next = nextVersion(record.version, body.version);
+          if (!next) return errorResponse(`version must be greater than ${record.version} (e.g. ${nextVersion(record.version)}).`);
+          version = next;
+        }
+        await env.DB.prepare(
+          `UPDATE unitops SET name = ?, category = ?, description = ?, tags = ?, bundle_json = ?, version = ?, engine_checked = ?,
+             release_notes = ?, status = 'published', updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND author_id = ?`
+        )
+          .bind(
+            body.name ?? record.name,
+            body.category ?? record.category,
+            body.description ?? record.description,
+            body.tags !== undefined ? tagsOf(body.tags) : record.tags ?? '',
+            json,
+            version,
+            engineChecked,
+            body.releaseNotes ?? record.release_notes ?? null,
+            id,
+            s.uid
+          )
+          .run();
+        if (version !== record.version) {
+          await env.DB.prepare('INSERT INTO unitop_versions (unitop_id, version, bundle_json, release_notes) VALUES (?, ?, ?, ?)')
+            .bind(id, version, json, body.releaseNotes ?? null)
+            .run();
+        }
+        return jsonResponse({
+          success: true,
+          message: version !== record.version ? `Published version ${version} of "${body.name ?? record.name}".` : `Updated "${body.name ?? record.name}".`,
+          pluginId: id,
+          version,
+          engineChecked: engineChecked === 1
+        });
+      }
+
+      // ── DELETE /api/unitops/:id — the author unpublishes ────────────────
+      if (unitOpMatch && method === 'DELETE') {
+        const s = await requireSession(request, env);
+        const id = decodeURIComponent(unitOpMatch[1]!);
+        const record = await ownListing(env, id, s.uid);
+        if (!record) return errorResponse(`You have no listing "${id}".`, 404);
+        await env.DB.prepare(`UPDATE unitops SET status = 'unpublished', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND author_id = ?`)
+          .bind(id, s.uid)
+          .run();
+        return jsonResponse({
+          success: true,
+          message: `Unpublished "${record.name}". Flowsheets that already use it keep their copy; publish it again with an update.`
+        });
       }
 
       // ── Cloud projects — every route is owner-scoped ────────────────────

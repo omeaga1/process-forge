@@ -35,7 +35,7 @@ import { AnimatedStreamEdge } from './edges/AnimatedStreamEdge.js';
 import { MasterOrchestratorDock } from './dock/MasterOrchestratorDock.js';
 import { UnitOpPopOutStudio } from './studio/UnitOpPopOutStudio.js';
 import { CommunityUnitOpLibraryModal } from './marketplace/CommunityUnitOpLibraryModal.js';
-import { CommunityLibraryService } from '../marketplace/communityLibraryClient.js';
+import { PublishUnitOpDialog } from './marketplace/PublishUnitOpDialog.js';
 import { EquipmentPaletteModal } from './palette/EquipmentPaletteModal.js';
 import { MobileFieldView } from './mobile/MobileFieldView.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
@@ -241,6 +241,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   }, [commitGraph]);
   const [isRunning, setIsRunning] = useState(false);
   const [isForgeHubOpen, setIsForgeHubOpen] = useState(false);
+  const [publishing, setPublishing] = useState<ProcessNode | null>(null);
   const [isEquipmentPaletteOpen, setIsEquipmentPaletteOpen] = useState(false);
   const [popOutNodeId, setPopOutNodeId] = useState<string | null>(null);
 
@@ -1295,27 +1296,10 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               )
             : undefined
         }
-        onPublishToForgeHub={async (n) => {
-          // Category from what the unit handles, not "reactor, else packaging";
-          // description from the contract when the unit has one.
-          const contract = (n.config as { contract?: { description?: string } }).contract;
-          const ports = [...n.inputs, ...n.outputs].map((p) => String(p.flowDimension));
-          const category =
-            n.kind === 'CONVEYOR' || n.kind === 'PALLETIZER'
-              ? 'MATERIAL_HANDLING'
-              : n.kind === 'ROTARY_FILLER' || n.kind === 'LABELER'
-                ? 'PACKAGING'
-                : ports.some((d) => d.startsWith('CONTINUOUS'))
-                  ? 'FLUID_PROCESSING'
-                  : 'MATERIAL_HANDLING';
-          const res = await CommunityLibraryService.publishUnitOp(n, {
-            name: n.name,
-            category,
-            description: contract?.description || `${n.name} (${n.kind.replace(/_/g, ' ').toLowerCase()})`
-          });
-          alert(res.message);
-        }}
+        onPublishToForgeHub={(n) => setPublishing(n)}
       />
+
+      <PublishUnitOpDialog node={publishing} onClose={() => setPublishing(null)} />
 
       {/* In-App Community UnitOp Library Modal */}
       <CommunityUnitOpLibraryModal
