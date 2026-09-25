@@ -38,8 +38,13 @@ times 60. A labeler's capacity is its configured maximum speed.
 
 ## Static bottleneck estimate
 
-`validateProcessGraph` computes the capacity of each filler, labeler and
-palletizer and names the lowest as the bottleneck. Each unit's utilization is
+`validateProcessGraph` computes the capacity of each filler, labeler,
+palletizer and designed unit and names the lowest as the bottleneck. A
+designed cycle unit's capacity is its good items per minute; a designed
+continuous unit on the liquid path counts its `capacityGpm`. Every capacity
+is counted in the line's finished output: a unit's own rate times the out/in
+ratio of each converting unit after it, so 60 bottles a minute ahead of a
+12-bottle case packer is 5 cases a minute. Each unit's utilization is
 the bottleneck capacity divided by its own capacity. This needs no simulation
 run. The simulation's busy/blocked/starved times show the same thing
 dynamically (see [the bottleneck guide](../guides/diagnosing-bottlenecks.md)).
@@ -56,6 +61,16 @@ the run from starting.
   downstream buffers are full, like the filler. With `liquidPerCycleGallons`
   and a liquid inlet pipe, each cycle draws that much from its bowl (which
   holds two cycles' worth) and waits, starved, until it is there.
+  - `inputs[]` gives the items a cycle takes per item inlet port. The unit
+    queues each port separately (each queue holds at least two kits) and a
+    cycle waits for a whole kit. Without it, a cycle takes up to
+    `unitsPerCycle` items from any inlet.
+  - `outputs[]` gives the items a cycle makes per item outlet port, adding up
+    to `unitsPerCycle`. A port with `scrap: true` counts against quality, and
+    its items still go down its pipe. A port with no pipe sends its items out
+    of the line.
+  - After a cycle, the next one starts only if its material is there;
+    otherwise the unit is starved, not busy.
 - `CONTINUOUS_RATE`: the unit is a pass-through in the liquid step, and is
   re-evaluated every tick at the stream that actually reaches it:
   `inlet.temperatureC`, `inlet.volumetricFlowGpm`, `inlet.massFlowKgPerS`,
@@ -211,8 +226,8 @@ filler's container volume.
 - **Heat:** there are no utility streams (steam, cooling water) and no heat
   losses. An exchanger's duty is a fixed ceiling, not computed from area and
   LMTD, and a reactor does not cool its batch before discharging.
-- **Designed units:** no holdup or batch phases of their own, no component
-  compositions on streams, and item units still take one item per unit (no
-  N-in, M-out assembly). A designed cycle unit's inputs are not read live.
+- **Designed units:** no holdup or batch phases of their own, and no
+  component compositions on streams. A designed cycle unit's inputs are not
+  read live.
 - **Breakdowns on liquid units:** only machines that make or move whole items
   break down. Reactors, tanks and pumps do not.

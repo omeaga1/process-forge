@@ -58,6 +58,10 @@ export interface UnitOpEvaluation {
         scrapFraction: number;
         unitsPerMinute: number;
         liquidPerCycleGallons?: number;
+        /** Whole items per cycle, per item inlet port. */
+        inputs?: { port: string; perCycle: number }[];
+        /** Whole items per cycle, per item outlet port; they add up to unitsPerCycle. */
+        outputs?: { port: string; perCycle: number; scrap: boolean }[];
       }
     | { mode: 'CONTINUOUS_RATE'; throughputPerMinute: number; capacityGpm?: number; dutyKw?: number; residenceTimeSeconds?: number };
   /** Per outlet port, from contract.outlets: its share of the outflow and its temperature, where declared. */
@@ -166,13 +170,33 @@ export function evaluateUnitOp(
       if (liquid !== undefined && liquid < 0) {
         return fail('behavior.liquidPerCycleGallons', new Error(`liquidPerCycleGallons must not be negative, got ${liquid}`));
       }
+      // Items are whole: a count must be a whole number, and not negative.
+      const count = (expr: string, path: string) => {
+        const v = evaluateNumber(expr, scope);
+        if (v < 0 || Math.abs(v - Math.round(v)) > 1e-9) throw new Error(`${path} must be a whole number of items, got ${v}`);
+        return Math.round(v);
+      };
+      const inputs = contract.behavior.inputs?.map((x, i) => ({ port: x.port, perCycle: count(x.perCycle, `inputs[${i}].perCycle`) }));
+      const outputs = contract.behavior.outputs?.map((x, i) => ({
+        port: x.port,
+        perCycle: count(x.perCycle, `outputs[${i}].perCycle`),
+        scrap: Boolean(x.scrap)
+      }));
+      if (outputs?.length) {
+        const made = outputs.reduce((sum, o) => sum + o.perCycle, 0);
+        if (Math.abs(made - unitsPerCycle) > 1e-9) {
+          return fail('behavior.outputs', new Error(`the outputs make ${made} items a cycle, but unitsPerCycle is ${unitsPerCycle}; they must agree`));
+        }
+      }
       behavior = {
         mode: 'DISCRETE_CYCLE',
         cycleSeconds,
         unitsPerCycle,
         scrapFraction,
         unitsPerMinute: (unitsPerCycle / cycleSeconds) * 60,
-        ...(liquid !== undefined ? { liquidPerCycleGallons: liquid } : {})
+        ...(liquid !== undefined ? { liquidPerCycleGallons: liquid } : {}),
+        ...(inputs?.length ? { inputs } : {}),
+        ...(outputs?.length ? { outputs } : {})
       };
     } else {
       const throughputPerMinute = evaluateNumber(contract.behavior.throughputPerMinute, scope);
