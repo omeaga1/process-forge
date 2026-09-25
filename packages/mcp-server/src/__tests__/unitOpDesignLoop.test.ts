@@ -29,6 +29,16 @@ describe('design_unit_op: the authoring brief', () => {
     assert.match(r.brief, /water-cooled wax belt/);
   });
 
+  it('includes a cycle example the engine accepts, as well as the steady-flow one', () => {
+    const r = executeDesignUnitOp({ description: 'a 3D printer making one part every half hour' });
+    const cycle = r.cycleExample as UnitOpContract;
+    assert.equal(cycle.behavior.mode, 'DISCRETE_CYCLE');
+    assert.equal((r.workedExample as UnitOpContract).behavior.mode, 'CONTINUOUS_RATE');
+    assert.equal(executeValidateUnitOp({ contract: cycle }).verdict, 'ACCEPTED');
+    assert.match(r.brief, /cycleExample/);
+    assert.ok(r.rules.some((rule) => rule.includes('DISCRETE_CYCLE is for equipment')));
+  });
+
   it('states plainly that contracts are data, not code', () => {
     const r = executeDesignUnitOp({ description: 'anything' });
     assert.ok(

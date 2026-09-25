@@ -28,7 +28,15 @@ const at = (kind: ProcessNode['kind'], id: string, config: Record<string, unknow
 
 describe('What a unit does, in the engine\'s terms', () => {
   it('states a filler\'s rate as the engine runs it, and the engine agrees', () => {
-    const filler = at('ROTARY_FILLER', 'f', { nozzleCount: 8, fillTimePerCycleSeconds: 8.5, indexTimePerCycleSeconds: 1.5, rejectRatePercentage: 0 });
+    // No breakdowns here, so the rate is exact.
+    const filler = at('ROTARY_FILLER', 'f', {
+      nozzleCount: 8,
+      fillTimePerCycleSeconds: 8.5,
+      indexTimePerCycleSeconds: 1.5,
+      rejectRatePercentage: 0,
+      meanTimeBetweenFailuresMinutes: 0,
+      meanTimeToRepairMinutes: 0
+    });
     const b = describeUnitBehavior(filler, graphOf([filler]));
     assert.ok(b.simulated);
     assert.strictEqual(b.capacityPerMin, 48);
@@ -37,6 +45,21 @@ describe('What a unit does, in the engine\'s terms', () => {
     const run = simulateProcess(graphOf([filler]), 60, { seed: 1 });
     const made = run.nodeReports['f']!.unitsProduced;
     assert.ok(Math.abs(made / 60 - 48) < 1, `engine made ${made / 60}/min`);
+  });
+
+  it('counts breakdowns into a machine\'s rate, and says how often it is down', () => {
+    const filler = at('ROTARY_FILLER', 'f', {
+      nozzleCount: 8,
+      fillTimePerCycleSeconds: 8.5,
+      indexTimePerCycleSeconds: 1.5,
+      rejectRatePercentage: 0,
+      meanTimeBetweenFailuresMinutes: 100,
+      meanTimeToRepairMinutes: 25
+    });
+    const b = describeUnitBehavior(filler, graphOf([filler]));
+    assert.ok(Math.abs(b.capacityPerMin! - 48 * 0.8) < 1e-9);
+    assert.match(b.details.join(' '), /down about 20% of the time/);
+    assert.ok(b.engineKeys.includes('meanTimeToRepairMinutes'));
   });
 
   it('gives a labeler\'s good-output rate, net of inspection failures', () => {

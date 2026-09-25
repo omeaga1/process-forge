@@ -39,7 +39,27 @@ interface InternalNodeRuntime {
    */
   contract?: UnitOpContract;
   contractEval?: UnitOpEvaluation;
+  /**
+   * Breakdowns, for a machine whose config sets both meanTimeBetweenFailures-
+   * Minutes and meanTimeToRepairMinutes. Times between failures and repair
+   * times are exponential with those means.
+   */
+  failure?: { mtbfSeconds: number; mttrSeconds: number };
+  /** While FAILED: the state to go back to, and the cycle it interrupted. */
+  beforeFailure?: MachineOperationalState;
+  interrupted?: { type: SimEvent['type']; remainingSeconds: number };
+  /** The one cycle event this machine has queued, so a failure can pause it. */
+  pending?: { id: string; type: SimEvent['type']; timeSeconds: number };
 }
+
+/** Event types that are a machine's own cycle, and so pause while it is down. */
+const CYCLE_EVENTS = new Set<SimEvent['type']>([
+  'FILLER_CYCLE_COMPLETE',
+  'CONVEYOR_TRANSFER_COMPLETE',
+  'LABELER_CYCLE_COMPLETE',
+  'PALLETIZER_CYCLE_COMPLETE',
+  'CONTRACT_CYCLE_COMPLETE'
+]);
 
 export class SimulationEngine {
   private queue = new PriorityQueue<SimEvent>();
@@ -58,6 +78,13 @@ export class SimulationEngine {
   private readonly discreteEdges: ProcessGraph['edges'];
 
   private readonly rng: SeededRng;
+  /**
+   * Breakdowns draw from their own stream, so turning them on for one machine
+   * does not change any other random draw (rejects, inspection failures).
+   */
+  private readonly failureRng: SeededRng;
+  /** Cycle events paused by a breakdown; skipped when they come due. */
+  private readonly cancelled = new Set<string>();
 
   /**
    * @param options.seed Seed for the simulation's random draws (machine
@@ -72,6 +99,7 @@ export class SimulationEngine {
     options: { seed?: number } = {}
   ) {
     this.rng = createRng(options.seed ?? seedFromString(graph.id));
+    this.failureRng = createRng(((this.rng.seed ^ 0x9e3779b9) >>> 0) || 1);
     this.discreteEdges = graph.edges.filter((e) => !isFluidEdge(e, graph));
     this.fluid = new FluidNetwork(graph);
     this.initializeNodes();
@@ -123,8 +151,19 @@ export class SimulationEngine {
         maxBuffer = contractCfg.bufferCapacity ?? maxBuffer;
       }
 
+      const cfg = node.config as { meanTimeBetweenFailuresMinutes?: unknown; meanTimeToRepairMinutes?: unknown };
+      const mtbf = typeof cfg.meanTimeBetweenFailuresMinutes === 'number' ? cfg.meanTimeBetweenFailuresMinutes : 0;
+      const mttr = typeof cfg.meanTimeToRepairMinutes === 'number' ? cfg.meanTimeToRepairMinutes : 0;
+      const steppedKind =
+        node.kind === 'ROTARY_FILLER' ||
+        node.kind === 'CONVEYOR' ||
+        node.kind === 'LABELER' ||
+        node.kind === 'PALLETIZER' ||
+        contractEval?.behavior.mode === 'DISCRETE_CYCLE';
+
       this.nodes.set(node.id, {
         node,
+        ...(steppedKind && mtbf > 0 && mttr > 0 ? { failure: { mtbfSeconds: mtbf * 60, mttrSeconds: mttr * 60 } } : {}),
         state: 'IDLE',
         stateStartTime: 0,
         busyTime: 0,
@@ -149,9 +188,10 @@ export class SimulationEngine {
     payload?: Record<string, unknown>
   ): void {
     const timeSeconds = this.currentTimeSeconds + delaySeconds;
+    const id = `evt-${++this.eventCounter}`;
     this.queue.enqueue(
       {
-        id: `evt-${++this.eventCounter}`,
+        id,
         timeSeconds,
         nodeId,
         type,
@@ -159,6 +199,10 @@ export class SimulationEngine {
       },
       timeSeconds
     );
+    if (CYCLE_EVENTS.has(type)) {
+      const runtime = this.nodes.get(nodeId);
+      if (runtime) runtime.pending = { id, type, timeSeconds };
+    }
   }
 
   private setNodeState(runtime: InternalNodeRuntime, newState: MachineOperationalState): void {
@@ -230,6 +274,9 @@ export class SimulationEngine {
     }
 
     if (this.fluid.active) this.scheduleEvent(SimulationEngine.FLUID_DT, '__fluid__', 'FLUID_TICK');
+    for (const runtime of this.nodes.values()) {
+      if (runtime.failure) this.scheduleEvent(this.drawExponential(runtime.failure.mtbfSeconds), runtime.node.id, 'MACHINE_FAILURE');
+    }
 
     // Main discrete-event loop
     while (!this.queue.isEmpty()) {
@@ -268,6 +315,17 @@ export class SimulationEngine {
     }
     const runtime = this.nodes.get(event.nodeId);
     if (!runtime) return;
+    if (this.cancelled.delete(event.id)) return;
+    if (runtime.pending?.id === event.id) delete runtime.pending;
+
+    if (event.type === 'MACHINE_FAILURE') {
+      this.handleFailure(runtime);
+      return;
+    }
+    if (event.type === 'MACHINE_REPAIRED') {
+      this.handleRepair(runtime);
+      return;
+    }
 
     switch (event.type) {
       case 'FILLER_CYCLE_COMPLETE': {
@@ -415,6 +473,52 @@ export class SimulationEngine {
    * consume (a designed cycle unit with a feedstock pipe) still starts on its
    * own; before, any inbound pipe made it wait forever for units.
    */
+  private drawExponential(mean: number): number {
+    // Never exactly 0 or infinite: u is in [0, 1).
+    return -Math.log(1 - this.failureRng.next()) * mean;
+  }
+
+  /**
+   * A breakdown: the machine stops, the cycle it was in pauses where it is,
+   * and it comes back after an exponentially distributed repair.
+   */
+  private handleFailure(runtime: InternalNodeRuntime): void {
+    if (!runtime.failure) return;
+    runtime.beforeFailure = runtime.state;
+    if (runtime.pending) {
+      this.cancelled.add(runtime.pending.id);
+      runtime.interrupted = {
+        type: runtime.pending.type,
+        remainingSeconds: Math.max(0, runtime.pending.timeSeconds - this.currentTimeSeconds)
+      };
+      delete runtime.pending;
+    }
+    this.setNodeState(runtime, 'FAILED');
+    this.scheduleEvent(this.drawExponential(runtime.failure.mttrSeconds), runtime.node.id, 'MACHINE_REPAIRED');
+  }
+
+  /** Back from repair: finish the interrupted cycle, or pick up where it stood. */
+  private handleRepair(runtime: InternalNodeRuntime): void {
+    if (!runtime.failure) return;
+    const before = runtime.beforeFailure ?? 'IDLE';
+    delete runtime.beforeFailure;
+    const interrupted = runtime.interrupted;
+    delete runtime.interrupted;
+
+    if (interrupted) {
+      this.setNodeState(runtime, 'BUSY');
+      this.scheduleEvent(interrupted.remainingSeconds, runtime.node.id, interrupted.type);
+    } else {
+      // It was waiting (starved, blocked or idle): wait again, and take any
+      // work that arrived while it was down.
+      this.setNodeState(runtime, before === 'BUSY' ? 'IDLE' : before);
+      if (runtime.state === 'BLOCKED') this.resumeBlocked(runtime);
+      else if (runtime.node.kind === 'ROTARY_FILLER') this.startFillerCycle(runtime);
+      else this.triggerDownstreamMachine(runtime);
+    }
+    this.scheduleEvent(this.drawExponential(runtime.failure.mtbfSeconds), runtime.node.id, 'MACHINE_FAILURE');
+  }
+
   private isSourceNode(nodeId: string): boolean {
     return !this.discreteEdges.some((e) => e.targetNodeId === nodeId);
   }
@@ -425,6 +529,7 @@ export class SimulationEngine {
    * with no feed pipe fills on its own, as before.
    */
   private startFillerCycle(runtime: InternalNodeRuntime): void {
+    if (runtime.state === 'FAILED') return;
     const cfg = runtime.node.config as { fillTimePerCycleSeconds?: number; indexTimePerCycleSeconds?: number };
     const cycleTime = (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2);
     if (this.fluid.isPipeFedFiller(runtime.node.id)) {
@@ -517,6 +622,7 @@ export class SimulationEngine {
   }
 
   private triggerDownstreamMachine(downstream: InternalNodeRuntime): void {
+    if (downstream.state === 'FAILED') return;
     if (downstream.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
       if (downstream.bufferCans > 0 && downstream.state !== 'BUSY') {
         this.setNodeState(downstream, 'BUSY');
@@ -575,6 +681,7 @@ export class SimulationEngine {
    * without an event scheduled.
    */
   private resumeBlocked(upstream: InternalNodeRuntime): void {
+    if (upstream.state === 'FAILED') return;
     const id = upstream.node.id;
 
     if (upstream.node.kind === 'ROTARY_FILLER') {
@@ -735,6 +842,15 @@ export class SimulationEngine {
       } else if (r.node.kind === 'LABELER') {
         const cfg = r.node.config as { maxSpeedUnitsPerMinute?: number };
         theoreticalSpeedPerMin = cfg.maxSpeedUnitsPerMinute ?? 40;
+      } else if (r.node.kind === 'PALLETIZER') {
+        const cfg = r.node.config as { containersPerLayer?: number; cycleSecondsPerLayer?: number };
+        theoreticalSpeedPerMin = ((cfg.containersPerLayer ?? 20) / (cfg.cycleSecondsPerLayer ?? 30)) * 60;
+      } else if (r.node.kind === 'CONVEYOR') {
+        const cfg = r.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
+        const perItem = Math.max(0.1, (cfg.lengthMeters ?? 10) / (cfg.speedMetersPerSecond ?? 0.5) / Math.max(1, r.maxBuffer));
+        theoreticalSpeedPerMin = 60 / perItem;
+      } else if (r.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
+        theoreticalSpeedPerMin = r.contractEval.behavior.unitsPerMinute;
       }
 
       const theoreticalMaxUnits = (operatingTime / 60) * theoreticalSpeedPerMin;

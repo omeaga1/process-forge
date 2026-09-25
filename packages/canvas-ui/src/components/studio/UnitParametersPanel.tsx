@@ -251,13 +251,7 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
   }
 
   // ---- a built-in unit --------------------------------------------------------
-  const numeric = Object.entries(config).filter(
-    ([key, val]) =>
-      typeof val === 'number' &&
-      // Breakdowns are not simulated, so these would change nothing.
-      key !== 'meanTimeBetweenFailuresMinutes' &&
-      key !== 'meanTimeToRepairMinutes'
-  ) as [string, number][];
+  const numeric = Object.entries(config).filter(([, val]) => typeof val === 'number') as [string, number][];
 
   if (numeric.length === 0) {
     return <div style={{ fontSize: 13, color: palette.text.muted }}>This unit has no numeric settings.</div>;

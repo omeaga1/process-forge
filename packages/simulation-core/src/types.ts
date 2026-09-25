@@ -13,7 +13,9 @@ export interface SimEvent {
     | 'LABELER_CYCLE_COMPLETE'
     | 'PALLETIZER_CYCLE_COMPLETE'
     | 'CONTRACT_CYCLE_COMPLETE'
-    | 'FLUID_TICK';
+    | 'FLUID_TICK'
+    | 'MACHINE_FAILURE'
+    | 'MACHINE_REPAIRED';
   payload?: Record<string, unknown>;
 }
 

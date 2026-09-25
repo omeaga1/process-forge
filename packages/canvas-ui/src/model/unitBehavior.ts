@@ -85,7 +85,28 @@ function liquidNeighbours(node: ProcessNode, graph: ProcessGraph, dir: 'in' | 'o
 
 const list = (names: string[]) => (names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`);
 
+/** What a unit does, plus its breakdowns when it is a machine the engine steps and both settings are set. */
 export function describeUnitBehavior(node: ProcessNode, graph: ProcessGraph): UnitBehavior {
+  const b = describeCore(node, graph);
+  const c = node.config as Record<string, unknown>;
+  const mtbf = c.meanTimeBetweenFailuresMinutes;
+  const mttr = c.meanTimeToRepairMinutes;
+  if (!b.simulated || b.rateUnit === 'gal' || typeof mtbf !== 'number' || typeof mttr !== 'number' || mtbf <= 0 || mttr <= 0) {
+    return b;
+  }
+  const down = mttr / (mtbf + mttr);
+  return {
+    ...b,
+    details: [
+      ...b.details,
+      `Breaks down on average every ${formatDuration(mtbf * 60)} and takes ${formatDuration(mttr * 60)} to repair, so it is down about ${round(down * 100)}% of the time.`
+    ],
+    capacityPerMin: b.capacityPerMin === null ? null : b.capacityPerMin * (1 - down),
+    engineKeys: [...b.engineKeys, 'meanTimeBetweenFailuresMinutes', 'meanTimeToRepairMinutes']
+  };
+}
+
+function describeCore(node: ProcessNode, graph: ProcessGraph): UnitBehavior {
   const c = node.config as Record<string, unknown>;
   const role = roleOf(node, graph);
   const leavesLine = role === 'end' || role === 'unconnected';

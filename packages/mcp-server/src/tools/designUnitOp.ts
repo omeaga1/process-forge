@@ -2,6 +2,7 @@ import {
   EXPRESSION_FUNCTIONS,
   RESERVED_SCOPE_NAMES,
   WAX_COOLING_BELT_CONTRACT,
+  FDM_PRINTER_CONTRACT,
   UNIT_OP_AUTHORING_RULES,
   type ProcessGraph,
   type ProcessNode
@@ -60,8 +61,10 @@ export interface DesignUnitOpResult {
   availableFunctions: { name: string; arity: string }[];
   /** Hard rules the contract must satisfy. Stated so the model does not guess. */
   rules: string[];
-  /** A complete, valid contract to pattern-match against. */
+  /** A complete, valid steady-flow (CONTINUOUS_RATE) contract to pattern-match against. */
   workedExample: unknown;
+  /** A complete, valid cycle (DISCRETE_CYCLE) contract: one part per print. */
+  cycleExample: unknown;
   /** What the surrounding process looks like, when a graph was supplied. */
   processContext: {
     available: boolean;
@@ -204,7 +207,9 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     '',
     'The drawing is how the unit appears on the flowsheet: draw the actual',
     'equipment (see the rules), and put each nozzle where that stream really',
-    'connects. The worked example shows the format.'
+    'connects. Two worked examples show the format: workedExample is steady flow',
+    '(CONTINUOUS_RATE, a wax cooling belt) and cycleExample makes whole parts on a',
+    'cycle (DISCRETE_CYCLE, a 3D printer). Follow the one that matches your mode.'
   ].join('\n');
 
   return {
@@ -214,6 +219,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     availableFunctions,
     rules: [...UNIT_OP_AUTHORING_RULES],
     workedExample: WAX_COOLING_BELT_CONTRACT,
+    cycleExample: FDM_PRINTER_CONTRACT,
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:
       'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'
