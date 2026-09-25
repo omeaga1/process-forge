@@ -159,3 +159,28 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialT
 
 export const useTheme = (): ThemeContextValue => useContext(ThemeContext);
 
+/**
+ * Renders children in one theme regardless of the app's, without touching the
+ * document (a dark demo panel on a light page). Switching theme inside it
+ * does nothing.
+ */
+export const ThemeScope: React.FC<{ mode: ThemeMode; children: ReactNode }> = ({ mode, children }) => {
+  const outer = useContext(ThemeContext);
+  return (
+    <ThemeContext.Provider
+      value={{
+        ...outer,
+        theme: mode,
+        palette: getOsakaJadePalette(mode),
+        canvasTokens: getCanvasTokens(mode),
+        machineVisuals: getMachineStateVisuals(mode),
+        elevation: getElevation(mode),
+        setTheme: () => {},
+        toggleTheme: () => {}
+      }}
+    >
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+

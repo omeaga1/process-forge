@@ -1,23 +1,23 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   fetchLatestInstaller,
   RELEASES_PAGE,
   formatSize,
   type DesktopOs
 } from '../downloads/latestRelease.js';
-import { OsakaJadeLightPalette as P, fontFamily } from '@process-forge/theme';
-import { evaluateUnitOp, blockingViolations, WAX_COOLING_BELT_CONTRACT } from '@process-forge/protocol';
+import { OsakaJadeLightPalette as L, OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
+import { ProcessForgeEmblem, ThemeScope } from '@process-forge/canvas-ui';
+import { LineDemo } from '../landing/LineDemo.js';
 
 /**
- * The public landing page, as an engineering drawing.
+ * The public landing page.
  *
- * Laid out like a drafting sheet: ruled borders, a title block, zone numbers,
- * mono for figures and sans for prose, and colour only where it carries
- * meaning (green for a satisfied constraint, amber for a violated one).
+ * Osaka Jade in two registers: the hero and footer are the studio's own dark
+ * obsidian and jade, and the reading sections between are the light theme's
+ * rice paper, ruled like a drawing sheet with jade zone numbers.
  *
- * Every number in the worked example is computed at render by the engine's
- * evaluator (e.g. the duty is evaluateUnitOp(WAX_COOLING_BELT_CONTRACT)
- * .derived.totalDutyKw), so the page changes when the engine does.
+ * The example in the hero is not a picture: it is a small paint line that
+ * the real engine simulates in the visitor's browser (landing/demoLine.ts).
  */
 
 export interface ProductLandingPageProps {
@@ -31,24 +31,16 @@ interface PlatformInfo {
   fileLabel: string;
 }
 
-const RULE = `1px solid ${P.border.default}`;
-const HAIRLINE = `1px solid ${P.border.subtle}`;
+const RULE = `1px solid ${L.border.default}`;
+const HAIRLINE = `1px solid ${L.border.subtle}`;
+const GUTTER = 'clamp(16px, 4vw, 32px)';
+const REPO = 'https://github.com/omeaga1/process-forge';
 
 const mono: React.CSSProperties = { fontFamily: fontFamily.mono, fontVariantNumeric: 'tabular-nums' };
 const sans: React.CSSProperties = { fontFamily: fontFamily.sans };
 
 /** A drawing zone: a numbered, ruled band down the sheet. */
-function Zone({
-  n,
-  title,
-  note,
-  children
-}: {
-  n: string;
-  title: string;
-  note?: string;
-  children: React.ReactNode;
-}) {
+function Zone({ n, title, note, children }: { n: string; title: string; note?: string; children: React.ReactNode }) {
   return (
     <section style={{ borderTop: RULE, display: 'flex', alignItems: 'stretch' }}>
       <div
@@ -57,68 +49,51 @@ function Zone({
           width: 'clamp(36px, 8vw, 64px)',
           flexShrink: 0,
           borderRight: RULE,
-          padding: '20px 0 0',
+          padding: '24px 0 0',
           textAlign: 'center',
           fontSize: 12,
-          color: P.text.muted,
+          fontWeight: 600,
+          color: L.jade[500],
           letterSpacing: '0.1em'
         }}
       >
         {n}
       </div>
-      <div style={{ flex: 1, padding: '20px clamp(16px, 4vw, 28px) 40px', minWidth: 0 }}>
-        <h2
-          style={{
-            ...sans,
-            margin: 0,
-            fontSize: '1.35rem',
-            fontWeight: 600,
-            letterSpacing: '-0.01em',
-            color: P.text.primary
-          }}
-        >
-          {title}
-        </h2>
-        {note && (
-          <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.9rem', color: P.text.secondary, maxWidth: '62ch', lineHeight: 1.6 }}>
-            {note}
-          </p>
-        )}
+      <div style={{ flex: 1, padding: `24px ${GUTTER} 40px`, minWidth: 0 }}>
+        <h2 style={{ ...sans, margin: 0, fontSize: '1.4rem', fontWeight: 650, letterSpacing: '-0.015em', color: L.text.primary }}>{title}</h2>
+        {note && <p style={{ ...sans, margin: '8px 0 0', fontSize: '0.95rem', color: L.text.secondary, maxWidth: '64ch', lineHeight: 1.6 }}>{note}</p>}
         <div style={{ marginTop: 22 }}>{children}</div>
       </div>
     </section>
   );
 }
 
-/** Label / value / unit, ruled like a schedule row. */
-function Row({
-  label,
-  value,
-  unit,
-  emphasis
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  emphasis?: boolean;
-}) {
+/** A cell in a ruled grid of cards. */
+function Cell({ kicker, title, children }: { kicker?: string; title: string; children: React.ReactNode }) {
   return (
-    <div
+    <div style={{ padding: '18px 20px', borderRight: HAIRLINE, borderBottom: HAIRLINE, background: L.background.surface }}>
+      {kicker && <div style={{ ...mono, fontSize: 11, fontWeight: 600, color: L.jade[500], letterSpacing: '0.1em' }}>{kicker}</div>}
+      <div style={{ ...sans, marginTop: kicker ? 6 : 0, fontSize: '1.02rem', fontWeight: 600, color: L.text.primary }}>{title}</div>
+      <div style={{ ...sans, marginTop: 6, fontSize: '0.9rem', lineHeight: 1.6, color: L.text.secondary }}>{children}</div>
+    </div>
+  );
+}
+
+function Tool({ name }: { name: string }) {
+  return (
+    <code
       style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr auto 72px',
-        gap: 12,
-        padding: '6px 0',
-        borderBottom: HAIRLINE,
-        fontSize: emphasis ? '0.92rem' : '0.84rem'
+        ...mono,
+        fontSize: '0.74rem',
+        padding: '3px 8px',
+        borderRadius: 4,
+        background: L.jade.muted,
+        color: L.jade[700],
+        whiteSpace: 'nowrap'
       }}
     >
-      <span style={{ ...sans, color: emphasis ? P.text.primary : P.text.secondary, fontWeight: emphasis ? 600 : 400 }}>
-        {label}
-      </span>
-      <span style={{ ...mono, color: P.text.primary, fontWeight: emphasis ? 700 : 500 }}>{value}</span>
-      <span style={{ ...mono, color: P.text.muted, fontSize: '0.78rem' }}>{unit ?? ''}</span>
-    </div>
+      {name}
+    </code>
   );
 }
 
@@ -129,7 +104,6 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
     downloadUrl: RELEASES_PAGE,
     fileLabel: 'Windows installer (.exe)'
   });
-  const [beltSpeed, setBeltSpeed] = useState(6);
 
   useEffect(() => {
     const ua = window.navigator.userAgent.toLowerCase();
@@ -148,335 +122,251 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
   useEffect(() => {
     if (platform.os === 'unknown') return;
     let cancelled = false;
-    void fetchLatestInstaller(platform.os as DesktopOs).then(
-      (found) => {
-        if (cancelled || !found) return;
-        setPlatform((prev) => ({
-          ...prev,
-          downloadUrl: found.url,
-          fileLabel: `${prev.fileLabel} · ${found.version} · ${formatSize(found.sizeBytes)}`
-        }));
-      }
-    );
+    void fetchLatestInstaller(platform.os as DesktopOs).then((found) => {
+      if (cancelled || !found) return;
+      setPlatform((prev) => ({
+        ...prev,
+        downloadUrl: found.url,
+        fileLabel: `${prev.fileLabel} · ${found.version} · ${formatSize(found.sizeBytes)}`
+      }));
+    });
     return () => {
       cancelled = true;
     };
   }, [platform.os]);
 
-  // The worked example, evaluated live by the engine's own evaluator.
-  const evaluation = useMemo(
-    () => evaluateUnitOp(WAX_COOLING_BELT_CONTRACT, { parameterOverrides: { beltSpeedMPerMin: beltSpeed } }),
-    [beltSpeed]
-  );
-  const blocking = blockingViolations(evaluation);
-  const valid = blocking.length === 0;
-  const d = evaluation.derived;
-  const fx = (v: number | undefined, dp = 2) => (v === undefined ? '—' : v.toFixed(dp));
+  const darkLink: React.CSSProperties = { ...sans, fontSize: 13.5, color: D.text.secondary, textDecoration: 'none' };
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: P.background.base,
-        color: P.text.primary,
-        ...sans
-      }}
-    >
-      <div
-        style={{
-          maxWidth: 1080,
-          margin: '0 auto',
-          background: P.background.surface,
-          borderLeft: RULE,
-          borderRight: RULE,
-          minHeight: '100vh'
-        }}
-      >
-        {/* ── Title block ─────────────────────────────────────────────── */}
-        <header
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            alignItems: 'flex-end',
-            gap: 24,
-            padding: '34px clamp(16px, 4vw, 28px) 20px'
-          }}
-        >
-          <div>
-            <div style={{ ...mono, fontSize: 11, letterSpacing: '0.18em', color: P.text.muted }}>
-              PROCESS SIMULATION
-            </div>
-            <h1
-              style={{
-                margin: '10px 0 0',
-                fontSize: 'clamp(2rem, 5vw, 3.1rem)',
-                fontWeight: 650,
-                letterSpacing: '-0.03em',
-                lineHeight: 1.04
-              }}
-            >
-              ProcessForge
-            </h1>
-            <p style={{ margin: '14px 0 0', fontSize: '1.3rem', lineHeight: 1.35, color: P.text.primary, fontWeight: 600, maxWidth: '30ch' }}>
-              Model the equipment no simulator ships.
-            </p>
-            <p style={{ margin: '10px 0 0', fontSize: '1.02rem', lineHeight: 1.6, color: P.text.secondary, maxWidth: '58ch' }}>
-              Describe a unit operation in plain words. Your AI model writes it, the engine checks
-              the physics before it reaches your flowsheet, and then you simulate the whole line:
-              throughput, bottlenecks, OEE.
-            </p>
-          </div>
-          <table style={{ ...mono, fontSize: 10.5, borderCollapse: 'collapse', color: P.text.secondary }}>
-            <tbody>
-              {[
-                ['SIMULATION', 'discrete-event'],
-                ['RUNS', 'on your machine'],
-                ['AI', 'any model · sign-in, key or MCP'],
-                ['LICENCE', 'Apache-2.0']
-              ].map(([k, v]) => (
-                <tr key={k}>
-                  <td style={{ border: HAIRLINE, padding: '4px 10px', color: P.text.muted, letterSpacing: '0.08em' }}>{k}</td>
-                  <td style={{ border: HAIRLINE, padding: '4px 10px', color: P.text.primary }}>{v}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </header>
-
-        <div style={{ display: 'flex', gap: 10, padding: '0 clamp(16px, 4vw, 28px) 28px', flexWrap: 'wrap' }}>
-          <a
-            href={platform.downloadUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+    // flexShrink 0: the app's frame is a fixed-height flex column, and a
+    // shrinking page painted its background only one screen deep.
+    <div style={{ minHeight: '100vh', flexShrink: 0, background: L.background.base, color: L.text.primary, ...sans }}>
+      <style>{`
+        .pf-landing a:focus-visible, .pf-landing button:focus-visible { outline: 2px solid ${D.jade.glow}; outline-offset: 2px; }
+        .pf-landing .pf-cta-primary:hover { filter: brightness(1.08); }
+        .pf-landing .pf-cta-secondary:hover { background: ${D.background.surfaceHover}; }
+        .pf-landing .pf-dark-link:hover { color: ${D.jade.glow}; }
+      `}</style>
+      <div className="pf-landing">
+        {/* ── Hero: the studio's own dark Osaka Jade ─────────────────── */}
+        <ThemeScope mode="dark">
+          <header
             style={{
-              ...sans,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '11px 20px',
-              background: P.text.primary,
-              color: P.background.surface,
-              border: `1px solid ${P.text.primary}`,
-              fontWeight: 600,
-              fontSize: '0.92rem',
-              textDecoration: 'none'
+              background: D.background.base,
+              backgroundImage: `radial-gradient(ellipse 70% 55% at 78% 0%, ${D.jade.glow}1f, transparent 70%), linear-gradient(${D.border.subtle} 1px, transparent 1px), linear-gradient(90deg, ${D.border.subtle} 1px, transparent 1px)`,
+              backgroundSize: '100% 100%, 32px 32px, 32px 32px',
+              color: D.text.primary,
+              borderBottom: `1px solid ${D.border.strong}`
             }}
           >
-            Download for {platform.name}
-          </a>
-          <button
-            onClick={onLaunchStudio}
-            style={{
-              ...sans,
-              padding: '11px 20px',
-              background: 'transparent',
-              color: P.text.primary,
-              border: RULE,
-              fontWeight: 600,
-              fontSize: '0.92rem',
-              cursor: 'pointer'
-            }}
-          >
-            Open the studio in this browser
-          </button>
-          <span style={{ ...mono, fontSize: 10.5, color: P.text.muted, alignSelf: 'center' }}>
-            {platform.fileLabel}
-          </span>
-        </div>
+            <div style={{ maxWidth: 1120, margin: '0 auto', padding: `0 ${GUTTER}` }}>
+              {/* Nav */}
+              <nav style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 0', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <ProcessForgeEmblem size={30} />
+                  <span style={{ fontSize: 17, fontWeight: 650, letterSpacing: '-0.01em' }}>
+                    Process<span style={{ color: D.jade.glow }}>Forge</span>
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+                  <a className="pf-dark-link" style={darkLink} href={REPO} target="_blank" rel="noopener noreferrer">GitHub</a>
+                  <a className="pf-dark-link" style={darkLink} href={RELEASES_PAGE} target="_blank" rel="noopener noreferrer">Releases</a>
+                  <a className="pf-dark-link" style={darkLink} href={`${REPO}/tree/main/packages/mcp-server#readme`} target="_blank" rel="noopener noreferrer">MCP server</a>
+                </div>
+              </nav>
 
-        {/* ── 01 · How it works ────────────────────────────────────────── */}
-        <Zone n="01" title="How it works">
-          <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 0, border: RULE }}>
-            {[
-              [
-                'Describe it',
-                'Say what the equipment does, in your words: “a water-cooled steel belt that solidifies molten wax, 16 m by 1.2 m, fed at 0.55 kg/s.”'
-              ],
-              [
-                'The AI designs it; the engine checks it',
-                'Your AI model writes the unit as a model: its parameters, the equations that connect them, and the limits that must hold. The engine evaluates every limit, and anything that fails goes back to the model with the reason, until the design holds.'
-              ],
-              [
-                'Run your line',
-                'Connect it to pumps, tanks, fillers and conveyors, or to other units you designed, and simulate: busy, blocked and starved time for each machine, throughput, the bottleneck, and OEE.'
-              ]
-            ].map(([title, body], i) => (
-              <li key={title} style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
-                <div style={{ ...mono, fontSize: 11, color: P.text.muted, letterSpacing: '0.1em' }}>STEP {i + 1}</div>
-                <div style={{ ...sans, marginTop: 6, fontSize: '1rem', fontWeight: 600, color: P.text.primary }}>{title}</div>
-                <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>{body}</p>
-              </li>
-            ))}
-          </ol>
-        </Zone>
-
-        {/* ── 02 · The worked example ──────────────────────────────────── */}
-        <Zone
-          n="02"
-          title="Try one: a unit nobody ships a model for"
-          note="A water-cooled belt: molten wax is poured on, solidifies as it travels, and is scraped off at the far end. Every figure below is computed as you read it, by the same evaluator the engine runs. Move the belt speed and watch the verdict change."
-        >
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 28 }}>
-            <div>
-              <div style={{ ...mono, fontSize: 10, letterSpacing: '0.12em', color: P.text.muted, marginBottom: 8 }}>
-                INPUT
-              </div>
-              <Row label="Wax feed rate" value="0.55" unit="kg/s" />
-              <Row label="Inlet temperature" value="95" unit="°C" />
-              <Row label="Congealing point" value="58" unit="°C" />
-              <Row label="Discharge temperature" value="40" unit="°C" />
-              <Row label="Heat of fusion" value="190" unit="kJ/kg" />
-              <Row label="Belt" value="16 × 1.2" unit="m" />
-
-              <label style={{ display: 'block', marginTop: 20 }}>
-                <span style={{ ...mono, fontSize: 10, letterSpacing: '0.12em', color: P.text.muted }}>
-                  BELT SPEED — {beltSpeed.toFixed(1)} m/min
-                </span>
-                <input
-                  type="range"
-                  min={1}
-                  max={40}
-                  step={0.5}
-                  value={beltSpeed}
-                  onChange={(e) => setBeltSpeed(Number(e.target.value))}
-                  style={{ width: '100%', marginTop: 8, accentColor: P.text.accent }}
-                />
-              </label>
-            </div>
-
-            <div>
-              <div style={{ ...mono, fontSize: 10, letterSpacing: '0.12em', color: P.text.muted, marginBottom: 8 }}>
-                COMPUTED BY THE ENGINE
-              </div>
-              <Row label="Sensible, liquid" value={fx(d.sensibleLiquidKw, 2)} unit="kW" />
-              <Row label="Latent, solidification" value={fx(d.latentKw, 2)} unit="kW" />
-              <Row label="Sensible, solid" value={fx(d.sensibleSolidKw, 2)} unit="kW" />
-              <Row label="Total cooling duty" value={fx(d.totalDutyKw, 3)} unit="kW" emphasis />
-              <Row label="Residence time" value={fx(d.residenceTimeS, 1)} unit="s" />
-              <Row label="Deposited layer" value={fx(d.waxLayerThicknessMm, 2)} unit="mm" />
-              <Row label="Conduction time" value={fx(d.conductionTimeS, 1)} unit="s" />
-
-              <div
-                style={{
-                  marginTop: 18,
-                  border: `1px solid ${valid ? P.text.accent : P.border.glowAmber}`,
-                  padding: '12px 14px'
-                }}
-              >
-                <div
+              {/* Pitch */}
+              <div style={{ padding: 'clamp(28px, 6vw, 64px) 0 clamp(24px, 4vw, 40px)', maxWidth: 760 }}>
+                <div style={{ ...mono, fontSize: 11.5, letterSpacing: '0.18em', color: D.jade.glow }}>OPEN-SOURCE PROCESS SIMULATION</div>
+                <h1
                   style={{
-                    ...mono,
-                    fontSize: 11,
-                    letterSpacing: '0.1em',
-                    color: valid ? P.text.accent : P.border.glowAmber,
-                    fontWeight: 700
+                    margin: '14px 0 0',
+                    fontSize: 'clamp(2.1rem, 5.4vw, 3.5rem)',
+                    fontWeight: 680,
+                    letterSpacing: '-0.035em',
+                    lineHeight: 1.04,
+                    color: D.text.primary
                   }}
                 >
-                  {valid ? 'PHYSICALLY VALID' : 'REJECTED'}
-                </div>
-                <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.84rem', lineHeight: 1.55, color: P.text.secondary }}>
-                  {valid
-                    ? 'Every constraint the contract declares holds at this operating point.'
-                    : blocking[0]?.message}
+                  Find the bottleneck
+                  <br />
+                  <span style={{ color: D.jade[400] }}>before you build the line.</span>
+                </h1>
+                <p style={{ margin: '18px 0 0', fontSize: 'clamp(1rem, 2vw, 1.12rem)', lineHeight: 1.6, color: D.text.secondary, maxWidth: '60ch' }}>
+                  Lay out reactors, tanks, pumps, fillers and conveyors, mark where material comes in and goes out, and simulate
+                  the shift: every machine&apos;s busy, blocked and starved time, the throughput, and what holds it back. For
+                  equipment nobody ships a model for, your AI designs one and the engine checks its physics first.
                 </p>
-                {!valid && blocking[0]?.hint && (
-                  <p style={{ ...mono, margin: '8px 0 0', fontSize: '0.76rem', color: P.text.muted }}>
-                    → {blocking[0].hint}
-                  </p>
-                )}
+                <div style={{ display: 'flex', gap: 10, marginTop: 26, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <a
+                    className="pf-cta-primary"
+                    href={platform.downloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      ...sans,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '12px 22px',
+                      borderRadius: 8,
+                      background: D.jade.glow,
+                      color: D.text.inverse,
+                      fontWeight: 650,
+                      fontSize: '0.95rem',
+                      textDecoration: 'none',
+                      boxShadow: `0 0 24px ${D.jade.glow}40`
+                    }}
+                  >
+                    Download for {platform.name}
+                  </a>
+                  <button
+                    className="pf-cta-secondary"
+                    onClick={onLaunchStudio}
+                    style={{
+                      ...sans,
+                      padding: '12px 22px',
+                      borderRadius: 8,
+                      background: 'transparent',
+                      color: D.text.primary,
+                      border: `1px solid ${D.border.strong}`,
+                      fontWeight: 600,
+                      fontSize: '0.95rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Open in your browser
+                  </button>
+                </div>
+                <div style={{ ...mono, fontSize: 11, color: D.text.muted, marginTop: 12 }}>{platform.fileLabel} · free, Apache-2.0</div>
               </div>
 
-              <p style={{ ...sans, margin: '14px 0 0', fontSize: '0.82rem', lineHeight: 1.6, color: P.text.muted }}>
-                Slowing the belt lays a thicker layer, and conduction time grows as the square of
-                thickness while residence time grows only linearly. Below about 4 m/min the wax
-                cannot conduct its heat out however cold the belt is — a failure the duty
-                calculation alone never sees.
-              </p>
+              {/* The live example */}
+              <div style={{ paddingBottom: 'clamp(32px, 5vw, 56px)' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: D.text.primary }}>
+                    A paint line, simulated in this page
+                    <span style={{ color: D.text.muted, fontWeight: 400 }}> · move a slider and the engine runs the shift again</span>
+                  </div>
+                  <div style={{ ...mono, fontSize: 10.5, letterSpacing: '0.1em', color: D.text.muted }}>SAME ENGINE AS THE APP</div>
+                </div>
+                <LineDemo />
+              </div>
             </div>
-          </div>
-        </Zone>
+          </header>
+        </ThemeScope>
 
-        {/* ── 03 · Claude ──────────────────────────────────────────────── */}
-        <Zone n="03" title="Bring your own AI">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 0, border: RULE }}>
-            <div style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
-              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>In the app, with OpenRouter</div>
-              <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>
-                Chat about your flowsheet and design unit operations without leaving ProcessForge. Sign in
-                with OpenRouter once and use Claude, GPT, Gemini and others, paying as you go. Prefer your
-                own provider key, or a free local model in Ollama? Those are under Other options.
-              </p>
+        {/* ── The sheet ─────────────────────────────────────────────────── */}
+        <main style={{ maxWidth: 1120, margin: '0 auto', borderLeft: RULE, borderRight: RULE, background: L.background.base }}>
+          <Zone
+            n="01"
+            title="How it works"
+            note="Standard equipment comes with its model. Anything else, you describe, and it is checked before it can affect a result."
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', border: RULE, borderRight: 'none', borderBottom: 'none' }}>
+              <Cell kicker="STEP 1" title="Draw the line">
+                Place pumps, tanks, reactors, heat exchangers, separators, fillers, conveyors, labelers and palletizers, and pipe
+                them together. Feed, product, byproduct and waste arrows mark where material enters and leaves.
+              </Cell>
+              <Cell kicker="STEP 2" title="Design what is missing">
+                Describe the unit in plain words: “a water-cooled steel belt that solidifies molten wax, 16 m by 1.2 m.” Your AI
+                writes it as parameters, equations and limits. The engine evaluates every limit, and sends failures back with
+                the reason until the design holds.
+              </Cell>
+              <Cell kicker="STEP 3" title="Simulate and fix the constraint">
+                Run a shift. Liquid flows through tanks and pumps second by second; containers move as discrete events. See
+                throughput, OEE and breakdowns per machine, and which unit to change first.
+              </Cell>
             </div>
-            <div style={{ padding: '16px 18px', borderRight: HAIRLINE, borderBottom: HAIRLINE }}>
-              <div style={{ ...sans, fontSize: '1rem', fontWeight: 600 }}>From an MCP client, on your subscription</div>
-              <p style={{ ...sans, margin: '6px 0 0', fontSize: '0.88rem', lineHeight: 1.6, color: P.text.secondary }}>
-                Give an MCP client such as Claude Desktop or Cursor the ProcessForge tools, and it designs and simulates for you on the
-                subscription you already pay for. Add this server to the client's MCP settings (Node.js 20 or
-                later):
-              </p>
-              <code
-                style={{
-                  ...mono,
-                  display: 'block',
-                  marginTop: 10,
-                  padding: '8px 10px',
-                  fontSize: '0.8rem',
-                  border: HAIRLINE,
-                  overflowX: 'auto',
-                  whiteSpace: 'nowrap',
-                  color: P.text.primary
-                }}
+          </Zone>
+
+          <Zone
+            n="02"
+            title="Bring your own AI"
+            note="The engine does the physics; the AI only writes designs for it to check. Use whichever model you already pay for."
+          >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', border: RULE, borderRight: 'none', borderBottom: 'none' }}>
+              <Cell title="In the app, with OpenRouter">
+                Chat about your flowsheet and design unit operations without leaving ProcessForge. Sign in with OpenRouter once and
+                use Claude, GPT, Gemini and others, paying as you go. Prefer your own provider key, or a free local model in
+                Ollama? Those are under Other options.
+              </Cell>
+              <Cell title="From an MCP client, on your subscription">
+                Claude Desktop, Cursor or any MCP client can build and run your line on the plan you already have: design units,
+                place standard equipment, pull units from the community library, pipe them together and simulate. Add the server
+                (Node.js 20 or later):
+                <code
+                  style={{
+                    ...mono,
+                    display: 'block',
+                    marginTop: 10,
+                    padding: '9px 12px',
+                    fontSize: '0.82rem',
+                    borderRadius: 6,
+                    background: D.background.base,
+                    color: D.jade.glow,
+                    overflowX: 'auto',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  npx -y @process-forge/mcp-server
+                </code>
+                <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+                  {['design_unit_op', 'add_standard_unit_op', 'search_community_unit_ops', 'add_stream', 'simulate_process_line'].map((t) => (
+                    <Tool key={t} name={t} />
+                  ))}
+                </span>
+              </Cell>
+            </div>
+          </Zone>
+
+          <Zone n="03" title="What it does not do yet">
+            {[
+              'Heat is not modelled in the line simulation: a heat exchanger passes flow up to its rated rate.',
+              'A designed unit that runs continuously is checked at steady state, but does not limit the flow.',
+              'Splits of whole items go evenly down each branch. Liquid splits only at a separator, by its vapor ratio.',
+              'AI inside the app is billed per use, through OpenRouter or a provider key, or runs free in Ollama. Subscriptions such as Claude Pro or ChatGPT Plus cannot be used by other apps; they work through an MCP client instead.',
+              'Results depend on the model. Smaller models write designs the engine rejects more often.'
+            ].map((t) => (
+              <div key={t} style={{ display: 'flex', gap: 12, padding: '9px 0', borderBottom: HAIRLINE, fontSize: '0.9rem', lineHeight: 1.55 }}>
+                <span style={{ ...mono, color: L.jade[500] }}>—</span>
+                <span style={{ color: L.text.secondary }}>{t}</span>
+              </div>
+            ))}
+          </Zone>
+        </main>
+
+        {/* ── Footer: back to the dark ─────────────────────────────────── */}
+        <footer style={{ background: D.background.base, borderTop: `1px solid ${D.border.strong}` }}>
+          <div
+            style={{
+              maxWidth: 1120,
+              margin: '0 auto',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              ...mono,
+              fontSize: 11
+            }}
+          >
+            {[
+              ['REPOSITORY', 'github.com/omeaga1/process-forge', REPO],
+              ['RELEASES', 'all platforms', RELEASES_PAGE],
+              ['LICENCE', 'Apache-2.0', `${REPO}/blob/main/LICENSE`],
+              ['PRIVACY', 'what goes where', '/privacy.html'],
+              ['CODE SIGNING', 'policy', '/code-signing.html']
+            ].map(([k, v, href]) => (
+              <a
+                key={k}
+                className="pf-dark-link"
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ padding: `18px ${GUTTER}`, borderRight: `1px solid ${D.border.subtle}`, textDecoration: 'none', color: D.text.secondary }}
               >
-                npx -y @process-forge/mcp-server
-              </code>
-            </div>
+                <div style={{ color: D.text.muted, letterSpacing: '0.1em', fontSize: 9.5 }}>{k}</div>
+                <div style={{ marginTop: 4 }}>{v}</div>
+              </a>
+            ))}
           </div>
-        </Zone>
-
-        {/* ── 04 · Limits ──────────────────────────────────────────────── */}
-        <Zone n="04" title="What it does not do yet">
-          {[
-            'No continuous dynamics: a unit operation is evaluated at steady state, and a line runs as discrete events.',
-            'A split sends output evenly down each branch; there are no split ratios yet.',
-            'AI inside the app is billed per use, through OpenRouter or a provider key, or runs free in Ollama. Subscriptions such as Claude Pro or ChatGPT Plus cannot be used by other apps; they work through an MCP client instead.',
-            'Results depend on the model. Smaller models write designs the engine rejects more often.'
-          ].map((t) => (
-            <div key={t} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: HAIRLINE, fontSize: '0.88rem', lineHeight: 1.55 }}>
-              <span style={{ ...mono, color: P.text.muted }}>·</span>
-              <span style={{ color: P.text.secondary }}>{t}</span>
-            </div>
-          ))}
-        </Zone>
-
-        {/* ── Footer title block ───────────────────────────────────────── */}
-        <footer
-          style={{
-            borderTop: RULE,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            ...mono,
-            fontSize: 10.5
-          }}
-        >
-          {[
-            ['REPOSITORY', 'github.com/omeaga1/process-forge', 'https://github.com/omeaga1/process-forge'],
-            ['RELEASES', 'all platforms', RELEASES_PAGE],
-            ['LICENCE', 'Apache-2.0', 'https://github.com/omeaga1/process-forge/blob/main/LICENSE'],
-            ['PRIVACY', 'what goes where', '/privacy.html'],
-            ['CODE SIGNING', 'policy', '/code-signing.html']
-          ].map(([k, v, href]) => (
-            <a
-              key={k}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ padding: '16px 20px', borderRight: HAIRLINE, textDecoration: 'none', color: P.text.secondary }}
-            >
-              <div style={{ color: P.text.muted, letterSpacing: '0.1em', fontSize: 9.5 }}>{k}</div>
-              <div style={{ marginTop: 4, color: P.text.primary }}>{v}</div>
-            </a>
-          ))}
         </footer>
       </div>
     </div>
