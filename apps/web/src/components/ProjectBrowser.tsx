@@ -214,8 +214,16 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
 
   const remove = async (kind: Tab, id: string) => {
     setConfirmDelete(null);
-    if (kind === 'device') deleteLocalProject(id);
-    else await deleteProjectFromCloud(id, user);
+    if (kind === 'device') {
+      deleteLocalProject(id);
+      if (id === currentProject.id) {
+        // The open project: move to the most recent other one, or a new blank one.
+        const next = listLocalProjects().find((p) => p.id !== id);
+        const project = next ? loadLocalProject(next.id) : null;
+        if (project) onOpenProject(project);
+        else onNewProject('blank');
+      }
+    } else await deleteProjectFromCloud(id, user);
     refresh();
   };
 
@@ -387,10 +395,9 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
             )}
             <button
               type="button"
-              title={isCurrent ? 'This project is open. Open another one to delete it.' : kind === 'device' ? 'Delete from this device' : 'Delete from the cloud'}
+              title={isCurrent ? 'Delete this project (it is open: the most recent other one opens instead)' : kind === 'device' ? 'Delete from this device' : 'Delete from the cloud'}
               aria-label={`Delete ${name}`}
-              disabled={isCurrent}
-              style={{ ...iconButton, opacity: isCurrent ? 0.35 : 1, cursor: isCurrent ? 'default' : 'pointer' }}
+              style={iconButton}
               onClick={() => setConfirmDelete(`${kind}:${id}`)}
             >
               <Trash2 size={14} />

@@ -148,7 +148,7 @@ Microsoft (https://www.microsoft.com/wdsi/filesubmission) speeds it up.
    - project **`process-forge`**, linked to the GitHub repository (the
      "trusted build system" connector for GitHub Actions);
    - artifact configuration **`installer`**: a zip containing the NSIS
-     `*.exe` and the `*.msi`, each signed with Authenticode;
+     `*.exe`, signed with Authenticode (Windows ships only the NSIS installer: an MSI installs per machine, separately from it, so neither would find the other);
    - signing policy **`release-signing`**, with yourself as approver.
 3. Create a CI user in SignPath and add two repository secrets under
    **Settings → Secrets and variables → Actions**:
