@@ -7,7 +7,7 @@ export function bottleneckAdvice(node: ProcessNode | undefined, unitsPerMin: num
   const who = `"${node.name}" limits the line at about ${rate} units/min.`;
   switch (node.kind) {
     case 'BATCH_REACTOR':
-      return `${who} A batch reactor delivers one batch per fill + reaction + discharge, so add a second reactor in parallel, shorten the reaction or fill time, or run larger batches; a bigger surge tank only smooths the gaps, it does not raise the average.`;
+      return `${who} A batch reactor delivers one batch per fill + heat-up + reaction + discharge, so add a second reactor in parallel, shorten the reaction or fill time, fit a larger jacket (jacketDutyKw) if heat-up is long, or run larger batches; a bigger surge tank only smooths the gaps, it does not raise the average.`;
     case 'PUMP':
       return `${who} The pump's design flow caps the product reaching the filler: fit a larger pump or run two in parallel.`;
     case 'SURGE_TANK':

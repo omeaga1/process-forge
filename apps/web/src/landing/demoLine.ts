@@ -136,7 +136,7 @@ export interface UnitFrame {
   level?: number;
   /** Liquid leaving it now, gal/min. */
   flow?: number;
-  phase?: 'FILLING' | 'REACTING' | 'DISCHARGING';
+  phase?: 'FILLING' | 'HEATING' | 'REACTING' | 'DISCHARGING';
   /** Items made (or, for the product outlet, received) so far. */
   made: number;
 }

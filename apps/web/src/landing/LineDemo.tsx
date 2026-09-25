@@ -43,6 +43,7 @@ const STATE_COLOR: Record<UnitFrame['state'], string> = {
 
 function stateWord(f: UnitFrame | undefined): string {
   if (!f) return 'Idle';
+  if (f.phase === 'HEATING') return 'Heating';
   if (f.phase === 'REACTING') return 'Reacting';
   if (f.phase === 'DISCHARGING') return f.state === 'BLOCKED' ? 'Blocked' : 'Discharging';
   if (f.phase === 'FILLING') return 'Filling';

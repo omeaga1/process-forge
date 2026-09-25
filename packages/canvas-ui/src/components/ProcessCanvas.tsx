@@ -103,12 +103,14 @@ function neighbourContext(graph: ProcessGraph, nodeId: string): { upstreamContex
 
 /** The liquid part of a unit's telemetry, for its node on the canvas. */
 function liquidOf(t: NodeTelemetrySnapshot | undefined): Partial<CanvasNodeData> {
-  if (!t || t.levelGallons === undefined) return { levelFraction: undefined, levelGallons: undefined, flowGpm: undefined, phase: undefined };
+  if (!t || t.levelGallons === undefined)
+    return { levelFraction: undefined, levelGallons: undefined, flowGpm: undefined, phase: undefined, temperatureC: undefined };
   return {
     levelFraction: t.levelFraction,
     levelGallons: t.levelGallons,
     flowGpm: t.flowGpm,
-    phase: t.phase
+    phase: t.phase,
+    temperatureC: t.temperatureC
   };
 }
 

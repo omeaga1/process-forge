@@ -34,8 +34,10 @@ export interface NodeTelemetrySnapshot {
   levelFraction?: number;
   /** Liquid units: gallons per minute leaving right now. */
   flowGpm?: number;
-  /** Batch reactors: where the batch is. */
-  phase?: 'FILLING' | 'REACTING' | 'DISCHARGING';
+  /** Liquid units: °C of what the unit holds (a pass-through unit: what it last sent). */
+  temperatureC?: number;
+  /** Batch reactors: where the batch is. HEATING: coming up to reaction temperature on its jacket. */
+  phase?: 'FILLING' | 'HEATING' | 'REACTING' | 'DISCHARGING';
 }
 
 export interface MachineOeeReport {
@@ -60,7 +62,30 @@ export interface MachineOeeReport {
     levelGallons: number;
     /** Batch reactors: batches completed (fully discharged). */
     batches?: number;
+    /** °C of what the unit holds at the end of the run. */
+    temperatureC: number;
+    /** Volume-weighted °C of everything it sent on. Absent if it sent nothing. */
+    averageOutletTemperatureC?: number;
   };
+  /** Heat exchangers with a target temperature, and batch reactors with a reaction temperature. */
+  heat?: HeatReport;
+}
+
+export interface HeatReport {
+  /** Heat moved over the run, kWh (heating and cooling both count). */
+  energyKwh: number;
+  /** Heat exchangers: the outlet temperature it is set to reach. */
+  targetTemperatureC?: number;
+  /** Heat exchangers: average duty while liquid was flowing through, kW. */
+  averageDutyKw?: number;
+  /** Heat exchangers: the rated duty, kW. Absent if none is set (unlimited). */
+  ratedDutyKw?: number;
+  /** Heat exchangers: share of flowing time the rated duty was too small to reach the target. */
+  dutyLimitedPercentage?: number;
+  /** Batch reactors: the jacket duty, kW. Absent if none is set (batches reach temperature at once). */
+  jacketDutyKw?: number;
+  /** Batch reactors: time spent bringing batches to reaction temperature. */
+  heatingTimeSeconds?: number;
 }
 
 /** One feed, product, byproduct or waste arrow's totals over the run. */
@@ -74,6 +99,8 @@ export interface TerminalReport {
   units: number;
   /** Gallons supplied or received. */
   gallons: number;
+  /** Liquid outlets: volume-weighted °C of what arrived. Liquid feeds: °C supplied. */
+  temperatureC?: number;
 }
 
 export interface SimulationResult {

@@ -227,6 +227,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
                     ? [{ label: 'Full', value: `${Math.round(live.levelFraction * 100)}%` }]
                     : []),
                   { label: 'Flowing out (gpm)', value: Math.round((live.flowGpm ?? 0) * 10) / 10 },
+                  ...(live.temperatureC !== undefined ? [{ label: 'Temperature (°C)', value: Math.round(live.temperatureC) }] : []),
                   ...(node.kind === 'BATCH_REACTOR'
                     ? [
                         { label: 'Batches done', value: live.unitsProduced },

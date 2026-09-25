@@ -1,6 +1,6 @@
 import { bottleneckAdvice } from './bottleneckAdvice.js';
 import { validateProcessGraph, type ProcessGraph } from '@process-forge/protocol';
-import { SimulationEngine, type TerminalReport } from '@process-forge/simulation-core';
+import { SimulationEngine, type HeatReport, type MachineOeeReport, type TerminalReport } from '@process-forge/simulation-core';
 import { AVAILABLE_TEMPLATES } from '../templates.js';
 
 export interface SimulateLineParams {
@@ -26,8 +26,10 @@ export interface SimulationResultPayload {
     scrapped: number;
     starvedSeconds: number;
     blockedSeconds: number;
-    /** Reactors, tanks, pumps: gallons in, out and held at the end. */
-    liquid?: { receivedGallons: number; deliveredGallons: number; levelGallons: number; batches?: number };
+    /** Reactors, tanks, pumps: gallons in, out and held at the end, and temperatures. */
+    liquid?: NonNullable<MachineOeeReport['fluid']>;
+    /** Heat exchangers with a target, and reactors with a reaction temperature: the heat they moved. */
+    heat?: HeatReport;
   }>;
   /** Feeds, products, byproducts and waste: what came in and went out, and where. */
   streams: TerminalReport[];
@@ -67,9 +69,28 @@ export function executeSimulateLine(params: SimulateLineParams): SimulationResul
       scrapped: report?.unitsScrapped ?? 0,
       starvedSeconds: Math.round((report?.starvedTimeSeconds ?? 0) * 10) / 10,
       blockedSeconds: Math.round((report?.blockedTimeSeconds ?? 0) * 10) / 10,
-      ...(report?.fluid ? { liquid: report.fluid } : {})
+      ...(report?.fluid ? { liquid: report.fluid } : {}),
+      ...(report?.heat ? { heat: report.heat } : {})
     };
   });
+
+  // Heat that holds the line back, or misses its target.
+  const heatNotes = graphToRun.nodes.flatMap((node) => {
+    const h = result.nodeReports[node.id]?.heat;
+    if (!h) return [];
+    if (h.dutyLimitedPercentage !== undefined && h.dutyLimitedPercentage > 5 && h.targetTemperatureC !== undefined) {
+      const out = result.nodeReports[node.id]?.fluid?.averageOutletTemperatureC;
+      return [
+        `"${node.name}" is short of duty ${Math.round(h.dutyLimitedPercentage)}% of the time: it runs at its ${h.ratedDutyKw} kW and the liquid leaves at ${out ?? '?'} °C on average against a ${h.targetTemperatureC} °C target. Raise its duty, or slow the flow through it.`
+      ];
+    }
+    if (h.heatingTimeSeconds !== undefined && h.heatingTimeSeconds > 0) {
+      const share = Math.round((h.heatingTimeSeconds / (duration * 60)) * 100);
+      return share >= 10 ? [`"${node.name}" spent ${share}% of the run heating batches on its ${h.jacketDutyKw} kW jacket; a larger jacket shortens every batch.`] : [];
+    }
+    return [];
+  });
+  const heat = heatNotes.length ? ` ${heatNotes.join(' ')}` : '';
 
   const liquid = result.totalFluidDeliveredGallons > 0 ? ` ${result.totalFluidDeliveredGallons} gal of liquid product left the line.` : '';
   const amount = (t: TerminalReport) => (t.carries === 'items' ? `${t.units} items` : `${t.gallons} gal`);
@@ -77,7 +98,7 @@ export function executeSimulateLine(params: SimulateLineParams): SimulationResul
   const side = sides.length ? ` Also out: ${sides.map((t) => `${amount(t)} of ${t.material} as ${t.role}`).join('; ')}.` : '';
   const feeds = result.terminals.filter((t) => t.role === 'feed');
   const fed = feeds.length ? ` Fed: ${feeds.map((t) => `${amount(t)} of ${t.material}`).join('; ')}.` : '';
-  const diagnosis = `Simulated ${duration} minutes: ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.${liquid}${fed}${side} ${bottleneckAdvice(bottleneckNode, validation.bottlenecks.maximumSystemThroughputUnitsPerMin)}`;
+  const diagnosis = `Simulated ${duration} minutes: ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.${liquid}${fed}${side}${heat} ${bottleneckAdvice(bottleneckNode, validation.bottlenecks.maximumSystemThroughputUnitsPerMin)}`;
 
   return {
     success: true,
