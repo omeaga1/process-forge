@@ -30,6 +30,8 @@ export interface SimulationResultPayload {
     liquid?: NonNullable<MachineOeeReport['fluid']>;
     /** Heat exchangers with a target, and reactors with a reaction temperature: the heat they moved. */
     heat?: HeatReport;
+    /** Designed continuous units: constraints broken at the conditions they actually saw. */
+    designedUnit?: MachineOeeReport['designedUnit'];
   }>;
   /** Feeds, products, byproducts and waste: what came in and went out, and where. */
   streams: TerminalReport[];
@@ -70,8 +72,18 @@ export function executeSimulateLine(params: SimulateLineParams): SimulationResul
       starvedSeconds: Math.round((report?.starvedTimeSeconds ?? 0) * 10) / 10,
       blockedSeconds: Math.round((report?.blockedTimeSeconds ?? 0) * 10) / 10,
       ...(report?.fluid ? { liquid: report.fluid } : {}),
-      ...(report?.heat ? { heat: report.heat } : {})
+      ...(report?.heat ? { heat: report.heat } : {}),
+      ...(report?.designedUnit ? { designedUnit: report.designedUnit } : {})
     };
+  });
+
+  // Designed units that broke an ERROR constraint at the conditions they saw.
+  const designNotes = graphToRun.nodes.flatMap((node) => {
+    const d = result.nodeReports[node.id]?.designedUnit;
+    const bad = d?.brokenConstraints.filter((c) => c.severity === 'ERROR') ?? [];
+    const failed = d?.evaluationError ? [`its design failed to evaluate for ${d.evaluationErrorSeconds} s (${d.evaluationError})`] : [];
+    const reasons = [...bad.map((c) => `"${c.message}" for ${c.seconds} s`), ...failed];
+    return reasons.length ? [`Designed unit "${node.name}" at the conditions it actually got: ${reasons.join('; ')}. Revise it with validate_unit_op at those conditions (designInlet).`] : [];
   });
 
   // Heat that holds the line back, or misses its target.
@@ -90,7 +102,7 @@ export function executeSimulateLine(params: SimulateLineParams): SimulationResul
     }
     return [];
   });
-  const heat = heatNotes.length ? ` ${heatNotes.join(' ')}` : '';
+  const heat = [...heatNotes, ...designNotes].length ? ` ${[...heatNotes, ...designNotes].join(' ')}` : '';
 
   const liquid = result.totalFluidDeliveredGallons > 0 ? ` ${result.totalFluidDeliveredGallons} gal of liquid product left the line.` : '';
   const amount = (t: TerminalReport) => (t.carries === 'items' ? `${t.units} items` : `${t.gallons} gal`);

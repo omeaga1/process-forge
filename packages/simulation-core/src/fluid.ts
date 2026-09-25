@@ -1,6 +1,7 @@
 import {
   AMBIENT_C,
   LITERS_PER_GALLON,
+  evaluateUnitOp,
   fluidOf,
   fluidProperties,
   heatKj,
@@ -77,6 +78,35 @@ export interface FluidUnit {
   inbox: number;
   /** Gallon-degrees arriving this tick, so the inbox can be mixed. */
   inboxHeat: number;
+  /** Gallons a designed unit's outlet shares did not account for: steam off a vent, water off a dryer. */
+  lostGallons: number;
+  /** A designed unit: its contract, and what it last evaluated to at live inlet conditions. */
+  contract?: UnitOpContract;
+  live?: LiveContract;
+  /** Seconds each constraint was broken during the run, and evaluation failures. */
+  contractRun?: ContractRunTally;
+}
+
+export interface LiveContract {
+  capacityGpm?: number;
+  dutyKw?: number;
+  outlets: Record<string, { share?: number; temperatureC?: number }>;
+  /** A cycle unit: gallons each cycle draws. */
+  liquidPerCycleGallons?: number;
+}
+
+export interface ContractRunTally {
+  evaluations: number;
+  broken: Record<string, { message: string; severity: 'ERROR' | 'WARNING'; seconds: number }>;
+  /** The first live evaluation that failed, and for how long evaluation failed. */
+  firstError?: string;
+  errorSeconds: number;
+}
+
+interface Outlet {
+  target: FluidUnit;
+  share: number;
+  temp?: number;
 }
 
 export interface HeatTally {
@@ -108,9 +138,31 @@ export function isFluidEdge(edge: ProcessEdge, graph: ProcessGraph): boolean {
   return (edge.stream as { type?: string } | undefined)?.type === 'CONTINUOUS_FLUID';
 }
 
+function contractOf(node: ProcessNode): UnitOpContract | undefined {
+  return (node.config as { contract?: UnitOpContract }).contract;
+}
+
 function hasDiscreteContract(node: ProcessNode): boolean {
-  const contract = (node.config as { contract?: UnitOpContract }).contract;
-  return contract?.behavior.mode === 'DISCRETE_CYCLE';
+  return contractOf(node)?.behavior.mode === 'DISCRETE_CYCLE';
+}
+
+/** A designed cycle unit that draws liquid each cycle. */
+function drawsLiquid(node: ProcessNode): boolean {
+  const b = contractOf(node)?.behavior;
+  return b?.mode === 'DISCRETE_CYCLE' && Boolean(b.liquidPerCycleGallons);
+}
+
+/** What a contract evaluates to, in the terms the liquid step uses. */
+function liveOf(ev: ReturnType<typeof evaluateUnitOp>): LiveContract {
+  const b = ev.behavior;
+  const live: LiveContract = { outlets: ev.outlets ?? {} };
+  if (b.mode === 'CONTINUOUS_RATE') {
+    if (b.capacityGpm !== undefined) live.capacityGpm = b.capacityGpm;
+    if (b.dutyKw !== undefined) live.dutyKw = b.dutyKw;
+  } else if (b.liquidPerCycleGallons !== undefined) {
+    live.liquidPerCycleGallons = b.liquidPerCycleGallons;
+  }
+  return live;
 }
 
 export class FluidNetwork {
@@ -138,8 +190,14 @@ export class FluidNetwork {
       } else if (node.kind === 'BATCH_REACTOR') role = 'reactor';
       else if (node.kind === 'SURGE_TANK' && touches(node.id)) role = 'tank';
       else if (node.kind === 'ROTARY_FILLER' && this.inEdges.has(node.id)) role = 'filler';
+      // A designed cycle unit fed by a pipe draws its liquid each cycle, as a filler does.
+      else if (drawsLiquid(node) && this.inEdges.has(node.id)) role = 'filler';
       else if (PASS_KINDS.has(node.kind) && touches(node.id) && !hasDiscreteContract(node)) role = 'pass';
       if (!role) continue;
+
+      const contract = contractOf(node);
+      const designEval = contract ? evaluateUnitOp(contract) : undefined;
+      const live = designEval && !designEval.error ? liveOf(designEval) : undefined;
 
       let capacity = Infinity;
       let level = 0;
@@ -150,7 +208,7 @@ export class FluidNetwork {
         capacity = Math.max(EPS, num(c.batchVolumeGallons, 800));
       } else if (role === 'filler') {
         // The bowl holds two cycles' worth, so the next cycle can be ready.
-        capacity = Math.max(EPS, fillerDemandGallons(node) * 2);
+        capacity = Math.max(EPS, (live?.liquidPerCycleGallons ?? fillerDemandGallons(node)) * 2);
       }
       const tempC =
         role === 'feed'
@@ -177,6 +235,9 @@ export class FluidNetwork {
         accept: 0,
         inbox: 0,
         inboxHeat: 0,
+        lostGallons: 0,
+        ...(contract ? { contract, contractRun: { evaluations: 0, broken: {}, errorSeconds: 0 } } : {}),
+        ...(live ? { live } : {}),
         ...(role === 'reactor' ? { phase: 'FILLING' as const } : {})
       });
     }
@@ -196,6 +257,13 @@ export class FluidNetwork {
   /** A node's inbound pipes carry liquid it does not step (e.g. a designed cycle unit). */
   hasFluidInlet(nodeId: string): boolean {
     return this.inEdges.has(nodeId);
+  }
+
+  /** Gallons one cycle of a pipe-fed unit draws: a filler's nozzles, or a designed unit's liquidPerCycleGallons. */
+  drawPerCycle(nodeId: string): number {
+    const u = this.units.get(nodeId);
+    if (!u) return 0;
+    return u.live?.liquidPerCycleGallons ?? fillerDemandGallons(u.node);
   }
 
   bowl(nodeId: string): number {
@@ -235,7 +303,45 @@ export class FluidNetwork {
       u.heat.activeSeconds += dt;
       if (Math.abs(needKw) > duty * (1 + 1e-9) + 1e-9) u.heat.limitedSeconds += dt;
     }
+    if (u.contract?.behavior.mode === 'CONTINUOUS_RATE') this.evaluateLive(u, tin, dt);
     u.tempC = (u.level * u.tempC + u.inbox * tout) / (u.level + u.inbox);
+  }
+
+  /**
+   * A designed continuous unit, evaluated at what is flowing in this tick:
+   * its capacity, duty and outlet shares and temperatures follow the live
+   * stream, and every constraint it breaks is timed. A failed evaluation
+   * keeps the last good one and is reported.
+   */
+  private evaluateLive(u: FluidUnit, tinC: number, dt: number): void {
+    const { density, cp } = this.properties(u);
+    const run = u.contractRun!;
+    const ev = evaluateUnitOp(u.contract!, {
+      inlet: {
+        temperatureC: tinC,
+        volumetricFlowGpm: (u.inbox / dt) * 60,
+        massFlowKgPerS: (u.inbox / dt) * LITERS_PER_GALLON * density,
+        densityGPerCm3: density,
+        specificHeatKjPerKgK: cp
+      }
+    });
+    run.evaluations++;
+    if (ev.error) {
+      run.errorSeconds += dt;
+      if (!run.firstError) run.firstError = `${ev.error.path}: ${ev.error.message}`;
+      return;
+    }
+    for (const c of ev.constraints) {
+      if (c.satisfied) continue;
+      const t = run.broken[c.id] ?? (run.broken[c.id] = { message: c.message, severity: c.severity, seconds: 0 });
+      t.seconds += dt;
+    }
+    u.live = liveOf(ev);
+    const duty = u.live.dutyKw;
+    if (duty !== undefined) {
+      u.heat.energyKwh += (Math.abs(duty) * dt) / 3600;
+      u.heat.activeSeconds += dt;
+    }
   }
 
   /** Adds `gallons` at `tempC` to a unit, mixed with what it already holds. */
@@ -276,9 +382,10 @@ export class FluidNetwork {
   }
 
   /** The fluid targets of a unit's pipes, with the share of its outflow each gets. */
-  private outlets(u: FluidUnit): { target: FluidUnit; share: number }[] {
+  private outlets(u: FluidUnit): Outlet[] {
     const edges = (this.outEdges.get(u.id) ?? []).filter((e) => this.units.has(e.targetNodeId));
     if (edges.length === 0) return [];
+    if (this.hasOutletPlan(u)) return this.contractOutlets(u, edges).outs;
     if (u.node.kind === 'SEPARATOR' && edges.length >= 2) {
       // The first outlet port is the vapor overhead; the rest share the bottoms.
       const ratio = Math.min(1, Math.max(0, num((u.node.config as Record<string, unknown>).vaporSplitRatio, 0.25)));
@@ -295,6 +402,43 @@ export class FluidNetwork {
     return edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, share: 1 / edges.length }));
   }
 
+  private hasOutletPlan(u: FluidUnit): boolean {
+    return Boolean(u.live && Object.keys(u.live.outlets).length);
+  }
+
+  /**
+   * A designed unit's outflow, by its declared outlet shares. Outlets with no
+   * share split what the declared ones leave; a declared outlet with no pipe
+   * sends its share out of the line; whatever no outlet takes is lost (vented,
+   * evaporated).
+   */
+  private contractOutlets(u: FluidUnit, edges: ProcessEdge[]): { outs: Outlet[]; unpipedShare: number; lossShare: number } {
+    const plan = u.live!.outlets;
+    const piped = new Map<string, ProcessEdge[]>();
+    for (const e of edges) {
+      const list = piped.get(e.sourcePortId) ?? [];
+      list.push(e);
+      piped.set(e.sourcePortId, list);
+    }
+    const declared = Object.values(plan).reduce((sum, o) => sum + (o.share ?? 0), 0);
+    const open = [...piped.keys()].filter((port) => plan[port]?.share === undefined);
+    const rest = Math.max(0, 1 - declared);
+    const outs: Outlet[] = [];
+    let pipedShare = 0;
+    for (const [port, list] of piped) {
+      const share = plan[port]?.share ?? (open.length ? rest / open.length : 0);
+      pipedShare += share;
+      const temp = plan[port]?.temperatureC;
+      for (const e of list) {
+        outs.push({ target: this.units.get(e.targetNodeId)!, share: share / list.length, ...(temp !== undefined ? { temp } : {}) });
+      }
+    }
+    const unpipedShare = Object.entries(plan)
+      .filter(([port]) => !piped.has(port))
+      .reduce((sum, [, o]) => sum + (o.share ?? 0), 0);
+    return { outs, unpipedShare, lossShare: Math.max(0, 1 - pipedShare - unpipedShare) };
+  }
+
   /** The design flow of a unit's outlet pipes, gal/min (45 each by default). */
   private pipeDesignGpm(u: FluidUnit): number {
     return (this.outEdges.get(u.id) ?? []).reduce((sum, e) => {
@@ -306,6 +450,10 @@ export class FluidNetwork {
   /** Gallons per second a pass-through unit can move. */
   private passRate(u: FluidUnit): number {
     const c = u.node.config as Record<string, unknown>;
+    if (u.contract?.behavior.mode === 'CONTINUOUS_RATE') {
+      const cap = u.live?.capacityGpm;
+      return cap === undefined ? Infinity : Math.max(0, cap) / 60;
+    }
     const gpm =
       u.node.kind === 'PUMP'
         ? c.designFlowRateGpm
@@ -420,19 +568,33 @@ export class FluidNetwork {
         // A feed with no supply rate into units with no limit of their own
         // (an unrated mixer, an outlet): the pipes' design flow is the limit.
         if (!Number.isFinite(total)) total = this.pipeDesignGpm(u) / 60 * dt;
+        let degrees = 0;
+        let piped = 0;
         for (const o of outs) {
           const x = total * o.share;
           if (x <= 0) continue;
           remaining.set(o.target.id, remaining.get(o.target.id)! - x);
           o.target.receivedGallons += x;
           o.target.inRate += x / dt;
-          this.receive(o.target, x, u.tempC);
+          const t = o.temp ?? u.tempC;
+          this.receive(o.target, x, t);
+          degrees += x * t;
+          piped += x;
         }
         sent = total;
+        if (this.hasOutletPlan(u)) {
+          // A designed unit's unclaimed remainder is lost; a declared outlet with no pipe leaves the line.
+          const split = this.contractOutlets(u, (this.outEdges.get(u.id) ?? []).filter((e) => this.units.has(e.targetNodeId)));
+          u.leftLineGallons += total * split.unpipedShare;
+          u.lostGallons += total * split.lossShare;
+        }
+        u.heat.sentGallons += piped;
+        u.heat.sentGallonDegrees += degrees;
       }
-
-      u.heat.sentGallons += sent;
-      u.heat.sentGallonDegrees += sent * u.tempC;
+      if (outs.length === 0) {
+        u.heat.sentGallons += sent;
+        u.heat.sentGallonDegrees += sent * u.tempC;
+      }
       u.deliveredGallons += sent;
       u.outRate = sent / dt;
       if (u.role === 'pass') u.level = Math.max(0, offer - sent);

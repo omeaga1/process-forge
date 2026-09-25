@@ -46,14 +46,35 @@ dynamically (see [the bottleneck guide](../guides/diagnosing-bottlenecks.md)).
 
 ## Contract behavior
 
+A designed unit is first evaluated at its `designInlet` (the conditions
+`validate_unit_op` checks it at); an ERROR constraint that fails there stops
+the run from starting.
+
 - `DISCRETE_CYCLE`: the unit processes `unitsPerCycle` every `cycleSeconds`,
-  scrapping `scrapFraction` of them. All three are expressions evaluated once
-  before the run. A unit with no inbound stream is a source and starts
-  immediately; others wait for input. It blocks when downstream buffers are
-  full, like the filler.
-- `CONTINUOUS_RATE`: `throughputPerMinute` (and optionally `dutyKw` and
-  `residenceTimeSeconds`) are evaluated at steady state. The engine does not
-  integrate anything over time.
+  scrapping `scrapFraction` of them. A unit with no inbound item stream is a
+  source and starts immediately; others wait for input. It blocks when
+  downstream buffers are full, like the filler. With `liquidPerCycleGallons`
+  and a liquid inlet pipe, each cycle draws that much from its bowl (which
+  holds two cycles' worth) and waits, starved, until it is there.
+- `CONTINUOUS_RATE`: the unit is a pass-through in the liquid step, and is
+  re-evaluated every tick at the stream that actually reaches it:
+  `inlet.temperatureC`, `inlet.volumetricFlowGpm`, `inlet.massFlowKgPerS`,
+  `inlet.densityGPerCm3` and `inlet.specificHeatKjPerKgK`, with any value the
+  engine cannot measure taken from `designInlet`.
+  - `capacityGpm` caps the flow through it, like a pump's design flow.
+  - `outlets[]` gives each outlet port a `share` and a `temperatureC`. Ports
+    without a share split the remainder; a declared port with no pipe sends
+    its share out of the line; what no port takes is lost (`lostGallons`),
+    and not counted as output.
+  - `dutyKw` is integrated into `heat.energyKwh`.
+  - Every constraint broken at live conditions is timed and reported in
+    `designedUnit.brokenConstraints`; a failed live evaluation keeps the last
+    good values and is reported as `evaluationError`.
+  - `throughputPerMinute` is in whatever unit the contract states, and is
+    only reported.
+
+  It evaluates algebraic relations each second; it does not integrate
+  holdup, so a designed unit holds no liquid of its own.
 
 ## OEE
 
@@ -190,9 +211,8 @@ filler's container volume.
 - **Heat:** there are no utility streams (steam, cooling water) and no heat
   losses. An exchanger's duty is a fixed ceiling, not computed from area and
   LMTD, and a reactor does not cool its batch before discharging.
-- **Continuous designed units:** a designed continuous unit (CONTINUOUS_RATE)
-  is checked at steady state, but it does not limit the flow.
-- **Liquid-fed cycle units:** a designed cycle unit fed by a liquid pipe does
-  not draw the liquid down. It starts each cycle on its own.
+- **Designed units:** no holdup or batch phases of their own, no component
+  compositions on streams, and item units still take one item per unit (no
+  N-in, M-out assembly). A designed cycle unit's inputs are not read live.
 - **Breakdowns on liquid units:** only machines that make or move whole items
   break down. Reactors, tanks and pumps do not.
