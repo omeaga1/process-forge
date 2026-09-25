@@ -17,3 +17,4 @@ export * from './decisions/heuristic.js';
 export * from './decisions/questions.js';
 export * from './decisions/jev.js';
 export * from './decisions/fixtures.js';
+export * from './connect.js';

@@ -162,6 +162,30 @@ describe('Web Studio Local Storage Adapter', () => {
     assert.strictEqual(loadLocalProject(old.id)?.name, 'Saved by 0.1.20');
   });
 
+  it('a deleted project stays deleted, even one an older version saved', () => {
+    const old = createSimulationProject('Old save', testGraph);
+    const open = createSimulationProject('Open one', testGraph);
+    localStorage.setItem('pf_cloud_projects_local', JSON.stringify([{ id: old.id, bundle: old }]));
+    saveLocalProject(open);
+    assert.ok(listLocalProjects().some((p) => p.id === old.id), 'the old save is brought in');
+
+    deleteLocalProject(old.id);
+    assert.ok(!listLocalProjects().some((p) => p.id === old.id), 'and stays gone after deleting it');
+    assert.ok(!listLocalProjects().some((p) => p.id === old.id), 'on every later listing');
+  });
+
+  it('brings in an old save whose header was kept without the project', () => {
+    const old = createSimulationProject('Header only', testGraph);
+    localStorage.setItem(
+      'pf_saved_projects',
+      JSON.stringify([{ id: old.id, name: old.name, description: '', updatedAt: old.updatedAt, isGuestProject: true, nodeCount: 1 }])
+    );
+    localStorage.setItem('pf_cloud_projects_local', JSON.stringify([{ id: old.id, bundle: old }]));
+    assert.strictEqual(loadLocalProject(old.id)?.name, undefined, 'not openable before listing');
+    listLocalProjects();
+    assert.strictEqual(loadLocalProject(old.id)?.name, 'Header only');
+  });
+
   it('does not list headers whose project copy is gone', () => {
     localStorage.setItem(
       'pf_saved_projects',

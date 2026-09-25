@@ -15,6 +15,7 @@ server does no model inference itself: your MCP client is the model.
 | `validate_unit_op` | Checks a contract through the engine's gates: schema, every expression resolves, every ERROR constraint holds, and the drawing gives every port a nozzle. Returns the failures to fix. Accepts parameter overrides to test another operating point. |
 | `get_open_flowsheet` | Reads the flowsheet open in ProcessForge Desktop on this computer. |
 | `add_unit_op_to_flowsheet` | Validates a contract and adds it to the flowsheet open in ProcessForge Desktop, drawn from its contract with pipes attaching at its nozzles. |
+| `add_stream` | Pipes one unit into another on the open flowsheet (by unit id, name or tag), choosing ports that fit: liquid to liquid, items to items. |
 | `simulate_process_line` | Runs the discrete-event simulation on a built-in template or a graph you pass. Returns throughput, scrap, per-unit states and the bottleneck. |
 | `diagnose_bottlenecks` | Runs graph validation on a template or graph: port and flow-dimension errors, the capacity bottleneck, and fixed recommendations (for example, add an accumulation conveyor). |
 | `list_digital_twin_templates` | Lists the built-in example lines (a paint canning line and a beverage bottling line). |
@@ -27,7 +28,7 @@ server does no model inference itself: your MCP client is the model.
 1. Open ProcessForge Desktop (0.1.18 or later) and the flowsheet you are working on.
 2. In your MCP client, describe the equipment, e.g. "a rotary drum dryer for wet road salt, counter-current hot air".
 3. The client calls `design_unit_op`, writes the contract (its physics and its drawing), and calls `validate_unit_op` until the engine accepts it.
-4. It calls `add_unit_op_to_flowsheet`. The unit appears on your canvas, drawn as designed, with a nozzle for each stream. Pipe it up like any other unit.
+4. It calls `add_unit_op_to_flowsheet`. The unit appears on your canvas, drawn as designed, with a nozzle for each stream. It then calls `add_stream` to pipe it to the units it connects to, or you pipe it up yourself.
 
 Without the desktop app running, step 4 tells the client so, and it can give you the contract JSON to paste into **Design a unit op** instead.
 

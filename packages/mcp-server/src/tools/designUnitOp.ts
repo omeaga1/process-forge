@@ -222,6 +222,6 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     cycleExample: FDM_PRINTER_CONTRACT,
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:
-      'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'
+      'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'
   };
 }

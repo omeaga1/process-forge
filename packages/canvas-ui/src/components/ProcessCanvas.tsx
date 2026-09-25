@@ -15,9 +15,9 @@ import {
   ConnectionLineType
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen } from 'lucide-react';
+import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
 
-import { validateProcessGraph, type ProcessGraph, type ProcessNode, type ProcessEdge } from '@process-forge/protocol';
+import { validateProcessGraph, defaultStreamFor, type ProcessGraph, type ProcessNode, type ProcessEdge } from '@process-forge/protocol';
 import { SimulationEngine, type SimulationResult, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 
 import { IndustrialNode } from './nodes/IndustrialNode.js';
@@ -468,32 +468,16 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       const sourceNode = graphRef.current.nodes.find((n) => n.id === connection.source);
       const sourcePort =
         sourceNode?.outputs.find((p) => p.id === connection.sourceHandle) ?? sourceNode?.outputs[0];
-      const discrete = String(sourcePort?.flowDimension ?? '').startsWith('DISCRETE');
+      // The same default stream an MCP client's add_stream gets (protocol/connect.ts).
       const newEdge: ProcessEdge = {
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
         sourceNodeId: connection.source,
         targetNodeId: connection.target,
         sourcePortId: connection.sourceHandle || 'out-1',
         targetPortId: connection.targetHandle || 'in-1',
-        stream: discrete
-          ? {
-              type: 'DISCRETE_CONTAINER_STREAM',
-              targetPiecesPerMinute: 40,
-              containerVolumeGallons: 1,
-              containerType: 'CAN_1_GAL'
-            }
-          : {
-              type: 'CONTINUOUS_FLUID',
-              designFlowRateGpm: 45,
-              operatingPressurePsi: 30,
-              pipeDiameterInches: 2.0,
-              fluid: {
-                name: 'Process Fluid',
-                densityGPerCm3: 1.0,
-                viscosityCentipoise: 1.0,
-                temperatureCelsius: 20
-              }
-            }
+        stream: defaultStreamFor(
+          sourcePort ?? { id: 'out-1', name: 'out', type: 'DISCRETE_OUTPUT', flowDimension: 'DISCRETE_CONTAINER' }
+        )
       };
       updateGraph((prev) => {
         const nextGraph = {
@@ -569,6 +553,14 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       updateGraph((prev) => ({ ...prev, nodes: [...prev.nodes, copy] }));
       setNodes((nds) => nds.map((n) => ({ ...n, selected: false })));
       setPopOutNodeId(copy.id);
+    },
+    [updateGraph]
+  );
+
+  const [renamingNodeId, setRenamingNodeId] = useState<string | null>(null);
+  const renameNode = useCallback(
+    (nodeId: string, name: string) => {
+      updateGraph((prev) => ({ ...prev, nodes: prev.nodes.map((n) => (n.id === nodeId ? { ...n, name } : n)) }));
     },
     [updateGraph]
   );
@@ -1188,6 +1180,16 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               {(contextMenu.kind === 'node'
                 ? [
                     { label: 'Open in studio', shortcut: '', icon: <SquarePen size={14} />, danger: false, run: () => setPopOutNodeId(contextMenu.id) },
+                    {
+                      label: 'Rename',
+                      shortcut: '',
+                      icon: <Pencil size={14} />,
+                      danger: false,
+                      run: () => {
+                        setPopOutNodeId(contextMenu.id);
+                        setRenamingNodeId(contextMenu.id);
+                      }
+                    },
                     { label: 'Duplicate', shortcut: 'Ctrl+D', icon: <Copy size={14} />, danger: false, run: () => duplicateNode(contextMenu.id) },
                     { label: 'Delete unit', shortcut: 'Del', icon: <Trash2 size={14} />, danger: true, run: () => deleteElements([contextMenu.id]) }
                   ]
@@ -1255,6 +1257,9 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         onClose={() => setPopOutNodeId(null)}
         onDelete={(id) => deleteElements([id])}
         onDuplicate={duplicateNode}
+        onRename={renameNode}
+        startRenaming={renamingNodeId !== null && renamingNodeId === popOutNodeId}
+        onRenameStarted={() => setRenamingNodeId(null)}
         graph={graph}
         bottleneckNodeId={telemetry.activeBottleneck ?? telemetry.bottlenecks.bottleneckNodeId}
         live={popOutNodeId && simResult ? snapshotByNode.get(popOutNodeId) : undefined}
