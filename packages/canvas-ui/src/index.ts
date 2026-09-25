@@ -1,6 +1,7 @@
 export * from './types.js';
 export * from './templates/sherwinWilliamsPaintLine.js';
 export * from './components/nodes/IndustrialNode.js';
+export * from './components/nodes/TerminalNode.js';
 export * from './components/edges/AnimatedStreamEdge.js';
 export * from './components/studio/UnitOpPopOutStudio.js';
 export * from './components/dock/MasterOrchestratorDock.js';
