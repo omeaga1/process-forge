@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { executeValidateUnitOp, type ProcessNode, type ValidateUnitOpResult } from '@process-forge/protocol';
+import { executeValidateUnitOp, type FlowsheetEdit, type ProcessNode, type ValidateUnitOpResult } from '@process-forge/protocol';
 
 /**
  * Talks to the running ProcessForge desktop app, so a unit op designed in the
@@ -174,4 +174,20 @@ export async function executeAddNode(node: ProcessNode, options: AddNodeOptions 
   if (options.connectFrom) streams.push(await executeAddStream({ from: options.connectFrom, to: added.nodeId }));
   if (options.connectTo) streams.push(await executeAddStream({ from: added.nodeId, to: options.connectTo }));
   return { success: true, ...r.body, ...(streams.length ? { streams } : {}) };
+}
+
+/**
+ * Changes a unit's settings or name, removes a unit, or removes a stream on
+ * the open flowsheet. The app applies it with the same rules as
+ * applyFlowsheetEdit (protocol/edit.ts), so a rejected edit changes nothing.
+ */
+export async function executeFlowsheetEdit(edit: FlowsheetEdit): Promise<Record<string, unknown>> {
+  const r = await call('POST', '/v1/edits', edit);
+  if (!r.ok) return { success: false, changed: false, error: r.reason };
+  if (r.status === 202) return { success: true, changed: false, queued: true, message: r.body?.message };
+  if (r.status === 404) {
+    return { success: false, changed: false, error: 'This ProcessForge Desktop is too old to edit the flowsheet from an MCP client. Update it (0.1.33 or later).' };
+  }
+  if (r.status !== 200) return { success: false, changed: false, error: r.body?.error ?? `HTTP ${r.status}` };
+  return { success: Boolean(r.body?.changed), ...r.body };
 }

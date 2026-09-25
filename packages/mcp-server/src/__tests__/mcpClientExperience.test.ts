@@ -35,8 +35,17 @@ describe('What any MCP client sees', () => {
       assert.equal(typeof t.annotations?.readOnlyHint, 'boolean', `${t.name} says if it is read-only`);
     }
     const writes = tools.filter((t) => !t.annotations?.readOnlyHint).map((t) => t.name).sort();
-    assert.deepEqual(writes, ['add_community_unit_op', 'add_standard_unit_op', 'add_stream', 'add_unit_op_to_flowsheet']);
-    assert.ok(tools.every((t) => t.annotations?.destructiveHint === false), 'nothing deletes');
+    assert.deepEqual(writes, [
+      'add_community_unit_op',
+      'add_standard_unit_op',
+      'add_stream',
+      'add_unit_op_to_flowsheet',
+      'remove_stream',
+      'remove_unit',
+      'update_unit'
+    ]);
+    const destructive = tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name).sort();
+    assert.deepEqual(destructive, ['remove_stream', 'remove_unit'], 'only the removals delete');
   });
 
   it('returns structured content alongside the text', async () => {

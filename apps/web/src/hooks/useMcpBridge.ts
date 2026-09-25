@@ -4,6 +4,8 @@ import {
   UnitOpContractSchema,
   planStream,
   addStreamToGraph,
+  applyFlowsheetEdit,
+  type FlowsheetEdit,
   ProcessNodeSchema,
   type ProcessEdge,
   type ProcessGraph,
@@ -36,7 +38,9 @@ type PendingRequest =
   | { id: string; kind?: 'unit-op'; request: { contract: unknown; position?: { x: number; y: number } } }
   | { id: string; kind: 'stream'; request: StreamRequest }
   /** A whole unit, built by the MCP server: a standard one, a feed or outlet, or one from the community library. */
-  | { id: string; kind: 'node'; request: { node: unknown; position?: { x: number; y: number }; source?: string } };
+  | { id: string; kind: 'node'; request: { node: unknown; position?: { x: number; y: number }; source?: string } }
+  /** A change to what is on the flowsheet: settings, a rename, a removal. */
+  | { id: string; kind: 'edit'; request: FlowsheetEdit };
 
 /** To the right of everything on the canvas, level with the flowsheet's middle. */
 function placeNextTo(graph: ProcessGraph): { x: number; y: number } {
@@ -55,7 +59,8 @@ export function useMcpBridge(
   projectName: string,
   graph: ProcessGraph,
   insertNode: (node: ProcessNode) => void,
-  insertEdge: (edge: ProcessEdge) => void
+  insertEdge: (edge: ProcessEdge) => void,
+  replaceGraph: (graph: ProcessGraph) => void
 ): { lastArrival: BridgeArrival | null; dismiss: () => void } {
   const [lastArrival, setLastArrival] = useState<BridgeArrival | null>(null);
   const graphRef = useRef(graph);
@@ -64,6 +69,8 @@ export function useMcpBridge(
   insertRef.current = insertNode;
   const insertEdgeRef = useRef(insertEdge);
   insertEdgeRef.current = insertEdge;
+  const replaceRef = useRef(replaceGraph);
+  replaceRef.current = replaceGraph;
 
   // Share the open flowsheet, a moment after it stops changing.
   useEffect(() => {
@@ -138,8 +145,30 @@ export function useMcpBridge(
       };
     };
 
+    // Same rules as the what-if tool (protocol/edit.ts); a rejected edit changes nothing.
+    const handleEdit = (request: FlowsheetEdit) => {
+      const r = applyFlowsheetEdit(graphRef.current, request);
+      if (!r.ok) return { changed: false, error: r.error };
+      replaceRef.current(r.graph);
+      graphRef.current = r.graph;
+      window.dispatchEvent(
+        new CustomEvent(MCP_ACTIVITY_EVENT, {
+          detail: { name: r.message.replace(/\.$/, ''), nodeId: request.op === 'update-unit' ? r.unit?.id : undefined, at: Date.now() }
+        })
+      );
+      return {
+        changed: true,
+        message: `${r.message} Undo is on the canvas.`,
+        ...(r.unit ? { unit: r.unit } : {}),
+        ...(r.changes ? { changes: r.changes } : {}),
+        ...(r.removedStreams ? { removedStreams: r.removedStreams } : {}),
+        ...(r.warnings ? { warnings: r.warnings } : {})
+      };
+    };
+
     const handle = async (item: PendingRequest) => {
       if (item.kind === 'stream') return handleStream(item.request);
+      if (item.kind === 'edit') return handleEdit(item.request);
       if (item.kind === 'node') return handleNode(item.request);
       const verdict = executeValidateUnitOp({ contract: item.request.contract });
       if (verdict.verdict !== 'ACCEPTED') {

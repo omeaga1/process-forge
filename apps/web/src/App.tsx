@@ -289,7 +289,7 @@ const AppInner: React.FC = () => {
       updatedAt: new Date().toISOString()
     }));
   }, []);
-  const mcpBridge = useMcpBridge(project.name, project.graph, handleInsertCommunityNode, handleInsertEdge);
+  const mcpBridge = useMcpBridge(project.name, project.graph, handleInsertCommunityNode, handleInsertEdge, handleGraphChange);
 
   /**
    * A contract that passed every gate becomes a node on the flowsheet. The

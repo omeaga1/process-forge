@@ -17,6 +17,7 @@ export * from './decisions/heuristic.js';
 export * from './decisions/questions.js';
 export * from './decisions/fixtures.js';
 export * from './connect.js';
+export * from './edit.js';
 export * from './terminals.js';
 export * from './thermal.js';
 export * from './equipment/nozzleLayout.js';
