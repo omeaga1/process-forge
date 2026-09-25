@@ -14,14 +14,14 @@ import { executePackageUnitOp } from './tools/packageUnitOp.js';
 import { executeForgeEquipmentDrawing } from './tools/forgeEquipmentDrawing.js';
 import { executeDesignUnitOp } from './tools/designUnitOp.js';
 import { executeValidateUnitOp } from './tools/validateUnitOp.js';
-import { executeAddUnitOpToFlowsheet, executeGetOpenFlowsheet } from './tools/desktopBridge.js';
+import { executeAddUnitOpToFlowsheet, executeGetOpenFlowsheet, executeAddStream } from './tools/desktopBridge.js';
 import { AVAILABLE_TEMPLATES } from './templates.js';
 
 export function createProcessForgeMcpServer(): Server {
   const server = new Server(
     {
       name: 'process-forge-mcp',
-      version: '0.2.0'
+      version: '0.3.0'
     },
     {
       capabilities: {
@@ -248,6 +248,21 @@ export function createProcessForgeMcpServer(): Server {
           }
         },
         {
+          name: 'add_stream',
+          description:
+            'Pipes one unit into another on the flowsheet open in the ProcessForge desktop app: a stream from an outlet of "from" to an inlet of "to". Name units by id, name or tag (from get_open_flowsheet). Ports are optional: by default the first free outlet and inlet that fit are used. A stream carries liquid or whole items, and the app refuses one that joins the two, a unit to itself, or a duplicate, and says why. The line simulation follows the pipes, so this is how a new unit joins the line. Requires ProcessForge Desktop to be running.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              from: { type: 'string', description: 'The unit the stream leaves: id, name, or tag (e.g. ST-200).' },
+              to: { type: 'string', description: 'The unit the stream enters.' },
+              fromPort: { type: 'string', description: 'Optional outlet on "from", by port id or name.' },
+              toPort: { type: 'string', description: 'Optional inlet on "to", by port id or name.' }
+            },
+            required: ['from', 'to']
+          }
+        },
+        {
           name: 'list_digital_twin_templates',
           description: 'Lists all available pre-configured digital twin manufacturing lines in ProcessForge.',
           inputSchema: {
@@ -319,6 +334,11 @@ export function createProcessForgeMcpServer(): Server {
 
         case 'add_unit_op_to_flowsheet': {
           const result = await executeAddUnitOpToFlowsheet(args as any);
+          return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        }
+
+        case 'add_stream': {
+          const result = await executeAddStream(args as any);
           return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
         }
 

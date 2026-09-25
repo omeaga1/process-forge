@@ -17,7 +17,8 @@ import {
   createSimulationProject,
   type SimulationProject,
   type ProcessGraph,
-  type ProcessNode
+  type ProcessNode,
+  type ProcessEdge
 } from '@process-forge/protocol';
 import { HeaderBar } from './components/HeaderBar.js';
 import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModal.js';
@@ -278,7 +279,15 @@ const AppInner: React.FC = () => {
   }, []);
 
   // Desktop: unit ops sent by an MCP client on this computer land here.
-  const mcpBridge = useMcpBridge(project.name, project.graph, handleInsertCommunityNode);
+  // A stream from an MCP client's add_stream (checked by planStream first).
+  const handleInsertEdge = useCallback((edge: ProcessEdge) => {
+    setProject((prev) => ({
+      ...prev,
+      graph: { ...prev.graph, edges: [...prev.graph.edges, edge] },
+      updatedAt: new Date().toISOString()
+    }));
+  }, []);
+  const mcpBridge = useMcpBridge(project.name, project.graph, handleInsertCommunityNode, handleInsertEdge);
 
   /**
    * A contract that passed every gate becomes a node on the flowsheet. The
@@ -393,6 +402,7 @@ const AppInner: React.FC = () => {
           <HeaderBar
             projectName={project.name}
             onOpenProjects={openProjectBrowser}
+            onRenameProject={handleRenameCurrent}
             // "Guest" means not signed in now, not "this project was started signed out".
             isGuestMode={!isAuthenticated}
             activeAiProvider={aiConfig.provider}

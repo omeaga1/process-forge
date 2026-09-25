@@ -16,8 +16,9 @@
 //!     the Host header must be the loopback address, so a web page cannot
 //!     reach it even by guessing.
 //!
-//! The app itself decides what happens to a unit op: the web view validates
-//! the contract again with the engine before adding it, and reports back.
+//! The app itself decides what happens: the web view validates a unit op again
+//! with the engine before adding it, checks a stream fits the ports it joins,
+//! and reports back.
 
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
@@ -192,32 +193,48 @@ fn handle(mut stream: TcpStream, bridge: Bridge) {
             if payload.get("contract").map(Value::is_object) != Some(true) {
                 return respond(&mut stream, 400, &json!({ "error": "expected { \"contract\": { ... } }" }));
             }
-            let id = {
-                let mut c = bridge.counter.lock().unwrap();
-                *c += 1;
-                format!("u{}", *c)
+            let (code, body) = queue_and_wait(&bridge, "unit-op", payload);
+            respond(&mut stream, code, &body)
+        }
+        ("POST", "/v1/streams") => {
+            let payload: Value = match serde_json::from_slice(&req.body) {
+                Ok(v) => v,
+                Err(e) => return respond(&mut stream, 400, &json!({ "error": format!("body is not JSON: {e}") })),
             };
-            if let Ok(mut q) = bridge.pending.lock() {
-                q.push_back(json!({ "id": id, "request": payload }));
+            let named = |k: &str| payload.get(k).map(Value::is_string) == Some(true);
+            if !named("from") || !named("to") {
+                return respond(&mut stream, 400, &json!({ "error": "expected { \"from\": \"unit\", \"to\": \"unit\" }" }));
             }
-            // Wait for the app to validate and add it, then answer with what happened.
-            let results = bridge.results.lock().unwrap();
-            let (mut results, timeout) = bridge
-                .ready
-                .wait_timeout_while(results, REPLY_TIMEOUT, |r| !r.contains_key(&id))
-                .unwrap();
-            if timeout.timed_out() {
-                return respond(
-                    &mut stream,
-                    202,
-                    &json!({ "queued": true, "message": "ProcessForge has the unit op but did not answer in time. It is added when the studio is open." }),
-                );
-            }
-            let result = results.remove(&id).unwrap_or(json!({ "error": "no result" }));
-            respond(&mut stream, 200, &result)
+            let (code, body) = queue_and_wait(&bridge, "stream", payload);
+            respond(&mut stream, code, &body)
         }
         _ => respond(&mut stream, 404, &json!({ "error": "unknown endpoint" })),
     }
+}
+
+/// Hands a request to the web view and waits for what it did. The web view
+/// owns the flowsheet, so it applies the change and reports the result.
+fn queue_and_wait(bridge: &BridgeState, kind: &str, payload: Value) -> (u16, Value) {
+    let id = {
+        let mut c = bridge.counter.lock().unwrap();
+        *c += 1;
+        format!("u{}", *c)
+    };
+    if let Ok(mut q) = bridge.pending.lock() {
+        q.push_back(json!({ "id": id, "kind": kind, "request": payload }));
+    }
+    let results = bridge.results.lock().unwrap();
+    let (mut results, timeout) = bridge
+        .ready
+        .wait_timeout_while(results, REPLY_TIMEOUT, |r| !r.contains_key(&id))
+        .unwrap();
+    if timeout.timed_out() {
+        return (
+            202,
+            json!({ "queued": true, "message": "ProcessForge has the request but did not answer in time. It is applied when the studio is open." }),
+        );
+    }
+    (200, results.remove(&id).unwrap_or(json!({ "error": "no result" })))
 }
 
 /// Starts the bridge and writes its discovery file. A failure here only
@@ -276,7 +293,7 @@ pub fn stop(bridge: &BridgeState) {
 
 // ---- commands for the web view ------------------------------------------
 
-/// Unit ops sent by MCP clients since the last call.
+/// Requests (unit ops, streams) sent by MCP clients since the last call.
 #[tauri::command]
 pub fn bridge_take_pending(bridge: State<'_, Bridge>) -> Vec<Value> {
     bridge.pending.lock().map(|mut q| q.drain(..).collect()).unwrap_or_default()

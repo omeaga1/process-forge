@@ -37,6 +37,8 @@ interface HeaderBarProps {
   /** The open project's name, shown as the way into the project browser. */
   projectName: string;
   onOpenProjects: () => void;
+  /** Double-click the project name to rename it. */
+  onRenameProject?: (name: string) => void;
   isGuestMode: boolean;
   activeAiProvider?: string;
   onNavigateHome?: () => void;
@@ -54,6 +56,7 @@ interface HeaderBarProps {
 export const HeaderBar: React.FC<HeaderBarProps> = ({
   projectName,
   onOpenProjects,
+  onRenameProject,
   isGuestMode,
   activeAiProvider: _activeAiProvider = 'mcp',
   onNavigateHome,
@@ -70,6 +73,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   hasUpdateAvailable = false
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const clickTimer = useRef<number | null>(null);
 
   // Below this width the buttons keep their icons and tooltips but drop
   // their text labels, so the header fits the desktop window's 1024 px minimum.
@@ -294,11 +299,53 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         {/* Subtle separator */}
         <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px', flexShrink: 0 }} />
 
-        {/* The open project: click for every project, templates and files (Ctrl+O). */}
+        {/* The open project: click for every project, templates and files
+            (Ctrl+O); double-click to rename it. */}
+        {renaming !== null && onRenameProject ? (
+          <input
+            autoFocus
+            value={renaming}
+            aria-label="Project name"
+            onChange={(e) => setRenaming(e.target.value)}
+            onFocus={(e) => e.currentTarget.select()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+              if (e.key === 'Escape') setRenaming(null);
+            }}
+            onBlur={() => {
+              const name = renaming.trim();
+              if (name && name !== projectName) onRenameProject(name);
+              setRenaming(null);
+            }}
+            style={{
+              height: 32,
+              width: 260,
+              boxSizing: 'border-box',
+              padding: '0 10px',
+              borderRadius: draftingRadius.soft,
+              border: `1px solid ${OsakaJadePalette.jade[500]}`,
+              backgroundColor: OsakaJadePalette.background.surface,
+              color: OsakaJadePalette.text.primary,
+              fontSize: 13,
+              fontWeight: 600,
+              outline: 'none'
+            }}
+          />
+        ) : (
         <button
+          onDoubleClick={(e) => {
+            if (!onRenameProject) return;
+            e.preventDefault();
+            if (clickTimer.current) window.clearTimeout(clickTimer.current);
+            setRenaming(projectName);
+          }}
           type="button"
-          onClick={onOpenProjects}
-          title="Projects: open another, start a new one, or open a file (Ctrl+O)"
+          onClick={() => {
+            // Wait a moment: the first click of a double-click (rename) must not open the browser.
+            if (clickTimer.current) window.clearTimeout(clickTimer.current);
+            clickTimer.current = window.setTimeout(onOpenProjects, onRenameProject ? 220 : 0);
+          }}
+          title="Projects: open another, start a new one, or open a file (Ctrl+O). Double-click to rename."
           style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -322,6 +369,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{projectName}</span>
           <ChevronDown size={13} color={OsakaJadePalette.text.secondary} style={{ flexShrink: 0 }} />
         </button>
+        )}
 
         {/* Subtle separator */}
         <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px', flexShrink: 0 }} />

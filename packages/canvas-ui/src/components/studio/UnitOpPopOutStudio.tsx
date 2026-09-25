@@ -44,6 +44,11 @@ interface UnitOpPopOutStudioProps {
   /** Removes the unit and its streams (undo brings them back). */
   onDelete?: (nodeId: string) => void;
   onDuplicate?: (nodeId: string) => void;
+  /** Renames the unit (its tag, if the name has one, goes with it). */
+  onRename?: (nodeId: string, name: string) => void;
+  /** Open with the name ready to edit (right-click, Rename). */
+  startRenaming?: boolean;
+  onRenameStarted?: () => void;
   upstreamContext?: string;
   downstreamContext?: string;
   /** The whole flowsheet, for what feeds this unit and what it feeds. */
@@ -63,6 +68,9 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   onClose,
   onDelete,
   onDuplicate,
+  onRename,
+  startRenaming = false,
+  onRenameStarted,
   onUpdateConfig,
   onUpdateDressing,
   onUpdateShape,
@@ -80,6 +88,16 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   const route = useAssistantRoute();
   const savedUnits = useSavedUnitOps();
   const [activeTab, setActiveTab] = useState<StudioTab>('OVERVIEW');
+  const [editingName, setEditingName] = useState<string | null>(null);
+  useEffect(() => {
+    setEditingName(null);
+  }, [node?.id]);
+  useEffect(() => {
+    if (startRenaming && node) {
+      setEditingName(node.name);
+      onRenameStarted?.();
+    }
+  }, [startRenaming, node, onRenameStarted]);
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
@@ -238,9 +256,57 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                   : node.kind.replace(/_/g, ' ').toLowerCase()}
               </span>
             </div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
-              {node.name}
-            </div>
+            {editingName !== null && onRename ? (
+              <input
+                autoFocus
+                value={editingName}
+                aria-label="Unit name"
+                onChange={(e) => setEditingName(e.target.value)}
+                onFocus={(e) => e.currentTarget.select()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                  if (e.key === 'Escape') setEditingName(null);
+                }}
+                onBlur={() => {
+                  const name = editingName.trim();
+                  if (name && name !== node.name) onRename(node.id, name);
+                  setEditingName(null);
+                }}
+                style={{
+                  marginTop: 2,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  width: 320,
+                  maxWidth: '100%',
+                  padding: '2px 6px',
+                  borderRadius: r.md,
+                  border: `1px solid ${OsakaJadePalette.jade[500]}`,
+                  background: OsakaJadePalette.background.surface,
+                  color: OsakaJadePalette.text.primary,
+                  outline: 'none'
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => onRename && setEditingName(node.name)}
+                title={onRename ? 'Rename this unit' : undefined}
+                style={{
+                  display: 'block',
+                  marginTop: 2,
+                  padding: 0,
+                  border: 'none',
+                  background: 'none',
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: OsakaJadePalette.text.primary,
+                  textAlign: 'left',
+                  cursor: onRename ? 'text' : 'default'
+                }}
+              >
+                {node.name}
+              </button>
+            )}
           </div>
         </div>
 

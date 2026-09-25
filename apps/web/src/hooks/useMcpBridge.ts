@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   executeValidateUnitOp,
   UnitOpContractSchema,
+  planStream,
+  type ProcessEdge,
   type ProcessGraph,
-  type ProcessNode
+  type ProcessNode,
+  type StreamRequest
 } from '@process-forge/protocol';
 import { isTauriEnvironment, invokeTauriCommand } from '../components/UpdateNotificationBanner.js';
 import { contractToProcessNode } from '../unitop/contractToNode.js';
@@ -26,10 +29,10 @@ const POLL_MS = 1000;
 /** Fired on window for every unit op an MCP client adds: { name, nodeId, at }. */
 export const MCP_ACTIVITY_EVENT = 'pf-mcp-activity';
 
-interface PendingUnitOp {
-  id: string;
-  request: { contract: unknown; position?: { x: number; y: number } };
-}
+/** A request from an MCP client. Older shells send unit ops without a kind. */
+type PendingRequest =
+  | { id: string; kind?: 'unit-op'; request: { contract: unknown; position?: { x: number; y: number } } }
+  | { id: string; kind: 'stream'; request: StreamRequest };
 
 /** To the right of everything on the canvas, level with the flowsheet's middle. */
 function placeNextTo(graph: ProcessGraph): { x: number; y: number } {
@@ -47,13 +50,16 @@ export interface BridgeArrival {
 export function useMcpBridge(
   projectName: string,
   graph: ProcessGraph,
-  insertNode: (node: ProcessNode) => void
+  insertNode: (node: ProcessNode) => void,
+  insertEdge: (edge: ProcessEdge) => void
 ): { lastArrival: BridgeArrival | null; dismiss: () => void } {
   const [lastArrival, setLastArrival] = useState<BridgeArrival | null>(null);
   const graphRef = useRef(graph);
   graphRef.current = graph;
   const insertRef = useRef(insertNode);
   insertRef.current = insertNode;
+  const insertEdgeRef = useRef(insertEdge);
+  insertEdgeRef.current = insertEdge;
 
   // Share the open flowsheet, a moment after it stops changing.
   useEffect(() => {
@@ -71,7 +77,39 @@ export function useMcpBridge(
     let stopped = false;
     let timer = 0;
 
-    const handle = async (item: PendingUnitOp) => {
+    // What each request changed, before React re-renders: a unit and a stream
+    // to it can arrive in the same poll.
+    const applyLocally = (change: { node?: ProcessNode; edge?: ProcessEdge }) => {
+      const g = graphRef.current;
+      graphRef.current = {
+        ...g,
+        nodes: change.node ? [...g.nodes, change.node] : g.nodes,
+        edges: change.edge ? [...g.edges, change.edge] : g.edges
+      };
+    };
+
+    const handleStream = (request: StreamRequest) => {
+      const plan = planStream(graphRef.current, request);
+      if (!plan.ok) return { added: false, error: plan.error, ...(plan.hint ? { hint: plan.hint } : {}) };
+      insertEdgeRef.current(plan.edge);
+      applyLocally({ edge: plan.edge });
+      window.dispatchEvent(
+        new CustomEvent(MCP_ACTIVITY_EVENT, {
+          detail: { name: `Stream: ${plan.from.name} → ${plan.to.name}`, nodeId: plan.to.id, at: Date.now() }
+        })
+      );
+      return {
+        added: true,
+        edgeId: plan.edge.id,
+        from: plan.from,
+        to: plan.to,
+        carries: plan.carries,
+        message: `Piped ${plan.from.name} (${plan.from.port}) into ${plan.to.name} (${plan.to.port}); it carries ${plan.carries}.`
+      };
+    };
+
+    const handle = async (item: PendingRequest) => {
+      if (item.kind === 'stream') return handleStream(item.request);
       const verdict = executeValidateUnitOp({ contract: item.request.contract });
       if (verdict.verdict !== 'ACCEPTED') {
         return {
@@ -84,6 +122,7 @@ export function useMcpBridge(
       const contract = UnitOpContractSchema.parse(item.request.contract);
       const node = contractToProcessNode(contract, { position: item.request.position ?? placeNextTo(graphRef.current) });
       insertRef.current(node);
+      applyLocally({ node });
       saveUnitOp(contract, 'mcp');
       setLastArrival({ name: contract.name, at: Date.now() });
       // The assistant panel lists what the MCP client has done.
@@ -93,13 +132,13 @@ export function useMcpBridge(
         nodeId: node.id,
         name: contract.name,
         ports: [...node.inputs, ...node.outputs].map((p) => p.id),
-        message: `Added "${contract.name}" to the flowsheet "${projectName}". Pipe it up on the canvas; its nozzles are where the drawing put them.`
+        message: `Added "${contract.name}" to the flowsheet "${projectName}". Pipe it in with add_stream (its id is ${node.id}), or on the canvas; its nozzles are where the drawing put them.`
       };
     };
 
     const tick = async () => {
       try {
-        const items = await invokeTauriCommand<PendingUnitOp[]>('bridge_take_pending');
+        const items = await invokeTauriCommand<PendingRequest[]>('bridge_take_pending');
         for (const item of items) {
           let result: unknown;
           try {

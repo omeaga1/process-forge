@@ -26,7 +26,7 @@ Ship `@process-forge/mcp-server`, a Model Context Protocol server.
   (`query_unit_subagent`, `package_unit_op`, `forge_equipment_drawing`). See
   [packages/mcp-server/README.md](../../packages/mcp-server/README.md) for what
   each one does.
-- **Desktop bridge:** `get_open_flowsheet` and `add_unit_op_to_flowsheet` talk
+- **Desktop bridge:** `get_open_flowsheet`, `add_unit_op_to_flowsheet` and `add_stream` talk
   to a running desktop app over `127.0.0.1`, authenticated with a per-launch
   token the app writes to its data folder.
 

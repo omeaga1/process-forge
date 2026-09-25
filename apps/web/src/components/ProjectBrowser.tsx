@@ -673,7 +673,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
   const hoverCss = (
     <style>{`
       .pf-project-row:hover { background-color: ${palette.background.canvas} !important; }
-      .pf-project-row .pf-row-actions { opacity: 0.35; transition: opacity 0.12s ease; }
+      .pf-project-row .pf-row-actions { opacity: 0.7; transition: opacity 0.12s ease; }
       .pf-project-row:hover .pf-row-actions, .pf-project-row:focus-within .pf-row-actions { opacity: 1; }
     `}</style>
   );

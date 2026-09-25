@@ -108,3 +108,39 @@ export async function executeAddUnitOpToFlowsheet(params: AddUnitOpParams): Prom
   if (r.status !== 200) return { success: false, added: false, error: r.body?.error ?? `HTTP ${r.status}` };
   return { success: Boolean(r.body?.added), ...r.body, drawingWarnings: verdict.gates.drawing.warnings };
 }
+
+export interface AddStreamParams {
+  /** The unit the stream leaves: its id, name, or tag (for example ST-200). */
+  from: string;
+  /** The unit the stream enters. */
+  to: string;
+  /** Optional outlet on `from`, by port id or name. By default the first free outlet that fits. */
+  fromPort?: string;
+  /** Optional inlet on `to`. */
+  toPort?: string;
+}
+
+/**
+ * Pipes one unit into another on the open flowsheet. The app checks the ends
+ * fit (liquid to liquid, items to items, not a unit into itself, not a
+ * duplicate) and says why when they do not.
+ */
+export async function executeAddStream(params: AddStreamParams): Promise<Record<string, unknown>> {
+  if (typeof params?.from !== 'string' || typeof params?.to !== 'string') {
+    return { success: false, added: false, error: 'Give "from" and "to": a unit id, name or tag each. get_open_flowsheet lists them.' };
+  }
+  const body = {
+    from: params.from,
+    to: params.to,
+    ...(params.fromPort ? { fromPort: params.fromPort } : {}),
+    ...(params.toPort ? { toPort: params.toPort } : {})
+  };
+  const r = await call('POST', '/v1/streams', body);
+  if (!r.ok) return { success: false, added: false, error: r.reason };
+  if (r.status === 202) return { success: true, added: false, queued: true, message: r.body?.message };
+  if (r.status === 404) {
+    return { success: false, added: false, error: 'This ProcessForge Desktop is too old for add_stream. Update it (0.1.29 or later).' };
+  }
+  if (r.status !== 200) return { success: false, added: false, error: r.body?.error ?? `HTTP ${r.status}` };
+  return { success: Boolean(r.body?.added), ...r.body };
+}

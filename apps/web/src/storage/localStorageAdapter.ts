@@ -12,6 +12,8 @@ const STORAGE_KEY_LIST = 'pf_saved_projects';
 const PROJECT_KEY_PREFIX = 'pf_project_';
 /** Older saves kept whole bundles here, per account. */
 const LEGACY_RECORDS_PREFIX = 'pf_cloud_projects_';
+/** Set once older saves have been brought into the library. */
+const MIGRATED_KEY = 'pf_library_migrated_v1';
 
 export interface ProjectMetadataHeader {
   id: string;
@@ -92,35 +94,58 @@ export function loadLocalProject(id: string): SimulationProject | null {
   }
 }
 
-/** Removes a project's copy on this device. A cloud copy is untouched. */
+/**
+ * Removes a project from this device: its copy, its header, and any copy an
+ * older version kept for it. A cloud copy is untouched.
+ *
+ * The older copies matter: they are what the library was first filled from,
+ * and while they stayed, a deleted project came back on the next listing.
+ */
 export function deleteLocalProject(id: string): void {
   try {
     localStorage.removeItem(PROJECT_KEY_PREFIX + id);
     writeIndex(readIndex().filter((p) => p.id !== id));
+    for (const key of legacyKeys()) {
+      const records = JSON.parse(localStorage.getItem(key) || '[]') as { id?: string; bundle?: { id?: string } }[];
+      const kept = records.filter((r) => r.id !== id && r.bundle?.id !== id);
+      if (kept.length !== records.length) localStorage.setItem(key, JSON.stringify(kept));
+    }
   } catch (e) {
     console.error('Failed to delete project from localStorage:', e);
   }
 }
 
+function legacyKeys(): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(LEGACY_RECORDS_PREFIX)) keys.push(key);
+  }
+  return keys;
+}
+
 /**
- * Brings older saves into the library: the open project, and bundles that
- * earlier versions kept under the account's record list. Runs on every
- * listing; it only writes what is missing.
+ * Brings older saves into the library, once: the open project, and bundles
+ * that earlier versions kept under the account's record list. Once only, so
+ * a project deleted from the library stays deleted.
  */
 function migrateLegacy(): void {
   try {
+    if (localStorage.getItem(MIGRATED_KEY)) return;
     const known = new Set(readIndex().map((p) => p.id));
     const adopt = (project: SimulationProject) => {
-      if (known.has(project.id) || localStorage.getItem(PROJECT_KEY_PREFIX + project.id)) return;
+      // Older versions kept headers without the project itself: a header
+      // alone does not mean the project is already in the library.
+      if (localStorage.getItem(PROJECT_KEY_PREFIX + project.id)) return;
       localStorage.setItem(PROJECT_KEY_PREFIX + project.id, exportSimulationProject(project));
-      writeIndex([...readIndex(), headerOf(project)].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
-      known.add(project.id);
+      if (!known.has(project.id)) {
+        writeIndex([...readIndex(), headerOf(project)].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+        known.add(project.id);
+      }
     };
     const current = loadCurrentLocalProject();
     if (current) adopt(current);
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (!key?.startsWith(LEGACY_RECORDS_PREFIX)) continue;
+    for (const key of legacyKeys()) {
       const records = JSON.parse(localStorage.getItem(key) || '[]') as { bundle?: unknown }[];
       for (const r of records) {
         if (!r.bundle) continue;
@@ -131,6 +156,7 @@ function migrateLegacy(): void {
         }
       }
     }
+    localStorage.setItem(MIGRATED_KEY, new Date().toISOString());
   } catch {
     // Storage blocked or full: the listing below still shows what it can.
   }
