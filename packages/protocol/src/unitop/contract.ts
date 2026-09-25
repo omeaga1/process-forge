@@ -86,6 +86,25 @@ export const UnitOpConstraintSchema = z.object({
 });
 export type UnitOpConstraint = z.infer<typeof UnitOpConstraintSchema>;
 
+/** Items a cycle takes from one item inlet port. The cycle waits until every declared port has its count. */
+export const UnitOpCycleInputSchema = z.object({
+  port: z.string().min(1),
+  perCycle: z.string().min(1)
+});
+export type UnitOpCycleInput = z.infer<typeof UnitOpCycleInputSchema>;
+
+/**
+ * Items a cycle sends out of one item outlet port. `scrap: true` counts them
+ * against the unit's quality (rejects), whether or not the port is piped on
+ * (to a waste outlet, a rework loop).
+ */
+export const UnitOpCycleOutputSchema = z.object({
+  port: z.string().min(1),
+  perCycle: z.string().min(1),
+  scrap: z.boolean().optional()
+});
+export type UnitOpCycleOutput = z.infer<typeof UnitOpCycleOutputSchema>;
+
 /**
  * How the node advances the simulation.
  *
@@ -113,7 +132,19 @@ export const UnitOpBehaviorSchema = z.discriminatedUnion('mode', [
      * filler, a moulding press, a dosing station). The cycle waits until the
      * liquid is there, so an upstream tank or pump can starve it.
      */
-    liquidPerCycleGallons: z.string().optional()
+    liquidPerCycleGallons: z.string().optional(),
+    /**
+     * Assembly and conversion: what each cycle takes, per item inlet port (12
+     * bottles for a case; a bottle and a cap). Without it a cycle takes up to
+     * unitsPerCycle items from any inlet.
+     */
+    inputs: z.array(UnitOpCycleInputSchema).optional(),
+    /**
+     * What each cycle makes, per item outlet port (1 case; good and rejects).
+     * The counts must add up to unitsPerCycle. Without it, unitsPerCycle items
+     * go to every outlet in turn.
+     */
+    outputs: z.array(UnitOpCycleOutputSchema).optional()
   }),
   z.object({
     mode: z.literal('CONTINUOUS_RATE'),
@@ -300,6 +331,25 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     checkExpr(b.cycleSeconds, 'behavior.cycleSeconds');
     checkExpr(b.unitsPerCycle, 'behavior.unitsPerCycle');
     if (b.scrapFraction) checkExpr(b.scrapFraction, 'behavior.scrapFraction');
+    const portList = (dir: 'INLET' | 'OUTLET') =>
+      contract.ports.filter((p) => p.direction === dir && p.flowDimension === 'DISCRETE_CONTAINER').map((p) => p.id);
+    for (const [key, dir] of [['inputs', 'INLET'], ['outputs', 'OUTLET']] as const) {
+      const list = (b[key] ?? []) as { port: string; perCycle: string }[];
+      const allowed = portList(dir);
+      const seenPorts = new Set<string>();
+      list.forEach((x, i) => {
+        const path = `behavior.${key}[${i}]`;
+        if (!allowed.includes(x.port)) {
+          issues.push({ path, message: `names port "${x.port}", which is not an item ${dir} port. Item ${dir === 'INLET' ? 'inlets' : 'outlets'}: ${allowed.join(', ') || 'none'}` });
+        }
+        if (seenPorts.has(x.port)) issues.push({ path, message: `port "${x.port}" is listed twice` });
+        seenPorts.add(x.port);
+        checkExpr(x.perCycle, `${path}.perCycle`);
+      });
+    }
+    if (b.outputs?.length && b.scrapFraction) {
+      issues.push({ path: 'behavior.scrapFraction', message: 'with outputs[], send rejects to their own port and mark it scrap: true, instead of scrapFraction' });
+    }
     if (b.liquidPerCycleGallons) {
       checkExpr(b.liquidPerCycleGallons, 'behavior.liquidPerCycleGallons');
       if (!contract.ports.some((p) => p.direction === 'INLET' && p.flowDimension === 'CONTINUOUS_FLUID')) {
@@ -336,7 +386,7 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     ...contract.derived.map((d) => d.expr),
     ...contract.constraints.map((c) => c.expr),
     ...(b.mode === 'DISCRETE_CYCLE'
-      ? [b.cycleSeconds, b.unitsPerCycle, b.scrapFraction, b.liquidPerCycleGallons]
+      ? [b.cycleSeconds, b.unitsPerCycle, b.scrapFraction, b.liquidPerCycleGallons, ...(b.inputs ?? []).map((x) => x.perCycle), ...(b.outputs ?? []).map((x) => x.perCycle)]
       : [b.throughputPerMinute, b.capacityGpm, b.dutyKw, b.residenceTimeSeconds]),
     ...(contract.outlets ?? []).flatMap((o) => [o.share, o.temperatureC])
   ].filter((e): e is string => typeof e === 'string');

@@ -13,6 +13,7 @@ export * from './unitop/review.js';
 export * from './unitop/examples/waxCoolingBelt.js';
 export * from './unitop/examples/fdmPrinter.js';
 export * from './unitop/examples/evaporator.js';
+export * from './unitop/examples/casePacker.js';
 export * from './decisions/types.js';
 export * from './decisions/heuristic.js';
 export * from './decisions/questions.js';

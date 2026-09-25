@@ -34,6 +34,13 @@ interface InternalNodeRuntime {
    * output in bufferCans.)
    */
   heldUnits: number;
+  /**
+   * A designed unit with inputs[]: its queue per item inlet port, so a cycle
+   * can wait for a whole kit. bufferCans stays the total.
+   */
+  portBuffers?: Map<string, number>;
+  /** A designed unit with outputs[]: finished items per outlet port that could not leave yet. */
+  heldByPort?: Map<string, number>;
   fluidLevelGallons: number;
   /**
    * Present when this node's behavior comes from a UnitOpContract rather than
@@ -237,7 +244,13 @@ export class SimulationEngine {
         maxBuffer,
         heldUnits: 0,
         fluidLevelGallons: initialFluid,
-        ...(contract ? { contract, contractEval } : {})
+        ...(contract ? { contract, contractEval } : {}),
+        ...(contractEval?.behavior.mode === 'DISCRETE_CYCLE' && contractEval.behavior.inputs
+          ? { portBuffers: new Map(contractEval.behavior.inputs.map((x) => [x.port, 0])) }
+          : {}),
+        ...(contractEval?.behavior.mode === 'DISCRETE_CYCLE' && contractEval.behavior.outputs
+          ? { heldByPort: new Map(contractEval.behavior.outputs.map((x) => [x.port, 0])) }
+          : {})
       });
     }
   }
@@ -676,7 +689,7 @@ export class SimulationEngine {
         if (runtime.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
           // A designed unit waiting on liquid restarts once a cycle's worth is there.
           const ready = this.fluid.bowl(unit.id) + 1e-6 >= this.fluid.drawPerCycle(unit.id);
-          if (ready && (this.isSourceNode(unit.id) || runtime.bufferCans > 0)) this.handleContractCycle(runtime);
+          if (ready && this.contractInputsReady(runtime)) this.handleContractCycle(runtime);
         } else {
           this.startFillerCycle(runtime);
         }
@@ -703,7 +716,7 @@ export class SimulationEngine {
     const isSource = this.isSourceNode(runtime.node.id);
 
     // Determine how many units this cycle can act on.
-    if (!isSource && runtime.bufferCans <= 0) {
+    if (!this.contractInputsReady(runtime)) {
       this.setNodeState(runtime, 'STARVED');
       return;
     }
@@ -717,7 +730,15 @@ export class SimulationEngine {
       this.fluid.draw(runtime.node.id, need);
     }
     let available: number;
-    if (isSource) {
+    const kit = evaluation.behavior.inputs;
+    if (kit && runtime.portBuffers) {
+      // A whole kit: exactly what each port needs, then the declared output.
+      for (const x of kit) {
+        runtime.portBuffers.set(x.port, (runtime.portBuffers.get(x.port) ?? 0) - x.perCycle);
+        runtime.bufferCans -= x.perCycle;
+      }
+      available = unitsPerCycle;
+    } else if (isSource) {
       available = unitsPerCycle;
     } else {
       available = Math.min(unitsPerCycle, runtime.bufferCans);
@@ -726,6 +747,26 @@ export class SimulationEngine {
     // Consuming input frees room upstream. Without this a filler blocked
     // behind a contract node stayed blocked for the rest of the run.
     if (!isSource) this.unblockUpstreamIfWaiting(runtime.node.id);
+
+    const outputs = evaluation.behavior.outputs;
+    if (outputs && runtime.heldByPort) {
+      let held = 0;
+      for (const o of outputs) {
+        if (o.scrap) runtime.unitsScrapped += o.perCycle;
+        if (!this.hasDownstream(runtime.node.id, o.port)) {
+          // Nothing piped to this port: its items leave the line.
+          if (!o.scrap) runtime.unitsProduced += o.perCycle;
+          continue;
+        }
+        const moved = this.routeUnits(runtime, o.perCycle, o.port);
+        if (!o.scrap) runtime.unitsProduced += moved;
+        runtime.heldByPort.set(o.port, (runtime.heldByPort.get(o.port) ?? 0) + o.perCycle - moved);
+        held += o.perCycle - moved;
+      }
+      this.setNodeState(runtime, held > 0 ? 'BLOCKED' : 'BUSY');
+      this.nextContractCycle(runtime, cycleSeconds);
+      return;
+    }
 
     // Scrap is a deterministic fraction, not a coin flip, so that a
     // contract-defined node does not reintroduce the nondeterminism that the
@@ -753,9 +794,18 @@ export class SimulationEngine {
       this.setNodeState(runtime, 'BUSY');
     }
 
-    if (runtime.state === 'BUSY') {
-      this.scheduleEvent(cycleSeconds, runtime.node.id, 'CONTRACT_CYCLE_COMPLETE');
-    }
+    this.nextContractCycle(runtime, cycleSeconds);
+  }
+
+  /**
+   * After a cycle: start the next one if there is material for it, otherwise
+   * wait (starved) until some arrives, rather than counting an empty cycle as
+   * busy time.
+   */
+  private nextContractCycle(runtime: InternalNodeRuntime, cycleSeconds: number): void {
+    if (runtime.state !== 'BUSY') return;
+    if (this.contractInputsReady(runtime)) this.scheduleEvent(cycleSeconds, runtime.node.id, 'CONTRACT_CYCLE_COMPLETE');
+    else this.setNodeState(runtime, 'STARVED');
   }
 
   private triggerDownstreamMachine(downstream: InternalNodeRuntime): void {
@@ -767,7 +817,7 @@ export class SimulationEngine {
       return;
     }
     if (downstream.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
-      if (downstream.bufferCans > 0 && downstream.state !== 'BUSY') {
+      if (downstream.bufferCans > 0 && this.contractInputsReady(downstream) && downstream.state !== 'BUSY') {
         this.setNodeState(downstream, 'BUSY');
         this.scheduleEvent(
           downstream.contractEval.behavior.cycleSeconds,
@@ -846,6 +896,21 @@ export class SimulationEngine {
       return;
     }
 
+    // A designed unit with outputs[] holds finished items per outlet port.
+    if (upstream.heldByPort) {
+      const outs = upstream.contractEval?.behavior.mode === 'DISCRETE_CYCLE' ? upstream.contractEval.behavior.outputs ?? [] : [];
+      let left = 0;
+      for (const o of outs) {
+        const held = upstream.heldByPort.get(o.port) ?? 0;
+        if (held <= 0) continue;
+        const moved = this.routeUnits(upstream, held, o.port);
+        upstream.heldByPort.set(o.port, held - moved);
+        if (!o.scrap) upstream.unitsProduced += moved;
+        left += held - moved;
+      }
+      if (left > 0) return;
+    }
+
     // Labeler and contract nodes hold finished units in heldUnits.
     if (upstream.heldUnits > 0) {
       const moved = this.routeUnits(upstream, upstream.heldUnits);
@@ -883,13 +948,35 @@ export class SimulationEngine {
     }
 
     if (upstream.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
-      if (this.isSourceNode(id) || upstream.bufferCans > 0) {
+      if (this.contractInputsReady(upstream)) {
         this.setNodeState(upstream, 'BUSY');
         this.scheduleEvent(upstream.contractEval.behavior.cycleSeconds, id, 'CONTRACT_CYCLE_COMPLETE');
       } else {
         this.setNodeState(upstream, 'STARVED');
       }
     }
+  }
+
+  /**
+   * Whether a designed cycle unit has what its next cycle takes: a whole kit
+   * when it declares inputs[], otherwise any item (or nothing, for a source).
+   */
+  private contractInputsReady(runtime: InternalNodeRuntime): boolean {
+    const b = runtime.contractEval?.behavior;
+    if (b?.mode === 'DISCRETE_CYCLE' && b.inputs && runtime.portBuffers) {
+      return b.inputs.every((x) => (runtime.portBuffers!.get(x.port) ?? 0) >= x.perCycle);
+    }
+    return this.isSourceNode(runtime.node.id) || runtime.bufferCans > 0;
+  }
+
+  /**
+   * A kit port's queue holds at least two cycles' worth: a cycle takes its kit
+   * when it ends, so one kit waits while the next one gathers.
+   */
+  private portCapacity(runtime: InternalNodeRuntime, port: string): number {
+    const b = runtime.contractEval?.behavior;
+    const need = b?.mode === 'DISCRETE_CYCLE' ? b.inputs?.find((x) => x.port === port)?.perCycle ?? 0 : 0;
+    return Math.max(runtime.maxBuffer, 2 * need);
   }
 
   private downstreamRuntimes(nodeId: string): InternalNodeRuntime[] {
@@ -902,8 +989,10 @@ export class SimulationEngine {
     return out;
   }
 
-  private hasDownstream(nodeId: string): boolean {
-    return this.discreteEdges.some((e) => e.sourceNodeId === nodeId && this.nodes.has(e.targetNodeId));
+  private hasDownstream(nodeId: string, port?: string): boolean {
+    return this.discreteEdges.some(
+      (e) => e.sourceNodeId === nodeId && (port === undefined || e.sourcePortId === port) && this.nodes.has(e.targetNodeId)
+    );
   }
 
   /**
@@ -914,19 +1003,30 @@ export class SimulationEngine {
    * With several outgoing edges, units are dealt round-robin to targets that
    * have room.
    */
-  private routeUnits(from: InternalNodeRuntime, count: number): number {
-    const targets = this.downstreamRuntimes(from.node.id);
+  private routeUnits(from: InternalNodeRuntime, count: number, port?: string): number {
+    // Each target with the inlet port the item arrives at, so a unit that
+    // assembles kits can queue each part separately.
+    const targets: { runtime: InternalNodeRuntime; inPort: string }[] = [];
+    for (const e of this.discreteEdges) {
+      if (e.sourceNodeId !== from.node.id || (port !== undefined && e.sourcePortId !== port)) continue;
+      const t = this.nodes.get(e.targetNodeId);
+      if (t) targets.push({ runtime: t, inPort: e.targetPortId });
+    }
     if (targets.length === 0 || count <= 0) return 0;
 
-    let cursor = this.routeCursor.get(from.node.id) ?? 0;
+    const key = port === undefined ? from.node.id : `${from.node.id}:${port}`;
+    let cursor = this.routeCursor.get(key) ?? 0;
     let moved = 0;
     let misses = 0;
     const touched = new Set<InternalNodeRuntime>();
     while (moved < count && misses < targets.length) {
-      const target = targets[cursor % targets.length]!;
+      const { runtime: target, inPort } = targets[cursor % targets.length]!;
       cursor++;
-      if (target.bufferCans < target.maxBuffer) {
+      const queue = target.portBuffers;
+      const room = queue ? (queue.get(inPort) ?? 0) < this.portCapacity(target, inPort) : target.bufferCans < target.maxBuffer;
+      if (room) {
         target.bufferCans++;
+        if (queue) queue.set(inPort, (queue.get(inPort) ?? 0) + 1);
         moved++;
         misses = 0;
         touched.add(target);
@@ -934,7 +1034,7 @@ export class SimulationEngine {
         misses++;
       }
     }
-    this.routeCursor.set(from.node.id, cursor % targets.length);
+    this.routeCursor.set(key, cursor % targets.length);
 
     for (const target of touched) {
       if (target.state === 'STARVED' || target.state === 'IDLE') this.triggerDownstreamMachine(target);

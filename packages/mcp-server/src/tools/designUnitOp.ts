@@ -4,6 +4,7 @@ import {
   WAX_COOLING_BELT_CONTRACT,
   FDM_PRINTER_CONTRACT,
   EVAPORATOR_CONTRACT,
+  CASE_PACKER_CONTRACT,
   LITERS_PER_GALLON,
   type UnitOpDesignStream,
   UNIT_OP_AUTHORING_RULES,
@@ -74,6 +75,8 @@ export interface DesignUnitOpResult {
    * if() and interp().
    */
   liveInletExample: unknown;
+  /** A complete, valid contract that takes and makes different items per port (a case packer with a reject lane). */
+  assemblyExample: unknown;
   /** What the surrounding process looks like, when a graph was supplied. */
   processContext: {
     available: boolean;
@@ -246,11 +249,12 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     '',
     'The drawing is how the unit appears on the flowsheet: draw the actual',
     'equipment (see the rules), and put each nozzle where that stream really',
-    'connects. Three worked examples show the format: workedExample is steady flow',
-    '(CONTINUOUS_RATE, a wax cooling belt), cycleExample makes whole parts on a',
-    'cycle (DISCRETE_CYCLE, a 3D printer), and liveInletExample (an evaporator)',
-    'reads what flows in (inlet.*, checked at designInlet) and splits and heats its',
-    'outflow per outlet port. During a run the engine evaluates your design every',
+    'connects. Four worked examples show the format: workedExample is steady flow',
+    '(CONTINUOUS_RATE, a wax cooling belt); cycleExample makes whole parts on a',
+    'cycle (DISCRETE_CYCLE, a 3D printer); liveInletExample (an evaporator) reads',
+    'what flows in (inlet.*, checked at designInlet) and splits and heats its',
+    'outflow per outlet port; assemblyExample (a case packer) takes a kit of items',
+    'from several ports and sends good items and rejects to their own ports. During a run the engine evaluates your design every',
     'second at the stream that actually reaches it, so write the physics in terms',
     'of inlet.* wherever the feed matters, rather than as fixed parameters.'
   ].join('\n');
@@ -264,6 +268,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     workedExample: WAX_COOLING_BELT_CONTRACT,
     cycleExample: FDM_PRINTER_CONTRACT,
     liveInletExample: EVAPORATOR_CONTRACT,
+    assemblyExample: CASE_PACKER_CONTRACT,
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:
       'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'

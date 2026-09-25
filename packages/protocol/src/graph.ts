@@ -3,6 +3,8 @@ import { ProcessNodeSchema, type ProcessNode } from './nodes.js';
 import { ProcessEdgeSchema } from './streams.js';
 import { terminalRole, terminalSupplyRate } from './terminals.js';
 import { AMBIENT_C, pipeTemperature, reactorHeatUpSeconds } from './thermal.js';
+import { evaluateUnitOp, type UnitOpEvaluation } from './unitop/evaluate.js';
+import type { UnitOpContract } from './unitop/contract.js';
 
 export const ProcessGraphSchema = z.object({
   id: z.string().min(1),
@@ -128,6 +130,29 @@ export function validateProcessGraph(graph: ProcessGraph): GraphValidationResult
   };
 }
 
+/** A designed unit's evaluation at its design point, or undefined if it has none or it fails. */
+function designedEval(node: ProcessNode): UnitOpEvaluation | undefined {
+  const contract = (node.config as { contract?: UnitOpContract }).contract;
+  if (!contract) return undefined;
+  try {
+    const ev = evaluateUnitOp(contract);
+    return ev.error ? undefined : ev;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Good items a unit sends on per item it takes in at `port`: 1/12 for a case packer, 1 for most units. */
+function conversionRatio(node: ProcessNode, port: string): number {
+  const ev = designedEval(node);
+  if (ev?.behavior.mode !== 'DISCRETE_CYCLE') return 1;
+  const b = ev.behavior;
+  const good = b.outputs ? b.outputs.filter((o) => !o.scrap).reduce((sum, o) => sum + o.perCycle, 0) : b.unitsPerCycle;
+  const takes = b.inputs?.find((x) => x.port === port)?.perCycle;
+  if (takes === undefined || takes <= 0) return 1;
+  return good / takes;
+}
+
 function computeBottlenecks(
   graph: ProcessGraph
 ): BottleneckAnalysis {
@@ -199,8 +224,39 @@ function computeBottlenecks(
       const cpl = config.containersPerLayer ?? 20;
       const sec = config.cycleSecondsPerLayer ?? 30;
       capacities[node.id] = (cpl / sec) * 60;
+    } else {
+      // A designed unit: a cycle unit makes unitsPerMinute; a continuous one
+      // on the liquid path passes capacityGpm, counted in the filler's containers.
+      const ev = designedEval(node);
+      if (ev?.behavior.mode === 'DISCRETE_CYCLE') {
+        const good = ev.behavior.outputs ? ev.behavior.outputs.filter((o) => !o.scrap).reduce((sum, o) => sum + o.perCycle, 0) : ev.behavior.unitsPerCycle;
+        capacities[node.id] = (good / ev.behavior.cycleSeconds) * 60;
+      } else if (ev?.behavior.mode === 'CONTINUOUS_RATE' && ev.behavior.capacityGpm !== undefined && pipeFedFiller && onLiquidPath.has(node.id)) {
+        capacities[node.id] = ev.behavior.capacityGpm / perContainer;
+      }
     }
   }
+
+  // A unit that turns 12 bottles into one case changes what "per minute"
+  // means downstream of it. Count every capacity in the line's finished
+  // output: a unit's own rate, times the out/in ratio of each converting unit
+  // after it. Without designed converters every ratio is 1.
+  const factor = new Map<string, number>();
+  const downstreamFactor = (id: string, seen: Set<string>): number => {
+    const known = factor.get(id);
+    if (known !== undefined) return known;
+    if (seen.has(id)) return 1; // a recycle loop
+    seen.add(id);
+    const next = graph.edges.find((e) => e.sourceNodeId === id && graph.nodes.some((n) => n.id === e.targetNodeId));
+    let f = 1;
+    if (next) {
+      const target = graph.nodes.find((n) => n.id === next.targetNodeId)!;
+      f = conversionRatio(target, next.targetPortId) * downstreamFactor(target.id, seen);
+    }
+    factor.set(id, f);
+    return f;
+  };
+  for (const id of Object.keys(capacities)) capacities[id] = capacities[id]! * downstreamFactor(id, new Set());
 
   const capacityEntries = Object.entries(capacities);
   if (capacityEntries.length === 0) {
