@@ -147,3 +147,22 @@ describe('compare_scenarios', () => {
     assert.notEqual((original.config as { fluid: { temperatureCelsius: number } }).fluid.temperatureCelsius, 80);
   });
 });
+
+describe('compare_scenarios: designed units', () => {
+  it('tunes a designed unit by its contract parameters', async () => {
+    const { EVAPORATOR_CONTRACT } = await import('@process-forge/protocol');
+    const evap = { id: 'evap', name: 'Evaporator E-301', kind: 'CUSTOM_UNIT_OP', position: { x: 0, y: 0 }, inputs: [], outputs: [], config: { contract: EVAPORATOR_CONTRACT } };
+    const g = { id: 'g', name: 'g', version: '1.0.0', metadata: {}, nodes: [evap], edges: [] } as never;
+    const r = executeCompareScenarios(g, {
+      durationMinutes: 5,
+      scenarios: [
+        { name: 'Less steam', changes: [{ unit: 'E-301', parameters: { steamDutyKw: 1200 } }] },
+        { name: 'Too little', changes: [{ unit: 'E-301', parameters: { steamDutyKw: 100 } }] }
+      ]
+    });
+    assert.equal(r.scenarios[0]!.applied[0]!.designParameter, true);
+    assert.equal(r.scenarios[0]!.warnings, undefined);
+    assert.equal(r.scenarios[1]!.applied.length, 0, 'a change that breaks the design is not applied');
+    assert.match(r.scenarios[1]!.warnings![0]!, /fail its checks/);
+  });
+});
