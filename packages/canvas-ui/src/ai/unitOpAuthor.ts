@@ -3,6 +3,7 @@ import {
   RESERVED_SCOPE_NAMES,
   UNIT_OP_AUTHORING_RULES,
   WAX_COOLING_BELT_CONTRACT,
+  EVAPORATOR_CONTRACT,
   executeValidateUnitOp,
   type ValidateUnitOpResult
 } from '@process-forge/protocol';
@@ -54,11 +55,14 @@ export function unitOpAuthoringSystemPrompt(): string {
     'Rules:',
     ...UNIT_OP_AUTHORING_RULES.map((r) => `- ${r}`),
     '',
-    `Functions an expression may call (nothing else exists): ${functions}.`,
+    `Functions an expression may call (nothing else exists): if(condition, then, else), ${functions}.`,
     `Names the engine supplies at evaluation time: ${RESERVED_SCOPE_NAMES.join(', ') || '(none)'}.`,
     '',
     'A complete, valid contract to pattern-match against:',
     JSON.stringify(WAX_COOLING_BELT_CONTRACT),
+    '',
+    'One that reads its live inlet (designInlet) and splits and heats its outflow per outlet port:',
+    JSON.stringify(EVAPORATOR_CONTRACT),
     '',
     'Reply with exactly one JSON object -- the contract -- and nothing else: no prose,',
     'no markdown fences. If the engine rejects it you will be told exactly why; fix',

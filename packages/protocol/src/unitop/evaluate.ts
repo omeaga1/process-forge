@@ -51,20 +51,40 @@ export interface UnitOpEvaluation {
    */
   physicallyValid: boolean;
   behavior:
-    | { mode: 'DISCRETE_CYCLE'; cycleSeconds: number; unitsPerCycle: number; scrapFraction: number; unitsPerMinute: number }
-    | { mode: 'CONTINUOUS_RATE'; throughputPerMinute: number; dutyKw?: number; residenceTimeSeconds?: number };
+    | {
+        mode: 'DISCRETE_CYCLE';
+        cycleSeconds: number;
+        unitsPerCycle: number;
+        scrapFraction: number;
+        unitsPerMinute: number;
+        liquidPerCycleGallons?: number;
+      }
+    | { mode: 'CONTINUOUS_RATE'; throughputPerMinute: number; capacityGpm?: number; dutyKw?: number; residenceTimeSeconds?: number };
+  /** Per outlet port, from contract.outlets: its share of the outflow and its temperature, where declared. */
+  outlets: Record<string, { share?: number; temperatureC?: number }>;
   /** Populated when an expression failed to evaluate; evaluation stops there. */
   error?: { path: string; message: string };
+}
+
+/** Live values where known, else the contract's design values. */
+function streamScope(design: StreamState | undefined, live: StreamState | undefined): ExprScope | undefined {
+  if (!design && !live) return undefined;
+  const out: ExprScope = {};
+  for (const src of [design, live]) {
+    for (const [k, v] of Object.entries(src ?? {})) if (typeof v === 'number' && Number.isFinite(v)) out[k] = v;
+  }
+  return out;
 }
 
 function buildScope(
   parameters: Record<string, number>,
   derived: Record<string, number>,
-  input: UnitOpEvaluationInput
+  inlet: ExprScope | undefined,
+  utility: ExprScope | undefined
 ): ExprScope {
   const scope: ExprScope = { ...parameters, ...derived };
-  if (input.inlet) scope.inlet = { ...input.inlet } as ExprScope;
-  if (input.utility) scope.utility = { ...input.utility } as ExprScope;
+  if (inlet) scope.inlet = inlet;
+  if (utility) scope.utility = utility;
   return scope;
 }
 
@@ -85,6 +105,8 @@ export function evaluateUnitOp(
     parameters[p.name] = input.parameterOverrides?.[p.name] ?? p.value;
   }
 
+  const inlet = streamScope(contract.designInlet, input.inlet);
+  const utility = streamScope(contract.designUtility, input.utility);
   const derived: Record<string, number> = {};
   const fail = (path: string, e: unknown): UnitOpEvaluation => ({
     contractId: contract.id,
@@ -96,19 +118,20 @@ export function evaluateUnitOp(
       contract.behavior.mode === 'DISCRETE_CYCLE'
         ? { mode: 'DISCRETE_CYCLE', cycleSeconds: 0, unitsPerCycle: 0, scrapFraction: 0, unitsPerMinute: 0 }
         : { mode: 'CONTINUOUS_RATE', throughputPerMinute: 0 },
+    outlets: {},
     error: { path, message: e instanceof ExpressionError ? e.message : String(e) }
   });
 
   // Derived values resolve in declaration order; each sees the ones before it.
   for (const d of contract.derived) {
     try {
-      derived[d.name] = evaluateNumber(d.expr, buildScope(parameters, derived, input));
+      derived[d.name] = evaluateNumber(d.expr, buildScope(parameters, derived, inlet, utility));
     } catch (e) {
       return fail(`derived.${d.name}`, e);
     }
   }
 
-  const scope = buildScope(parameters, derived, input);
+  const scope = buildScope(parameters, derived, inlet, utility);
 
   const constraints: ConstraintResult[] = [];
   for (const c of contract.constraints) {
@@ -137,18 +160,26 @@ export function evaluateUnitOp(
       if (cycleSeconds <= 0) {
         return fail('behavior.cycleSeconds', new Error(`cycleSeconds must be positive, got ${cycleSeconds}`));
       }
+      const liquid = contract.behavior.liquidPerCycleGallons
+        ? evaluateNumber(contract.behavior.liquidPerCycleGallons, scope)
+        : undefined;
+      if (liquid !== undefined && liquid < 0) {
+        return fail('behavior.liquidPerCycleGallons', new Error(`liquidPerCycleGallons must not be negative, got ${liquid}`));
+      }
       behavior = {
         mode: 'DISCRETE_CYCLE',
         cycleSeconds,
         unitsPerCycle,
         scrapFraction,
-        unitsPerMinute: (unitsPerCycle / cycleSeconds) * 60
+        unitsPerMinute: (unitsPerCycle / cycleSeconds) * 60,
+        ...(liquid !== undefined ? { liquidPerCycleGallons: liquid } : {})
       };
     } else {
       const throughputPerMinute = evaluateNumber(contract.behavior.throughputPerMinute, scope);
       behavior = {
         mode: 'CONTINUOUS_RATE',
         throughputPerMinute,
+        ...(contract.behavior.capacityGpm ? { capacityGpm: evaluateNumber(contract.behavior.capacityGpm, scope) } : {}),
         ...(contract.behavior.dutyKw ? { dutyKw: evaluateNumber(contract.behavior.dutyKw, scope) } : {}),
         ...(contract.behavior.residenceTimeSeconds
           ? { residenceTimeSeconds: evaluateNumber(contract.behavior.residenceTimeSeconds, scope) }
@@ -159,13 +190,34 @@ export function evaluateUnitOp(
     return fail('behavior', e);
   }
 
+  const outlets: UnitOpEvaluation['outlets'] = {};
+  for (const o of contract.outlets ?? []) {
+    try {
+      const share = o.share ? evaluateNumber(o.share, scope) : undefined;
+      if (share !== undefined && (share < 0 || share > 1)) {
+        return fail(`outlets.${o.port}.share`, new Error(`a share must be between 0 and 1, got ${share}`));
+      }
+      outlets[o.port] = {
+        ...(share !== undefined ? { share } : {}),
+        ...(o.temperatureC ? { temperatureC: evaluateNumber(o.temperatureC, scope) } : {})
+      };
+    } catch (e) {
+      return fail(`outlets.${o.port}`, e);
+    }
+  }
+  const total = Object.values(outlets).reduce((sum, o) => sum + (o.share ?? 0), 0);
+  if (total > 1 + 1e-9) {
+    return fail('outlets', new Error(`the outlet shares add up to ${Math.round(total * 1000) / 1000}, more than all of the flow`));
+  }
+
   return {
     contractId: contract.id,
     parameters,
     derived,
     constraints,
     physicallyValid: constraints.every((c) => c.satisfied || c.severity === 'WARNING'),
-    behavior
+    behavior,
+    outlets
   };
 }
 

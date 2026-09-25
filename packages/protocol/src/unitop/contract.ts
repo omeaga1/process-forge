@@ -107,16 +107,59 @@ export const UnitOpBehaviorSchema = z.discriminatedUnion('mode', [
     cycleSeconds: z.string().min(1),
     unitsPerCycle: z.string().min(1),
     /** Fraction 0..1 of units scrapped per cycle. Deterministic by design. */
-    scrapFraction: z.string().optional()
+    scrapFraction: z.string().optional(),
+    /**
+     * Gallons of liquid each cycle draws from the unit's liquid inlet (a
+     * filler, a moulding press, a dosing station). The cycle waits until the
+     * liquid is there, so an upstream tank or pump can starve it.
+     */
+    liquidPerCycleGallons: z.string().optional()
   }),
   z.object({
     mode: z.literal('CONTINUOUS_RATE'),
+    /** The unit's rate, in whatever unit the contract states (kg/min, gal/min, ...). Reported; the engine does not limit flow by it. */
     throughputPerMinute: z.string().min(1),
+    /** The most liquid it passes, gal/min. The engine limits the flow through it to this, live. */
+    capacityGpm: z.string().optional(),
     dutyKw: z.string().optional(),
     residenceTimeSeconds: z.string().optional()
   })
 ]);
 export type UnitOpBehavior = z.infer<typeof UnitOpBehaviorSchema>;
+
+/**
+ * Conditions to check a design at: the values `inlet.*` (and `utility.*`)
+ * take when there is no live stream, i.e. when validating, and before the
+ * first liquid arrives in a run. During a run the engine supplies the live
+ * values; any it cannot measure fall back to these.
+ */
+export const UnitOpDesignStreamSchema = z.object({
+  temperatureC: z.number().optional(),
+  massFlowKgPerS: z.number().nonnegative().optional(),
+  volumetricFlowGpm: z.number().nonnegative().optional(),
+  piecesPerMinute: z.number().nonnegative().optional(),
+  densityGPerCm3: z.number().positive().optional(),
+  specificHeatKjPerKgK: z.number().positive().optional(),
+  latentHeatKjPerKg: z.number().nonnegative().optional()
+});
+export type UnitOpDesignStream = z.infer<typeof UnitOpDesignStreamSchema>;
+
+/**
+ * What leaves by one outlet port. Both are expressions, evaluated live.
+ *
+ * share -- the fraction 0..1 of the unit's outflow that leaves by this port.
+ *   Outlets without a share split what the others leave. If every outlet has
+ *   a share and they sum to less than 1, the rest leaves the line (steam out
+ *   of a vent, water driven off a dryer) and is reported as a loss.
+ * temperatureC -- the temperature it leaves at. Without it, it leaves at the
+ *   inlet temperature.
+ */
+export const UnitOpOutletStreamSchema = z.object({
+  port: z.string().min(1),
+  share: z.string().optional(),
+  temperatureC: z.string().optional()
+});
+export type UnitOpOutletStream = z.infer<typeof UnitOpOutletStreamSchema>;
 
 /** Records who authored what, so generated values are never mistaken for engineered ones. */
 export const UnitOpProvenanceSchema = z.object({
@@ -140,6 +183,12 @@ export const UnitOpContractSchema = z.object({
   derived: z.array(UnitOpDerivedSchema).default([]),
   constraints: z.array(UnitOpConstraintSchema).default([]),
   behavior: UnitOpBehaviorSchema,
+  /** The inlet conditions to check the design at; see UnitOpDesignStreamSchema. */
+  designInlet: UnitOpDesignStreamSchema.optional(),
+  /** The utility stream's design conditions, for designs that read utility.*. */
+  designUtility: UnitOpDesignStreamSchema.optional(),
+  /** Per-outlet share and temperature, for continuous units. */
+  outlets: z.array(UnitOpOutletStreamSchema).optional(),
   provenance: UnitOpProvenanceSchema,
   /**
    * How the unit is drawn on the flowsheet, with a nozzle for every port.
@@ -251,8 +300,15 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     checkExpr(b.cycleSeconds, 'behavior.cycleSeconds');
     checkExpr(b.unitsPerCycle, 'behavior.unitsPerCycle');
     if (b.scrapFraction) checkExpr(b.scrapFraction, 'behavior.scrapFraction');
+    if (b.liquidPerCycleGallons) {
+      checkExpr(b.liquidPerCycleGallons, 'behavior.liquidPerCycleGallons');
+      if (!contract.ports.some((p) => p.direction === 'INLET' && p.flowDimension === 'CONTINUOUS_FLUID')) {
+        issues.push({ path: 'behavior.liquidPerCycleGallons', message: 'draws liquid, but the unit has no CONTINUOUS_FLUID inlet port to draw it from' });
+      }
+    }
   } else {
     checkExpr(b.throughputPerMinute, 'behavior.throughputPerMinute');
+    if (b.capacityGpm) checkExpr(b.capacityGpm, 'behavior.capacityGpm');
     if (b.dutyKw) checkExpr(b.dutyKw, 'behavior.dutyKw');
     if (b.residenceTimeSeconds) checkExpr(b.residenceTimeSeconds, 'behavior.residenceTimeSeconds');
   }
@@ -261,6 +317,46 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   const outlets = contract.ports.filter((p) => p.direction === 'OUTLET');
   if (inlets.length === 0 && outlets.length === 0) {
     issues.push({ path: 'ports', message: 'A unit op needs at least one inlet or outlet' });
+  }
+
+  const seen = new Set<string>();
+  for (const [i, o] of (contract.outlets ?? []).entries()) {
+    const path = `outlets[${i}]`;
+    if (!outlets.some((p) => p.id === o.port)) {
+      issues.push({ path, message: `names port "${o.port}", which is not an OUTLET port. Outlets: ${outlets.map((p) => p.id).join(', ') || 'none'}` });
+    }
+    if (seen.has(o.port)) issues.push({ path, message: `port "${o.port}" is listed twice` });
+    seen.add(o.port);
+    if (o.share) checkExpr(o.share, `${path}.share`);
+    if (o.temperatureC) checkExpr(o.temperatureC, `${path}.temperatureC`);
+  }
+
+  // Every inlet.* or utility.* a design reads needs a value to check it at.
+  const allExprs = [
+    ...contract.derived.map((d) => d.expr),
+    ...contract.constraints.map((c) => c.expr),
+    ...(b.mode === 'DISCRETE_CYCLE'
+      ? [b.cycleSeconds, b.unitsPerCycle, b.scrapFraction, b.liquidPerCycleGallons]
+      : [b.throughputPerMinute, b.capacityGpm, b.dutyKw, b.residenceTimeSeconds]),
+    ...(contract.outlets ?? []).flatMap((o) => [o.share, o.temperatureC])
+  ].filter((e): e is string => typeof e === 'string');
+  const streamRefs = new Set<string>();
+  for (const e of allExprs) {
+    try {
+      for (const ref of referencedNames(e)) if (ref.startsWith('inlet.') || ref.startsWith('utility.')) streamRefs.add(ref);
+    } catch {
+      // Reported by checkExpr.
+    }
+  }
+  for (const ref of streamRefs) {
+    const [group, field] = ref.split('.') as ['inlet' | 'utility', keyof UnitOpDesignStream];
+    const design = group === 'inlet' ? contract.designInlet : contract.designUtility;
+    if (design?.[field] === undefined) {
+      issues.push({
+        path: group === 'inlet' ? 'designInlet' : 'designUtility',
+        message: `the design reads ${ref}, so give ${group === 'inlet' ? 'designInlet' : 'designUtility'}.${field}: the value to check it at. During a run the engine supplies the live value.`
+      });
+    }
   }
 
   return issues;

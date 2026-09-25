@@ -3,6 +3,9 @@ import {
   RESERVED_SCOPE_NAMES,
   WAX_COOLING_BELT_CONTRACT,
   FDM_PRINTER_CONTRACT,
+  EVAPORATOR_CONTRACT,
+  LITERS_PER_GALLON,
+  type UnitOpDesignStream,
   UNIT_OP_AUTHORING_RULES,
   type ProcessGraph,
   type ProcessNode
@@ -65,11 +68,19 @@ export interface DesignUnitOpResult {
   workedExample: unknown;
   /** A complete, valid cycle (DISCRETE_CYCLE) contract: one part per print. */
   cycleExample: unknown;
+  /**
+   * A complete, valid contract that reads its live inlet and splits and heats
+   * its outflow per outlet (an evaporator): designInlet, capacityGpm, outlets,
+   * if() and interp().
+   */
+  liveInletExample: unknown;
   /** What the surrounding process looks like, when a graph was supplied. */
   processContext: {
     available: boolean;
     neighbours: NeighbourContext[];
     notes: string[];
+    /** From the liquid stream feeding the unit: a starting point for designInlet. */
+    suggestedDesignInlet?: UnitOpDesignStream;
   };
   nextStep: string;
 }
@@ -175,21 +186,49 @@ function buildProcessContext(
     );
   }
 
-  if (neighbours.length > 2) {
-    notes.push('Where a unit has several outgoing streams, the engine sends its output to them in turn (round robin), not by split ratio.');
+  if (downstream.length > 1) {
+    notes.push(
+      'With several outgoing streams: liquid splits by your outlets[].share (evenly across ports without one); whole items go to them in turn (round robin).'
+    );
   }
 
-  return { available: true, neighbours, notes };
+  const feed = upstream.find((u) => u.streamType === 'CONTINUOUS_FLUID')?.streamSummary;
+  const fluid = feed?.fluid as { temperatureCelsius?: number; densityGPerCm3?: number; specificHeatKjPerKgK?: number } | undefined;
+  const gpm = typeof feed?.designFlowRateGpm === 'number' ? feed.designFlowRateGpm : undefined;
+  const suggestedDesignInlet: UnitOpDesignStream | undefined = feed
+    ? {
+        ...(typeof fluid?.temperatureCelsius === 'number' ? { temperatureC: fluid.temperatureCelsius } : {}),
+        ...(gpm !== undefined ? { volumetricFlowGpm: gpm } : {}),
+        ...(typeof fluid?.densityGPerCm3 === 'number' ? { densityGPerCm3: fluid.densityGPerCm3 } : {}),
+        ...(typeof fluid?.specificHeatKjPerKgK === 'number' ? { specificHeatKjPerKgK: fluid.specificHeatKjPerKgK } : {}),
+        ...(gpm !== undefined
+          ? { massFlowKgPerS: Math.round(((gpm / 60) * LITERS_PER_GALLON * (fluid?.densityGPerCm3 ?? 1)) * 1000) / 1000 }
+          : {})
+      }
+    : undefined;
+  if (suggestedDesignInlet) {
+    notes.push('suggestedDesignInlet is the design stream feeding this unit. Use it for designInlet, adjusted to what the engineer says; the run supplies the live values.');
+  }
+
+  return { available: true, neighbours, notes, ...(suggestedDesignInlet ? { suggestedDesignInlet } : {}) };
 }
 
 
 export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpResult {
   const { description, graph, targetNodeId, preferredMode } = params;
 
-  const availableFunctions = Object.entries(EXPRESSION_FUNCTIONS).map(([name, def]) => ({
-    name,
-    arity: Array.isArray(def.arity) ? `${def.arity[0]}-${def.arity[1]} args` : `${def.arity} arg(s)`
-  }));
+  const availableFunctions = [
+    { name: 'if', arity: '3 args: if(condition, then, else); only the branch taken is evaluated' },
+    ...Object.entries(EXPRESSION_FUNCTIONS).map(([name, def]) => ({
+      name,
+      arity:
+        name === 'interp'
+          ? 'interp(x, x1, y1, x2, y2, ...): piecewise-linear table, x ascending, clamped at the ends'
+          : Array.isArray(def.arity)
+            ? `${def.arity[0]}-${def.arity[1]} args`
+            : `${def.arity} arg(s)`
+    }))
+  ];
 
   const modeLine = preferredMode
     ? `The engineer expects behavior.mode = ${preferredMode}.`
@@ -207,9 +246,13 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     '',
     'The drawing is how the unit appears on the flowsheet: draw the actual',
     'equipment (see the rules), and put each nozzle where that stream really',
-    'connects. Two worked examples show the format: workedExample is steady flow',
-    '(CONTINUOUS_RATE, a wax cooling belt) and cycleExample makes whole parts on a',
-    'cycle (DISCRETE_CYCLE, a 3D printer). Follow the one that matches your mode.'
+    'connects. Three worked examples show the format: workedExample is steady flow',
+    '(CONTINUOUS_RATE, a wax cooling belt), cycleExample makes whole parts on a',
+    'cycle (DISCRETE_CYCLE, a 3D printer), and liveInletExample (an evaporator)',
+    'reads what flows in (inlet.*, checked at designInlet) and splits and heats its',
+    'outflow per outlet port. During a run the engine evaluates your design every',
+    'second at the stream that actually reaches it, so write the physics in terms',
+    'of inlet.* wherever the feed matters, rather than as fixed parameters.'
   ].join('\n');
 
   return {
@@ -220,6 +263,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     rules: [...UNIT_OP_AUTHORING_RULES],
     workedExample: WAX_COOLING_BELT_CONTRACT,
     cycleExample: FDM_PRINTER_CONTRACT,
+    liveInletExample: EVAPORATOR_CONTRACT,
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:
       'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'

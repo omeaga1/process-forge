@@ -66,9 +66,25 @@ export interface MachineOeeReport {
     temperatureC: number;
     /** Volume-weighted °C of everything it sent on. Absent if it sent nothing. */
     averageOutletTemperatureC?: number;
+    /** Designed units: gallons no outlet took (vented, evaporated). */
+    lostGallons?: number;
   };
-  /** Heat exchangers with a target temperature, and batch reactors with a reaction temperature. */
+  /** Heat exchangers with a target temperature, batch reactors with a reaction temperature, designed units with a duty. */
   heat?: HeatReport;
+  /** Designed continuous units: how the design held up at the conditions it actually saw. */
+  designedUnit?: DesignedUnitReport;
+}
+
+export interface DesignedUnitReport {
+  /** Times it was evaluated at live inlet conditions (once per second of flow). */
+  liveEvaluations: number;
+  /** Constraints broken at some point in the run, with for how long. ERROR ones first. */
+  brokenConstraints: { id: string; message: string; severity: 'ERROR' | 'WARNING'; seconds: number }[];
+  /** The first live evaluation that failed (it kept its last good values), and for how long. */
+  evaluationError?: string;
+  evaluationErrorSeconds?: number;
+  /** Its capacity at the end of the run, gal/min, when it declares one. */
+  capacityGpm?: number;
 }
 
 export interface HeatReport {

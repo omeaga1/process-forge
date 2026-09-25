@@ -227,3 +227,16 @@ describe('validate_unit_op: the engine decides', () => {
     assert.equal(verdicts.size, 1);
   });
 });
+
+describe('design_unit_op: designs that read their inlet', () => {
+  it('the brief teaches designInlet, outlets and if(), with a live example that validates', async () => {
+    const { executeDesignUnitOp } = await import('../tools/designUnitOp.js');
+    const { executeValidateUnitOp } = await import('@process-forge/protocol');
+    const r = executeDesignUnitOp({ description: 'an evaporator' });
+    assert.ok(r.availableFunctions.some((f) => f.name === 'if'));
+    assert.ok(r.availableFunctions.some((f) => f.name === 'interp'));
+    assert.ok(r.rules.some((x) => x.includes('designInlet')));
+    assert.ok(r.rules.some((x) => x.includes('liquidPerCycleGallons')));
+    assert.equal(executeValidateUnitOp({ contract: r.liveInletExample }).verdict, 'ACCEPTED');
+  });
+});

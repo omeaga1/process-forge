@@ -278,8 +278,40 @@ export const EXPRESSION_FUNCTIONS: Record<string, { arity: number | [number, num
   clamp: { arity: 3, fn: (v, lo, hi) => Math.min(Math.max(v as number, lo as number), hi as number) },
   pow: { arity: 2, fn: (a, b) => Math.pow(a as number, b as number) },
   log: { arity: 1, fn: (a) => Math.log(a as number) },
-  exp: { arity: 1, fn: (a) => Math.exp(a as number) }
+  log10: { arity: 1, fn: (a) => Math.log10(a as number) },
+  exp: { arity: 1, fn: (a) => Math.exp(a as number) },
+  sign: { arity: 1, fn: (a) => Math.sign(a as number) },
+  /**
+   * Piecewise-linear lookup: interp(x, x1, y1, x2, y2, ...), with the x values
+   * ascending. Clamped at both ends, so a table never extrapolates.
+   */
+  interp: { arity: [5, 41], fn: interpolate }
 };
+
+/**
+ * Names that look like functions but are not in the table because their
+ * arguments are not all evaluated. `if(cond, a, b)` evaluates only the branch
+ * it takes, so `if(flow > 0, duty / flow, 0)` is safe at zero flow.
+ */
+export const EXPRESSION_SPECIAL_FORMS = ['if'] as const;
+
+function interpolate(...a: number[]): number {
+  const [x, ...pts] = a as [number, ...number[]];
+  if (pts.length % 2 !== 0) throw new Error('interp takes x, then pairs of x and y');
+  const n = pts.length / 2;
+  for (let i = 1; i < n; i++) {
+    if (!(pts[2 * i]! > pts[2 * (i - 1)]!)) throw new Error('interp needs its x values in ascending order');
+  }
+  if (x <= pts[0]!) return pts[1]!;
+  for (let i = 1; i < n; i++) {
+    const x0 = pts[2 * (i - 1)]!;
+    const y0 = pts[2 * (i - 1) + 1]!;
+    const x1 = pts[2 * i]!;
+    const y1 = pts[2 * i + 1]!;
+    if (x <= x1) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
+  }
+  return pts[2 * n - 1]!;
+}
 
 export const EXPRESSION_CONSTANTS: Record<string, number> = {
   PI: Math.PI,
@@ -372,10 +404,20 @@ function evalAst(node: Ast, scope: ExprScope, src: string): ExprValue {
     }
 
     case 'call': {
+      if (node.name === 'if') {
+        if (node.args.length !== 3) {
+          throw new ExpressionError(`"if" takes 3 arguments (condition, then, else), got ${node.args.length}`, src, node.pos);
+        }
+        const cond = evalAst(node.args[0]!, scope, src);
+        if (typeof cond !== 'boolean') {
+          throw new ExpressionError('The first argument of "if" must be a comparison, such as x > 0', src, node.pos);
+        }
+        return evalAst(cond ? node.args[1]! : node.args[2]!, scope, src);
+      }
       const def = EXPRESSION_FUNCTIONS[node.name];
       if (!def) {
         throw new ExpressionError(
-          `Unknown function "${node.name}". Available: ${Object.keys(EXPRESSION_FUNCTIONS).join(', ')}`,
+          `Unknown function "${node.name}". Available: if, ${Object.keys(EXPRESSION_FUNCTIONS).join(', ')}`,
           src,
           node.pos
         );
@@ -389,7 +431,12 @@ function evalAst(node: Ast, scope: ExprScope, src: string): ExprValue {
         );
       }
       const args = node.args.map((a) => asNumber(evalAst(a, scope, src), src, node.pos));
-      const out = def.fn(...args);
+      let out: number;
+      try {
+        out = def.fn(...args);
+      } catch (e) {
+        throw new ExpressionError(`"${node.name}": ${(e as Error).message}`, src, node.pos);
+      }
       if (!Number.isFinite(out)) {
         throw new ExpressionError(`"${node.name}" produced ${out}`, src, node.pos);
       }

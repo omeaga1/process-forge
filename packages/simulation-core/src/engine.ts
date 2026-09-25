@@ -4,6 +4,7 @@ import { PriorityQueue } from './priority-queue.js';
 import { FluidNetwork, fillerDemandGallons, isFluidEdge, type FluidUnit } from './fluid.js';
 import { createRng, seedFromString, type SeededRng } from './rng.js';
 import type {
+  DesignedUnitReport,
   HeatReport,
   MachineOeeReport,
   MachineOperationalState,
@@ -56,11 +57,28 @@ interface InternalNodeRuntime {
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
-/** The heat a liquid unit moved: heat exchangers with a target, reactors with a reaction temperature. */
+/** How a designed continuous unit held up at the conditions it actually saw. */
+function designedUnitReport(u: FluidUnit): DesignedUnitReport {
+  const run = u.contractRun!;
+  return {
+    liveEvaluations: run.evaluations,
+    brokenConstraints: Object.entries(run.broken)
+      .map(([id, b]) => ({ id, message: b.message, severity: b.severity, seconds: Math.round(b.seconds) }))
+      .sort((a, b) => (a.severity === b.severity ? b.seconds - a.seconds : a.severity === 'ERROR' ? -1 : 1)),
+    ...(run.firstError ? { evaluationError: run.firstError, evaluationErrorSeconds: Math.round(run.errorSeconds) } : {}),
+    ...(u.live?.capacityGpm !== undefined ? { capacityGpm: round1(u.live.capacityGpm) } : {})
+  };
+}
+
+/** The heat a liquid unit moved: heat exchangers with a target, reactors with a reaction temperature, designed units with a duty. */
 function heatReport(u: FluidUnit): { heat?: HeatReport } {
   const c = u.node.config as Record<string, unknown>;
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
   const energyKwh = round1(u.heat.energyKwh);
+  if (u.contract?.behavior.mode === 'CONTINUOUS_RATE' && u.contract.behavior.dutyKw) {
+    const active = u.heat.activeSeconds;
+    return { heat: { energyKwh, ...(active > 0 ? { averageDutyKw: round1((u.heat.energyKwh * 3600) / active) } : {}) } };
+  }
   if (u.node.kind === 'HEAT_EXCHANGER') {
     const target = num(c.targetTemperatureCelsius);
     if (target === undefined) return {};
@@ -654,7 +672,14 @@ export class SimulationEngine {
       const runtime = this.nodes.get(unit.id);
       if (!runtime) continue;
       if (unit.role === 'filler') {
-        if (runtime.state === 'STARVED') this.startFillerCycle(runtime);
+        if (runtime.state !== 'STARVED') continue;
+        if (runtime.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
+          // A designed unit waiting on liquid restarts once a cycle's worth is there.
+          const ready = this.fluid.bowl(unit.id) + 1e-6 >= this.fluid.drawPerCycle(unit.id);
+          if (ready && (this.isSourceNode(unit.id) || runtime.bufferCans > 0)) this.handleContractCycle(runtime);
+        } else {
+          this.startFillerCycle(runtime);
+        }
         continue;
       }
       this.setNodeState(runtime, this.fluid.stateOf(unit));
@@ -678,14 +703,23 @@ export class SimulationEngine {
     const isSource = this.isSourceNode(runtime.node.id);
 
     // Determine how many units this cycle can act on.
+    if (!isSource && runtime.bufferCans <= 0) {
+      this.setNodeState(runtime, 'STARVED');
+      return;
+    }
+    // A unit that draws liquid each cycle waits for it, as a pipe-fed filler does.
+    if (this.fluid.isPipeFedFiller(runtime.node.id)) {
+      const need = this.fluid.drawPerCycle(runtime.node.id);
+      if (this.fluid.bowl(runtime.node.id) + 1e-6 < need) {
+        this.setNodeState(runtime, 'STARVED');
+        return;
+      }
+      this.fluid.draw(runtime.node.id, need);
+    }
     let available: number;
     if (isSource) {
       available = unitsPerCycle;
     } else {
-      if (runtime.bufferCans <= 0) {
-        this.setNodeState(runtime, 'STARVED');
-        return;
-      }
       available = Math.min(unitsPerCycle, runtime.bufferCans);
       runtime.bufferCans -= available;
     }
@@ -1019,10 +1053,14 @@ export class SimulationEngine {
                 temperatureC: round1(fluidUnit.tempC),
                 ...(fluidUnit.heat.sentGallons > 1e-6
                   ? { averageOutletTemperatureC: round1(fluidUnit.heat.sentGallonDegrees / fluidUnit.heat.sentGallons) }
-                  : {})
+                  : {}),
+                ...(fluidUnit.lostGallons > 1e-6 ? { lostGallons: round1(fluidUnit.lostGallons) } : {})
               },
               ...heatReport(fluidUnit)
             }
+          : {}),
+        ...(fluidUnit?.contractRun && fluidUnit.contract?.behavior.mode === 'CONTINUOUS_RATE'
+          ? { designedUnit: designedUnitReport(fluidUnit) }
           : {})
       };
       const role = terminalRole(r.node);
