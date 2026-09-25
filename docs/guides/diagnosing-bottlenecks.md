@@ -13,7 +13,7 @@ The simulation attributes each machine's time to one of these states (plus IDLE)
 | **`BUSY`** | Jade (`#549e6a` dark) | Machine is running a cycle. |
 | **`STARVED`** | Cyan (`#8cd3cb` dark) | Machine is idle because upstream units cannot supply material fast enough. |
 | **`BLOCKED`** | Amber (`#e5c736` dark) | Machine has completed its cycle but cannot discharge because the downstream buffer is full. |
-| **`FAILED`** | Red (`#ff5345` dark) | Machine is stopped by a breakdown. Breakdowns are not simulated yet, so this state does not occur. |
+| **`FAILED`** | Red (`#ff5345` dark) | Machine is stopped by a breakdown, for a machine whose settings give a mean time between failures and a mean time to repair. |
 
 > [!TIP]
 > The bottleneck is the machine that is busy almost all the time. Machines

@@ -220,7 +220,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {Object.entries(node.config as Record<string, unknown>)
-                  .filter(([k, v]) => typeof v === 'number' && k !== 'meanTimeBetweenFailuresMinutes' && k !== 'meanTimeToRepairMinutes')
+                  .filter(([, v]) => typeof v === 'number')
                   .slice(0, 8)
                   .map(([k, v]) => (
                     <div

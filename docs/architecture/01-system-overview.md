@@ -82,7 +82,7 @@ engine:
   Contract nodes with `DISCRETE_CYCLE` behavior run generically from their
   evaluated cycle time and units per cycle.
 - Each unit's time is attributed to BUSY, BLOCKED, STARVED, FAILED or IDLE
-  (breakdowns are not simulated yet, so FAILED is unused; liquid units are stepped each second, see 04-simulation-math.md). A unit is blocked when downstream buffers are full and starved when nothing
+  (FAILED while a machine is down for repair; liquid units are stepped each second; see 04-simulation-math.md). A unit is blocked when downstream buffers are full and starved when nothing
   arrives from upstream.
 - Contracts are evaluated once before the clock starts. A contract that fails
   to evaluate, or violates an ERROR constraint, stops the run with an error.

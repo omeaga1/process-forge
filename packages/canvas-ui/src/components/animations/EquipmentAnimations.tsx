@@ -84,12 +84,6 @@ export const SepAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boole
             />
           )
         )}
-      <text x="80" y="42" textAnchor="middle" fontSize="9" fill={OsakaJadePalette.text.muted} style={{ fontWeight: 600 }}>
-        VAPOR
-      </text>
-      <text x="80" y="86" textAnchor="middle" fontSize="9" fill={OsakaJadePalette.jade[300]} style={{ fontWeight: 600 }}>
-        LIQUID
-      </text>
     </svg>
   );
 };
@@ -141,9 +135,6 @@ export const ReactorAnim: React.FC<{
 
       {/* Agitator Motor */}
       <rect x="65" y="5" width="30" height="20" rx="4" fill={OsakaJadePalette.background.surfaceElevated} stroke={stroke} strokeWidth="1.5" />
-      <text x="80" y="19" textAnchor="middle" fontSize="10" fill={stroke} fontWeight="bold">
-        M
-      </text>
 
       {/* Agitator Shaft */}
       <line x1="80" y1="25" x2="80" y2="110" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
@@ -415,9 +406,6 @@ export const FillerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bo
       <rect x="25" y="15" width="110" height="110" rx="8" fill={bg} stroke={stroke} strokeWidth="1.5" />
       {/* Top Supply Bowl / Manifold */}
       <rect x="40" y="22" width="80" height="24" rx="4" fill="rgba(16, 185, 129, 0.2)" stroke={stroke} strokeWidth="1.5" />
-      <text x="80" y="38" textAnchor="middle" fontSize="9" fill={stroke} fontWeight="bold">
-        FILLER BOWL
-      </text>
       {/* Rotary Turret Carousel */}
       <circle cx="80" cy="85" r="32" fill="none" stroke={stroke} strokeWidth="1.5" strokeDasharray="5,3" />
       <g
@@ -571,9 +559,6 @@ export const LabelerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: b
         fill={isRunning ? OsakaJadePalette.status.busy : OsakaJadePalette.status.blocked}
         style={{ animation: isRunning ? 'pf-sensor-blink 0.6s infinite' : 'none' }}
       />
-      <text x="80" y="108" textAnchor="middle" fontSize="9" fill={stroke} fontWeight="bold">
-        ROTARY LABELER
-      </text>
     </svg>
   );
 };
@@ -621,9 +606,6 @@ export const PalletizerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?
         fill={isRunning ? OsakaJadePalette.status.busy : OsakaJadePalette.status.blocked}
         style={{ animation: isRunning ? 'pf-sensor-blink 1s infinite' : 'none' }}
       />
-      <text x="50" y="118" textAnchor="middle" fontSize="8" fill={stroke} fontWeight="bold">
-        PALLET
-      </text>
     </svg>
   );
 };

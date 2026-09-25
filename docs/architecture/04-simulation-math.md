@@ -68,6 +68,20 @@ $$\text{OEE} = \text{Availability} \times \text{Performance} \times \text{Qualit
 Theoretical speed is the filler's nozzle capacity or the labeler's maximum
 speed. Other units use a default of 40 units/min.
 
+## Breakdowns
+
+A machine the engine steps (a filler, conveyor, labeler, palletizer or designed
+cycle unit) breaks down when its config sets both `meanTimeBetweenFailuresMinutes`
+and `meanTimeToRepairMinutes`. The time to each failure and each repair time are
+exponential, with those means. They are drawn from their own seeded stream, so
+turning breakdowns on for one machine changes no other random draw.
+
+While a machine is down it is FAILED, and that time is $T_{down}$. The cycle it
+was in pauses, and it finishes the rest after the repair. A machine that was
+waiting when it failed goes back to waiting, and takes any work that arrived
+while it was down. Over a long run it is down about
+$T_{repair} / (T_{fail} + T_{repair})$ of the time.
+
 ## Liquid
 
 Reactors, tanks, pumps and the other process units carry liquid. The engine
@@ -114,6 +128,5 @@ by the container volume of the pipe-fed filler.
   is checked at steady state, but it does not limit the flow.
 - **Liquid-fed cycle units:** a designed cycle unit fed by a liquid pipe does
   not draw the liquid down. It starts each cycle on its own.
-- **Breakdowns:** machine breakdowns (MTBF/MTTR) are part of the filler schema
-  but are not simulated, so no unit enters the FAILED state and $T_{down}$ is
-  zero.
+- **Breakdowns on liquid units:** only machines that make or move whole items
+  break down. Reactors, tanks and pumps do not.
