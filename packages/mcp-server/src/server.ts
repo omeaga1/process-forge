@@ -23,7 +23,7 @@ export function createProcessForgeMcpServer(): Server {
   const server = new Server(
     {
       name: 'process-forge-mcp',
-      version: '0.4.0'
+      version: '0.5.0'
     },
     {
       capabilities: {
