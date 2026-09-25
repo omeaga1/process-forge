@@ -16,6 +16,9 @@ server does no model inference itself: your MCP client is the model.
 | `get_open_flowsheet` | Reads the flowsheet open in ProcessForge Desktop on this computer. |
 | `add_unit_op_to_flowsheet` | Validates a contract and adds it to the flowsheet open in ProcessForge Desktop, drawn from its contract with pipes attaching at its nozzles. |
 | `add_stream` | Pipes one unit into another on the open flowsheet (by unit id, name or tag), choosing ports that fit: liquid to liquid, items to items. |
+| `update_unit` | Changes a unit's settings (dotted names for nested ones) or its name on the open flowsheet, and returns old and new values. Needs ProcessForge Desktop 0.1.33 or later. |
+| `remove_unit` | Removes a unit and its streams from the open flowsheet (undoable in the app). Marked destructive, so clients ask first. Needs 0.1.33 or later. |
+| `remove_stream` | Removes one stream, by id or by the units at its ends. Needs 0.1.33 or later. |
 | `list_standard_unit_ops` | Lists the equipment that ships with ProcessForge (the app's Standard palette), with ports and default settings, and the Feed, Product, Byproduct and Waste arrows that mark where material enters and leaves a flowsheet. |
 | `add_standard_unit_op` | Places a standard unit or a feed/outlet arrow on the open flowsheet, with any settings changed, and optionally pipes it in (`connectFrom`, `connectTo`). Only Product outlets count as the line's output. Needs ProcessForge Desktop 0.1.30 or later. |
 | `search_community_unit_ops` | Searches the community library of unit ops people have published from the app. Public and read-only; listings are not reviewed by ProcessForge. |

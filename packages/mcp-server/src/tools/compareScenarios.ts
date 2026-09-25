@@ -1,4 +1,4 @@
-import { resolveUnit, validateProcessGraph, type ProcessGraph, type ProcessNode } from '@process-forge/protocol';
+import { applyFlowsheetEdit, validateProcessGraph, type ProcessGraph } from '@process-forge/protocol';
 import { simulateProcess } from '@process-forge/simulation-core';
 
 /**
@@ -33,41 +33,20 @@ interface AppliedChange {
   to: unknown;
 }
 
-function setPath(target: Record<string, unknown>, path: string, value: unknown): unknown {
-  const keys = path.split('.');
-  let at: Record<string, unknown> = target;
-  for (const k of keys.slice(0, -1)) {
-    const next = at[k];
-    at[k] = next && typeof next === 'object' && !Array.isArray(next) ? { ...(next as Record<string, unknown>) } : {};
-    at = at[k] as Record<string, unknown>;
-  }
-  const last = keys[keys.length - 1]!;
-  const before = at[last];
-  at[last] = value;
-  return before;
-}
-
 /** A copy of the graph with the scenario's changes, and what each change did. */
 export function applyScenario(graph: ProcessGraph, scenario: Scenario): { graph: ProcessGraph; applied: AppliedChange[]; warnings: string[] } {
-  const nodes = graph.nodes.map((n) => ({ ...n, config: { ...(n.config as Record<string, unknown>) } })) as ProcessNode[];
-  const copy: ProcessGraph = { ...graph, nodes };
+  let copy = graph;
   const applied: AppliedChange[] = [];
   const warnings: string[] = [];
   for (const change of scenario.changes ?? []) {
-    const found = resolveUnit(copy, String(change?.unit ?? ''));
-    if (typeof found === 'string') {
-      warnings.push(found);
+    const r = applyFlowsheetEdit(copy, { op: 'update-unit', unit: String(change?.unit ?? ''), parameters: change?.parameters ?? {} });
+    if (!r.ok) {
+      warnings.push(r.error);
       continue;
     }
-    for (const [param, value] of Object.entries(change.parameters ?? {})) {
-      const config = found.config as Record<string, unknown>;
-      const topLevel = param.split('.')[0]!;
-      if (!(topLevel in config)) {
-        warnings.push(`"${found.name}" had no setting "${topLevel}"; it was added. If the engine does not read it, it changes nothing (list_standard_unit_ops shows each unit's settings).`);
-      }
-      const from = setPath(config, param, value);
-      applied.push({ unit: found.name, unitId: found.id, parameter: param, from, to: value });
-    }
+    copy = r.graph;
+    warnings.push(...(r.warnings ?? []));
+    for (const c of r.changes ?? []) applied.push({ unit: r.unit!.name, unitId: r.unit!.id, ...c });
   }
   return { graph: copy, applied, warnings };
 }

@@ -19,7 +19,7 @@ import { executePackageUnitOp } from './tools/packageUnitOp.js';
 import { executeForgeEquipmentDrawing } from './tools/forgeEquipmentDrawing.js';
 import { executeDesignUnitOp } from './tools/designUnitOp.js';
 import { executeValidateUnitOp } from './tools/validateUnitOp.js';
-import { executeAddUnitOpToFlowsheet, executeGetOpenFlowsheet, executeAddStream } from './tools/desktopBridge.js';
+import { executeAddUnitOpToFlowsheet, executeGetOpenFlowsheet, executeAddStream, executeFlowsheetEdit } from './tools/desktopBridge.js';
 import { executeListStandardUnitOps, executeAddStandardUnitOp } from './tools/standardUnitOps.js';
 import { executeSearchCommunityUnitOps, executeAddCommunityUnitOp } from './tools/communityLibrary.js';
 import { executeCompareScenarios } from './tools/compareScenarios.js';
@@ -39,7 +39,7 @@ Typical workflow:
 1. Read the line. get_open_flowsheet returns what the engineer has open in ProcessForge Desktop. simulate_process_line, diagnose_bottlenecks and compare_scenarios use that open flowsheet automatically when you pass no graph or templateName; if the app is not running they fall back to a demo line and say so in "source".
 2. Find the limit. diagnose_bottlenecks is instant (static capacities); simulate_process_line runs the line over time (throughput, starved/blocked time, OEE, liquid levels, temperatures, heat duty).
 3. Test changes before making them. compare_scenarios runs the same line with settings changed (e.g. a bigger pump, a second filler nozzle count, a larger reactor jacket) and reports the difference. Nothing on the flowsheet changes.
-4. Build. Prefer standard equipment: list_standard_unit_ops, then add_standard_unit_op. Next, search_community_unit_ops / add_community_unit_op (community listings are unreviewed; say so). Only for equipment neither has, design one: design_unit_op gives the brief, you write a UnitOpContract, validate_unit_op checks it, add_unit_op_to_flowsheet places it. Connect units with add_stream (by id, name or tag like P-101).
+4. Build. Prefer standard equipment: list_standard_unit_ops, then add_standard_unit_op. Next, search_community_unit_ops / add_community_unit_op (community listings are unreviewed; say so). Only for equipment neither has, design one: design_unit_op gives the brief, you write a UnitOpContract, validate_unit_op checks it, add_unit_op_to_flowsheet places it. Connect units with add_stream (by id, name or tag like P-101). Change an existing unit with update_unit; remove_unit and remove_stream delete, so confirm with the engineer first.
 5. Re-simulate after changes and report what moved.
 
 Units: liquid in gal/min and gallons, items per minute, temperatures in °C, duty in kW. Tools that change the flowsheet need ProcessForge Desktop running on this computer; every other tool works without it.`;
@@ -208,6 +208,52 @@ export const TOOLS: ToolDef[] = [
     },
     annotations: WRITE,
     run: (args) => executeAddStream(args as never)
+  },
+  {
+    name: 'update_unit',
+    title: 'Change a unit\'s settings',
+    description:
+      'Changes settings of one unit on the flowsheet open in ProcessForge Desktop, or renames it. Name the unit by id, name or tag; settings by the names get_open_flowsheet shows (dotted names reach nested ones, e.g. "fluid.temperatureCelsius"). A number stays a number. Returns each change with its old and new value. Test a change with compare_scenarios first when its effect matters. Requires ProcessForge Desktop 0.1.33 or later.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        unit: { type: 'string', description: 'The unit: id, name or tag (e.g. P-102).' },
+        parameters: { type: 'object', description: 'Settings to set, e.g. { "designFlowRateGpm": 80 }.' },
+        name: { type: 'string', description: 'Optional new name. Keep a tag like P-102 in it so add_stream can find it.' }
+      },
+      required: ['unit']
+    },
+    annotations: { ...WRITE, idempotentHint: true },
+    run: (args) => executeFlowsheetEdit({ op: 'update-unit', ...(args as { unit: string }) })
+  },
+  {
+    name: 'remove_unit',
+    title: 'Remove a unit',
+    description:
+      'Removes one unit, and every stream to or from it, from the flowsheet open in ProcessForge Desktop. The engineer can undo it in the app, but confirm with them before removing anything they did not ask to remove. Requires ProcessForge Desktop 0.1.33 or later.',
+    inputSchema: {
+      type: 'object',
+      properties: { unit: { type: 'string', description: 'The unit: id, name or tag.' } },
+      required: ['unit']
+    },
+    annotations: { ...WRITE, destructiveHint: true },
+    run: (args) => executeFlowsheetEdit({ op: 'remove-unit', unit: String(args.unit ?? '') })
+  },
+  {
+    name: 'remove_stream',
+    title: 'Remove a stream',
+    description:
+      'Removes one stream (pipe or conveyor link) from the flowsheet open in ProcessForge Desktop: by its id, or by the units at its ends. The units stay. Requires ProcessForge Desktop 0.1.33 or later.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        stream: { type: 'string', description: 'The stream id, from get_open_flowsheet.' },
+        from: { type: 'string', description: 'Or: the unit it leaves (id, name or tag)...' },
+        to: { type: 'string', description: '...and the unit it enters.' }
+      }
+    },
+    annotations: { ...WRITE, destructiveHint: true },
+    run: (args) => executeFlowsheetEdit({ op: 'remove-stream', ...(args as object) })
   },
   {
     name: 'search_community_unit_ops',
