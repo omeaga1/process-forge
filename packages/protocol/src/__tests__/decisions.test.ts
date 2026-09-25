@@ -13,6 +13,8 @@ import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import {
   heuristicProvider,
+  scoreProvider,
+  ROUTING_FIXTURES,
   ROUTING_QUESTIONS,
   isDrawingRequest,
   isCreationRequest,
@@ -188,5 +190,24 @@ describe('Thresholding', () => {
   it('a boolean sitting on the fence is not actionable', () => {
     assert.equal(isActionable({ confidence: 0 }), false);
     assert.equal(isActionable({ confidence: 1 }), true);
+  });
+});
+
+describe('Routing fixtures', () => {
+  it('the keyword rules pass every non-hard case', async () => {
+    const s = await scoreProvider(heuristicProvider);
+    const failed = s.results.filter((r) => !r.passed && !r.fixture.hard);
+    assert.deepEqual(
+      failed.map((r) => `${r.fixture.question}: ${JSON.stringify(r.fixture.state)} -> ${r.got}`),
+      []
+    );
+  });
+
+  it('records the heuristic baseline on the hard cases', async () => {
+    // Pinned so that improving the rules, or regressing them, is visible.
+    // Change it deliberately, with the reason in the commit.
+    const s = await scoreProvider(heuristicProvider);
+    assert.equal(s.hardTotal, ROUTING_FIXTURES.filter((f) => f.hard).length);
+    assert.equal(s.hardPassed, 1, `heuristic now passes ${s.hardPassed}/${s.hardTotal} hard cases`);
   });
 });

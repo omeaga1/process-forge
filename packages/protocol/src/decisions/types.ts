@@ -20,12 +20,9 @@
  *
  * BATCH-SHAPED ON PURPOSE
  *
- * `ask()` takes every question at once and returns every answer at once. That is
- * the shape of the real Jev API (see docs/plans/0001): one
- * request carries a keyed question map and returns a keyed answer map, with
- * questions evaluated in parallel. A per-question interface would issue N round
- * trips and re-send the state N times, forfeiting the only reason to reach for a
- * decision model. The heuristic provider satisfies the same signature offline.
+ * `ask()` takes every question at once and returns every answer at once, so a
+ * provider backed by a remote decision model could answer them in one round
+ * trip (see docs/plans/0001). Only the offline heuristic provider exists today.
  */
 
 /** Whatever the caller knows: the message, the node, the surrounding graph. */
