@@ -2,6 +2,9 @@ import {
   AMBIENT_C,
   LITERS_PER_GALLON,
   evaluateUnitOp,
+  normalise,
+  react,
+  type EvaluatedReaction,
   fluidOf,
   fluidProperties,
   heatKj,
@@ -79,6 +82,12 @@ export interface FluidUnit {
   inbox: number;
   /** Gallon-degrees arriving this tick, so the inbox can be mixed. */
   inboxHeat: number;
+  /** Mass fractions by component of what the unit holds (a pass-through unit: of what it last sent). */
+  comp: Composition;
+  /** Per-tick scratch: gallon-weighted fractions arriving. */
+  inboxComp: Composition;
+  /** Gallon-weighted fractions of everything it sent, for the average outlet composition. */
+  sentComp: Composition;
   /** Gallons a designed unit's outlet shares did not account for: steam off a vent, water off a dryer. */
   lostGallons: number;
   /** A designed unit: its contract, and what it last evaluated to at live inlet conditions. */
@@ -101,14 +110,19 @@ export interface BatchRun {
   startTempC: number;
   /** Constraints broken at this phase's start, timed while it runs. */
   broken: { id: string; message: string; severity: 'ERROR' | 'WARNING' }[];
+  /** A react HOLD: the reactions, as evaluated when it started. */
+  reactions?: EvaluatedReaction[];
   /** Seconds spent in each phase, by name, over the run. */
   secondsByPhase: Record<string, number>;
 }
 
+export type Composition = Record<string, number>;
+
 export interface LiveContract {
   capacityGpm?: number;
   dutyKw?: number;
-  outlets: Record<string, { share?: number; temperatureC?: number }>;
+  outlets: Record<string, { share?: number; temperatureC?: number; recovery?: Record<string, number> }>;
+  reactions?: EvaluatedReaction[];
   /** A cycle unit: gallons each cycle draws. */
   liquidPerCycleGallons?: number;
 }
@@ -119,12 +133,41 @@ export interface ContractRunTally {
   /** The first live evaluation that failed, and for how long evaluation failed. */
   firstError?: string;
   errorSeconds: number;
+  /** Reactions that ran short of a co-reactant, and for how long. */
+  shortReactions: Record<string, number>;
 }
 
 interface Outlet {
   target: FluidUnit;
   share: number;
   temp?: number;
+  comp?: Composition;
+}
+
+/** Mixes `gallons` of `add` into `gallons0` of `base`, by volume (one density per unit). */
+function mix(base: Composition, gallons0: number, add: Composition, gallons: number): Composition {
+  const total = gallons0 + gallons;
+  if (total <= 0) return { ...add };
+  const out: Composition = {};
+  for (const k of new Set([...Object.keys(base), ...Object.keys(add)])) {
+    const v = ((base[k] ?? 0) * gallons0 + (add[k] ?? 0) * gallons) / total;
+    if (v > 0) out[k] = v;
+  }
+  return out;
+}
+
+const compositionOf = (x: unknown): Composition | undefined => {
+  const c = (x as { composition?: unknown } | undefined)?.composition;
+  return c && typeof c === 'object' ? normalise(c as Composition) : undefined;
+};
+
+/** The composition a pipe's stream is drawn with, from the first pipe that says. */
+function pipeComposition(edges: ProcessEdge[] | undefined): Composition | undefined {
+  for (const e of edges ?? []) {
+    const c = compositionOf(fluidOf(e.stream));
+    if (c && Object.keys(c).length) return c;
+  }
+  return undefined;
 }
 
 export interface HeatTally {
@@ -177,7 +220,7 @@ function drawsLiquid(node: ProcessNode): boolean {
 /** What a contract evaluates to, in the terms the liquid step uses. */
 function liveOf(ev: ReturnType<typeof evaluateUnitOp>): LiveContract {
   const b = ev.behavior;
-  const live: LiveContract = { outlets: ev.outlets ?? {} };
+  const live: LiveContract = { outlets: ev.outlets ?? {}, ...(ev.reactions?.length ? { reactions: ev.reactions } : {}) };
   if (b.mode === 'CONTINUOUS_RATE') {
     if (b.capacityGpm !== undefined) live.capacityGpm = b.capacityGpm;
     if (b.dutyKw !== undefined) live.dutyKw = b.dutyKw;
@@ -245,6 +288,14 @@ export class FluidNetwork {
             : role === 'reactor'
               ? AMBIENT_C
               : pipeTemperature(this.inEdges.get(node.id)) ?? AMBIENT_C;
+      const comp =
+        role === 'feed'
+          ? compositionOf(c) ?? pipeComposition(this.outEdges.get(node.id)) ?? {}
+          : role === 'tank' || role === 'reactor'
+            ? compositionOf(fluidOf(c)) ?? pipeComposition(this.inEdges.get(node.id)) ?? {}
+            : role === 'batch'
+              ? compositionOf(contract?.designInlet) ?? {}
+              : pipeComposition(this.inEdges.get(node.id)) ?? {};
       this.units.set(node.id, {
         id: node.id,
         role,
@@ -262,8 +313,11 @@ export class FluidNetwork {
         accept: 0,
         inbox: 0,
         inboxHeat: 0,
+        comp: role === 'tank' || role === 'feed' || role === 'reactor' ? comp : level > 0 ? comp : {},
+        inboxComp: {},
+        sentComp: {},
         lostGallons: 0,
-        ...(contract ? { contract, contractRun: { evaluations: 0, broken: {}, errorSeconds: 0 } } : {}),
+        ...(contract ? { contract, contractRun: { evaluations: 0, broken: {}, errorSeconds: 0, shortReactions: {} } } : {}),
         ...(live ? { live } : {}),
         ...(role === 'reactor' ? { phase: 'FILLING' as const } : {})
       });
@@ -280,7 +334,7 @@ export class FluidNetwork {
   private startPhase(u: FluidUnit, index: number, now: number): void {
     const { density } = this.properties(u);
     const ev = evaluateUnitOp(u.contract!, {
-      batch: { gallons: u.level, temperatureC: u.tempC, massKg: u.level * LITERS_PER_GALLON * density, number: u.batches + 1 }
+      batch: { gallons: u.level, temperatureC: u.tempC, massKg: u.level * LITERS_PER_GALLON * density, number: u.batches + 1, composition: u.comp }
     });
     const run = u.contractRun!;
     run.evaluations++;
@@ -304,6 +358,7 @@ export class FluidNetwork {
       ...(phase.kind === 'HOLD' ? { endsAt: now + (phase.seconds ?? 0) } : {}),
       startTempC: u.tempC,
       broken: ev.error ? [] : ev.constraints.filter((c) => !c.satisfied).map((c) => ({ id: c.id, message: c.message, severity: c.severity })),
+      ...(!ev.error && (declared as { react?: boolean }).react ? { reactions: ev.reactions } : {}),
       secondsByPhase: u.batchRun?.secondsByPhase ?? {}
     };
   }
@@ -342,6 +397,11 @@ export class FluidNetwork {
       }
       if (now >= end - EPS) {
         if (ph.temperatureC !== undefined) u.tempC = ph.temperatureC;
+        if (run.reactions?.length) {
+          const r = react(u.comp, run.reactions);
+          u.comp = r.composition;
+          for (const id of r.short) u.contractRun!.shortReactions[id] = (u.contractRun!.shortReactions[id] ?? 0) + 1;
+        }
         this.nextPhase(u, now);
       }
       return;
@@ -351,7 +411,7 @@ export class FluidNetwork {
       const design = u.contract!.designInlet;
       const rate = (ph.rateGpm ?? design?.volumetricFlowGpm ?? 50) / 60;
       const add = Math.max(0, Math.min(u.capacity - u.level, run.target - run.moved, rate * dt));
-      this.receive(u, add, design?.temperatureC ?? AMBIENT_C);
+      this.receive(u, add, design?.temperatureC ?? AMBIENT_C, compositionOf(design) ?? u.comp);
       u.receivedGallons += add;
       u.inRate = add / dt;
       run.moved += add;
@@ -397,6 +457,11 @@ export class FluidNetwork {
     if (u) u.level = Math.max(0, u.level - gallons);
   }
 
+  /** A unit's liquid density, kg/L, for turning gallons of it into kg. */
+  densityOf(u: FluidUnit): number {
+    return this.properties(u).density;
+  }
+
   /** Density and specific heat of what a unit handles: its own fluid, else its pipes'. */
   private properties(u: FluidUnit): { density: number; cp: number } {
     return fluidProperties(u.node, [...(this.inEdges.get(u.id) ?? []), ...(this.outEdges.get(u.id) ?? [])]);
@@ -425,8 +490,16 @@ export class FluidNetwork {
       u.heat.activeSeconds += dt;
       if (Math.abs(needKw) > duty * (1 + 1e-9) + 1e-9) u.heat.limitedSeconds += dt;
     }
-    if (u.contract?.behavior.mode === 'CONTINUOUS_RATE') this.evaluateLive(u, tin, dt);
+    const cin = normalise(Object.fromEntries(Object.entries(u.inboxComp).map(([k, v]) => [k, v / u.inbox])));
+    if (u.contract?.behavior.mode === 'CONTINUOUS_RATE') this.evaluateLive(u, tin, cin, dt);
     u.tempC = (u.level * u.tempC + u.inbox * tout) / (u.level + u.inbox);
+    u.comp = mix(u.comp, u.level, cin, u.inbox);
+    const reactions = u.contract?.behavior.mode === 'CONTINUOUS_RATE' ? u.live?.reactions : undefined;
+    if (reactions?.length) {
+      const r = react(u.comp, reactions);
+      u.comp = r.composition;
+      for (const id of r.short) u.contractRun!.shortReactions[id] = (u.contractRun!.shortReactions[id] ?? 0) + dt;
+    }
   }
 
   /**
@@ -435,7 +508,7 @@ export class FluidNetwork {
    * stream, and every constraint it breaks is timed. A failed evaluation
    * keeps the last good one and is reported.
    */
-  private evaluateLive(u: FluidUnit, tinC: number, dt: number): void {
+  private evaluateLive(u: FluidUnit, tinC: number, cin: Composition, dt: number): void {
     const { density, cp } = this.properties(u);
     const run = u.contractRun!;
     const ev = evaluateUnitOp(u.contract!, {
@@ -444,7 +517,8 @@ export class FluidNetwork {
         volumetricFlowGpm: (u.inbox / dt) * 60,
         massFlowKgPerS: (u.inbox / dt) * LITERS_PER_GALLON * density,
         densityGPerCm3: density,
-        specificHeatKjPerKgK: cp
+        specificHeatKjPerKgK: cp,
+        ...(Object.keys(cin).length ? { composition: cin } : {})
       }
     });
     run.evaluations++;
@@ -466,15 +540,17 @@ export class FluidNetwork {
     }
   }
 
-  /** Adds `gallons` at `tempC` to a unit, mixed with what it already holds. */
-  private receive(target: FluidUnit, gallons: number, tempC: number): void {
+  /** Adds `gallons` at `tempC` and `comp` to a unit, mixed with what it already holds. */
+  private receive(target: FluidUnit, gallons: number, tempC: number, comp: Composition): void {
     if (target.role === 'pass') {
       target.inbox += gallons;
       target.inboxHeat += gallons * tempC;
+      for (const [k, v] of Object.entries(comp)) target.inboxComp[k] = (target.inboxComp[k] ?? 0) + gallons * v;
       return;
     }
     const total = target.level + gallons;
     if (total > EPS) target.tempC = (target.level * target.tempC + gallons * tempC) / total;
+    target.comp = mix(target.comp, target.level, comp, gallons);
     target.level = total;
   }
 
@@ -536,6 +612,7 @@ export class FluidNetwork {
    */
   private contractOutlets(u: FluidUnit, edges: ProcessEdge[]): { outs: Outlet[]; unpipedShare: number; lossShare: number } {
     const plan = u.live!.outlets;
+    if (Object.values(plan).some((o) => o.recovery)) return this.recoveryOutlets(u, edges);
     const piped = new Map<string, ProcessEdge[]>();
     for (const e of edges) {
       const list = piped.get(e.sourcePortId) ?? [];
@@ -558,6 +635,49 @@ export class FluidNetwork {
     const unpipedShare = Object.entries(plan)
       .filter(([port]) => !piped.has(port))
       .reduce((sum, [, o]) => sum + (o.share ?? 0), 0);
+    return { outs, unpipedShare, lossShare: Math.max(0, 1 - pipedShare - unpipedShare) };
+  }
+
+  /**
+   * Separation by component: each component's mass goes to the ports that
+   * recover it; the ones that do not name it split what is left; the rest is
+   * lost. Each port's flow and composition follow from the mass it gets.
+   */
+  private recoveryOutlets(u: FluidUnit, edges: ProcessEdge[]): { outs: Outlet[]; unpipedShare: number; lossShare: number } {
+    const plan = u.live!.outlets;
+    const piped = new Map<string, ProcessEdge[]>();
+    for (const e of edges) {
+      const list = piped.get(e.sourcePortId) ?? [];
+      list.push(e);
+      piped.set(e.sourcePortId, list);
+    }
+    const ports = [...new Set([...Object.keys(plan), ...piped.keys()])];
+    const mass: Record<string, Composition> = Object.fromEntries(ports.map((p) => [p, {}]));
+    const x = normalise(u.comp);
+    for (const [c, f] of Object.entries(x)) {
+      const declared = ports.filter((p) => plan[p]?.recovery?.[c] !== undefined);
+      const taken = declared.reduce((a, p) => a + plan[p]!.recovery![c]!, 0);
+      for (const p of declared) mass[p]![c] = f * plan[p]!.recovery![c]!;
+      const open = ports.filter((p) => piped.has(p) && plan[p]?.recovery?.[c] === undefined);
+      for (const p of open) mass[p]![c] = (f * Math.max(0, 1 - taken)) / open.length;
+    }
+    const outs: Outlet[] = [];
+    let pipedShare = 0;
+    let unpipedShare = 0;
+    for (const p of ports) {
+      const share = Object.values(mass[p]!).reduce((a, v) => a + v, 0);
+      if (!piped.has(p)) {
+        unpipedShare += share;
+        continue;
+      }
+      pipedShare += share;
+      const list = piped.get(p)!;
+      const temp = plan[p]?.temperatureC;
+      const comp = normalise(mass[p]);
+      for (const e of list) {
+        outs.push({ target: this.units.get(e.targetNodeId)!, share: share / list.length, comp, ...(temp !== undefined ? { temp } : {}) });
+      }
+    }
     return { outs, unpipedShare, lossShare: Math.max(0, 1 - pipedShare - unpipedShare) };
   }
 
@@ -604,6 +724,7 @@ export class FluidNetwork {
     for (const u of this.units.values()) {
       u.inbox = 0;
       u.inboxHeat = 0;
+      u.inboxComp = {};
       u.inRate = 0;
       u.outRate = 0;
       if (u.role === 'batch') {
@@ -615,7 +736,7 @@ export class FluidNetwork {
       if (u.phase === 'REACTING' && now >= (u.phaseEndsAt ?? 0) - EPS) u.phase = 'DISCHARGING';
       if (u.phase === 'FILLING' && !this.inEdges.has(u.id)) {
         const add = Math.min(u.capacity - u.level, this.reactorRates(u).fill * dt);
-        this.receive(u, add, AMBIENT_C);
+        this.receive(u, add, AMBIENT_C, compositionOf(fluidOf(u.node.config)) ?? u.comp);
         u.receivedGallons += add;
         u.inRate = add / dt;
       }
@@ -721,7 +842,9 @@ export class FluidNetwork {
           o.target.receivedGallons += x;
           o.target.inRate += x / dt;
           const t = o.temp ?? u.tempC;
-          this.receive(o.target, x, t);
+          const oc = o.comp ?? u.comp;
+          this.receive(o.target, x, t, oc);
+          for (const [k, v] of Object.entries(oc)) u.sentComp[k] = (u.sentComp[k] ?? 0) + x * v;
           if (o.target.role === 'batch') o.target.batchRun!.moved += x;
           degrees += x * t;
           piped += x;
@@ -739,6 +862,7 @@ export class FluidNetwork {
       if (outs.length === 0) {
         u.heat.sentGallons += sent;
         u.heat.sentGallonDegrees += sent * u.tempC;
+        for (const [k, v] of Object.entries(u.comp)) u.sentComp[k] = (u.sentComp[k] ?? 0) + sent * v;
       }
       u.deliveredGallons += sent;
       u.outRate = sent / dt;

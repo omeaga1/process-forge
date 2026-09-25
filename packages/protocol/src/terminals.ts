@@ -50,6 +50,8 @@ export interface TerminalConfig {
   material: string;
   /** Feeds only: the most it supplies, gal/min for liquid or items/min. 0 means whatever the line takes. */
   supplyRate?: number;
+  /** Liquid feeds: what it supplies is made of, as mass fractions, e.g. { water: 0.88, sugar: 0.12 }. */
+  composition?: Record<string, number>;
 }
 
 export function isTerminal(node: Pick<ProcessNode, 'kind'> | undefined): boolean {
@@ -91,6 +93,8 @@ export interface CreateTerminalOptions {
   /** Liquid by default; it changes to match the first unit it is piped to. */
   carries?: Carries;
   supplyRate?: number;
+  /** Liquid feeds: mass fractions of what it supplies. */
+  composition?: Record<string, number>;
   position?: { x: number; y: number };
   id?: string;
 }
@@ -98,7 +102,12 @@ export interface CreateTerminalOptions {
 export function createTerminalNode(role: TerminalRole, options: CreateTerminalOptions = {}): ProcessNode {
   const material = options.material?.trim() || DEFAULT_MATERIAL[role];
   const port = portFor(role, options.carries ?? 'liquid', material);
-  const config: TerminalConfig = { role, material, ...(role === 'feed' ? { supplyRate: options.supplyRate ?? 0 } : {}) };
+  const config: TerminalConfig = {
+    role,
+    material,
+    ...(role === 'feed' ? { supplyRate: options.supplyRate ?? 0 } : {}),
+    ...(role === 'feed' && options.composition ? { composition: options.composition } : {})
+  };
   return {
     id: options.id ?? `${role}-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`,
     name: options.name?.trim() || (material === DEFAULT_MATERIAL[role] ? TERMINAL_ROLE_LABEL[role] : `${TERMINAL_ROLE_LABEL[role]}: ${material}`),

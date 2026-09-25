@@ -81,7 +81,10 @@ export function executeSimulateLine(params: SimulateLineParams): SimulationResul
   const designNotes = graphToRun.nodes.flatMap((node) => {
     const d = result.nodeReports[node.id]?.designedUnit;
     const bad = d?.brokenConstraints.filter((c) => c.severity === 'ERROR') ?? [];
-    const failed = d?.evaluationError ? [`its design failed to evaluate for ${d.evaluationErrorSeconds} s (${d.evaluationError})`] : [];
+    const failed = [
+      ...(d?.evaluationError ? [`its design failed to evaluate for ${d.evaluationErrorSeconds} s (${d.evaluationError})`] : []),
+      ...(d?.shortReactions?.length ? [`reaction ${d.shortReactions.join(', ')} ran short of a co-reactant and stopped there`] : [])
+    ];
     const reasons = [...bad.map((c) => `"${c.message}" for ${c.seconds} s`), ...failed];
     return reasons.length ? [`Designed unit "${node.name}" at the conditions it actually got: ${reasons.join('; ')}. Revise it with validate_unit_op at those conditions (designInlet).`] : [];
   });

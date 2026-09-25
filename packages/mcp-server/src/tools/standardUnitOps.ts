@@ -66,6 +66,7 @@ export interface AddStandardParams {
   parameters?: Record<string, number>;
   material?: string;
   supplyRate?: number;
+  composition?: Record<string, number>;
   carries?: Carries;
   position?: { x: number; y: number };
   connectFrom?: string;
@@ -89,6 +90,7 @@ export async function executeAddStandardUnitOp(params: AddStandardParams): Promi
     ...(params.parameters ? { parameters: params.parameters } : {}),
     ...(params.material ? { material: params.material } : {}),
     ...(typeof params.supplyRate === 'number' ? { supplyRate: params.supplyRate } : {}),
+    ...(params.composition && typeof params.composition === 'object' ? { composition: params.composition } : {}),
     ...(params.carries === 'items' || params.carries === 'liquid' ? { carries: params.carries } : {})
   });
   // Settings the unit does not have are reported, not silently dropped.

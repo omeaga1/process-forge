@@ -126,7 +126,9 @@ export const UnitOpBatchPhaseSchema = z.object({
   seconds: z.string().optional(),
   temperatureC: z.string().optional(),
   dutyKw: z.string().optional(),
-  port: z.string().optional()
+  port: z.string().optional(),
+  /** HOLD: run the contract's reactions on the batch over this phase. */
+  react: z.boolean().optional()
 });
 export type UnitOpBatchPhase = z.infer<typeof UnitOpBatchPhaseSchema>;
 
@@ -207,7 +209,9 @@ export const UnitOpDesignStreamSchema = z.object({
   piecesPerMinute: z.number().nonnegative().optional(),
   densityGPerCm3: z.number().positive().optional(),
   specificHeatKjPerKgK: z.number().positive().optional(),
-  latentHeatKjPerKg: z.number().nonnegative().optional()
+  latentHeatKjPerKg: z.number().nonnegative().optional(),
+  /** Mass fractions by component, for designs that read inlet.x.<component>. */
+  composition: z.record(z.number().nonnegative()).optional()
 });
 export type UnitOpDesignStream = z.infer<typeof UnitOpDesignStreamSchema>;
 
@@ -224,9 +228,33 @@ export type UnitOpDesignStream = z.infer<typeof UnitOpDesignStreamSchema>;
 export const UnitOpOutletStreamSchema = z.object({
   port: z.string().min(1),
   share: z.string().optional(),
-  temperatureC: z.string().optional()
+  temperatureC: z.string().optional(),
+  /**
+   * Separation by component: for each named component, the fraction 0..1 of
+   * its mass (after any reactions) that leaves by this port. The port's flow
+   * and composition follow from it. Components a port does not name are split
+   * evenly among the ports that do not name them; what no port takes is lost.
+   * An outlet gives a share or recoveries, not both.
+   */
+  recovery: z.record(z.string().min(1)).optional()
 });
 export type UnitOpOutletStream = z.infer<typeof UnitOpOutletStreamSchema>;
+
+/**
+ * A reaction on a mass basis. `coefficients` are kg of each component per kg
+ * of the reaction, negative for what it consumes and positive for what it
+ * makes, and must add up to zero (mass is conserved). `conversion` is the
+ * fraction 0..1 of the `limiting` component that reacts. Continuous units
+ * react what flows through them; BATCH units react in HOLD phases marked
+ * react: true.
+ */
+export const UnitOpReactionSchema = z.object({
+  id: z.string().min(1),
+  limiting: z.string().min(1),
+  conversion: z.string().min(1),
+  coefficients: z.record(z.number())
+});
+export type UnitOpReaction = z.infer<typeof UnitOpReactionSchema>;
 
 /** Records who authored what, so generated values are never mistaken for engineered ones. */
 export const UnitOpProvenanceSchema = z.object({
@@ -256,6 +284,13 @@ export const UnitOpContractSchema = z.object({
   designUtility: UnitOpDesignStreamSchema.optional(),
   /** Per-outlet share and temperature, for continuous units. */
   outlets: z.array(UnitOpOutletStreamSchema).optional(),
+  /**
+   * The components this design names, so inlet.x.<name>, batch.x.<name>,
+   * reactions and recoveries can be checked. Other components in a stream
+   * pass through untouched.
+   */
+  components: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Component names must be valid identifiers')).optional(),
+  reactions: z.array(UnitOpReactionSchema).optional(),
   provenance: UnitOpProvenanceSchema,
   /**
    * How the unit is drawn on the flowsheet, with a nozzle for every port.
@@ -312,6 +347,11 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   const issues: ContractValidationIssue[] = [];
   const known = new Set<string>(RESERVED_SCOPE_NAMES);
   if (contract.behavior.mode === 'BATCH') for (const n of BATCH_SCOPE_NAMES) known.add(n);
+  const components = contract.components ?? [];
+  for (const c of components) {
+    known.add(`inlet.x.${c}`);
+    if (contract.behavior.mode === 'BATCH') known.add(`batch.x.${c}`);
+  }
 
   for (const p of contract.parameters) {
     if (known.has(p.name)) {
@@ -451,6 +491,38 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     if (o.temperatureC) checkExpr(o.temperatureC, `${path}.temperatureC`);
   }
 
+  const namedComponent = (c: string, path: string) => {
+    if (!components.includes(c)) issues.push({ path, message: `names component "${c}", which is not in components (${components.join(', ') || 'none declared'})` });
+  };
+  for (const [i, r] of (contract.reactions ?? []).entries()) {
+    const path = `reactions[${i}]`;
+    checkExpr(r.conversion, `${path}.conversion`);
+    for (const c of Object.keys(r.coefficients)) namedComponent(c, `${path}.coefficients`);
+    namedComponent(r.limiting, `${path}.limiting`);
+    const sum = Object.values(r.coefficients).reduce((a, v) => a + v, 0);
+    if (Math.abs(sum) > 1e-6) {
+      issues.push({ path, message: `the coefficients add up to ${Math.round(sum * 1e6) / 1e6}, not 0: a reaction must conserve mass (kg in = kg out)` });
+    }
+    if (!((r.coefficients[r.limiting] ?? 0) < 0)) {
+      issues.push({ path, message: `the limiting component "${r.limiting}" must be consumed (a negative coefficient)` });
+    }
+  }
+  const outletPlan = contract.outlets ?? [];
+  for (const [i, o] of outletPlan.entries()) {
+    if (!o.recovery) continue;
+    if (o.share) issues.push({ path: `outlets[${i}]`, message: 'give an outlet a share or recoveries, not both' });
+    for (const [c, expr] of Object.entries(o.recovery)) {
+      namedComponent(c, `outlets[${i}].recovery`);
+      checkExpr(expr, `outlets[${i}].recovery.${c}`);
+    }
+  }
+  if (outletPlan.some((o) => o.recovery) && outletPlan.some((o) => o.share)) {
+    issues.push({ path: 'outlets', message: 'split by component recoveries on every outlet, or by shares, not a mix of the two' });
+  }
+  if (b.mode === 'BATCH' && b.phases.some((ph) => ph.react) && !(contract.reactions ?? []).length) {
+    issues.push({ path: 'behavior.phases', message: 'a phase has react: true but the contract declares no reactions' });
+  }
+
   // Every inlet.* or utility.* a design reads needs a value to check it at.
   const allExprs = [
     ...contract.derived.map((d) => d.expr),
@@ -460,7 +532,8 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
       : b.mode === 'BATCH'
         ? [b.batchGallons, ...b.phases.flatMap((ph) => [ph.gallons, ph.rateGpm, ph.seconds, ph.temperatureC, ph.dutyKw])]
         : [b.throughputPerMinute, b.capacityGpm, b.dutyKw, b.residenceTimeSeconds]),
-    ...(contract.outlets ?? []).flatMap((o) => [o.share, o.temperatureC])
+    ...(contract.outlets ?? []).flatMap((o) => [o.share, o.temperatureC, ...Object.values(o.recovery ?? {})]),
+    ...(contract.reactions ?? []).map((r) => r.conversion)
   ].filter((e): e is string => typeof e === 'string');
   const streamRefs = new Set<string>();
   for (const e of allExprs) {
@@ -471,8 +544,15 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     }
   }
   for (const ref of streamRefs) {
-    const [group, field] = ref.split('.') as ['inlet' | 'utility', keyof UnitOpDesignStream];
+    const [group, field, component] = ref.split('.') as ['inlet' | 'utility', keyof UnitOpDesignStream, string | undefined];
     const design = group === 'inlet' ? contract.designInlet : contract.designUtility;
+    if (field === ('x' as keyof UnitOpDesignStream)) {
+      // A component's fraction: absent from the design composition means 0, which is a fine design value.
+      if (!design?.composition) {
+        issues.push({ path: group === 'inlet' ? 'designInlet' : 'designUtility', message: `the design reads ${ref}, so give ${group === 'inlet' ? 'designInlet' : 'designUtility'}.composition (mass fractions${component ? `, including ${component}` : ''}).` });
+      }
+      continue;
+    }
     if (design?.[field] === undefined) {
       issues.push({
         path: group === 'inlet' ? 'designInlet' : 'designUtility',
