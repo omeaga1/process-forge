@@ -82,3 +82,46 @@ describe('Flowsheet edits', () => {
     assert.ok(!none.ok && /No stream from/.test(none.error));
   });
 });
+
+describe('Flowsheet edits: designed units', () => {
+  const designedLine = async (): Promise<ProcessGraph> => {
+    const { EVAPORATOR_CONTRACT } = await import('../index.js');
+    const evap = {
+      id: 'evap',
+      name: 'Evaporator E-301',
+      kind: 'CUSTOM_UNIT_OP',
+      position: { x: 0, y: 0 },
+      inputs: [],
+      outputs: [],
+      config: { contract: EVAPORATOR_CONTRACT, steamDutyKw: 1500 }
+    } as unknown as ProcessGraph['nodes'][number];
+    return { id: 'g', name: 'g', version: '1.0.0', metadata: {}, nodes: [evap], edges: [] };
+  };
+  const param = (g: ProcessGraph, name: string) =>
+    ((g.nodes[0]!.config as { contract: { parameters: { name: string; value: number }[] } }).contract.parameters.find((p) => p.name === name)!).value;
+
+  it('sets a contract parameter, which is what the engine reads', async () => {
+    const g = await designedLine();
+    const r = applyFlowsheetEdit(g, { op: 'update-unit', unit: 'E-301', parameters: { steamDutyKw: 1200 } });
+    assert.ok(r.ok, !r.ok ? r.error : '');
+    assert.equal(param(r.graph, 'steamDutyKw'), 1200);
+    assert.equal((r.graph.nodes[0]!.config as { steamDutyKw: number }).steamDutyKw, 1200, 'the mirror follows');
+    assert.deepEqual(r.changes![0], { parameter: 'steamDutyKw', from: 1500, to: 1200, designParameter: true });
+    assert.equal(param(g, 'steamDutyKw'), 1500, 'the input is untouched');
+  });
+
+  it('refuses a value outside the parameter\'s range, or one that breaks the design', async () => {
+    const g = await designedLine();
+    const out = applyFlowsheetEdit(g, { op: 'update-unit', unit: 'evap', parameters: { steamDutyKw: 99999 } });
+    assert.ok(!out.ok && /physical range/.test(out.error));
+    // 100 kW cannot bring 25 gal/min of 20 °C feed to a boil: an ERROR constraint.
+    const weak = applyFlowsheetEdit(g, { op: 'update-unit', unit: 'evap', parameters: { steamDutyKw: 100 } });
+    assert.ok(!weak.ok && /fail its checks/.test(weak.error), !weak.ok ? weak.error : '');
+  });
+
+  it('names the design parameters when asked for a setting it does not have', async () => {
+    const r = applyFlowsheetEdit(await designedLine(), { op: 'update-unit', unit: 'evap', parameters: { steamKw: 1 } });
+    assert.ok(r.ok);
+    assert.match(r.warnings![0]!, /design parameters are: steamDutyKw, maxFeedGpm/);
+  });
+});

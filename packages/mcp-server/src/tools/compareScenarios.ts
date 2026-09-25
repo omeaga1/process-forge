@@ -31,6 +31,8 @@ interface AppliedChange {
   parameter: string;
   from: unknown;
   to: unknown;
+  /** True when it set one of a designed unit's own contract parameters. */
+  designParameter?: boolean;
 }
 
 /** A copy of the graph with the scenario's changes, and what each change did. */

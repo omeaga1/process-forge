@@ -113,7 +113,7 @@ export const TOOLS: ToolDef[] = [
     name: 'compare_scenarios',
     title: 'Compare what-if scenarios',
     description:
-      'What-if analysis: simulates the line as it is, then once per scenario with some unit settings changed, all on the same random seed, and reports throughput, liquid output, the bottleneck and whether it moved, against the baseline. Nothing on the flowsheet changes, so use it before recommending or making a change. Name units by id, name or tag; settings by the names get_open_flowsheet or list_standard_unit_ops show (dotted names reach nested settings, e.g. "fluid.temperatureCelsius"). Uses the open flowsheet unless you pass graph or templateName.',
+      'What-if analysis: simulates the line as it is, then once per scenario with some unit settings changed, all on the same random seed, and reports throughput, liquid output, the bottleneck and whether it moved, against the baseline. Nothing on the flowsheet changes, so use it before recommending or making a change. Name units by id, name or tag; settings by the names get_open_flowsheet or list_standard_unit_ops show (dotted names reach nested settings, e.g. "fluid.temperatureCelsius"); for a designed unit, its contract parameters by name (a change that breaks the design is reported in warnings and not applied). Uses the open flowsheet unless you pass graph or templateName.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -213,7 +213,7 @@ export const TOOLS: ToolDef[] = [
     name: 'update_unit',
     title: 'Change a unit\'s settings',
     description:
-      'Changes settings of one unit on the flowsheet open in ProcessForge Desktop, or renames it. Name the unit by id, name or tag; settings by the names get_open_flowsheet shows (dotted names reach nested ones, e.g. "fluid.temperatureCelsius"). A number stays a number. Returns each change with its old and new value. Test a change with compare_scenarios first when its effect matters. Requires ProcessForge Desktop 0.1.33 or later.',
+      'Changes settings of one unit on the flowsheet open in ProcessForge Desktop, or renames it. Name the unit by id, name or tag; settings by the names get_open_flowsheet shows (dotted names reach nested ones, e.g. "fluid.temperatureCelsius"). For a designed unit, a name that matches one of its contract parameters sets that parameter: it must lie in the parameter\'s declared range, and the change is refused if the design would then fail validate_unit_op. A number stays a number. Returns each change with its old and new value. Test a change with compare_scenarios first when its effect matters. Requires ProcessForge Desktop 0.1.33 or later.',
     inputSchema: {
       type: 'object',
       properties: {
