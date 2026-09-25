@@ -2,7 +2,7 @@
 
 A Model Context Protocol (MCP) server for ProcessForge.
 
-It gives an MCP client (Claude Desktop, Cursor, Gemini CLI and others) tools
+It gives an MCP client (Claude, Antigravity, OpenAI Codex, Cursor, VS Code, Gemini CLI and others) tools
 to design and validate unit-op contracts, run simulations, and, when the
 ProcessForge desktop app is open, add unit ops to the open flowsheet. The
 server does no model inference itself: your MCP client is the model.
@@ -20,12 +20,31 @@ server does no model inference itself: your MCP client is the model.
 | `add_standard_unit_op` | Places a standard unit or a feed/outlet arrow on the open flowsheet, with any settings changed, and optionally pipes it in (`connectFrom`, `connectTo`). Only Product outlets count as the line's output. Needs ProcessForge Desktop 0.1.30 or later. |
 | `search_community_unit_ops` | Searches the community library of unit ops people have published from the app. Public and read-only; listings are not reviewed by ProcessForge. |
 | `add_community_unit_op` | Places a community listing on the open flowsheet as its author published it, and optionally pipes it in. Needs ProcessForge Desktop 0.1.30 or later. |
-| `simulate_process_line` | Runs the discrete-event simulation on a built-in template or a graph you pass. Returns throughput, scrap, per-unit states and the bottleneck. |
-| `diagnose_bottlenecks` | Runs graph validation on a template or graph: port and flow-dimension errors, the capacity bottleneck, and fixed recommendations (for example, add an accumulation conveyor). |
+| `simulate_process_line` | Runs the discrete-event simulation. Returns throughput, scrap, per-unit states, liquid levels, temperatures and heat duty, and the bottleneck. |
+| `compare_scenarios` | What-if runs: the line as it is, then with unit settings changed, on the same seed, with the change in output and where the bottleneck moves. Changes nothing on the flowsheet. |
+| `diagnose_bottlenecks` | Instant static check: port and flow-dimension errors, the capacity bottleneck, and fixed recommendations (for example, add an accumulation conveyor). |
 | `list_digital_twin_templates` | Lists the built-in example lines (a paint canning line and a beverage bottling line). |
 | `query_unit_subagent` | Returns preset configuration values and inspector controls for a standard machine type. Rotary fillers and labelers have presets; other types get a generic response. No model is called. |
 | `package_unit_op` | Wraps a node in a JSON bundle with author, category, tags and metadata, for sharing. |
 | `forge_equipment_drawing` | Picks one of the template drawings (column, reactor, exchanger, pump, cyclone, spray, sphere, drum or a generic vessel) by keyword-matching the description, and fills in a few parameters such as tray count and agitator type. Returns SVG geometry and nozzle positions. When the match is a tie it says so, and a second call can name the family. |
+
+`simulate_process_line`, `diagnose_bottlenecks` and `compare_scenarios` work on
+the flowsheet open in ProcessForge Desktop when you pass no `graph` or
+`templateName`. Without the app they use a demo line and say so in `source`.
+
+Every tool has a title and read-only/write annotations, so clients can ask
+before a tool changes the flowsheet. Results come back as JSON text and as
+structured content.
+
+## Prompts and resources
+
+The server also sends clients a short workflow guide (MCP `instructions`), and
+offers:
+
+- **Prompts** (slash commands in most clients): `debottleneck-line`,
+  `design-unit-op` and `build-line`.
+- **Resources**: the workflow guide, the standard equipment catalog, the
+  unit-op contract guide, the open flowsheet and each built-in template.
 
 ## Designing a unit op from your MCP client
 
@@ -66,12 +85,51 @@ Add this to `claude_desktop_config.json` (Settings, Developer, Edit Config), the
 }
 ```
 
-### Cursor, Gemini CLI and other clients
-Point the client at the command `npx -y @process-forge/mcp-server`. For example:
+### Claude Code
+```bash
+claude mcp add process-forge -- npx -y @process-forge/mcp-server
+```
 
+### Antigravity
+Agent panel, **⋯**, **MCP Servers**, **Manage MCP Servers**, **View raw
+config**. Add the same `mcpServers` entry as for Claude Desktop, save, then
+**Refresh**.
+
+### OpenAI Codex (CLI and IDE extension)
+```bash
+codex mcp add process-forge -- npx -y @process-forge/mcp-server
+```
+
+Or in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.process-forge]
+command = "npx"
+args = ["-y", "@process-forge/mcp-server"]
+```
+
+ChatGPT connectors need a remote (HTTPS) server, which this is not; use Codex
+for OpenAI models.
+
+### Cursor and Windsurf
+The same `mcpServers` entry as Claude Desktop, in `~/.cursor/mcp.json`
+(Settings, MCP) or `~/.codeium/windsurf/mcp_config.json`.
+
+### VS Code (GitHub Copilot agent mode)
+```bash
+code --add-mcp "{\"name\":\"process-forge\",\"command\":\"npx\",\"args\":[\"-y\",\"@process-forge/mcp-server\"]}"
+```
+
+### Gemini CLI
 ```bash
 gemini mcp add process-forge npx -y @process-forge/mcp-server
 ```
+
+### Windows
+If a client cannot start `npx`, use `"command": "cmd"` with
+`"args": ["/c", "npx", "-y", "@process-forge/mcp-server"]`.
+
+The app shows all of these, with copy buttons, under **AI model → MCP client**.
 
 ### From a checkout
 ```bash

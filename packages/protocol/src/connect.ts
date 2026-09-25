@@ -42,7 +42,8 @@ type Port = ProcessNode['outputs'][number];
 const discrete = (p: Port) => String(p.flowDimension) === 'DISCRETE_CONTAINER';
 const tagOf = (name: string) => name.match(/\b[A-Z]{1,3}-\d{2,4}\b/)?.[0];
 
-function resolveUnit(graph: ProcessGraph, ref: string): ProcessNode | string {
+/** A unit by id, exact name, tag (P-101) or unique partial name; otherwise a message saying why not. */
+export function resolveUnit(graph: ProcessGraph, ref: string): ProcessNode | string {
   const byId = graph.nodes.find((n) => n.id === ref);
   if (byId) return byId;
   const want = ref.trim().toLowerCase();
