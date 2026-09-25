@@ -5,6 +5,7 @@ import {
   planStream,
   addStreamToGraph,
   applyFlowsheetEdit,
+  resolveUnit,
   type FlowsheetEdit,
   ProcessNodeSchema,
   type ProcessEdge,
@@ -14,7 +15,7 @@ import {
 } from '@process-forge/protocol';
 import { isTauriEnvironment, invokeTauriCommand } from '../components/UpdateNotificationBanner.js';
 import { contractToProcessNode } from '../unitop/contractToNode.js';
-import { saveUnitOp } from '@process-forge/canvas-ui';
+import { saveUnitOp, CommunityLibraryService } from '@process-forge/canvas-ui';
 
 /**
  * The app's half of the MCP bridge (apps/desktop/src-tauri/src/mcp_bridge.rs).
@@ -40,7 +41,20 @@ type PendingRequest =
   /** A whole unit, built by the MCP server: a standard one, a feed or outlet, or one from the community library. */
   | { id: string; kind: 'node'; request: { node: unknown; position?: { x: number; y: number }; source?: string } }
   /** A change to what is on the flowsheet: settings, a rename, a removal. */
-  | { id: string; kind: 'edit'; request: FlowsheetEdit };
+  | { id: string; kind: 'edit'; request: FlowsheetEdit }
+  /** Ask the engineer to publish a unit: opens the publish dialog, publishes nothing. */
+  | { id: string; kind: 'publish'; request: PublishRequest };
+
+export interface PublishRequest {
+  unit: string;
+  description?: string;
+  category?: 'PACKAGING' | 'FLUID_PROCESSING' | 'MATERIAL_HANDLING' | 'QUALITY';
+  tags?: string[];
+  releaseNotes?: string;
+}
+
+/** Fired on window when an MCP client asks to publish a unit: { nodeId, request }. The canvas opens its publish dialog. */
+export const MCP_PUBLISH_REQUEST_EVENT = 'pf-mcp-publish-request';
 
 /** To the right of everything on the canvas, level with the flowsheet's middle. */
 function placeNextTo(graph: ProcessGraph): { x: number; y: number } {
@@ -166,7 +180,25 @@ export function useMcpBridge(
       };
     };
 
+    // Publishing is the engineer's decision: this only opens the dialog, filled
+    // in with what the client suggests. Nothing is sent from here.
+    const handlePublish = (request: PublishRequest) => {
+      const found = resolveUnit(graphRef.current, String(request.unit ?? ''));
+      if (typeof found === 'string') return { requested: false, error: found };
+      window.dispatchEvent(new CustomEvent(MCP_PUBLISH_REQUEST_EVENT, { detail: { nodeId: found.id, request } }));
+      const signedIn = Boolean(CommunityLibraryService.getSession());
+      return {
+        requested: true,
+        published: false,
+        unit: { id: found.id, name: found.name },
+        message: signedIn
+          ? `The publish dialog for "${found.name}" is open in ProcessForge. Nothing is public until the engineer reviews it and clicks Publish there.`
+          : `The publish dialog for "${found.name}" is open in ProcessForge, but the engineer is not signed in: they need to sign in with Google in the app, then click Publish.`
+      };
+    };
+
     const handle = async (item: PendingRequest) => {
+      if (item.kind === 'publish') return handlePublish(item.request);
       if (item.kind === 'stream') return handleStream(item.request);
       if (item.kind === 'edit') return handleEdit(item.request);
       if (item.kind === 'node') return handleNode(item.request);

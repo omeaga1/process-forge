@@ -35,7 +35,7 @@ import { AnimatedStreamEdge } from './edges/AnimatedStreamEdge.js';
 import { MasterOrchestratorDock } from './dock/MasterOrchestratorDock.js';
 import { UnitOpPopOutStudio } from './studio/UnitOpPopOutStudio.js';
 import { CommunityUnitOpLibraryModal } from './marketplace/CommunityUnitOpLibraryModal.js';
-import { PublishUnitOpDialog } from './marketplace/PublishUnitOpDialog.js';
+import { PublishUnitOpDialog, type PublishSuggestion } from './marketplace/PublishUnitOpDialog.js';
 import { EquipmentPaletteModal } from './palette/EquipmentPaletteModal.js';
 import { MobileFieldView } from './mobile/MobileFieldView.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
@@ -242,6 +242,19 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const [isRunning, setIsRunning] = useState(false);
   const [isForgeHubOpen, setIsForgeHubOpen] = useState(false);
   const [publishing, setPublishing] = useState<ProcessNode | null>(null);
+  const [publishSuggestion, setPublishSuggestion] = useState<PublishSuggestion | null>(null);
+  // An MCP client asking to publish a unit: open the dialog for the engineer to decide.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ nodeId: string; request: PublishSuggestion }>).detail;
+      const n = graphRef.current.nodes.find((x) => x.id === d?.nodeId);
+      if (!n) return;
+      setPublishSuggestion({ ...d.request, requestedByClient: true });
+      setPublishing(n);
+    };
+    window.addEventListener('pf-mcp-publish-request', on);
+    return () => window.removeEventListener('pf-mcp-publish-request', on);
+  }, []);
   const [isEquipmentPaletteOpen, setIsEquipmentPaletteOpen] = useState(false);
   const [popOutNodeId, setPopOutNodeId] = useState<string | null>(null);
 
@@ -1299,7 +1312,14 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         onPublishToForgeHub={(n) => setPublishing(n)}
       />
 
-      <PublishUnitOpDialog node={publishing} onClose={() => setPublishing(null)} />
+      <PublishUnitOpDialog
+        node={publishing}
+        {...(publishSuggestion ? { suggestion: publishSuggestion } : {})}
+        onClose={() => {
+          setPublishing(null);
+          setPublishSuggestion(null);
+        }}
+      />
 
       {/* In-App Community UnitOp Library Modal */}
       <CommunityUnitOpLibraryModal

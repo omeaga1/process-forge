@@ -176,6 +176,33 @@ export async function executeAddNode(node: ProcessNode, options: AddNodeOptions 
   return { success: true, ...r.body, ...(streams.length ? { streams } : {}) };
 }
 
+export interface PublishRequestParams {
+  unit: string;
+  description?: string;
+  category?: 'PACKAGING' | 'FLUID_PROCESSING' | 'MATERIAL_HANDLING' | 'QUALITY';
+  tags?: string[];
+  releaseNotes?: string;
+}
+
+/**
+ * Asks the engineer to publish a unit to the community library: the desktop
+ * app opens its publish dialog, filled in with these details. Nothing is
+ * published from here; the engineer reviews it and decides in the app.
+ */
+export async function executeRequestPublish(params: PublishRequestParams): Promise<Record<string, unknown>> {
+  if (typeof params?.unit !== 'string' || !params.unit.trim()) {
+    return { success: false, requested: false, error: 'Give "unit": the id, name or tag of a unit on the open flowsheet.' };
+  }
+  const r = await call('POST', '/v1/publish', params);
+  if (!r.ok) return { success: false, requested: false, error: r.reason };
+  if (r.status === 404) {
+    return { success: false, requested: false, error: 'This ProcessForge Desktop is too old to publish from an MCP client. Update it (0.1.39 or later).' };
+  }
+  if (r.status === 202) return { success: false, requested: false, error: 'ProcessForge did not answer: open the studio and try again.' };
+  if (r.status !== 200) return { success: false, requested: false, error: r.body?.error ?? `HTTP ${r.status}` };
+  return { success: Boolean(r.body?.requested), ...r.body };
+}
+
 /**
  * Changes a unit's settings or name, removes a unit, or removes a stream on
  * the open flowsheet. The app applies it with the same rules as

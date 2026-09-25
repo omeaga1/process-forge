@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { WAX_COOLING_BELT_CONTRACT } from '@process-forge/protocol';
-import { bridgeFilePath, executeAddUnitOpToFlowsheet, executeFlowsheetEdit, executeGetOpenFlowsheet } from '../tools/desktopBridge.js';
+import { bridgeFilePath, executeAddUnitOpToFlowsheet, executeFlowsheetEdit, executeGetOpenFlowsheet, executeRequestPublish } from '../tools/desktopBridge.js';
 
 describe('Where the desktop app writes its bridge file', () => {
   it('is Tauri’s app data directory for com.processforge.studio', () => {
@@ -56,6 +56,10 @@ describe('Talking to the desktop app', () => {
         }
         if (req.method === 'POST' && req.url === '/v1/unit-ops') {
           res.writeHead(200).end(JSON.stringify({ added: true, nodeId: 'unitop-1', name: JSON.parse(body).contract.name }));
+          return;
+        }
+        if (req.method === 'POST' && req.url === '/v1/publish' && editsSupported) {
+          res.writeHead(200).end(JSON.stringify({ requested: true, published: false, message: 'The publish dialog is open.' }));
           return;
         }
         if (req.method === 'POST' && req.url === '/v1/edits' && editsSupported) {
@@ -137,6 +141,21 @@ describe('Talking to the desktop app', () => {
     editsSupported = true;
     assert.equal(r.success, false);
     assert.match(String(r.error), /0\.1\.33 or later/);
+  });
+
+  it('asks the app to open its publish dialog, and publishes nothing itself', async () => {
+    point();
+    writeBridge('t0ken');
+    editsSupported = true;
+    const r = await executeRequestPublish({ unit: 'E-301', description: 'An evaporator', tags: ['evaporator'] });
+    assert.equal(r.success, true);
+    assert.equal(r.published, false);
+    assert.deepEqual(received.at(-1)!.body, { unit: 'E-301', description: 'An evaporator', tags: ['evaporator'] });
+    editsSupported = false;
+    const old = await executeRequestPublish({ unit: 'E-301' });
+    editsSupported = true;
+    assert.match(String(old.error), /0\.1\.39 or later/);
+    assert.equal((await executeRequestPublish({ unit: '' })).success, false);
   });
 
   it('reports a wrong token from a stale file instead of pretending it worked', async () => {
