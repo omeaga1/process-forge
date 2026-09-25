@@ -11,7 +11,8 @@ const EXTENSION_URL = 'https://github.com/omeaga1/process-forge/releases/latest/
 const EXAMPLES = [
   'Read my ProcessForge flowsheet and tell me where the bottleneck is.',
   'Design a vibrating fluid-bed cooler for 5 kg/s of salt at 90 °C, cooled to 40 °C with ambient air, and add it to my flowsheet.',
-  'Look at the unit I have open and check whether it holds at 20 % more throughput.'
+  'Look at the unit I have open and check whether it holds at 20 % more throughput.',
+  'Compare a bigger transfer pump against a second filler on my line, and tell me which gives more output.'
 ];
 
 type BridgeState = 'checking' | 'connected' | 'unavailable' | 'browser';
@@ -136,7 +137,7 @@ export const McpAssistantPanel: React.FC<McpAssistantPanelProps> = ({ graph, bot
           {status.text}
         </div>
         <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 4, lineHeight: 1.45 }}>
-          {bridge === 'browser' ? status.hint : 'You chat in Claude Desktop, Cursor or another MCP client; changes it makes show up here.'}
+          {bridge === 'browser' ? status.hint : 'You chat in Claude, Antigravity, Codex, Cursor or another MCP client; changes it makes show up here.'}
         </div>
         {bridge === 'browser' && (
           <button

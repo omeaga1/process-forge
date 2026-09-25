@@ -41,6 +41,7 @@ import {
 import { draftingRadius } from '@process-forge/theme';
 import { setAssistantRoute, useAssistantRoute, getAssistantRoute, ROUTE_LABELS } from '../../ai/assistantRoute.js';
 import { signInWithOpenRouter } from '../../ai/openRouterAuth.js';
+import { MCP_CLIENTS, WINDOWS_NPX_NOTE } from '../../ai/mcpClientSetup.js';
 
 export interface AiModelModalProps {
   isOpen: boolean;
@@ -54,9 +55,9 @@ export interface AiModelModalProps {
 const MAIN_CHOICES: { id: 'mcp' | 'openrouter'; title: string; best: string; detail: string }[] = [
   {
     id: 'mcp',
-    title: 'Claude Desktop (MCP)',
-    best: 'Best if you already pay for Claude',
-    detail: 'Chat in Claude Desktop or Cursor on your subscription, at no extra cost. It reads this flowsheet and adds the units it designs.'
+    title: 'Your AI app (MCP)',
+    best: 'Best if you already pay for Claude, Gemini or ChatGPT',
+    detail: 'Chat in Claude, Antigravity, Codex or Cursor on your subscription, at no extra cost. It reads this flowsheet and adds the units it designs.'
   },
   {
     id: 'openrouter',
@@ -177,6 +178,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [isTesting, setIsTesting] = useState<boolean>(false);
   const [copiedSnippet, setCopiedSnippet] = useState<boolean>(false);
+  const [mcpClientId, setMcpClientId] = useState<string>('claude-desktop');
   const [saveFeedback, setSaveFeedback] = useState<boolean>(false);
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
   const [purgeFeedback, setPurgeFeedback] = useState<boolean>(false);
@@ -314,18 +316,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
     }
   };
 
-  const claudeDesktopSnippet = JSON.stringify(
-    {
-      mcpServers: {
-        'process-forge': {
-          command: 'npx',
-          args: ['-y', '@process-forge/mcp-server']
-        }
-      }
-    },
-    null,
-    2
-  );
+  const mcpClient = MCP_CLIENTS.find((c) => c.id === mcpClientId) ?? MCP_CLIENTS[0]!;
 
   const hasConfiguredKey = (providerId: LlmProvider | 'mcp'): boolean => {
     if (providerId === 'ollama') return Boolean(creds.ollamaEndpoint?.trim());
@@ -1272,7 +1263,41 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                 </ol>
               </div>
 
-              <div style={{ fontSize: 12, color: textMuted }}>Other MCP clients (Cursor and others), or manual setup:</div>
+              <div style={{ fontSize: 12, color: textMuted }}>Or add it to another MCP client:</div>
+
+              <div
+                role="tablist"
+                aria-label="MCP client"
+                style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}
+              >
+                {MCP_CLIENTS.map((c) => {
+                  const active = c.id === mcpClient.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => {
+                        setMcpClientId(c.id);
+                        setCopiedSnippet(false);
+                      }}
+                      style={{
+                        padding: '5px 10px',
+                        borderRadius: draftingRadius.soft,
+                        border: `1px solid ${active ? currentProviderMeta.accentColor : borderColor}`,
+                        background: active ? 'rgba(168, 85, 247, 0.12)' : 'transparent',
+                        color: active ? textColor : textMuted,
+                        fontSize: 12,
+                        fontWeight: active ? 700 : 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
 
               <div
                 style={{
@@ -1290,28 +1315,16 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     marginBottom: 8
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: textColor }}>
-                      claude_desktop_config.json
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 9,
-                        padding: '1px 6px',
-                        borderRadius: draftingRadius.soft,
-                        backgroundColor: 'rgba(168, 85, 247, 0.15)',
-                        color: '#c084fc',
-                        fontWeight: 700
-                      }}
-                    >
-                      MCP Stdio
-                    </span>
-                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: textColor }}>
+                    {mcpClient.kind === 'command' ? 'Terminal' : mcpClient.file}
+                  </span>
 
                   <button
                     type="button"
                     onClick={() => {
-                      navigator.clipboard.writeText(claudeDesktopSnippet);
+                      navigator.clipboard.writeText(mcpClient.snippet).catch(() => {
+                        // Clipboard blocked: the text is on screen to select.
+                      });
                       setCopiedSnippet(true);
                       setTimeout(() => setCopiedSnippet(false), 2000);
                     }}
@@ -1328,7 +1341,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     }}
                   >
                     {copiedSnippet ? <Check size={12} /> : <Copy size={12} />}
-                    <span>{copiedSnippet ? 'Copied' : 'Copy Config'}</span>
+                    <span>{copiedSnippet ? 'Copied' : mcpClient.kind === 'command' ? 'Copy command' : 'Copy config'}</span>
                   </button>
                 </div>
 
@@ -1342,16 +1355,23 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({
                     padding: 12,
                     borderRadius: draftingRadius.soft,
                     overflowX: 'auto',
+                    whiteSpace: mcpClient.kind === 'command' ? 'pre-wrap' : 'pre',
+                    wordBreak: mcpClient.kind === 'command' ? 'break-all' : 'normal',
                     border: `1px solid ${borderColor}`
                   }}
                 >
-                  {claudeDesktopSnippet}
+                  {mcpClient.snippet}
                 </pre>
               </div>
 
-              <p style={{ margin: 0, fontSize: 11, color: textDim, lineHeight: 1.4 }}>
-                Add this to the client's MCP configuration (in Claude Desktop: Settings, Developer, Edit
-                Config) and restart it.
+              <p style={{ margin: 0, fontSize: 11, color: textDim, lineHeight: 1.5 }}>
+                {mcpClient.where}
+                {mcpClient.note ? ` ${mcpClient.note}` : ''}
+              </p>
+              <p style={{ margin: 0, fontSize: 11, color: textDim, lineHeight: 1.5 }}>{WINDOWS_NPX_NOTE}</p>
+              <p style={{ margin: 0, fontSize: 11, color: textDim, lineHeight: 1.5 }}>
+                Most clients also list ProcessForge&apos;s prompts as slash commands: debottleneck-line, design-unit-op
+                and build-line.
               </p>
             </div>
           )}
