@@ -6,6 +6,8 @@ import {
   EVAPORATOR_CONTRACT,
   CASE_PACKER_CONTRACT,
   CRYSTALLISER_CONTRACT,
+  JUICE_CONCENTRATOR_CONTRACT,
+  NEUTRALISER_CONTRACT,
   BATCH_SCOPE_NAMES,
   LITERS_PER_GALLON,
   type UnitOpDesignStream,
@@ -83,6 +85,10 @@ export interface DesignUnitOpResult {
   batchExample: unknown;
   /** Names a BATCH contract's expressions can read about the batch in hand. */
   batchNames: readonly string[];
+  /** A complete, valid contract that separates by component (recovery per outlet): a juice concentrator. */
+  componentsExample: unknown;
+  /** A complete, valid contract with a mass-balanced reaction: an acid neutraliser. */
+  reactionExample: unknown;
   /** What the surrounding process looks like, when a graph was supplied. */
   processContext: {
     available: boolean;
@@ -262,7 +268,11 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     'outflow per outlet port; assemblyExample (a case packer) takes a kit of items',
     'from several ports and sends good items and rejects to their own ports;',
     'batchExample (a crystalliser, BATCH) fills, heats for a time computed from the',
-    'batch itself, cools, and drains the top and the bottom to different ports. During a run the engine evaluates your design every',
+    'batch itself, cools, and drains the top and the bottom to different ports;',
+    'componentsExample (a juice concentrator) separates water from sugar by',
+    'component recovery; reactionExample (a neutraliser) reacts HCl with NaOH on a',
+    'mass basis. Streams carry named components (mass fractions): read them as',
+    'inlet.x.<name> and change them with reactions and recovery. During a run the engine evaluates your design every',
     'second at the stream that actually reaches it, so write the physics in terms',
     'of inlet.* wherever the feed matters, rather than as fixed parameters.'
   ].join('\n');
@@ -279,6 +289,8 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     assemblyExample: CASE_PACKER_CONTRACT,
     batchExample: CRYSTALLISER_CONTRACT,
     batchNames: BATCH_SCOPE_NAMES,
+    componentsExample: JUICE_CONCENTRATOR_CONTRACT,
+    reactionExample: NEUTRALISER_CONTRACT,
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:
       'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'

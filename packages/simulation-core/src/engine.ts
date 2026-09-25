@@ -2,6 +2,7 @@ import type { ProcessGraph, ProcessNode, UnitOpContract, UnitOpEvaluation } from
 import { evaluateUnitOp, blockingViolations, terminalRole, terminalMaterial, terminalSupplyRate, terminalCarries } from '@process-forge/protocol';
 import { PriorityQueue } from './priority-queue.js';
 import { FluidNetwork, fillerDemandGallons, isFluidEdge, type FluidUnit } from './fluid.js';
+import { LITERS_PER_GALLON } from '@process-forge/protocol';
 import { createRng, seedFromString, type SeededRng } from './rng.js';
 import type {
   DesignedUnitReport,
@@ -63,6 +64,23 @@ interface InternalNodeRuntime {
 }
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
+const round4 = (x: number) => Math.round(x * 1e4) / 1e4;
+
+/** Mass fractions rounded for a report, largest first; undefined when there are none. */
+function fractions(comp: Record<string, number>, total = 1): Record<string, number> | undefined {
+  const entries = Object.entries(comp)
+    .map(([k, v]) => [k, v / (total || 1)] as const)
+    .filter(([, v]) => v > 1e-6)
+    .sort((a, b) => b[1] - a[1]);
+  return entries.length ? Object.fromEntries(entries.map(([k, v]) => [k, round4(v)])) : undefined;
+}
+
+/** kg of each component in `gallons` of a unit's liquid of mass fractions `comp`. */
+function componentKg(comp: Record<string, number>, gallons: number, density: number): Record<string, number> | undefined {
+  const entries = Object.entries(comp).filter(([, v]) => v > 1e-9);
+  if (!entries.length || gallons <= 0) return undefined;
+  return Object.fromEntries(entries.map(([k, v]) => [k, round1(v * gallons * LITERS_PER_GALLON * density)]));
+}
 
 /** How a designed continuous unit held up at the conditions it actually saw. */
 function designedUnitReport(u: FluidUnit): DesignedUnitReport {
@@ -73,6 +91,7 @@ function designedUnitReport(u: FluidUnit): DesignedUnitReport {
       .map(([id, b]) => ({ id, message: b.message, severity: b.severity, seconds: Math.round(b.seconds) }))
       .sort((a, b) => (a.severity === b.severity ? b.seconds - a.seconds : a.severity === 'ERROR' ? -1 : 1)),
     ...(run.firstError ? { evaluationError: run.firstError, evaluationErrorSeconds: Math.round(run.errorSeconds) } : {}),
+    ...(Object.keys(run.shortReactions).length ? { shortReactions: Object.keys(run.shortReactions) } : {}),
     ...(u.live?.capacityGpm !== undefined ? { capacityGpm: round1(u.live.capacityGpm) } : {}),
     ...(u.batchRun
       ? { secondsByPhase: Object.fromEntries(Object.entries(u.batchRun.secondsByPhase).map(([k, v]) => [k, Math.round(v)])) }
@@ -1158,6 +1177,10 @@ export class SimulationEngine {
                 levelGallons: Math.round(fluidUnit.level * 10) / 10,
                 ...(fluidUnit.role === 'reactor' || fluidUnit.role === 'batch' ? { batches: fluidUnit.batches } : {}),
                 temperatureC: round1(fluidUnit.tempC),
+                ...(fractions(fluidUnit.comp) ? { composition: fractions(fluidUnit.comp) } : {}),
+                ...(fluidUnit.heat.sentGallons > 1e-6 && fractions(fluidUnit.sentComp, fluidUnit.heat.sentGallons)
+                  ? { averageOutletComposition: fractions(fluidUnit.sentComp, fluidUnit.heat.sentGallons) }
+                  : {}),
                 ...(fluidUnit.heat.sentGallons > 1e-6
                   ? { averageOutletTemperatureC: round1(fluidUnit.heat.sentGallonDegrees / fluidUnit.heat.sentGallons) }
                   : {}),
@@ -1183,7 +1206,13 @@ export class SimulationEngine {
           gallons: fluidUnit ? Math.round((role === 'feed' ? fluidUnit.deliveredGallons : fluidUnit.receivedGallons) * 10) / 10 : 0,
           ...(fluidUnit && (role === 'feed' ? fluidUnit.deliveredGallons : fluidUnit.receivedGallons) > 1e-6
             ? { temperatureC: round1(fluidUnit.tempC) }
-            : {})
+            : {}),
+          ...(() => {
+            if (!fluidUnit) return {};
+            const gallons = role === 'feed' ? fluidUnit.deliveredGallons : fluidUnit.receivedGallons;
+            const kg = componentKg(fluidUnit.comp, gallons, this.fluid.densityOf(fluidUnit));
+            return kg ? { componentsKg: kg } : {};
+          })()
         };
         terminals.push(report);
         nodeReports[nodeId]!.terminal = report;

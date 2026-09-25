@@ -23,7 +23,14 @@ export const FluidPropertiesSchema = z.object({
    */
   specificHeatKjPerKgK: z.number().positive().optional(),
   latentHeatOfFusionKjPerKg: z.number().nonnegative().optional(),
-  meltingPointCelsius: z.number().optional()
+  meltingPointCelsius: z.number().optional(),
+  /**
+   * Mass fractions of named components, e.g. { water: 0.88, sucrose: 0.12 }.
+   * The simulation carries them through every unit, mixes them, and lets
+   * designed units react and separate them. Fractions are normalised to sum
+   * to 1 where they are read.
+   */
+  composition: z.record(z.number().nonnegative()).optional()
 });
 export type FluidProperties = z.infer<typeof FluidPropertiesSchema>;
 

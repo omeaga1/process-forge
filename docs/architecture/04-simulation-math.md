@@ -202,6 +202,30 @@ that. A filler with no feed pipe fills on its own.
 and tank outlets into containers per minute: their gallons per minute divided
 by the container volume of the pipe-fed filler.
 
+## Components
+
+A liquid can carry components: mass fractions by name, such as
+`{ water: 0.88, sugar: 0.12 }`, from a feed's config, a tank's or a pipe's
+`fluid.composition`. Every unit mixes what arrives into what it holds, by
+volume, as it does temperature. Units that do not name a component pass it
+through.
+
+A designed unit that lists `components` can read `inlet.x.<name>` (and
+`batch.x.<name>`) and change the composition:
+
+- `reactions[]`, in order: a reaction consumes `conversion` × the limiting
+  component, and every other component changes by its coefficient × that
+  amount. Coefficients are kg per kg and sum to zero, so mass is conserved.
+  A co-reactant that runs out stops the reaction at that point and is
+  reported in `designedUnit.shortReactions`.
+- `outlets[].recovery`: for each component, the share of its mass leaving by
+  each port. A port's flow is the mass it gets and its composition is what
+  that mass is made of. Ports that do not name a component split what the
+  others leave; what no port takes is lost.
+
+Reports give each liquid unit's `composition` and `averageOutletComposition`,
+and each feed and outlet arrow's `componentsKg`.
+
 ## Feeds and outlets
 
 Arrows at the edge of the flowsheet mark where material enters and leaves it
@@ -243,8 +267,10 @@ filler's container volume.
 - **Heat:** there are no utility streams (steam, cooling water) and no heat
   losses. An exchanger's duty is a fixed ceiling, not computed from area and
   LMTD, and a reactor does not cool its batch before discharging.
-- **Designed units:** no component compositions on streams. A designed
-  cycle unit's inputs are not read live, and a batch unit's phase is worked
-  out once, when it starts.
+- **Designed units:** a designed cycle unit's inputs are not read live, and a
+  batch unit's phase is worked out once, when it starts.
+- **Components:** one density per unit, so volumes follow mass at that
+  density; mixing is by volume. A batch unit drains its own composition (no
+  recoveries on drains).
 - **Breakdowns on liquid units:** only machines that make or move whole items
   break down. Reactors, tanks and pumps do not.

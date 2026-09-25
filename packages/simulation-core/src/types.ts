@@ -70,6 +70,10 @@ export interface MachineOeeReport {
     averageOutletTemperatureC?: number;
     /** Designed units: gallons no outlet took (vented, evaporated). */
     lostGallons?: number;
+    /** Mass fractions by component of what it holds at the end (a pass-through unit: what it last sent). */
+    composition?: Record<string, number>;
+    /** Volume-weighted mass fractions of everything it sent on. */
+    averageOutletComposition?: Record<string, number>;
   };
   /** Heat exchangers with a target temperature, batch reactors with a reaction temperature, designed units with a duty. */
   heat?: HeatReport;
@@ -89,6 +93,8 @@ export interface DesignedUnitReport {
   capacityGpm?: number;
   /** Designed batch units: seconds spent in each phase over the run. */
   secondsByPhase?: Record<string, number>;
+  /** Reactions that ran short of a co-reactant at some point (they stopped when it ran out). */
+  shortReactions?: string[];
 }
 
 export interface HeatReport {
@@ -121,6 +127,8 @@ export interface TerminalReport {
   gallons: number;
   /** Liquid outlets: volume-weighted °C of what arrived. Liquid feeds: °C supplied. */
   temperatureC?: number;
+  /** Liquid outlets and feeds with a composition: kg of each component received or supplied. */
+  componentsKg?: Record<string, number>;
 }
 
 export interface SimulationResult {

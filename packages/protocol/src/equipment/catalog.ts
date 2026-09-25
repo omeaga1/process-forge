@@ -161,6 +161,8 @@ export interface CreateStandardOptions {
   carries?: Carries;
   /** Feeds: gal/min or items/min; 0 or unset supplies whatever the line takes. */
   supplyRate?: number;
+  /** Liquid feeds, and the contents of tanks and reactors: mass fractions by component. */
+  composition?: Record<string, number>;
 }
 
 /** A new node for a catalog entry, with its default settings and nozzles. */
@@ -171,6 +173,7 @@ export function createStandardUnitOp(item: EquipmentPaletteItem, options: Create
       ...(options.material ? { material: options.material } : {}),
       ...(options.carries ? { carries: options.carries } : {}),
       ...(options.supplyRate !== undefined ? { supplyRate: options.supplyRate } : {}),
+      ...(options.composition ? { composition: options.composition } : {}),
       ...(options.position ? { position: options.position } : {})
     });
   }
@@ -179,10 +182,15 @@ export function createStandardUnitOp(item: EquipmentPaletteItem, options: Create
     ...(options.position ? { position: options.position } : {}),
     ...(item.defaultFlowGpm ? { flowRateGpm: item.defaultFlowGpm } : {})
   });
-  if (!options.parameters) return node;
+  if (!options.parameters && !options.composition) return node;
   // Only settings the unit has, and only numbers: nothing else changes.
   const config = { ...(node.config as Record<string, unknown>) };
-  for (const [k, v] of Object.entries(options.parameters)) {
+  if (options.composition) {
+    // What the unit holds (a tank's starting contents, a reactor's batch) is made of these.
+    const fluid = (config.fluid as Record<string, unknown> | undefined) ?? { name: 'Liquid', densityGPerCm3: 1, viscosityCentipoise: 1, temperatureCelsius: 20 };
+    config.fluid = { ...fluid, composition: options.composition };
+  }
+  for (const [k, v] of Object.entries(options.parameters ?? {})) {
     if (typeof config[k] === 'number' && typeof v === 'number' && Number.isFinite(v)) config[k] = v;
   }
   return { ...node, config: config as ProcessNode['config'] };

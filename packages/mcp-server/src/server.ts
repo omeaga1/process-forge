@@ -181,6 +181,10 @@ export const TOOLS: ToolDef[] = [
         parameters: { type: 'object', description: 'Optional settings to change, by the names list_standard_unit_ops gives, e.g. { "designFlowRateGpm": 80 }.' },
         material: { type: 'string', description: 'Feeds and outlets: what the stream is, e.g. "Latex base" or "Rejected cans".' },
         supplyRate: { type: 'number', description: 'Feeds: the most it supplies, gal/min for liquid or items/min. Omit or 0 to supply whatever the line takes.' },
+        composition: {
+          type: 'object',
+          description: 'Liquid feeds, tanks and reactors: what the liquid is made of, as mass fractions by component, e.g. { "water": 0.88, "sugar": 0.12 }. Designed units read them as inlet.x.<name>, react them and separate them.'
+        },
         carries: { type: 'string', enum: ['liquid', 'items'], description: 'Feeds and outlets: optional; by default it matches the first unit it is piped to.' },
         connectFrom: { type: 'string', description: 'Optional: a unit (id, name or tag) to pipe into the new one, as add_stream would.' },
         connectTo: { type: 'string', description: 'Optional: a unit to pipe the new one into.' },
