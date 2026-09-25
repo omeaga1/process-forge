@@ -1,6 +1,6 @@
 # Plan 0001: A Decision Layer for the Unit-Op Sub-Agents
 
-* **Status:** In progress. See [Status](#status) at the end.
+* **Status:** Heuristic layer built; Jev shelved 2026-09-25. See [Status](#status) at the end.
 * **Date:** 2026-09-22
 * **Scope:** `@process-forge/protocol`, `@process-forge/canvas-ui`, `@process-forge/mcp-server`
 * **Relates to:** [ADR-0002](../adr/0002-deterministic-sim-vs-llm.md), [ADR-0005](../adr/0005-zero-raw-keys-and-agent-driven-packages.md), [ADR-0006](../adr/0006-model-context-protocol-mcp.md)
@@ -375,37 +375,19 @@ As of 2026-09-22.
   tie as a tie instead of taking the first match. Template selection returns
   `decided: false` with the alternatives, and `forge_equipment_drawing`
   accepts a `templateFamily` to resolve it.
-- `JevDecisionProvider` (`decisions/jev.ts`): batched, with a timeout and a
-  fall-through to the heuristic on error, timeout or an unknown option. It
-  takes a transport, so it does not decide where the key lives.
 - `ROUTING_FIXTURES` (`decisions/fixtures.ts`): 36 phrasings across the four
   seams, 12 of them marked hard (paraphrase, politeness, negation).
-- `packages/protocol/scripts/measure-decisions.mjs`: scores the heuristic, and
-  Jev when `TYPESAFE_API_KEY` is set, and lists the cases where they differ.
+- `scoreProvider` (`decisions/fixtures.ts`) scores any provider against them.
 
 **Baseline:** the heuristic passes 25 of 36 fixtures and 1 of the 12 hard ones.
 The non-hard cases are pinned in CI.
 
-**Not built**
+**Shelved (2026-09-25)**
 
-- The Jev provider is not wired into the app or the MCP server.
-- Jev has not been measured against the fixtures (needs an API key).
-- §8.2 is still open. The app now accepts user API keys, so option (a) no
-  longer conflicts with ADR-0005, which is superseded; the question is only
-  whether to offer it.
-
-**Facts checked since §8.1 was written**
-
-- The endpoint is `POST https://api.typesafe.ai/v1/systemone` with a bearer
-  key; there is an npm SDK, `@typesafe-ai/sdk`. Browser (CORS) access is not
-  documented and should be assumed unsupported until tested.
-- Two details in §2 were wrong: the count of `.includes()` tests (92 in source,
-  excluding tests), and the "10 inch nozzle" example, which renders the generic
-  fallback. The tray bug was real in a different form: "distillation column
-  with a 10 inch nozzle" rendered a 10-tray column, and "absorption column
-  with 6 trays" rendered a packed column because the packing test ran first.
-  Both are fixed in `equipmentCadEngine.ts`: a tray count must be a count of
-  trays, and an explicit count outranks a packing keyword.
-
-Next step: run the measurement script with a key. Wire Jev into a seam only if
-it clearly beats 1/12 on the hard cases without losing any of the others.
+A `JevDecisionProvider` and a measurement script were written (commit
+`efeae60`) but never wired into the app or the MCP server and never run
+against the real API. They were removed; the product's AI paths are MCP and
+OpenRouter, and the heuristic provider covers every seam offline. If a
+decision model is reconsidered, recover them from that commit and measure
+against `ROUTING_FIXTURES` first: it must beat 1/12 on the hard cases without
+losing any of the others.

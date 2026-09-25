@@ -37,7 +37,8 @@ ADR-0004 was removed along with the tooling it described.
 Proposals that are not decisions yet.
 
 - [Plan 0001](plans/0001-jev-decision-layer.md): a decision layer for the
-  keyword-matching branch points in the AI pipeline.
+  keyword-matching branch points in the AI pipeline. The heuristic layer is
+  built; the Jev provider is shelved.
 
 ## Guides
 
