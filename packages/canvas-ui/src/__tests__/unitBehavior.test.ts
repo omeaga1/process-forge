@@ -93,12 +93,14 @@ describe('What a unit does, in the engine\'s terms', () => {
     assert.strictEqual(describeUnitBehavior(l, g).role, 'end');
   });
 
-  it('describes a designed continuous unit from its contract, and says it does not pace the line', () => {
+  it('describes a designed continuous unit from its contract, and says it is evaluated live', () => {
     const belt = at('CUSTOM_UNIT_OP', 'belt', { contract: WAX_COOLING_BELT_CONTRACT });
     const b = describeUnitBehavior(belt, graphOf([belt]));
-    assert.strictEqual(b.simulated, false);
+    assert.strictEqual(b.simulated, true);
+    // The belt declares no capacityGpm, so it sets no flow limit of its own.
+    assert.strictEqual(b.capacityPerMin, null);
     assert.ok(b.keyFigures && b.keyFigures.length > 0, 'shows the engine\'s computed figures');
-    assert.match(b.details.join(' '), /steady state/);
+    assert.match(b.details.join(' '), /re-evaluated every second/);
     assert.deepStrictEqual(engineKeysOf(belt), ['contract']);
   });
 

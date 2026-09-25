@@ -1,6 +1,7 @@
 import type { ExprScope } from './expression.js';
 import { evaluateBoolean, evaluateNumber, ExpressionError } from './expression.js';
 import type { UnitOpContract } from './contract.js';
+import { LITERS_PER_GALLON } from '../thermal.js';
 
 /**
  * Stream state the engine hands a unit op at evaluation time.
@@ -26,6 +27,26 @@ export interface UnitOpEvaluationInput {
   utility?: StreamState;
   /** Overrides for declared parameter values, by parameter name. */
   parameterOverrides?: Record<string, number>;
+  /** A BATCH unit: the batch in hand as a phase starts. Defaults to a full vessel at designInlet temperature. */
+  batch?: BatchState;
+}
+
+export interface BatchState {
+  gallons: number;
+  temperatureC: number;
+  massKg: number;
+  number: number;
+}
+
+export interface EvaluatedBatchPhase {
+  name: string;
+  kind: 'FILL' | 'HOLD' | 'DRAIN';
+  gallons?: number;
+  rateGpm?: number;
+  seconds?: number;
+  temperatureC?: number;
+  dutyKw?: number;
+  port?: string;
 }
 
 export interface ConstraintResult {
@@ -63,7 +84,16 @@ export interface UnitOpEvaluation {
         /** Whole items per cycle, per item outlet port; they add up to unitsPerCycle. */
         outputs?: { port: string; perCycle: number; scrap: boolean }[];
       }
-    | { mode: 'CONTINUOUS_RATE'; throughputPerMinute: number; capacityGpm?: number; dutyKw?: number; residenceTimeSeconds?: number };
+    | { mode: 'CONTINUOUS_RATE'; throughputPerMinute: number; capacityGpm?: number; dutyKw?: number; residenceTimeSeconds?: number }
+    | {
+        mode: 'BATCH';
+        batchGallons: number;
+        phases: EvaluatedBatchPhase[];
+        /** Phase times added up at this batch state; a FILL or DRAIN without a rate counts as instant. */
+        cycleSecondsEstimate: number;
+        /** batchGallons over the estimated cycle. */
+        gallonsPerMinute: number;
+      };
   /** Per outlet port, from contract.outlets: its share of the outflow and its temperature, where declared. */
   outlets: Record<string, { share?: number; temperatureC?: number }>;
   /** Populated when an expression failed to evaluate; evaluation stops there. */
@@ -84,11 +114,13 @@ function buildScope(
   parameters: Record<string, number>,
   derived: Record<string, number>,
   inlet: ExprScope | undefined,
-  utility: ExprScope | undefined
+  utility: ExprScope | undefined,
+  batch?: BatchState
 ): ExprScope {
   const scope: ExprScope = { ...parameters, ...derived };
   if (inlet) scope.inlet = inlet;
   if (utility) scope.utility = utility;
+  if (batch) scope.batch = { ...batch };
   return scope;
 }
 
@@ -111,6 +143,32 @@ export function evaluateUnitOp(
 
   const inlet = streamScope(contract.designInlet, input.inlet);
   const utility = streamScope(contract.designUtility, input.utility);
+  // A BATCH unit's batch: as given, or a full vessel at the design inlet temperature.
+  let batch: BatchState | undefined;
+  let batchGallons = 0;
+  if (contract.behavior.mode === 'BATCH') {
+    try {
+      batchGallons = evaluateNumber(contract.behavior.batchGallons, buildScope(parameters, {}, inlet, utility));
+    } catch (e) {
+      return {
+        contractId: contract.id,
+        parameters,
+        derived: {},
+        constraints: [],
+        physicallyValid: false,
+        behavior: { mode: 'BATCH', batchGallons: 0, phases: [], cycleSecondsEstimate: 0, gallonsPerMinute: 0 },
+        outlets: {},
+        error: { path: 'behavior.batchGallons', message: e instanceof ExpressionError ? e.message : String(e) }
+      };
+    }
+    const density = typeof inlet?.densityGPerCm3 === 'number' ? inlet.densityGPerCm3 : 1;
+    batch = input.batch ?? {
+      gallons: batchGallons,
+      temperatureC: typeof inlet?.temperatureC === 'number' ? inlet.temperatureC : 20,
+      massKg: batchGallons * LITERS_PER_GALLON * density,
+      number: 1
+    };
+  }
   const derived: Record<string, number> = {};
   const fail = (path: string, e: unknown): UnitOpEvaluation => ({
     contractId: contract.id,
@@ -121,7 +179,9 @@ export function evaluateUnitOp(
     behavior:
       contract.behavior.mode === 'DISCRETE_CYCLE'
         ? { mode: 'DISCRETE_CYCLE', cycleSeconds: 0, unitsPerCycle: 0, scrapFraction: 0, unitsPerMinute: 0 }
-        : { mode: 'CONTINUOUS_RATE', throughputPerMinute: 0 },
+        : contract.behavior.mode === 'BATCH'
+          ? { mode: 'BATCH', batchGallons, phases: [], cycleSecondsEstimate: 0, gallonsPerMinute: 0 }
+          : { mode: 'CONTINUOUS_RATE', throughputPerMinute: 0 },
     outlets: {},
     error: { path, message: e instanceof ExpressionError ? e.message : String(e) }
   });
@@ -129,13 +189,13 @@ export function evaluateUnitOp(
   // Derived values resolve in declaration order; each sees the ones before it.
   for (const d of contract.derived) {
     try {
-      derived[d.name] = evaluateNumber(d.expr, buildScope(parameters, derived, inlet, utility));
+      derived[d.name] = evaluateNumber(d.expr, buildScope(parameters, derived, inlet, utility, batch));
     } catch (e) {
       return fail(`derived.${d.name}`, e);
     }
   }
 
-  const scope = buildScope(parameters, derived, inlet, utility);
+  const scope = buildScope(parameters, derived, inlet, utility, batch);
 
   const constraints: ConstraintResult[] = [];
   for (const c of contract.constraints) {
@@ -197,6 +257,35 @@ export function evaluateUnitOp(
         ...(liquid !== undefined ? { liquidPerCycleGallons: liquid } : {}),
         ...(inputs?.length ? { inputs } : {}),
         ...(outputs?.length ? { outputs } : {})
+      };
+    } else if (contract.behavior.mode === 'BATCH') {
+      const phases: EvaluatedBatchPhase[] = [];
+      let seconds = 0;
+      for (const [i, ph] of contract.behavior.phases.entries()) {
+        const num = (key: 'gallons' | 'rateGpm' | 'seconds' | 'temperatureC' | 'dutyKw') => {
+          const expr = ph[key];
+          if (!expr) return undefined;
+          const v = evaluateNumber(expr, scope);
+          if (key !== 'temperatureC' && v < 0) throw new Error(`phases[${i}].${key} must not be negative, got ${v}`);
+          return v;
+        };
+        const e: EvaluatedBatchPhase = { name: ph.name, kind: ph.kind };
+        for (const key of ['gallons', 'rateGpm', 'seconds', 'temperatureC', 'dutyKw'] as const) {
+          const v = num(key);
+          if (v !== undefined) e[key] = v;
+        }
+        if (ph.port) e.port = ph.port;
+        phases.push(e);
+        if (ph.kind === 'HOLD') seconds += e.seconds ?? 0;
+        else if (e.rateGpm && e.rateGpm > 0) seconds += ((e.gallons ?? batchGallons) / e.rateGpm) * 60;
+      }
+      if (batchGallons <= 0) return fail('behavior.batchGallons', new Error(`batchGallons must be positive, got ${batchGallons}`));
+      behavior = {
+        mode: 'BATCH',
+        batchGallons,
+        phases,
+        cycleSecondsEstimate: seconds,
+        gallonsPerMinute: seconds > 0 ? (batchGallons / seconds) * 60 : Infinity
       };
     } else {
       const throughputPerMinute = evaluateNumber(contract.behavior.throughputPerMinute, scope);

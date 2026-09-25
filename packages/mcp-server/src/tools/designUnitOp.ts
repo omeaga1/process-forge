@@ -5,6 +5,8 @@ import {
   FDM_PRINTER_CONTRACT,
   EVAPORATOR_CONTRACT,
   CASE_PACKER_CONTRACT,
+  CRYSTALLISER_CONTRACT,
+  BATCH_SCOPE_NAMES,
   LITERS_PER_GALLON,
   type UnitOpDesignStream,
   UNIT_OP_AUTHORING_RULES,
@@ -44,7 +46,7 @@ export interface DesignUnitOpParams {
   /** Optional: the node id being designed or replaced, if it already exists. */
   targetNodeId?: string;
   /** Optional: which behavior mode the engineer expects. */
-  preferredMode?: 'DISCRETE_CYCLE' | 'CONTINUOUS_RATE';
+  preferredMode?: 'DISCRETE_CYCLE' | 'CONTINUOUS_RATE' | 'BATCH';
 }
 
 export interface NeighbourContext {
@@ -77,6 +79,10 @@ export interface DesignUnitOpResult {
   liveInletExample: unknown;
   /** A complete, valid contract that takes and makes different items per port (a case packer with a reject lane). */
   assemblyExample: unknown;
+  /** A complete, valid BATCH contract: fill, heat (timed from the batch), cool, decant and drop (a crystalliser). */
+  batchExample: unknown;
+  /** Names a BATCH contract's expressions can read about the batch in hand. */
+  batchNames: readonly string[];
   /** What the surrounding process looks like, when a graph was supplied. */
   processContext: {
     available: boolean;
@@ -235,7 +241,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
 
   const modeLine = preferredMode
     ? `The engineer expects behavior.mode = ${preferredMode}.`
-    : 'Choose behavior.mode: DISCRETE_CYCLE for machines that process items on a cycle, CONTINUOUS_RATE for steady flow transformations.';
+    : 'Choose behavior.mode: DISCRETE_CYCLE for machines that process whole items on a cycle, CONTINUOUS_RATE for steady flow transformations, BATCH for a vessel that holds a charge of liquid and runs it through fill, hold and drain steps.';
 
   const brief = [
     `Design a unit operation from this description: "${description}"`,
@@ -254,7 +260,9 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     'cycle (DISCRETE_CYCLE, a 3D printer); liveInletExample (an evaporator) reads',
     'what flows in (inlet.*, checked at designInlet) and splits and heats its',
     'outflow per outlet port; assemblyExample (a case packer) takes a kit of items',
-    'from several ports and sends good items and rejects to their own ports. During a run the engine evaluates your design every',
+    'from several ports and sends good items and rejects to their own ports;',
+    'batchExample (a crystalliser, BATCH) fills, heats for a time computed from the',
+    'batch itself, cools, and drains the top and the bottom to different ports. During a run the engine evaluates your design every',
     'second at the stream that actually reaches it, so write the physics in terms',
     'of inlet.* wherever the feed matters, rather than as fixed parameters.'
   ].join('\n');
@@ -269,6 +277,8 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     cycleExample: FDM_PRINTER_CONTRACT,
     liveInletExample: EVAPORATOR_CONTRACT,
     assemblyExample: CASE_PACKER_CONTRACT,
+    batchExample: CRYSTALLISER_CONTRACT,
+    batchNames: BATCH_SCOPE_NAMES,
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:
       'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'

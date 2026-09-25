@@ -239,6 +239,9 @@ describe('design_unit_op: designs that read their inlet', () => {
     assert.ok(r.rules.some((x) => x.includes('liquidPerCycleGallons')));
     assert.equal(executeValidateUnitOp({ contract: r.liveInletExample }).verdict, 'ACCEPTED');
     assert.equal(executeValidateUnitOp({ contract: r.assemblyExample }).verdict, 'ACCEPTED');
+    assert.equal(executeValidateUnitOp({ contract: r.batchExample }).verdict, 'ACCEPTED');
+    assert.ok(r.batchNames.includes('batch.massKg'));
+    assert.ok(r.rules.some((x) => x.includes('BATCH is for a vessel')));
     assert.ok(r.rules.some((x) => x.includes('behavior.inputs')));
   });
 });

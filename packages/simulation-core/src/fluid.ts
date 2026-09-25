@@ -13,7 +13,8 @@ import {
   type ProcessEdge,
   type ProcessGraph,
   type ProcessNode,
-  type UnitOpContract
+  type UnitOpContract,
+  type EvaluatedBatchPhase
 } from '@process-forge/protocol';
 import type { MachineOperationalState } from './types.js';
 
@@ -47,7 +48,7 @@ import type { MachineOperationalState } from './types.js';
  * temperature before the reaction clock starts.
  */
 
-export type FluidRole = 'reactor' | 'tank' | 'pass' | 'filler' | 'feed' | 'sink';
+export type FluidRole = 'reactor' | 'tank' | 'pass' | 'filler' | 'feed' | 'sink' | 'batch';
 export type ReactorPhase = 'FILLING' | 'HEATING' | 'REACTING' | 'DISCHARGING';
 
 export interface FluidUnit {
@@ -85,6 +86,23 @@ export interface FluidUnit {
   live?: LiveContract;
   /** Seconds each constraint was broken during the run, and evaluation failures. */
   contractRun?: ContractRunTally;
+  /** A designed BATCH unit: the phase it is in, as evaluated when it started. */
+  batchRun?: BatchRun;
+}
+
+export interface BatchRun {
+  index: number;
+  phase: EvaluatedBatchPhase;
+  /** Gallons this phase has moved, and how many it is to move. */
+  moved: number;
+  target: number;
+  startedAt: number;
+  endsAt?: number;
+  startTempC: number;
+  /** Constraints broken at this phase's start, timed while it runs. */
+  broken: { id: string; message: string; severity: 'ERROR' | 'WARNING' }[];
+  /** Seconds spent in each phase, by name, over the run. */
+  secondsByPhase: Record<string, number>;
 }
 
 export interface LiveContract {
@@ -142,6 +160,10 @@ function contractOf(node: ProcessNode): UnitOpContract | undefined {
   return (node.config as { contract?: UnitOpContract }).contract;
 }
 
+function hasBatchContract(node: ProcessNode): boolean {
+  return contractOf(node)?.behavior.mode === 'BATCH';
+}
+
 function hasDiscreteContract(node: ProcessNode): boolean {
   return contractOf(node)?.behavior.mode === 'DISCRETE_CYCLE';
 }
@@ -159,7 +181,7 @@ function liveOf(ev: ReturnType<typeof evaluateUnitOp>): LiveContract {
   if (b.mode === 'CONTINUOUS_RATE') {
     if (b.capacityGpm !== undefined) live.capacityGpm = b.capacityGpm;
     if (b.dutyKw !== undefined) live.dutyKw = b.dutyKw;
-  } else if (b.liquidPerCycleGallons !== undefined) {
+  } else if (b.mode === 'DISCRETE_CYCLE' && b.liquidPerCycleGallons !== undefined) {
     live.liquidPerCycleGallons = b.liquidPerCycleGallons;
   }
   return live;
@@ -188,6 +210,8 @@ export class FluidNetwork {
         if (t === 'feed' && this.outEdges.has(node.id)) role = 'feed';
         else if (t !== 'feed' && this.inEdges.has(node.id)) role = 'sink';
       } else if (node.kind === 'BATCH_REACTOR') role = 'reactor';
+      // A designed batch vessel runs its phases whether or not it is piped.
+      else if (hasBatchContract(node)) role = 'batch';
       else if (node.kind === 'SURGE_TANK' && touches(node.id)) role = 'tank';
       else if (node.kind === 'ROTARY_FILLER' && this.inEdges.has(node.id)) role = 'filler';
       // A designed cycle unit fed by a pipe draws its liquid each cycle, as a filler does.
@@ -206,6 +230,9 @@ export class FluidNetwork {
         level = Math.min(capacity, num(c.initialLevelGallons, 0));
       } else if (role === 'reactor') {
         capacity = Math.max(EPS, num(c.batchVolumeGallons, 800));
+      } else if (role === 'batch') {
+        const b = designEval?.behavior;
+        capacity = Math.max(EPS, b?.mode === 'BATCH' ? b.batchGallons : 0);
       } else if (role === 'filler') {
         // The bowl holds two cycles' worth, so the next cycle can be ready.
         capacity = Math.max(EPS, (live?.liquidPerCycleGallons ?? fillerDemandGallons(node)) * 2);
@@ -242,6 +269,101 @@ export class FluidNetwork {
       });
     }
     this.order = this.topologicalOrder();
+    for (const u of this.units.values()) if (u.role === 'batch') this.startPhase(u, 0, 0);
+  }
+
+  /**
+   * Starts a designed batch unit's phase: evaluates the contract at the batch
+   * as it is now (batch.gallons, batch.temperatureC, ...), so the phase's
+   * amounts and times follow from the physics of this batch.
+   */
+  private startPhase(u: FluidUnit, index: number, now: number): void {
+    const { density } = this.properties(u);
+    const ev = evaluateUnitOp(u.contract!, {
+      batch: { gallons: u.level, temperatureC: u.tempC, massKg: u.level * LITERS_PER_GALLON * density, number: u.batches + 1 }
+    });
+    const run = u.contractRun!;
+    run.evaluations++;
+    const declared = (u.contract!.behavior as { phases: { name: string; kind: EvaluatedBatchPhase['kind'] }[] }).phases[index]!;
+    let phase: EvaluatedBatchPhase = { name: declared.name, kind: declared.kind };
+    if (ev.error) {
+      if (!run.firstError) run.firstError = `${ev.error.path}: ${ev.error.message}`;
+      // The phase is skipped (nothing to move, no time); the next one is tried.
+      phase = { ...phase, ...(declared.kind === 'HOLD' ? { seconds: 0 } : { gallons: 0 }) };
+    } else if (ev.behavior.mode === 'BATCH') {
+      phase = ev.behavior.phases[index] ?? phase;
+    }
+    const target =
+      phase.kind === 'FILL' ? phase.gallons ?? Math.max(0, u.capacity - u.level) : phase.kind === 'DRAIN' ? phase.gallons ?? u.level : 0;
+    u.batchRun = {
+      index,
+      phase,
+      moved: 0,
+      target,
+      startedAt: now,
+      ...(phase.kind === 'HOLD' ? { endsAt: now + (phase.seconds ?? 0) } : {}),
+      startTempC: u.tempC,
+      broken: ev.error ? [] : ev.constraints.filter((c) => !c.satisfied).map((c) => ({ id: c.id, message: c.message, severity: c.severity })),
+      secondsByPhase: u.batchRun?.secondsByPhase ?? {}
+    };
+  }
+
+  /** The next phase, or the first again once a batch is done. */
+  private nextPhase(u: FluidUnit, now: number): void {
+    const phases = (u.contract!.behavior as { phases: unknown[] }).phases;
+    let next = u.batchRun!.index + 1;
+    if (next >= phases.length) {
+      next = 0;
+      u.batches++;
+    }
+    this.startPhase(u, next, now);
+  }
+
+  /** A designed batch unit's phase, as far as this tick goes: time, heat, self-charging. */
+  private stepBatch(u: FluidUnit, now: number, dt: number): void {
+    const run = u.batchRun!;
+    run.secondsByPhase[run.phase.name] = (run.secondsByPhase[run.phase.name] ?? 0) + dt;
+    for (const b of run.broken) {
+      const t = u.contractRun!.broken[b.id] ?? (u.contractRun!.broken[b.id] = { message: b.message, severity: b.severity, seconds: 0 });
+      t.seconds += dt;
+    }
+    const ph = run.phase;
+    if (ph.kind === 'HOLD') {
+      const end = run.endsAt ?? now;
+      const spent = Math.max(0, Math.min(dt, end - (now - dt)));
+      if (ph.dutyKw !== undefined) {
+        u.heat.energyKwh += (ph.dutyKw * spent) / 3600;
+        u.heat.activeSeconds += spent;
+      }
+      if (ph.temperatureC !== undefined) {
+        const span = Math.max(EPS, end - run.startedAt);
+        const f = Math.min(1, (now - run.startedAt) / span);
+        u.tempC = run.startTempC + (ph.temperatureC - run.startTempC) * f;
+      }
+      if (now >= end - EPS) {
+        if (ph.temperatureC !== undefined) u.tempC = ph.temperatureC;
+        this.nextPhase(u, now);
+      }
+      return;
+    }
+    if (ph.kind === 'FILL' && !this.inEdges.has(u.id)) {
+      // No feed pipe: it charges itself (its raw materials are not modelled).
+      const design = u.contract!.designInlet;
+      const rate = (ph.rateGpm ?? design?.volumetricFlowGpm ?? 50) / 60;
+      const add = Math.max(0, Math.min(u.capacity - u.level, run.target - run.moved, rate * dt));
+      this.receive(u, add, design?.temperatureC ?? AMBIENT_C);
+      u.receivedGallons += add;
+      u.inRate = add / dt;
+      run.moved += add;
+    }
+  }
+
+  /** A batch unit's outlets while it drains: one port if the phase names it, else every outlet. */
+  private batchOutlets(u: FluidUnit): { outs: Outlet[]; unpiped: boolean } {
+    const port = u.batchRun?.phase.port;
+    if (!port) return { outs: this.outlets(u), unpiped: false };
+    const edges = (this.outEdges.get(u.id) ?? []).filter((e) => e.sourcePortId === port && this.units.has(e.targetNodeId));
+    return { outs: edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, share: 1 / edges.length })), unpiped: edges.length === 0 };
   }
 
   /** True when there is any liquid to step. */
@@ -484,6 +606,10 @@ export class FluidNetwork {
       u.inboxHeat = 0;
       u.inRate = 0;
       u.outRate = 0;
+      if (u.role === 'batch') {
+        this.stepBatch(u, now, dt);
+        continue;
+      }
       if (u.role !== 'reactor') continue;
       if (u.phase === 'HEATING') this.heatBatch(u, now, dt);
       if (u.phase === 'REACTING' && now >= (u.phaseEndsAt ?? 0) - EPS) u.phase = 'DISCHARGING';
@@ -517,6 +643,15 @@ export class FluidNetwork {
               ? Math.max(0, Math.min(u.capacity - u.level, this.reactorRates(u).fill * dt))
               : 0;
           break;
+        case 'batch': {
+          const run = u.batchRun!;
+          const rate = run.phase.rateGpm !== undefined ? (run.phase.rateGpm / 60) * dt : Infinity;
+          u.accept =
+            run.phase.kind === 'FILL' && this.inEdges.has(u.id)
+              ? Math.max(0, Math.min(u.capacity - u.level, run.target - run.moved, rate))
+              : 0;
+          break;
+        }
         case 'pass': {
           const outs = this.outlets(u);
           const downstream = outs.length
@@ -536,6 +671,13 @@ export class FluidNetwork {
       const u = this.units.get(id)!;
       let offer = 0;
       if (u.role === 'reactor' && u.phase === 'DISCHARGING') offer = Math.min(u.level, this.reactorRates(u).discharge * dt);
+      else if (u.role === 'batch' && u.batchRun!.phase.kind === 'DRAIN') {
+        const run = u.batchRun!;
+        // With no rate set, it drains as fast as its outlet pipes' design flow.
+        const gpm = run.phase.rateGpm ?? (this.outEdges.has(u.id) ? this.pipeDesignGpm(u) : Infinity);
+        const rate = Number.isFinite(gpm) ? (gpm / 60) * dt : Infinity;
+        offer = Math.max(0, Math.min(u.level, run.target - run.moved, rate));
+      }
       else if (u.role === 'tank' && this.outEdges.has(u.id)) {
         const max = num((u.node.config as Record<string, unknown>).maxDischargeRateGpm, 0);
         offer = Math.min(u.level, max > 0 ? (max / 60) * dt : Infinity);
@@ -552,13 +694,15 @@ export class FluidNetwork {
         continue;
       }
 
-      const outs = this.outlets(u);
+      const drainTo = u.role === 'batch' ? this.batchOutlets(u) : undefined;
+      const outs = drainTo ? drainTo.outs : this.outlets(u);
       let sent = 0;
       if (outs.length === 0) {
         // No fluid outlet. A reactor or pump at the end of a line sends its
         // product out of the line; one piped into a unit that takes no liquid
-        // cannot send anything.
-        if (!this.outEdges.has(u.id)) {
+        // cannot send anything. A batch draining to an unpiped port empties
+        // out of the line.
+        if (!this.outEdges.has(u.id) || drainTo?.unpiped) {
           sent = offer;
           u.leftLineGallons += sent;
         }
@@ -578,11 +722,12 @@ export class FluidNetwork {
           o.target.inRate += x / dt;
           const t = o.temp ?? u.tempC;
           this.receive(o.target, x, t);
+          if (o.target.role === 'batch') o.target.batchRun!.moved += x;
           degrees += x * t;
           piped += x;
         }
         sent = total;
-        if (this.hasOutletPlan(u)) {
+        if (this.hasOutletPlan(u) && !u.batchRun?.phase.port) {
           // A designed unit's unclaimed remainder is lost; a declared outlet with no pipe leaves the line.
           const split = this.contractOutlets(u, (this.outEdges.get(u.id) ?? []).filter((e) => this.units.has(e.targetNodeId)));
           u.leftLineGallons += total * split.unpipedShare;
@@ -597,12 +742,24 @@ export class FluidNetwork {
       }
       u.deliveredGallons += sent;
       u.outRate = sent / dt;
+      if (u.role === 'batch') u.batchRun!.moved += sent;
       if (u.role === 'pass') u.level = Math.max(0, offer - sent);
       else u.level = Math.max(0, u.level - sent);
     }
 
-    // Reactor phase changes that follow from contents.
+    // Reactor and batch phase changes that follow from contents.
     for (const u of this.units.values()) {
+      if (u.role === 'batch') {
+        const run = u.batchRun!;
+        const done =
+          run.phase.kind === 'FILL'
+            ? run.moved >= run.target - EPS || u.level >= u.capacity - EPS
+            : run.phase.kind === 'DRAIN'
+              ? run.moved >= run.target - EPS || u.level <= EPS
+              : false;
+        if (done) this.nextPhase(u, now);
+        continue;
+      }
       if (u.role !== 'reactor') continue;
       if (u.phase === 'FILLING' && u.level >= u.capacity - EPS) {
         u.level = u.capacity;
@@ -660,6 +817,12 @@ export class FluidNetwork {
   /** The operating state a unit's liquid implies. Fillers are the engine's to set. */
   stateOf(u: FluidUnit): MachineOperationalState {
     switch (u.role) {
+      case 'batch': {
+        const kind = u.batchRun!.phase.kind;
+        if (kind === 'HOLD') return 'BUSY';
+        if (kind === 'DRAIN') return u.outRate > EPS ? 'BUSY' : 'BLOCKED';
+        return u.inRate > EPS ? 'BUSY' : 'STARVED';
+      }
       case 'reactor':
         if (u.phase === 'REACTING' || u.phase === 'HEATING') return 'BUSY';
         if (u.phase === 'DISCHARGING') return u.outRate > EPS ? 'BUSY' : 'BLOCKED';

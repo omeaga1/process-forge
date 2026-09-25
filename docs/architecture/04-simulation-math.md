@@ -89,7 +89,24 @@ the run from starting.
     only reported.
 
   It evaluates algebraic relations each second; it does not integrate
-  holdup, so a designed unit holds no liquid of its own.
+  holdup, so a designed continuous unit holds no liquid of its own.
+- `BATCH`: a vessel of `batchGallons` that runs `phases` in order and then
+  repeats. Each phase is evaluated as it starts, with `batch.gallons`,
+  `batch.temperatureC`, `batch.massKg` and `batch.number` describing the batch
+  then, so times and volumes can follow from the physics of that batch.
+  - `FILL` takes liquid in until `gallons` (default: a full vessel) have come
+    in, at most `rateGpm`; it is starved while its feed has none. With no feed
+    pipe it charges itself at `rateGpm`.
+  - `HOLD` lasts `seconds`; the contents move linearly to `temperatureC` and
+    `dutyKw` is counted as energy.
+  - `DRAIN` sends `gallons` (default: everything) out at most `rateGpm`
+    (default: its outlet pipes' design flow), to `port` if named, else by
+    `outlets[]` shares; it is blocked while downstream is full.
+
+  Each completed pass through the phases is a batch (`fluid.batches`). The
+  report gives seconds per phase, and constraints broken at a phase's start
+  are timed while that phase runs. The static analysis counts a batch unit on
+  the liquid path at `batchGallons` over its estimated cycle.
 
 ## OEE
 
@@ -226,8 +243,8 @@ filler's container volume.
 - **Heat:** there are no utility streams (steam, cooling water) and no heat
   losses. An exchanger's duty is a fixed ceiling, not computed from area and
   LMTD, and a reactor does not cool its batch before discharging.
-- **Designed units:** no holdup or batch phases of their own, and no
-  component compositions on streams. A designed cycle unit's inputs are not
-  read live.
+- **Designed units:** no component compositions on streams. A designed
+  cycle unit's inputs are not read live, and a batch unit's phase is worked
+  out once, when it starts.
 - **Breakdowns on liquid units:** only machines that make or move whole items
   break down. Reactors, tanks and pumps do not.

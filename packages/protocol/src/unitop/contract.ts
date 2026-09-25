@@ -106,6 +106,31 @@ export const UnitOpCycleOutputSchema = z.object({
 export type UnitOpCycleOutput = z.infer<typeof UnitOpCycleOutputSchema>;
 
 /**
+ * One step of a batch. Every value is an expression, evaluated when the phase
+ * starts, with batch.* holding the batch as it is then, so a heat-up time or
+ * a decant volume can follow from the physics.
+ *
+ * FILL  -- takes liquid in until `gallons` have come in (default: up to
+ *          batchGallons), at most `rateGpm`. With no liquid inlet pipe the unit
+ *          charges itself at `rateGpm` (its raw materials are not modelled).
+ * HOLD  -- holds for `seconds`; the contents end at `temperatureC` if given,
+ *          and `dutyKw` is counted as energy over the phase.
+ * DRAIN -- sends `gallons` out (default: everything), at most `rateGpm`, to
+ *          outlet `port` if given, else to every outlet by outlets[] shares.
+ */
+export const UnitOpBatchPhaseSchema = z.object({
+  name: z.string().min(1),
+  kind: z.enum(['FILL', 'HOLD', 'DRAIN']),
+  gallons: z.string().optional(),
+  rateGpm: z.string().optional(),
+  seconds: z.string().optional(),
+  temperatureC: z.string().optional(),
+  dutyKw: z.string().optional(),
+  port: z.string().optional()
+});
+export type UnitOpBatchPhase = z.infer<typeof UnitOpBatchPhaseSchema>;
+
+/**
  * How the node advances the simulation.
  *
  * DISCRETE_CYCLE -- the node processes `unitsPerCycle` items every
@@ -154,6 +179,17 @@ export const UnitOpBehaviorSchema = z.discriminatedUnion('mode', [
     capacityGpm: z.string().optional(),
     dutyKw: z.string().optional(),
     residenceTimeSeconds: z.string().optional()
+  }),
+  z.object({
+    /**
+     * A vessel that holds a batch of liquid and runs it through its phases in
+     * order, then starts again: a reactor, crystalliser, fermenter, decanter,
+     * CIP tank. batchGallons is the working volume; it may read parameters
+     * and inlet.* but not batch.* (the batch does not exist yet).
+     */
+    mode: z.literal('BATCH'),
+    batchGallons: z.string().min(1),
+    phases: z.array(UnitOpBatchPhaseSchema).min(1)
   })
 ]);
 export type UnitOpBehavior = z.infer<typeof UnitOpBehaviorSchema>;
@@ -255,6 +291,14 @@ export const RESERVED_SCOPE_NAMES = [
 ] as const;
 
 /**
+ * What a BATCH unit's expressions can read about the batch in hand: its
+ * volume, temperature and mass as the phase starts, and which batch it is
+ * (1, 2, ...). At validation they describe a full vessel at designInlet
+ * temperature.
+ */
+export const BATCH_SCOPE_NAMES = ['batch.gallons', 'batch.temperatureC', 'batch.massKg', 'batch.number'] as const;
+
+/**
  * Static checks that a contract is coherent BEFORE it is ever simulated:
  * every expression parses, every reference resolves to something declared,
  * derived values only reference earlier ones (no cycles by construction), and
@@ -267,6 +311,7 @@ export const RESERVED_SCOPE_NAMES = [
 export function validateUnitOpContract(contract: UnitOpContract): ContractValidationIssue[] {
   const issues: ContractValidationIssue[] = [];
   const known = new Set<string>(RESERVED_SCOPE_NAMES);
+  if (contract.behavior.mode === 'BATCH') for (const n of BATCH_SCOPE_NAMES) known.add(n);
 
   for (const p of contract.parameters) {
     if (known.has(p.name)) {
@@ -356,6 +401,31 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
         issues.push({ path: 'behavior.liquidPerCycleGallons', message: 'draws liquid, but the unit has no CONTINUOUS_FLUID inlet port to draw it from' });
       }
     }
+  } else if (b.mode === 'BATCH') {
+    checkExpr(b.batchGallons, 'behavior.batchGallons');
+    try {
+      if (referencedNames(b.batchGallons).some((r) => r.startsWith('batch.'))) {
+        issues.push({ path: 'behavior.batchGallons', message: 'the working volume cannot read batch.*: the batch does not exist until it is filled' });
+      }
+    } catch {
+      // Reported by checkExpr.
+    }
+    const liquidOutlets = contract.ports.filter((p) => p.direction === 'OUTLET' && p.flowDimension === 'CONTINUOUS_FLUID').map((p) => p.id);
+    b.phases.forEach((ph, i) => {
+      const path = `behavior.phases[${i}]`;
+      for (const key of ['gallons', 'rateGpm', 'seconds', 'temperatureC', 'dutyKw'] as const) {
+        if (ph[key]) checkExpr(ph[key]!, `${path}.${key}`);
+      }
+      if (ph.kind === 'HOLD' && !ph.seconds) issues.push({ path, message: `HOLD phase "${ph.name}" needs seconds` });
+      if (ph.kind !== 'HOLD' && (ph.seconds || ph.temperatureC || ph.dutyKw)) {
+        issues.push({ path, message: `seconds, temperatureC and dutyKw belong on a HOLD phase, not ${ph.kind} "${ph.name}"` });
+      }
+      if (ph.port && (ph.kind !== 'DRAIN' || !liquidOutlets.includes(ph.port))) {
+        issues.push({ path, message: `port "${ph.port}" must be a liquid OUTLET port on a DRAIN phase. Liquid outlets: ${liquidOutlets.join(', ') || 'none'}` });
+      }
+    });
+    if (!b.phases.some((ph) => ph.kind === 'FILL')) issues.push({ path: 'behavior.phases', message: 'a batch needs a FILL phase' });
+    if (!b.phases.some((ph) => ph.kind === 'DRAIN')) issues.push({ path: 'behavior.phases', message: 'a batch needs a DRAIN phase, or it fills once and stops' });
   } else {
     checkExpr(b.throughputPerMinute, 'behavior.throughputPerMinute');
     if (b.capacityGpm) checkExpr(b.capacityGpm, 'behavior.capacityGpm');
@@ -387,7 +457,9 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     ...contract.constraints.map((c) => c.expr),
     ...(b.mode === 'DISCRETE_CYCLE'
       ? [b.cycleSeconds, b.unitsPerCycle, b.scrapFraction, b.liquidPerCycleGallons, ...(b.inputs ?? []).map((x) => x.perCycle), ...(b.outputs ?? []).map((x) => x.perCycle)]
-      : [b.throughputPerMinute, b.capacityGpm, b.dutyKw, b.residenceTimeSeconds]),
+      : b.mode === 'BATCH'
+        ? [b.batchGallons, ...b.phases.flatMap((ph) => [ph.gallons, ph.rateGpm, ph.seconds, ph.temperatureC, ph.dutyKw])]
+        : [b.throughputPerMinute, b.capacityGpm, b.dutyKw, b.residenceTimeSeconds]),
     ...(contract.outlets ?? []).flatMap((o) => [o.share, o.temperatureC])
   ].filter((e): e is string => typeof e === 'string');
   const streamRefs = new Set<string>();

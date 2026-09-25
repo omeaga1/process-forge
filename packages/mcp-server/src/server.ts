@@ -303,7 +303,7 @@ export const TOOLS: ToolDef[] = [
         },
         graph: { type: 'object', description: 'Optional ProcessGraph this unit op will join. Omit to use the open flowsheet, if any.' },
         targetNodeId: { type: 'string', description: 'Optional id of the node being designed or replaced within the graph.' },
-        preferredMode: { type: 'string', enum: ['DISCRETE_CYCLE', 'CONTINUOUS_RATE'], description: 'Optional expected behavior mode.' }
+        preferredMode: { type: 'string', enum: ['DISCRETE_CYCLE', 'CONTINUOUS_RATE', 'BATCH'], description: 'Optional expected behavior mode.' }
       },
       required: ['description']
     },

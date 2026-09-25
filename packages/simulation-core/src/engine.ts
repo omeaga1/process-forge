@@ -73,7 +73,10 @@ function designedUnitReport(u: FluidUnit): DesignedUnitReport {
       .map(([id, b]) => ({ id, message: b.message, severity: b.severity, seconds: Math.round(b.seconds) }))
       .sort((a, b) => (a.severity === b.severity ? b.seconds - a.seconds : a.severity === 'ERROR' ? -1 : 1)),
     ...(run.firstError ? { evaluationError: run.firstError, evaluationErrorSeconds: Math.round(run.errorSeconds) } : {}),
-    ...(u.live?.capacityGpm !== undefined ? { capacityGpm: round1(u.live.capacityGpm) } : {})
+    ...(u.live?.capacityGpm !== undefined ? { capacityGpm: round1(u.live.capacityGpm) } : {}),
+    ...(u.batchRun
+      ? { secondsByPhase: Object.fromEntries(Object.entries(u.batchRun.secondsByPhase).map(([k, v]) => [k, Math.round(v)])) }
+      : {})
   };
 }
 
@@ -82,6 +85,9 @@ function heatReport(u: FluidUnit): { heat?: HeatReport } {
   const c = u.node.config as Record<string, unknown>;
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
   const energyKwh = round1(u.heat.energyKwh);
+  if (u.contract?.behavior.mode === 'BATCH') {
+    return u.heat.energyKwh > 0 ? { heat: { energyKwh } } : {};
+  }
   if (u.contract?.behavior.mode === 'CONTINUOUS_RATE' && u.contract.behavior.dutyKw) {
     const active = u.heat.activeSeconds;
     return { heat: { energyKwh, ...(active > 0 ? { averageDutyKw: round1((u.heat.energyKwh * 3600) / active) } : {}) } };
@@ -696,7 +702,7 @@ export class SimulationEngine {
         continue;
       }
       this.setNodeState(runtime, this.fluid.stateOf(unit));
-      if (unit.role === 'reactor') runtime.unitsProduced = unit.batches;
+      if (unit.role === 'reactor' || unit.role === 'batch') runtime.unitsProduced = unit.batches;
     }
     this.scheduleEvent(SimulationEngine.FLUID_DT, '__fluid__', 'FLUID_TICK');
   }
@@ -1068,7 +1074,8 @@ export class SimulationEngine {
       ...(Number.isFinite(u.capacity) ? { levelFraction: Math.min(1, u.level / u.capacity) } : {}),
       flowGpm: Math.round((u.role === 'sink' ? u.inRate : u.outRate) * 60 * 10) / 10,
       temperatureC: Math.round(u.tempC * 10) / 10,
-      ...(u.phase ? { phase: u.phase } : {})
+      ...(u.phase ? { phase: u.phase } : {}),
+      ...(u.batchRun ? { phaseName: u.batchRun.phase.name } : {})
     };
   }
 
@@ -1149,7 +1156,7 @@ export class SimulationEngine {
                 receivedGallons: Math.round(fluidUnit.receivedGallons * 10) / 10,
                 deliveredGallons: Math.round(fluidUnit.deliveredGallons * 10) / 10,
                 levelGallons: Math.round(fluidUnit.level * 10) / 10,
-                ...(fluidUnit.role === 'reactor' ? { batches: fluidUnit.batches } : {}),
+                ...(fluidUnit.role === 'reactor' || fluidUnit.role === 'batch' ? { batches: fluidUnit.batches } : {}),
                 temperatureC: round1(fluidUnit.tempC),
                 ...(fluidUnit.heat.sentGallons > 1e-6
                   ? { averageOutletTemperatureC: round1(fluidUnit.heat.sentGallonDegrees / fluidUnit.heat.sentGallons) }
@@ -1159,7 +1166,7 @@ export class SimulationEngine {
               ...heatReport(fluidUnit)
             }
           : {}),
-        ...(fluidUnit?.contractRun && fluidUnit.contract?.behavior.mode === 'CONTINUOUS_RATE'
+        ...(fluidUnit?.contractRun && fluidUnit.contract?.behavior.mode !== 'DISCRETE_CYCLE'
           ? { designedUnit: designedUnitReport(fluidUnit) }
           : {})
       };

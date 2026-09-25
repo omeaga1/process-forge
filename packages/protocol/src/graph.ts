@@ -233,6 +233,9 @@ function computeBottlenecks(
         capacities[node.id] = (good / ev.behavior.cycleSeconds) * 60;
       } else if (ev?.behavior.mode === 'CONTINUOUS_RATE' && ev.behavior.capacityGpm !== undefined && pipeFedFiller && onLiquidPath.has(node.id)) {
         capacities[node.id] = ev.behavior.capacityGpm / perContainer;
+      } else if (ev?.behavior.mode === 'BATCH' && Number.isFinite(ev.behavior.gallonsPerMinute) && pipeFedFiller && onLiquidPath.has(node.id)) {
+        // One batch every fill + hold + drain, as for a batch reactor.
+        capacities[node.id] = ev.behavior.gallonsPerMinute / perContainer;
       }
     }
   }
