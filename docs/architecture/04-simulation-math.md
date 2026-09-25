@@ -110,7 +110,36 @@ it feeds.
 $t_{react}$, and then discharging. A reactor with no feed pipe fills itself,
 because its raw materials are not modelled. Its long-run rate is
 
-$$\frac{V_{batch}}{t_{fill} + t_{react} + V_{batch}/Q_{discharge}}$$
+$$\frac{V_{batch}}{t_{fill} + t_{heat} + t_{react} + V_{batch}/Q_{discharge}}$$
+
+where $t_{heat}$ is zero unless the reactor has a jacket duty (see Heat below).
+
+**Heat.** Temperature travels with the liquid (`fluid.ts`, shared constants
+in `packages/protocol/src/thermal.ts`). Liquid from a feed is at its pipe's
+temperature; a self-charging reactor charges at 20 °C. When liquid arrives at a
+unit, it mixes by volume with what the unit holds:
+
+$$T = \frac{V_{held} T_{held} + V_{in} T_{in}}{V_{held} + V_{in}}$$
+
+Mass is $V \times 3.785\,\text{L/gal} \times \rho$, and $c_p$ is the unit's
+fluid `specificHeatKjPerKgK` (or a pipe's), else water's 4.186 kJ/kg·K.
+
+- A **heat exchanger** with `targetTemperatureCelsius` conditions what passes
+  through it each tick. It needs $Q = \dot m c_p (T_{in} - T_{target})$, and
+  moves $\min(|Q|, Q_{duty})$, where $Q_{duty}$ is `dutyKw` (unlimited if
+  unset). An undersized exchanger lets the liquid leave short of the target.
+  It changes temperatures, not flow. Its report gives the energy moved, the
+  average duty while flowing, and the share of that time it was duty-limited.
+  Without a target, it passes liquid through unchanged.
+- A **batch reactor** reacts at its `fluid.temperatureCelsius`. With
+  `jacketDutyKw` set, a full batch first heats (or cools) to it, which takes
+
+  $$t_{heat} = \frac{m\,c_p\,|T_{react} - T_{charge}|}{Q_{jacket}}$$
+
+  in the `HEATING` phase, before the reaction clock starts. Without a jacket
+  duty the batch is at temperature at once, but the heat is still counted. The
+  static bottleneck analysis uses the same $t_{heat}$, with the charge at its
+  inlet pipe's temperature or 20 °C.
 
 **Pipe-fed fillers.** A pipe-fed filler draws $N_{nozzles} \times V_{container}$
 gallons at the start of each cycle, and waits while its bowl holds less than
@@ -158,8 +187,9 @@ filler's container volume.
 
 ## Limits
 
-- **Heat exchangers:** heat duty is not modelled. A heat exchanger passes flow
-  up to its shell-side flow rate.
+- **Heat:** there are no utility streams (steam, cooling water) and no heat
+  losses. An exchanger's duty is a fixed ceiling, not computed from area and
+  LMTD, and a reactor does not cool its batch before discharging.
 - **Continuous designed units:** a designed continuous unit (CONTINUOUS_RATE)
   is checked at steady state, but it does not limit the flow.
 - **Liquid-fed cycle units:** a designed cycle unit fed by a liquid pipe does

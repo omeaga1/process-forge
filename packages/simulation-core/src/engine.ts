@@ -1,9 +1,10 @@
 import type { ProcessGraph, ProcessNode, UnitOpContract, UnitOpEvaluation } from '@process-forge/protocol';
 import { evaluateUnitOp, blockingViolations, terminalRole, terminalMaterial, terminalSupplyRate, terminalCarries } from '@process-forge/protocol';
 import { PriorityQueue } from './priority-queue.js';
-import { FluidNetwork, fillerDemandGallons, isFluidEdge } from './fluid.js';
+import { FluidNetwork, fillerDemandGallons, isFluidEdge, type FluidUnit } from './fluid.js';
 import { createRng, seedFromString, type SeededRng } from './rng.js';
 import type {
+  HeatReport,
   MachineOeeReport,
   MachineOperationalState,
   NodeTelemetrySnapshot,
@@ -51,6 +52,44 @@ interface InternalNodeRuntime {
   interrupted?: { type: SimEvent['type']; remainingSeconds: number };
   /** The one cycle event this machine has queued, so a failure can pause it. */
   pending?: { id: string; type: SimEvent['type']; timeSeconds: number };
+}
+
+const round1 = (x: number) => Math.round(x * 10) / 10;
+
+/** The heat a liquid unit moved: heat exchangers with a target, reactors with a reaction temperature. */
+function heatReport(u: FluidUnit): { heat?: HeatReport } {
+  const c = u.node.config as Record<string, unknown>;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+  const energyKwh = round1(u.heat.energyKwh);
+  if (u.node.kind === 'HEAT_EXCHANGER') {
+    const target = num(c.targetTemperatureCelsius);
+    if (target === undefined) return {};
+    const rated = num(c.dutyKw);
+    const active = u.heat.activeSeconds;
+    return {
+      heat: {
+        energyKwh,
+        targetTemperatureC: target,
+        ...(rated !== undefined && rated >= 0 ? { ratedDutyKw: rated } : {}),
+        ...(active > 0
+          ? {
+              averageDutyKw: round1((u.heat.energyKwh * 3600) / active),
+              dutyLimitedPercentage: round1((u.heat.limitedSeconds / active) * 100)
+            }
+          : {})
+      }
+    };
+  }
+  if (u.role === 'reactor' && num((c.fluid as { temperatureCelsius?: unknown } | undefined)?.temperatureCelsius) !== undefined) {
+    const jacket = num(c.jacketDutyKw);
+    return {
+      heat: {
+        energyKwh,
+        ...(jacket !== undefined && jacket > 0 ? { jacketDutyKw: jacket, heatingTimeSeconds: Math.round(u.heat.heatingSeconds) } : {})
+      }
+    };
+  }
+  return {};
 }
 
 /** Event types that are a machine's own cycle, and so pause while it is down. */
@@ -894,6 +933,7 @@ export class SimulationEngine {
       levelGallons: Math.round(level * 10) / 10,
       ...(Number.isFinite(u.capacity) ? { levelFraction: Math.min(1, u.level / u.capacity) } : {}),
       flowGpm: Math.round((u.role === 'sink' ? u.inRate : u.outRate) * 60 * 10) / 10,
+      temperatureC: Math.round(u.tempC * 10) / 10,
       ...(u.phase ? { phase: u.phase } : {})
     };
   }
@@ -975,8 +1015,13 @@ export class SimulationEngine {
                 receivedGallons: Math.round(fluidUnit.receivedGallons * 10) / 10,
                 deliveredGallons: Math.round(fluidUnit.deliveredGallons * 10) / 10,
                 levelGallons: Math.round(fluidUnit.level * 10) / 10,
-                ...(fluidUnit.role === 'reactor' ? { batches: fluidUnit.batches } : {})
-              }
+                ...(fluidUnit.role === 'reactor' ? { batches: fluidUnit.batches } : {}),
+                temperatureC: round1(fluidUnit.tempC),
+                ...(fluidUnit.heat.sentGallons > 1e-6
+                  ? { averageOutletTemperatureC: round1(fluidUnit.heat.sentGallonDegrees / fluidUnit.heat.sentGallons) }
+                  : {})
+              },
+              ...heatReport(fluidUnit)
             }
           : {})
       };
@@ -990,7 +1035,10 @@ export class SimulationEngine {
           material: terminalMaterial(r.node),
           carries: terminalCarries(r.node),
           units: r.unitsProduced,
-          gallons: fluidUnit ? Math.round((role === 'feed' ? fluidUnit.deliveredGallons : fluidUnit.receivedGallons) * 10) / 10 : 0
+          gallons: fluidUnit ? Math.round((role === 'feed' ? fluidUnit.deliveredGallons : fluidUnit.receivedGallons) * 10) / 10 : 0,
+          ...(fluidUnit && (role === 'feed' ? fluidUnit.deliveredGallons : fluidUnit.receivedGallons) > 1e-6
+            ? { temperatureC: round1(fluidUnit.tempC) }
+            : {})
         };
         terminals.push(report);
         nodeReports[nodeId]!.terminal = report;

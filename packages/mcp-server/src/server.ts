@@ -38,7 +38,7 @@ export function createProcessForgeMcpServer(): Server {
         {
           name: 'simulate_process_line',
           description:
-            'Runs a deterministic discrete-event simulation of a manufacturing line. Returns production throughput, scrap rates, machine states, and line bottleneck analysis.',
+            'Runs a deterministic discrete-event simulation of a manufacturing line. Returns production throughput, scrap rates, machine states, and line bottleneck analysis. Liquid carries a temperature: a heat exchanger with targetTemperatureCelsius moves the flow toward it within its dutyKw, and a batch reactor with jacketDutyKw heats each batch to its fluid.temperatureCelsius before reacting, which lengthens the batch. Each liquid unit reports its temperatures, and exchangers and reactors report the heat they moved.',
           inputSchema: {
             type: 'object',
             properties: {

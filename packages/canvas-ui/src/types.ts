@@ -41,7 +41,8 @@ export interface CanvasNodeData extends Record<string, unknown> {
   levelFraction?: number;
   levelGallons?: number;
   flowGpm?: number;
-  phase?: 'FILLING' | 'REACTING' | 'DISCHARGING';
+  phase?: 'FILLING' | 'HEATING' | 'REACTING' | 'DISCHARGING';
+  temperatureC?: number;
   activeSubAgentId: string;
   subAgentChatHistory: ChatMessage[];
   onOpenPopOutStudio?: (nodeId: string) => void;

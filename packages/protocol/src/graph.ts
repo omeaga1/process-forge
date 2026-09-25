@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ProcessNodeSchema, type ProcessNode } from './nodes.js';
 import { ProcessEdgeSchema } from './streams.js';
 import { terminalRole, terminalSupplyRate } from './terminals.js';
+import { AMBIENT_C, pipeTemperature, reactorHeatUpSeconds } from './thermal.js';
 
 export const ProcessGraphSchema = z.object({
   id: z.string().min(1),
@@ -160,7 +161,7 @@ function computeBottlenecks(
       const cansPerMinute = (nozzles / cycleTime) * 60;
       capacities[node.id] = cansPerMinute;
     } else if (pipeFedFiller && onLiquidPath.has(node.id) && node.kind === 'BATCH_REACTOR') {
-      // One batch every fill + reaction + discharge.
+      // One batch every fill + heat-up + reaction + discharge.
       const c = node.config as {
         batchVolumeGallons?: number;
         fillDurationMinutes?: number;
@@ -168,7 +169,10 @@ function computeBottlenecks(
         dischargeRateGpm?: number;
       };
       const batch = c.batchVolumeGallons ?? 800;
-      const cycleMin = (c.fillDurationMinutes ?? 15) + (c.reactionDurationMinutes ?? 30) + batch / Math.max(1e-6, c.dischargeRateGpm ?? 50);
+      const inlets = liquidPipes.filter((e) => e.targetNodeId === node.id);
+      const heatUpMin = reactorHeatUpSeconds(node, pipeTemperature(inlets) ?? AMBIENT_C, inlets) / 60;
+      const cycleMin =
+        (c.fillDurationMinutes ?? 15) + heatUpMin + (c.reactionDurationMinutes ?? 30) + batch / Math.max(1e-6, c.dischargeRateGpm ?? 50);
       capacities[node.id] = batch / cycleMin / perContainer;
     } else if (pipeFedFiller && onLiquidPath.has(node.id) && node.kind === 'PUMP') {
       const gpm = (node.config as { designFlowRateGpm?: number }).designFlowRateGpm;

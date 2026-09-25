@@ -19,6 +19,7 @@ export * from './decisions/jev.js';
 export * from './decisions/fixtures.js';
 export * from './connect.js';
 export * from './terminals.js';
+export * from './thermal.js';
 export * from './equipment/nozzleLayout.js';
 export * from './equipment/nodeFactory.js';
 export * from './equipment/catalog.js';

@@ -1,5 +1,10 @@
 import {
+  AMBIENT_C,
   evaluateUnitOp,
+  jacketDutyKw,
+  pipeTemperature,
+  reactionTemperature,
+  reactorHeatUpSeconds,
   UnitOpContractSchema,
   terminalCarries,
   terminalMaterial,
@@ -336,12 +341,22 @@ function describeCore(node: ProcessNode, graph: ProcessGraph): UnitBehavior {
       const reactMin = num(c.reactionDurationMinutes, 30);
       const discharge = Math.max(1e-6, num(c.dischargeRateGpm, 50));
       const dischargeMin = batch / discharge;
-      const cycleMin = fillMin + reactMin + dischargeMin;
+      const inlets = graph.edges.filter((e) => e.targetNodeId === node.id && isFluidEdge(e, graph));
+      const chargeC = pipeTemperature(inlets) ?? AMBIENT_C;
+      const heatMin = reactorHeatUpSeconds(node, chargeC, inlets) / 60;
+      const reactC = reactionTemperature(node);
+      const jacket = jacketDutyKw(node);
+      const cycleMin = fillMin + heatMin + reactMin + dischargeMin;
       return {
         simulated: true,
         headline: `Makes ${round(batch)} gal batches, one every ${formatDuration(cycleMin * 60)}.`,
         details: [
-          `${formatDuration(fillMin * 60)} filling, ${formatDuration(reactMin * 60)} reacting, then ${formatDuration(dischargeMin * 60)} discharging at ${round(discharge)} gpm.`,
+          heatMin > 0
+            ? `${formatDuration(fillMin * 60)} filling, ${formatDuration(heatMin * 60)} heating from ${round(chargeC)} to ${round(reactC!)} °C on its ${round(jacket!)} kW jacket, ${formatDuration(reactMin * 60)} reacting, then ${formatDuration(dischargeMin * 60)} discharging at ${round(discharge)} gpm.`
+            : `${formatDuration(fillMin * 60)} filling, ${formatDuration(reactMin * 60)} reacting, then ${formatDuration(dischargeMin * 60)} discharging at ${round(discharge)} gpm.`,
+          ...(reactC !== undefined && jacket === undefined
+            ? [`It reacts at ${round(reactC)} °C. No jacket duty is set, so each batch reaches that at once; set one to see how long heating really takes.`]
+            : []),
           feeds.length
             ? `It fills from ${list(feeds)}, and waits when that runs dry.`
             : 'No feed pipe, so it charges itself: the raw materials are not modelled.',
@@ -352,7 +367,7 @@ function describeCore(node: ProcessNode, graph: ProcessGraph): UnitBehavior {
         ],
         capacityPerMin: batch / cycleMin,
         rateUnit: 'gal',
-        engineKeys: ['batchVolumeGallons', 'fillDurationMinutes', 'reactionDurationMinutes', 'dischargeRateGpm'],
+        engineKeys: ['batchVolumeGallons', 'fillDurationMinutes', 'reactionDurationMinutes', 'dischargeRateGpm', 'jacketDutyKw'],
         role
       };
     }
@@ -411,14 +426,27 @@ function describeCore(node: ProcessNode, graph: ProcessGraph): UnitBehavior {
         const ratio = Math.min(1, Math.max(0, num(c.vaporSplitRatio, 0.25)));
         details.splice(1, 0, `It splits the flow: ${round(ratio * 100)}% to its first outlet (${node.outputs[0]?.name ?? 'overhead'}), ${round((1 - ratio) * 100)}% to the rest.`);
       }
-      if (node.kind === 'HEAT_EXCHANGER') details.push('Its heat duty is recorded with the design; the line simulation moves the flow but does not model the heat.');
+      const target = typeof c.targetTemperatureCelsius === 'number' ? c.targetTemperatureCelsius : undefined;
+      if (node.kind === 'HEAT_EXCHANGER') {
+        details.push(
+          target === undefined
+            ? 'No target temperature is set, so the liquid leaves at the temperature it came in.'
+            : typeof c.dutyKw === 'number'
+              ? `It brings the liquid to ${round(target)} °C, moving at most ${round(c.dutyKw)} kW. If the flow needs more than that, the liquid leaves short of the target, and the run reports how often.`
+              : `It brings the liquid to ${round(target)} °C. No duty is set, so it always reaches it.`
+        );
+      }
       return {
         simulated: true,
         headline: node.kind === 'SEPARATOR' ? `Splits its feed by the vapor ratio.` : capGpm !== null ? `Moves up to ${round(capGpm)} gpm.` : `Passes liquid through.`,
         details,
         capacityPerMin: capGpm,
         rateUnit: 'gal',
-        engineKeys: [...(capKey ? [capKey] : []), ...(node.kind === 'SEPARATOR' ? ['vaporSplitRatio'] : [])],
+        engineKeys: [
+          ...(capKey ? [capKey] : []),
+          ...(node.kind === 'SEPARATOR' ? ['vaporSplitRatio'] : []),
+          ...(node.kind === 'HEAT_EXCHANGER' ? ['targetTemperatureCelsius', 'dutyKw'] : [])
+        ],
         role
       };
     }
