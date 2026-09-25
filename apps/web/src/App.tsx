@@ -15,6 +15,7 @@ import {
 } from '@process-forge/canvas-ui';
 import {
   createSimulationProject,
+  addStreamToGraph,
   type SimulationProject,
   type ProcessGraph,
   type ProcessNode,
@@ -283,7 +284,8 @@ const AppInner: React.FC = () => {
   const handleInsertEdge = useCallback((edge: ProcessEdge) => {
     setProject((prev) => ({
       ...prev,
-      graph: { ...prev.graph, edges: [...prev.graph.edges, edge] },
+      // A feed or outlet arrow takes on the kind of the unit it is piped to.
+      graph: addStreamToGraph(prev.graph, edge),
       updatedAt: new Date().toISOString()
     }));
   }, []);

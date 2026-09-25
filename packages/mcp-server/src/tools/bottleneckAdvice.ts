@@ -18,6 +18,8 @@ export function bottleneckAdvice(node: ProcessNode | undefined, unitsPerMin: num
       return `${who} Raise the labeler's speed or add a second labeler in parallel.`;
     case 'PALLETIZER':
       return `${who} Shorten the layer cycle or build larger layers.`;
+    case 'TERMINAL':
+      return `${who} It is a feed: the supply rate set on it is what limits the line. Raise it (or set it to 0 to supply whatever the line takes) if the real supply allows.`;
     default:
       return `${who} Raise this unit's rate or run a second one in parallel.`;
   }

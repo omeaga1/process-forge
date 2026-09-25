@@ -53,8 +53,13 @@ describe('Equipment Factory & Node Generation', () => {
     }
   });
 
-  it('verifies standard equipment catalog contains all 9 required unit operations', () => {
-    assert.strictEqual(STANDARD_EQUIPMENT_CATALOG.length, 9);
+  it('verifies the standard catalog: 9 unit operations and the 4 feed and outlet arrows', () => {
+    assert.strictEqual(STANDARD_EQUIPMENT_CATALOG.filter((item) => item.kind !== 'TERMINAL').length, 9);
+    assert.deepStrictEqual(
+      STANDARD_EQUIPMENT_CATALOG.filter((item) => item.kind === 'TERMINAL').map((item) => item.terminalRole),
+      ['feed', 'product', 'byproduct', 'waste']
+    );
+    assert.strictEqual(new Set(STANDARD_EQUIPMENT_CATALOG.map((item) => item.id)).size, STANDARD_EQUIPMENT_CATALOG.length, 'ids are unique');
     const pumpItem = STANDARD_EQUIPMENT_CATALOG.find((item) => item.kind === 'PUMP');
     assert.ok(pumpItem);
     assert.strictEqual(pumpItem?.category, 'FLUID_PROCESSING');

@@ -15,7 +15,8 @@ export interface SimEvent {
     | 'CONTRACT_CYCLE_COMPLETE'
     | 'FLUID_TICK'
     | 'MACHINE_FAILURE'
-    | 'MACHINE_REPAIRED';
+    | 'MACHINE_REPAIRED'
+    | 'FEED_ARRIVAL';
   payload?: Record<string, unknown>;
 }
 
@@ -50,6 +51,8 @@ export interface MachineOeeReport {
   downTimeSeconds: number;
   unitsProduced: number;
   unitsScrapped: number;
+  /** Feeds and outlets (TERMINAL nodes): what came in or went out there. */
+  terminal?: TerminalReport;
   /** Liquid units only. */
   fluid?: {
     receivedGallons: number;
@@ -58,6 +61,19 @@ export interface MachineOeeReport {
     /** Batch reactors: batches completed (fully discharged). */
     batches?: number;
   };
+}
+
+/** One feed, product, byproduct or waste arrow's totals over the run. */
+export interface TerminalReport {
+  nodeId: string;
+  name: string;
+  role: 'feed' | 'product' | 'byproduct' | 'waste';
+  material: string;
+  carries: 'liquid' | 'items';
+  /** Items supplied (a feed) or received (an outlet). */
+  units: number;
+  /** Gallons supplied or received. */
+  gallons: number;
 }
 
 export interface SimulationResult {
@@ -73,8 +89,13 @@ export interface SimulationResult {
   totalUnitsPackaged: number;
   totalUnitsScrapped: number;
   averageLineThroughputUnitsPerMin: number;
-  /** Liquid that left the line from a unit with no outlet pipe, in gallons. */
+  /**
+   * Liquid output, in gallons: what reached a product outlet, plus what left
+   * the line from a unit with no outlet pipe.
+   */
   totalFluidDeliveredGallons: number;
+  /** Every feed and outlet on the flowsheet, with its totals. Empty when there are none. */
+  terminals: TerminalReport[];
   nodeReports: Record<string, MachineOeeReport>;
   telemetryLog: NodeTelemetrySnapshot[];
 }

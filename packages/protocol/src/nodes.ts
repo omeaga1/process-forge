@@ -124,7 +124,9 @@ export const NodeKindSchema = z.enum([
   'PUMP',
   'SCRUBBER',
   'SPRAY_CHAMBER',
-  'MIXER'
+  'MIXER',
+  /** Where material enters or leaves the flowsheet: a feed, product, byproduct or waste arrow (terminals.ts). */
+  'TERMINAL'
 ]);
 export type NodeKind = z.infer<typeof NodeKindSchema>;
 

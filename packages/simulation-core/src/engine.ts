@@ -1,5 +1,5 @@
 import type { ProcessGraph, ProcessNode, UnitOpContract, UnitOpEvaluation } from '@process-forge/protocol';
-import { evaluateUnitOp, blockingViolations } from '@process-forge/protocol';
+import { evaluateUnitOp, blockingViolations, terminalRole, terminalMaterial, terminalSupplyRate, terminalCarries } from '@process-forge/protocol';
 import { PriorityQueue } from './priority-queue.js';
 import { FluidNetwork, fillerDemandGallons, isFluidEdge } from './fluid.js';
 import { createRng, seedFromString, type SeededRng } from './rng.js';
@@ -8,7 +8,8 @@ import type {
   MachineOperationalState,
   NodeTelemetrySnapshot,
   SimEvent,
-  SimulationResult
+  SimulationResult,
+  TerminalReport
 } from './types.js';
 
 interface InternalNodeRuntime {
@@ -125,6 +126,9 @@ export class SimulationEngine {
       } else if (node.kind === 'CONVEYOR') {
         const cfg = node.config as { maxItemCapacity?: number };
         maxBuffer = cfg.maxItemCapacity ?? 48;
+      } else if (node.kind === 'TERMINAL' && terminalRole(node) !== 'feed') {
+        // An outlet takes everything it is sent.
+        maxBuffer = Infinity;
       }
 
       // A node whose config carries a contract is executed generically. The
@@ -271,6 +275,11 @@ export class SimulationEngine {
           this.setNodeState(runtime, 'STARVED');
         }
       }
+    }
+
+    // Feeds last, once every unit they feed is waiting for material.
+    for (const runtime of this.nodes.values()) {
+      if (this.isItemFeed(runtime)) this.startFeed(runtime);
     }
 
     if (this.fluid.active) this.scheduleEvent(SimulationEngine.FLUID_DT, '__fluid__', 'FLUID_TICK');
@@ -439,8 +448,20 @@ export class SimulationEngine {
 
         if (runtime.bufferCans >= cpl) {
           runtime.bufferCans -= cpl;
-          runtime.unitsProduced += cpl;
           this.unblockUpstreamIfWaiting(runtime.node.id);
+          // A layer goes on to whatever follows (a product outlet), or off
+          // the end of the line when nothing does.
+          if (this.hasDownstream(runtime.node.id)) {
+            const moved = this.routeUnits(runtime, cpl);
+            runtime.unitsProduced += moved;
+            if (moved < cpl) {
+              runtime.heldUnits += cpl - moved;
+              this.setNodeState(runtime, 'BLOCKED');
+              break;
+            }
+          } else {
+            runtime.unitsProduced += cpl;
+          }
 
           if (runtime.bufferCans >= cpl) {
             this.setNodeState(runtime, 'BUSY');
@@ -460,6 +481,18 @@ export class SimulationEngine {
 
       case 'CONTRACT_CYCLE_COMPLETE': {
         this.handleContractCycle(runtime);
+        break;
+      }
+
+      case 'FEED_ARRIVAL': {
+        // One item from a rate-limited feed: in, or held until there is room.
+        if (this.routeUnits(runtime, 1) > 0) {
+          runtime.unitsProduced++;
+          this.scheduleFeedArrival(runtime);
+        } else {
+          runtime.heldUnits = 1;
+          this.setNodeState(runtime, 'BLOCKED');
+        }
         break;
       }
 
@@ -517,6 +550,37 @@ export class SimulationEngine {
       else this.triggerDownstreamMachine(runtime);
     }
     this.scheduleEvent(this.drawExponential(runtime.failure.mtbfSeconds), runtime.node.id, 'MACHINE_FAILURE');
+  }
+
+  /** A feed arrow piped to units that take items (a liquid feed is the fluid network's). */
+  private isItemFeed(runtime: InternalNodeRuntime): boolean {
+    return terminalRole(runtime.node) === 'feed' && this.hasDownstream(runtime.node.id);
+  }
+
+  /**
+   * Starts a feed. With a supply rate, items arrive one at a time at that
+   * rate; without one, the feed keeps every buffer it feeds full, so the
+   * units it feeds are never short of material.
+   */
+  private startFeed(runtime: InternalNodeRuntime): void {
+    if (terminalSupplyRate(runtime.node) > 0) this.scheduleFeedArrival(runtime);
+    else this.topUpFeed(runtime);
+  }
+
+  private scheduleFeedArrival(runtime: InternalNodeRuntime): void {
+    this.setNodeState(runtime, 'BUSY');
+    this.scheduleEvent(60 / terminalSupplyRate(runtime.node), runtime.node.id, 'FEED_ARRIVAL');
+  }
+
+  private topUpFeed(runtime: InternalNodeRuntime): void {
+    // Only the room there is: a feed straight into an outlet (which has no
+    // limit) would otherwise never stop.
+    const room = this.downstreamRuntimes(runtime.node.id).reduce(
+      (sum, t) => sum + (Number.isFinite(t.maxBuffer) ? Math.max(0, t.maxBuffer - t.bufferCans) : 0),
+      0
+    );
+    if (room > 0) runtime.unitsProduced += this.routeUnits(runtime, room);
+    this.setNodeState(runtime, 'IDLE');
   }
 
   private isSourceNode(nodeId: string): boolean {
@@ -623,6 +687,12 @@ export class SimulationEngine {
 
   private triggerDownstreamMachine(downstream: InternalNodeRuntime): void {
     if (downstream.state === 'FAILED') return;
+    if (downstream.node.kind === 'TERMINAL') {
+      // An outlet: what arrives has left the line.
+      downstream.unitsProduced += downstream.bufferCans;
+      downstream.bufferCans = 0;
+      return;
+    }
     if (downstream.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
       if (downstream.bufferCans > 0 && downstream.state !== 'BUSY') {
         this.setNodeState(downstream, 'BUSY');
@@ -670,7 +740,8 @@ export class SimulationEngine {
     for (const edge of this.discreteEdges) {
       if (edge.targetNodeId !== currentNodeId) continue;
       const upstream = this.nodes.get(edge.sourceNodeId);
-      if (upstream && upstream.state === 'BLOCKED') this.resumeBlocked(upstream);
+      if (upstream && terminalRole(upstream.node) === 'feed' && terminalSupplyRate(upstream.node) === 0) this.topUpFeed(upstream);
+      else if (upstream && upstream.state === 'BLOCKED') this.resumeBlocked(upstream);
     }
   }
 
@@ -708,6 +779,23 @@ export class SimulationEngine {
       upstream.heldUnits -= moved;
       upstream.unitsProduced += moved;
       if (upstream.heldUnits > 0) return;
+    }
+
+    if (upstream.node.kind === 'TERMINAL') {
+      // A rate-limited feed whose held item got in: the next one is due.
+      this.scheduleFeedArrival(upstream);
+      return;
+    }
+
+    if (upstream.node.kind === 'PALLETIZER') {
+      const cfg = upstream.node.config as { containersPerLayer?: number; cycleSecondsPerLayer?: number };
+      if (upstream.bufferCans >= (cfg.containersPerLayer ?? 20)) {
+        this.setNodeState(upstream, 'BUSY');
+        this.scheduleEvent(cfg.cycleSecondsPerLayer ?? 30, id, 'PALLETIZER_CYCLE_COMPLETE');
+      } else {
+        this.setNodeState(upstream, 'STARVED');
+      }
+      return;
     }
 
     if (upstream.node.kind === 'LABELER') {
@@ -800,10 +888,12 @@ export class SimulationEngine {
   private fluidTelemetry(nodeId: string): Partial<NodeTelemetrySnapshot> {
     const u = this.fluid.units.get(nodeId);
     if (!u) return {};
+    // An outlet's "level" is everything it has received; a feed's, what it has supplied.
+    const level = u.role === 'sink' ? u.receivedGallons : u.role === 'feed' ? u.deliveredGallons : u.level;
     return {
-      levelGallons: Math.round(u.level * 10) / 10,
+      levelGallons: Math.round(level * 10) / 10,
       ...(Number.isFinite(u.capacity) ? { levelFraction: Math.min(1, u.level / u.capacity) } : {}),
-      flowGpm: Math.round(u.outRate * 60 * 10) / 10,
+      flowGpm: Math.round((u.role === 'sink' ? u.inRate : u.outRate) * 60 * 10) / 10,
       ...(u.phase ? { phase: u.phase } : {})
     };
   }
@@ -817,6 +907,7 @@ export class SimulationEngine {
     let totalPackaged = 0;
     let totalScrapped = 0;
     let totalFluidDelivered = 0;
+    const terminals: TerminalReport[] = [];
 
     for (const [nodeId, r] of this.nodes.entries()) {
       // Every second is now attributed to a state, so the total is the run.
@@ -889,10 +980,32 @@ export class SimulationEngine {
             }
           : {})
       };
+      const role = terminalRole(r.node);
+      if (role) {
+        // A feed or outlet: its totals, and (for a product) the line's output.
+        const report: TerminalReport = {
+          nodeId,
+          name: r.node.name,
+          role,
+          material: terminalMaterial(r.node),
+          carries: terminalCarries(r.node),
+          units: r.unitsProduced,
+          gallons: fluidUnit ? Math.round((role === 'feed' ? fluidUnit.deliveredGallons : fluidUnit.receivedGallons) * 10) / 10 : 0
+        };
+        terminals.push(report);
+        nodeReports[nodeId]!.terminal = report;
+        if (role === 'product') {
+          totalPackaged += report.units;
+          totalFluidDelivered += fluidUnit?.receivedGallons ?? 0;
+        }
+        continue;
+      }
+
       if (fluidUnit) totalFluidDelivered += fluidUnit.leftLineGallons;
 
-      // Output is what leaves the line: the sum over every terminal node that
-      // makes units. Liquid leaving the line is reported in gallons instead.
+      // Output is what leaves the line: product outlets, and every unit at
+      // the end of a line that makes units. Liquid leaving the line is
+      // reported in gallons instead.
       if (!this.hasDownstream(nodeId) && !isLiquid) {
         totalPackaged += r.unitsProduced;
       }
@@ -909,6 +1022,7 @@ export class SimulationEngine {
       averageLineThroughputUnitsPerMin:
         durationMinutes > 0 ? Math.round((totalPackaged / durationMinutes) * 10) / 10 : 0,
       totalFluidDeliveredGallons: Math.round(totalFluidDelivered * 10) / 10,
+      terminals,
       nodeReports,
       telemetryLog: this.telemetry
     };

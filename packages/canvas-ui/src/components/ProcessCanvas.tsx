@@ -17,10 +17,20 @@ import {
 import '@xyflow/react/dist/style.css';
 import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
 
-import { validateProcessGraph, defaultStreamFor, type ProcessGraph, type ProcessNode, type ProcessEdge } from '@process-forge/protocol';
+import {
+  validateProcessGraph,
+  defaultStreamFor,
+  addStreamToGraph,
+  effectivePortKind,
+  portsFit,
+  type ProcessGraph,
+  type ProcessNode,
+  type ProcessEdge
+} from '@process-forge/protocol';
 import { SimulationEngine, type SimulationResult, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 
 import { IndustrialNode } from './nodes/IndustrialNode.js';
+import { TerminalNode } from './nodes/TerminalNode.js';
 import { AnimatedStreamEdge } from './edges/AnimatedStreamEdge.js';
 import { MasterOrchestratorDock } from './dock/MasterOrchestratorDock.js';
 import { UnitOpPopOutStudio } from './studio/UnitOpPopOutStudio.js';
@@ -35,7 +45,11 @@ import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates/sherwinWilliamsPaintLi
 import type { CanvasNodeData, CanvasEdgeData, PlantTelemetryState } from '../types.js';
 import { draftingRadius } from '@process-forge/theme';
 
+/** Feeds and outlets are arrows; everything else is its equipment drawing. */
+const nodeTypeOf = (n: ProcessNode) => (n.kind === 'TERMINAL' ? 'terminalNode' : 'industrialNode');
+
 const nodeTypes = {
+  terminalNode: TerminalNode,
   industrialNode: IndustrialNode
 };
 
@@ -308,7 +322,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const [nodes, setNodes] = useState<Node[]>(() =>
     graph.nodes.map((pNode) => ({
       id: pNode.id,
-      type: 'industrialNode',
+      type: nodeTypeOf(pNode),
       position: pNode.position,
       data: {
         processNode: pNode,
@@ -348,7 +362,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         const existing = existingNodes.find((n) => n.id === pNode.id);
         return {
           id: pNode.id,
-          type: 'industrialNode',
+          type: nodeTypeOf(pNode),
           // The flowsheet's position, so undoing a move moves the unit back.
           position: pNode.position,
           selected: existing?.selected ?? false,
@@ -464,10 +478,15 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      // The stream type follows the port it leaves from (fluid or containers).
-      const sourceNode = graphRef.current.nodes.find((n) => n.id === connection.source);
+      // The stream type follows the port it leaves from (fluid or containers),
+      // or, for a feed arrow not yet piped, the unit it is piped into.
+      const g = graphRef.current;
+      const sourceNode = g.nodes.find((n) => n.id === connection.source);
+      const targetNode = g.nodes.find((n) => n.id === connection.target);
       const sourcePort =
         sourceNode?.outputs.find((p) => p.id === connection.sourceHandle) ?? sourceNode?.outputs[0];
+      const targetPort = targetNode?.inputs.find((p) => p.id === connection.targetHandle) ?? targetNode?.inputs[0];
+      const fallback = { id: 'out-1', name: 'out', type: 'DISCRETE_OUTPUT', flowDimension: 'DISCRETE_CONTAINER' } as const;
       // The same default stream an MCP client's add_stream gets (protocol/connect.ts).
       const newEdge: ProcessEdge = {
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
@@ -476,16 +495,11 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         sourcePortId: connection.sourceHandle || 'out-1',
         targetPortId: connection.targetHandle || 'in-1',
         stream: defaultStreamFor(
-          sourcePort ?? { id: 'out-1', name: 'out', type: 'DISCRETE_OUTPUT', flowDimension: 'DISCRETE_CONTAINER' }
+          sourcePort && targetPort ? effectivePortKind(g, sourceNode, sourcePort, targetNode, targetPort) : sourcePort ?? fallback
         )
       };
-      updateGraph((prev) => {
-        const nextGraph = {
-          ...prev,
-          edges: [...prev.edges, newEdge]
-        };
-        return nextGraph;
-      });
+      // A feed or outlet arrow takes on the kind of the unit it is piped to.
+      updateGraph((prev) => addStreamToGraph(prev, newEdge));
     },
     [updateGraph]
   );
@@ -718,11 +732,13 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const isValidConnection: IsValidConnection = useCallback((c) => {
     if (!c.source || !c.target || c.source === c.target) return false;
     const g = graphRef.current;
-    const from = g.nodes.find((n) => n.id === c.source)?.outputs.find((p) => p.id === c.sourceHandle);
-    const to = g.nodes.find((n) => n.id === c.target)?.inputs.find((p) => p.id === c.targetHandle);
+    const fromNode = g.nodes.find((n) => n.id === c.source);
+    const toNode = g.nodes.find((n) => n.id === c.target);
+    const from = fromNode?.outputs.find((p) => p.id === c.sourceHandle);
+    const to = toNode?.inputs.find((p) => p.id === c.targetHandle);
     if (!from || !to) return false;
-    const discrete = (d: string) => d === 'DISCRETE_CONTAINER';
-    if (discrete(from.flowDimension) !== discrete(to.flowDimension)) return false;
+    // Liquid to liquid, items to items; a feed or outlet not yet piped takes either.
+    if (!portsFit(g, fromNode, from, toNode, to)) return false;
     return !g.edges.some(
       (e) =>
         e.sourceNodeId === c.source &&

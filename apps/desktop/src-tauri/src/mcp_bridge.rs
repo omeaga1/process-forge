@@ -208,6 +208,20 @@ fn handle(mut stream: TcpStream, bridge: Bridge) {
             let (code, body) = queue_and_wait(&bridge, "stream", payload);
             respond(&mut stream, code, &body)
         }
+        ("POST", "/v1/nodes") => {
+            // A whole unit built by the MCP server: a standard one, a feed or
+            // outlet, or one from the community library. The web view checks it
+            // against the schema before placing it.
+            let payload: Value = match serde_json::from_slice(&req.body) {
+                Ok(v) => v,
+                Err(e) => return respond(&mut stream, 400, &json!({ "error": format!("body is not JSON: {e}") })),
+            };
+            if payload.get("node").map(Value::is_object) != Some(true) {
+                return respond(&mut stream, 400, &json!({ "error": "expected { \"node\": { ... } }" }));
+            }
+            let (code, body) = queue_and_wait(&bridge, "node", payload);
+            respond(&mut stream, code, &body)
+        }
         _ => respond(&mut stream, 404, &json!({ "error": "unknown endpoint" })),
     }
 }

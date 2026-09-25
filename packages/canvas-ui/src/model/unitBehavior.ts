@@ -1,6 +1,10 @@
 import {
   evaluateUnitOp,
   UnitOpContractSchema,
+  terminalCarries,
+  terminalMaterial,
+  terminalRole,
+  terminalSupplyRate,
   type ProcessGraph,
   type ProcessNode
 } from '@process-forge/protocol';
@@ -113,6 +117,52 @@ function describeCore(node: ProcessNode, graph: ProcessGraph): UnitBehavior {
   const feeds = liquidNeighbours(node, graph, 'in');
   const sendsTo = liquidNeighbours(node, graph, 'out');
   const onLiquidPath = feeds.length > 0 || sendsTo.length > 0;
+
+  // ---- a feed or outlet arrow ---------------------------------------------------
+  const tRole = terminalRole(node);
+  if (tRole) {
+    const items = terminalCarries(node) === 'items';
+    const what = terminalMaterial(node);
+    const connected = graph.edges
+      .filter((e) => (tRole === 'feed' ? e.sourceNodeId === node.id : e.targetNodeId === node.id))
+      .map((e) => graph.nodes.find((n) => n.id === (tRole === 'feed' ? e.targetNodeId : e.sourceNodeId))?.name)
+      .filter((n): n is string => Boolean(n));
+    const unit = items ? 'items' : 'gal';
+    if (tRole === 'feed') {
+      const rate = terminalSupplyRate(node);
+      return {
+        simulated: connected.length > 0,
+        headline: rate > 0 ? `Supplies up to ${round(rate)} ${unit}/min of ${what}.` : `Supplies as much ${what} as the line takes.`,
+        details: [
+          connected.length ? `Feeds ${list(connected)}.` : 'Not piped to anything yet: pipe it into the unit it feeds.',
+          rate > 0
+            ? 'Anything that needs more than the supply rate waits for it, so the feed can be the bottleneck.'
+            : 'With no supply rate the feed never runs short; set one to model a limited supply.',
+          `Carries ${items ? 'whole items' : 'liquid'}; an unpiped arrow takes on the kind of the first unit it is piped to.`
+        ],
+        capacityPerMin: rate > 0 ? rate : null,
+        rateUnit: items ? 'units' : 'gal',
+        engineKeys: ['supplyRate'],
+        role
+      };
+    }
+    const counts =
+      tRole === 'product'
+        ? 'What arrives here is the line\'s output: the run\'s throughput counts it.'
+        : `Totalled on its own as ${tRole}: it does not count toward the line's output.`;
+    return {
+      simulated: connected.length > 0,
+      headline: `${what} leaves the flowsheet here, as ${tRole === 'product' ? 'product' : tRole}.`,
+      details: [
+        connected.length ? `Receives from ${list(connected)}.` : 'Nothing is piped to it yet.',
+        'Takes everything it is sent, so it never holds up the line.',
+        counts
+      ],
+      capacityPerMin: null,
+      engineKeys: [],
+      role
+    };
+  }
 
   // ---- designed by contract ---------------------------------------------------
   if (c.contract !== undefined) {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ProcessNodeSchema, type ProcessNode } from './nodes.js';
 import { ProcessEdgeSchema } from './streams.js';
+import { terminalRole, terminalSupplyRate } from './terminals.js';
 
 export const ProcessGraphSchema = z.object({
   id: z.string().min(1),
@@ -177,6 +178,12 @@ function computeBottlenecks(
       if (typeof gpm === 'number' && gpm > 0 && liquidPipes.some((e) => e.sourceNodeId === node.id)) {
         capacities[node.id] = gpm / perContainer;
       }
+    } else if (node.kind === 'TERMINAL' && terminalRole(node) === 'feed' && terminalSupplyRate(node) > 0) {
+      // A feed with a supply rate limits everything downstream of it. Liquid
+      // is counted in the filler's containers, like the other liquid units.
+      const liquid = liquidPipes.some((e) => e.sourceNodeId === node.id);
+      if (!liquid) capacities[node.id] = terminalSupplyRate(node);
+      else if (pipeFedFiller) capacities[node.id] = terminalSupplyRate(node) / perContainer;
     } else if (node.kind === 'LABELER') {
       const config = node.config as { maxSpeedUnitsPerMinute?: number };
       capacities[node.id] = config.maxSpeedUnitsPerMinute ?? 40;

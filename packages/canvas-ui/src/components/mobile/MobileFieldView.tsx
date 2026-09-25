@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTheme } from '../../hooks/useTheme.js';
-import type { ProcessGraph, ProcessNode } from '@process-forge/protocol';
+import { kindLabel, type ProcessGraph, type ProcessNode } from '@process-forge/protocol';
 import type { PlantTelemetryState } from '../../types.js';
 import {
   Play,
@@ -325,7 +325,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                 <div>
                   <span style={{ color: OsakaJadePalette.text.muted }}>Type: </span>
                   <span style={{ color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
-                    {node.kind.replace(/_/g, ' ').toLowerCase()}
+                    {kindLabel(node)}
                   </span>
                 </div>
 

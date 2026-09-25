@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { executeValidateUnitOp, type ValidateUnitOpResult } from '@process-forge/protocol';
+import { executeValidateUnitOp, type ProcessNode, type ValidateUnitOpResult } from '@process-forge/protocol';
 
 /**
  * Talks to the running ProcessForge desktop app, so a unit op designed in the
@@ -143,4 +143,35 @@ export async function executeAddStream(params: AddStreamParams): Promise<Record<
   }
   if (r.status !== 200) return { success: false, added: false, error: r.body?.error ?? `HTTP ${r.status}` };
   return { success: Boolean(r.body?.added), ...r.body };
+}
+
+export interface AddNodeOptions {
+  position?: { x: number; y: number };
+  /** Pipe this unit (by id, name or tag) into the new one. */
+  connectFrom?: string;
+  /** Pipe the new unit into this one. */
+  connectTo?: string;
+}
+
+/**
+ * Places a whole unit (a standard one, a feed or outlet, or one from the
+ * community library) on the open flowsheet, then pipes it in when asked.
+ * Each pipe is its own add_stream, so a pipe that does not fit is reported
+ * without undoing the unit.
+ */
+export async function executeAddNode(node: ProcessNode, options: AddNodeOptions = {}, source = 'standard'): Promise<Record<string, unknown>> {
+  const r = await call('POST', '/v1/nodes', { node, source, ...(options.position ? { position: options.position } : {}) });
+  if (!r.ok) return { success: false, added: false, error: r.reason };
+  if (r.status === 202) return { success: true, added: false, queued: true, message: r.body?.message };
+  if (r.status === 404) {
+    return { success: false, added: false, error: 'This ProcessForge Desktop is too old to add units this way. Update it (0.1.30 or later).' };
+  }
+  if (r.status !== 200) return { success: false, added: false, error: r.body?.error ?? `HTTP ${r.status}` };
+  const added = r.body as { added?: boolean; nodeId?: string };
+  if (!added?.added || !added.nodeId) return { success: false, ...r.body };
+
+  const streams: Record<string, unknown>[] = [];
+  if (options.connectFrom) streams.push(await executeAddStream({ from: options.connectFrom, to: added.nodeId }));
+  if (options.connectTo) streams.push(await executeAddStream({ from: added.nodeId, to: options.connectTo }));
+  return { success: true, ...r.body, ...(streams.length ? { streams } : {}) };
 }

@@ -3,6 +3,8 @@ import {
   executeValidateUnitOp,
   UnitOpContractSchema,
   planStream,
+  addStreamToGraph,
+  ProcessNodeSchema,
   type ProcessEdge,
   type ProcessGraph,
   type ProcessNode,
@@ -32,7 +34,9 @@ export const MCP_ACTIVITY_EVENT = 'pf-mcp-activity';
 /** A request from an MCP client. Older shells send unit ops without a kind. */
 type PendingRequest =
   | { id: string; kind?: 'unit-op'; request: { contract: unknown; position?: { x: number; y: number } } }
-  | { id: string; kind: 'stream'; request: StreamRequest };
+  | { id: string; kind: 'stream'; request: StreamRequest }
+  /** A whole unit, built by the MCP server: a standard one, a feed or outlet, or one from the community library. */
+  | { id: string; kind: 'node'; request: { node: unknown; position?: { x: number; y: number }; source?: string } };
 
 /** To the right of everything on the canvas, level with the flowsheet's middle. */
 function placeNextTo(graph: ProcessGraph): { x: number; y: number } {
@@ -81,11 +85,8 @@ export function useMcpBridge(
     // to it can arrive in the same poll.
     const applyLocally = (change: { node?: ProcessNode; edge?: ProcessEdge }) => {
       const g = graphRef.current;
-      graphRef.current = {
-        ...g,
-        nodes: change.node ? [...g.nodes, change.node] : g.nodes,
-        edges: change.edge ? [...g.edges, change.edge] : g.edges
-      };
+      const withNode = change.node ? { ...g, nodes: [...g.nodes, change.node] } : g;
+      graphRef.current = change.edge ? addStreamToGraph(withNode, change.edge) : withNode;
     };
 
     const handleStream = (request: StreamRequest) => {
@@ -108,8 +109,38 @@ export function useMcpBridge(
       };
     };
 
+    const handleNode = (request: { node: unknown; position?: { x: number; y: number }; source?: string }) => {
+      const parsed = ProcessNodeSchema.safeParse(request.node);
+      if (!parsed.success) {
+        const issue = parsed.error.issues[0];
+        return { added: false, error: `Not a unit ProcessForge can place: ${issue?.path.join('.') || 'node'}: ${issue?.message ?? 'invalid'}.` };
+      }
+      const g = graphRef.current;
+      // A fresh id if it would clash, so a second pump is a second pump.
+      const clash = g.nodes.some((n) => n.id === parsed.data.id);
+      const node: ProcessNode = {
+        ...parsed.data,
+        id: clash ? `${parsed.data.id}-${Date.now().toString(36)}` : parsed.data.id,
+        position: request.position ?? placeNextTo(g)
+      };
+      insertRef.current(node);
+      applyLocally({ node });
+      setLastArrival({ name: node.name, at: Date.now() });
+      window.dispatchEvent(new CustomEvent(MCP_ACTIVITY_EVENT, { detail: { name: node.name, nodeId: node.id, at: Date.now() } }));
+      return {
+        added: true,
+        nodeId: node.id,
+        name: node.name,
+        kind: node.kind,
+        inlets: node.inputs.map((p) => ({ id: p.id, name: p.name, carries: p.flowDimension === 'DISCRETE_CONTAINER' ? 'items' : 'liquid' })),
+        outlets: node.outputs.map((p) => ({ id: p.id, name: p.name, carries: p.flowDimension === 'DISCRETE_CONTAINER' ? 'items' : 'liquid' })),
+        message: `Added "${node.name}" to the flowsheet "${projectName}". Pipe it in with add_stream (its id is ${node.id}).`
+      };
+    };
+
     const handle = async (item: PendingRequest) => {
       if (item.kind === 'stream') return handleStream(item.request);
+      if (item.kind === 'node') return handleNode(item.request);
       const verdict = executeValidateUnitOp({ contract: item.request.contract });
       if (verdict.verdict !== 'ACCEPTED') {
         return {
