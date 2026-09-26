@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTheme } from '../../hooks/useTheme.js';
 import type { ProcessNode } from '@process-forge/protocol';
-import { STANDARD_EQUIPMENT_CATALOG, createStandardUnitOp, type EquipmentPaletteItem } from '@process-forge/protocol';
+import { EQUIPMENT_CATEGORIES, STANDARD_EQUIPMENT_CATALOG, createStandardUnitOp, type EquipmentPaletteItem } from '@process-forge/protocol';
 import { TerminalArrow, terminalColor } from '../nodes/TerminalNode.js';
 import { drawingToDressing } from '@process-forge/protocol';
 import { useSavedUnitOps, removeSavedUnitOp, type SavedUnitOp } from '../../library/savedUnitOps.js';
@@ -283,11 +283,8 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {[
               { id: 'MINE', label: `My unit ops · ${saved.length}` },
-              { id: 'ALL', label: 'All Equipment' },
-              { id: 'FEEDS_OUTLETS', label: 'Feeds & outlets' },
-              { id: 'FLUID_PROCESSING', label: 'Fluid & Pumping' },
-              { id: 'STORAGE_HEAT', label: 'Storage & Thermal' },
-              { id: 'PACKAGING', label: 'Packaging & Conveying' }
+              { id: 'ALL', label: 'All equipment' },
+              ...EQUIPMENT_CATEGORIES.map((c) => ({ id: c.id, label: c.label }))
             ].map((cat) => (
               <button
                 key={cat.id}
@@ -457,12 +454,22 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                 </div>
               );
             })}
-          {selectedCategory !== 'MINE' && filteredItems.map((item) => {
+          {selectedCategory !== 'MINE' && filteredItems.map((item, index) => {
             const isAdded = justAddedKind === item.id;
             const role = item.terminalRole;
+            const category = EQUIPMENT_CATEGORIES.find((c) => c.id === item.category);
+            // In the full list, a heading where each category starts.
+            const heading = selectedCategory === 'ALL' && filteredItems[index - 1]?.category !== item.category;
+            const dressing = item.contract?.drawing ? drawingToDressing(item.contract.drawing, item.contract.ports) : undefined;
             return (
+              <React.Fragment key={item.id}>
+              {heading && (
+                <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'baseline', gap: 10, marginTop: index === 0 ? 0 : 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>{category?.label}</span>
+                  <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>{category?.description}</span>
+                </div>
+              )}
               <div
-                key={item.id}
                 style={{
                   backgroundColor: OsakaJadePalette.background.canvas,
                   border: `1px solid ${isAdded ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
@@ -485,8 +492,16 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                         color: OsakaJadePalette.jade[400]
                       }}
                     >
-                      {role ? (role === 'feed' ? 'Stream in' : 'Stream out') : item.kind.replace(/_/g, ' ')}
+                      {role ? (role === 'feed' ? 'Stream in' : 'Stream out') : item.short}
                     </span>
+                    {item.contract && (
+                      <span
+                        title="A designed unit: its behaviour is a contract you can tune like any unit you design, or ask your AI client to redesign."
+                        style={{ fontSize: 10, fontWeight: 600, color: OsakaJadePalette.text.muted }}
+                      >
+                        Designed
+                      </span>
+                    )}
                     {item.defaultFlowGpm && (
                       <span
                         style={{
@@ -501,6 +516,11 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                     )}
                   </div>
 
+                  {!role && (
+                    <div style={{ height: 64, margin: '4px 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <EquipmentFigure kind={item.kind} {...(dressing ? { dressing } : {})} width={item.contract ? 72 : 64} />
+                    </div>
+                  )}
                   {role && (
                     <div style={{ margin: '4px 0 10px' }}>
                       <TerminalArrow
@@ -520,8 +540,20 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                     {item.subtitle}
                   </div>
 
-                  <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, lineHeight: 1.4, marginBottom: 14 }}>
-                    {item.description}
+                  <div
+                    title={item.description}
+                    style={{
+                      fontSize: 12,
+                      color: OsakaJadePalette.text.secondary,
+                      lineHeight: 1.4,
+                      marginBottom: 14,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {item.model}
                   </div>
                 </div>
 
@@ -556,6 +588,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                   )}
                 </button>
               </div>
+              </React.Fragment>
             );
           })}
         </div>

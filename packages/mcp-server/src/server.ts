@@ -12,6 +12,7 @@ import {
   McpError
 } from '@modelcontextprotocol/sdk/types.js';
 
+import { STANDARD_EQUIPMENT_CATALOG } from '@process-forge/protocol';
 import { executeSimulateLine } from './tools/simulateLine.js';
 import { executeDiagnoseBottlenecks } from './tools/diagnoseBottlenecks.js';
 import { executeQueryUnitSubAgent } from './tools/queryUnitSubAgent.js';
@@ -163,8 +164,14 @@ export const TOOLS: ToolDef[] = [
     name: 'list_standard_unit_ops',
     title: 'List standard equipment',
     description:
-      "Lists the equipment that ships with ProcessForge (the app's Standard palette): pumps, tanks, batch reactors, heat exchangers, separators, fillers, conveyors, labelers, palletizers, and the Feed, Product, Byproduct and Waste arrows that mark where material enters and leaves a flowsheet. Each comes with its ports (liquid or items) and its settings with default values. Use these before designing a new unit op: a standard unit is already modelled by the simulation.",
-    inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Optional words to filter by, such as "tank" or "waste".' } } },
+      "Lists the equipment that ships with ProcessForge (the app's Standard palette), by category: Feeds & outlets (the Feed, Product, Byproduct and Waste arrows where material enters and leaves), Transfer & storage (pump, tank, mixer, splitter), Heat transfer (heat exchanger, heater, evaporator), Reaction (batch reactor, CSTR, plug-flow reactor), Separation (flash drum, distillation column, filter, centrifuge, crystalliser, dryer) and Packaging & items (filler, labeler, case packer, palletizer, conveyor). Each comes with its ports (liquid or items), its settings with default values, and how the simulation models it. Some are designed units (contracts): tune them with update_unit or use them as a starting point for design_unit_op. Use these before designing a new unit op.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Optional words to filter by, such as "tank" or "waste".' },
+        category: { type: 'string', enum: ['FEEDS_OUTLETS', 'TRANSFER_STORAGE', 'HEAT_TRANSFER', 'REACTION', 'SEPARATION', 'PACKAGING'], description: 'Optional: one category only.' }
+      }
+    },
     annotations: READ,
     run: (args) => executeListStandardUnitOps(args as never)
   },
@@ -176,9 +183,9 @@ export const TOOLS: ToolDef[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        unit: { type: 'string', description: 'Catalog id from list_standard_unit_ops: pump, surge-tank, batch-reactor, heat-exchanger, separator, rotary-filler, conveyor, labeler, palletizer, feed, product, byproduct, waste.' },
+        unit: { type: 'string', description: `Catalog id from list_standard_unit_ops: ${STANDARD_EQUIPMENT_CATALOG.map((i) => i.id).join(', ')}.` },
         name: { type: 'string', description: 'Optional name, e.g. "Transfer Pump P-102". A tag like P-102 lets add_stream find it.' },
-        parameters: { type: 'object', description: 'Optional settings to change, by the names list_standard_unit_ops gives, e.g. { "designFlowRateGpm": 80 }.' },
+        parameters: { type: 'object', description: 'Optional settings to change, by the names list_standard_unit_ops gives, e.g. { "designFlowRateGpm": 80 }; for a designed unit, its parameters within their ranges, e.g. { "volumeGallons": 2000 }.' },
         material: { type: 'string', description: 'Feeds and outlets: what the stream is, e.g. "Latex base" or "Rejected cans".' },
         supplyRate: { type: 'number', description: 'Feeds: the most it supplies, gal/min for liquid or items/min. Omit or 0 to supply whatever the line takes.' },
         composition: {

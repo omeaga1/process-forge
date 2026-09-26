@@ -1,4 +1,5 @@
 import {
+  EQUIPMENT_CATEGORIES,
   STANDARD_EQUIPMENT_CATALOG,
   createStandardUnitOp,
   findStandardUnitOp,
@@ -23,17 +24,32 @@ const portsOf = (node: ProcessNode) => ({
 
 function describeEntry(item: EquipmentPaletteItem) {
   const sample = createStandardUnitOp(item, { position: { x: 0, y: 0 } });
-  const parameters = Object.fromEntries(
-    Object.entries(sample.config as Record<string, unknown>).filter(([, v]) => typeof v === 'number')
-  );
+  // A designed unit's settings are its contract parameters, with their units and physical ranges.
+  const parameters = item.contract
+    ? Object.fromEntries(
+        item.contract.parameters.map((p) => [
+          p.name,
+          { value: p.value, unit: p.unit, label: p.label, ...(p.min !== undefined ? { min: p.min } : {}), ...(p.max !== undefined ? { max: p.max } : {}) }
+        ])
+      )
+    : Object.fromEntries(Object.entries(sample.config as Record<string, unknown>).filter(([, v]) => typeof v === 'number'));
   return {
     unit: item.id,
     title: item.title,
     kind: item.kind,
     ...(item.terminalRole ? { role: item.terminalRole } : {}),
     category: item.category,
+    categoryLabel: EQUIPMENT_CATEGORIES.find((c) => c.id === item.category)?.label,
     what: item.subtitle,
     description: item.description,
+    howItIsSimulated: item.model,
+    ...(item.contract
+      ? {
+          designed: true,
+          designNote:
+            'A designed unit: tune its parameters with update_unit, or redesign it (design_unit_op, starting from this contract) for your chemistry.'
+        }
+      : {}),
     ...portsOf(sample),
     parameters,
     ...(item.terminalRole
@@ -46,14 +62,21 @@ function describeEntry(item: EquipmentPaletteItem) {
   };
 }
 
-export function executeListStandardUnitOps(args: { query?: string } = {}): Record<string, unknown> {
+export function executeListStandardUnitOps(args: { query?: string; category?: string } = {}): Record<string, unknown> {
   const q = typeof args.query === 'string' ? args.query.trim().toLowerCase() : '';
+  const category = typeof args.category === 'string' ? args.category.trim().toUpperCase() : '';
+  if (category && !EQUIPMENT_CATEGORIES.some((c) => c.id === category)) {
+    return { success: false, error: `No category "${args.category}". Categories: ${EQUIPMENT_CATEGORIES.map((c) => c.id).join(', ')}.` };
+  }
   const items = STANDARD_EQUIPMENT_CATALOG.filter(
-    (i) => !q || `${i.id} ${i.title} ${i.subtitle} ${i.description} ${i.kind} ${i.tags.join(' ')}`.toLowerCase().includes(q)
+    (i) =>
+      (!category || i.category === category) &&
+      (!q || `${i.id} ${i.title} ${i.short} ${i.subtitle} ${i.description} ${i.kind} ${i.tags.join(' ')}`.toLowerCase().includes(q))
   );
   return {
     success: true,
     count: items.length,
+    categories: EQUIPMENT_CATEGORIES.map((c) => ({ id: c.id, label: c.label, description: c.description, units: STANDARD_EQUIPMENT_CATALOG.filter((i) => i.category === c.id).length })),
     units: items.map(describeEntry),
     nextStep:
       'Place one with add_standard_unit_op (by its "unit" id). For equipment that is not here, search_community_unit_ops, or design one with design_unit_op.'
@@ -93,9 +116,12 @@ export async function executeAddStandardUnitOp(params: AddStandardParams): Promi
     ...(params.composition && typeof params.composition === 'object' ? { composition: params.composition } : {}),
     ...(params.carries === 'items' || params.carries === 'liquid' ? { carries: params.carries } : {})
   });
-  // Settings the unit does not have are reported, not silently dropped.
+  // Settings the unit does not have (or, for a designed unit, values outside a
+  // parameter's physical range) are reported, not silently dropped.
   const known = node.config as Record<string, unknown>;
-  const ignored = Object.keys(params.parameters ?? {}).filter((k) => typeof known[k] !== 'number');
+  const ignored = Object.entries(params.parameters ?? {})
+    .filter(([k, v]) => typeof known[k] !== 'number' || (item.contract !== undefined && known[k] !== v))
+    .map(([k]) => k);
 
   const result = await executeAddNode(
     node,
@@ -110,7 +136,14 @@ export async function executeAddStandardUnitOp(params: AddStandardParams): Promi
     ...result,
     unit: item.id,
     ...(ignored.length
-      ? { ignoredParameters: ignored, parametersNote: `Not settings of a ${item.title}; its settings are: ${Object.keys(known).filter((k) => typeof known[k] === 'number').join(', ')}.` }
+      ? {
+          ignoredParameters: ignored,
+          parametersNote: item.contract
+            ? `Not applied: not a parameter of the ${item.title}, or outside its physical range. Its parameters: ${item.contract.parameters
+                .map((p) => `${p.name} (${p.unit}${p.min !== undefined || p.max !== undefined ? `, ${p.min ?? '-inf'} to ${p.max ?? 'inf'}` : ''})`)
+                .join(', ')}.`
+            : `Not settings of a ${item.title}; its settings are: ${Object.keys(known).filter((k) => typeof known[k] === 'number').join(', ')}.`
+        }
       : {})
   };
 }

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
 import { EquipmentFigure, TerminalArrow, ThemeScope, terminalColor } from '@process-forge/canvas-ui';
-import { STANDARD_EQUIPMENT_CATALOG, createStandardUnitOp, type EquipmentPaletteItem } from '@process-forge/protocol';
+import { EQUIPMENT_CATEGORIES, STANDARD_EQUIPMENT_CATALOG, createStandardUnitOp, drawingToDressing, type EquipmentPaletteItem } from '@process-forge/protocol';
 
 /**
  * The equipment that ships with ProcessForge, from the same catalog the
@@ -11,41 +11,8 @@ import { STANDARD_EQUIPMENT_CATALOG, createStandardUnitOp, type EquipmentPalette
 
 const mono: React.CSSProperties = { fontFamily: fontFamily.mono, fontVariantNumeric: 'tabular-nums' };
 
-/** How the engine treats each unit, in a sentence or two (simulation-core). */
-const MODEL: Record<string, string> = {
-  feed: 'Supplies whatever the units it feeds can take, or up to a supply rate you set, so a short supply shows up as the bottleneck.',
-  product: 'Takes everything it is sent. What arrives here is the line’s output.',
-  byproduct: 'Takes everything it is sent, totalled on its own: an overhead vapor or a co-product does not count as output.',
-  waste: 'Takes everything it is sent, totalled on its own, so rejects and purge are visible without inflating output.',
-  pump: 'Passes liquid up to its design flow. A pump too small caps everything downstream of it.',
-  'surge-tank': 'Fills and drains second by second. Full, it backs up whatever feeds it; empty, it starves whatever it feeds.',
-  'batch-reactor': 'Cycles through filling, reacting and discharging. Its output averages one batch per cycle, however fast it discharges.',
-  'heat-exchanger': 'Passes flow up to its shell-side rate. Heat duty is not simulated yet.',
-  separator: 'Splits its feed between the vapor overhead and the liquid bottoms, by its vapor ratio.',
-  'rotary-filler': 'Turns liquid into containers: each cycle draws one container per nozzle from its bowl, and waits when the product runs out.',
-  conveyor: 'Carries and buffers items. When it is full, whatever feeds it blocks.',
-  labeler: 'Labels one container at a time at its speed; failed inspections are scrapped.',
-  palletizer: 'Waits for a full layer, stacks it, and passes loaded skids on.'
-};
-
-/** Names short enough for a chip. */
-const SHORT: Record<string, string> = {
-  pump: 'Pump',
-  'surge-tank': 'Surge tank',
-  'batch-reactor': 'Batch reactor',
-  'heat-exchanger': 'Heat exchanger',
-  separator: 'Separator',
-  'rotary-filler': 'Filler',
-  conveyor: 'Conveyor',
-  labeler: 'Labeler',
-  palletizer: 'Palletizer'
-};
-
-const GROUPS:{ title: string; test: (i: EquipmentPaletteItem) => boolean }[] = [
-  { title: 'Streams in and out', test: (i) => i.category === 'FEEDS_OUTLETS' },
-  { title: 'Liquid', test: (i) => i.category === 'FLUID_PROCESSING' || i.category === 'STORAGE_HEAT' },
-  { title: 'Packaging', test: (i) => i.category === 'PACKAGING' }
-];
+/** The catalog's categories, in order; each entry says how the engine simulates it. */
+const GROUPS = EQUIPMENT_CATEGORIES.map((c) => ({ title: c.label, test: (i: EquipmentPaletteItem) => i.category === c.id }));
 
 const words = (key: string) => {
   const unit = key.match(/(Gpm|Gallons|Seconds|Minutes|PerMinute|Percentage|Percent|Feet|Inches|Horsepower|Kw|Psi)$/)?.[0];
@@ -60,17 +27,26 @@ function Glyph({ item, size }: { item: EquipmentPaletteItem; size: number }) {
     const c = terminalColor(item.terminalRole, D);
     return <TerminalArrow role={item.terminalRole} color={c} fill={`${c}22`} width={size * 1.3} height={size * 0.55} />;
   }
-  return <EquipmentFigure kind={item.kind} width={size} isRunning />;
+  const dressing = item.contract?.drawing ? drawingToDressing(item.contract.drawing, item.contract.ports) : undefined;
+  return <EquipmentFigure kind={item.kind} {...(dressing ? { dressing } : {})} width={size} isRunning />;
 }
 
 export const EquipmentExplorer: React.FC = () => {
   const [id, setId] = useState('batch-reactor');
   const item = STANDARD_EQUIPMENT_CATALOG.find((i) => i.id === id) ?? STANDARD_EQUIPMENT_CATALOG[0]!;
-  const settings = useMemo(() => {
+  const settings = useMemo((): { key: string; label: string; value: number; unit: string }[] => {
+    // A designed unit labels its own parameters.
+    if (item.contract) {
+      return item.contract.parameters.slice(0, 4).map((p) => ({ key: p.name, label: p.label, value: p.value, unit: p.unit === '-' ? '' : p.unit }));
+    }
     const node = createStandardUnitOp(item, { position: { x: 0, y: 0 } });
-    return Object.entries(node.config as Record<string, unknown>)
-      .filter(([k, v]) => typeof v === 'number' && !/MeanTime|meanTime|Horsepower|Diameter|Psi|Efficiency/.test(k))
-      .slice(0, 4) as [string, number][];
+    return (
+      Object.entries(node.config as Record<string, unknown>).filter(
+        ([k, v]) => typeof v === 'number' && !/MeanTime|meanTime|Horsepower|Diameter|Psi|Efficiency/.test(k)
+      ) as [string, number][]
+    )
+      .slice(0, 4)
+      .map(([k, v]) => ({ key: k, value: v, ...words(k) }));
   }, [item]);
 
   return (
@@ -106,7 +82,7 @@ export const EquipmentExplorer: React.FC = () => {
                         transition: 'all .15s'
                       }}
                     >
-                      {SHORT[i.id] ?? i.title}
+                      {i.short}
                     </button>
                   );
                 })}
@@ -150,18 +126,15 @@ export const EquipmentExplorer: React.FC = () => {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 17, fontWeight: 650, color: D.text.primary }}>{item.title}</div>
             <div style={{ fontSize: 12.5, color: D.text.muted, marginTop: 2 }}>{item.subtitle}</div>
-            <p style={{ margin: '10px 0 0', fontSize: 13.5, lineHeight: 1.55, color: D.text.secondary }}>{MODEL[item.id] ?? item.description}</p>
+            <p style={{ margin: '10px 0 0', fontSize: 13.5, lineHeight: 1.55, color: D.text.secondary }}>{item.model}</p>
             {settings.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-                {settings.map(([k, v]) => {
-                  const w = words(k);
-                  return (
-                    <span key={k} style={{ ...mono, fontSize: 11, padding: '3px 8px', borderRadius: 6, background: D.background.canvas, border: `1px solid ${D.border.subtle}`, color: D.text.secondary }}>
-                      {w.label} <span style={{ color: D.jade.glow }}>{Number(v.toFixed(2))}</span>
-                      {w.unit && <span style={{ color: D.text.muted }}> {w.unit}</span>}
-                    </span>
-                  );
-                })}
+                {settings.map((w) => (
+                  <span key={w.key} style={{ ...mono, fontSize: 11, padding: '3px 8px', borderRadius: 6, background: D.background.canvas, border: `1px solid ${D.border.subtle}`, color: D.text.secondary }}>
+                    {w.label} <span style={{ color: D.jade.glow }}>{Number(w.value.toFixed(2))}</span>
+                    {w.unit && <span style={{ color: D.text.muted }}> {w.unit}</span>}
+                  </span>
+                ))}
               </div>
             )}
           </div>
