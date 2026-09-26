@@ -29,6 +29,17 @@ describe('list_standard_unit_ops: the equipment that ships with ProcessForge', (
     const r = executeListStandardUnitOps({ query: 'waste' }) as { units: any[] };
     assert.deepEqual(r.units.map((u) => u.unit), ['waste']);
   });
+
+  it('lists by category, and designed units with their parameters, units and ranges', () => {
+    const r = executeListStandardUnitOps({ category: 'reaction' }) as { units: any[]; categories: any[] };
+    assert.deepEqual(r.units.map((u) => u.unit), ['batch-reactor', 'cstr', 'pfr']);
+    assert.equal(r.categories.length, 6);
+    const cstr = r.units.find((u) => u.unit === 'cstr');
+    assert.equal(cstr.designed, true);
+    assert.deepEqual(cstr.parameters.volumeGallons, { value: 1000, unit: 'gal', label: 'Liquid volume', min: 1, max: 100000 });
+    assert.match(cstr.howItIsSimulated, /residence time/);
+    assert.equal((executeListStandardUnitOps({ category: 'rockets' }) as { success: boolean }).success, false);
+  });
 });
 
 describe('Placing standard and community units on the open flowsheet', () => {
@@ -109,6 +120,17 @@ describe('Placing standard and community units on the open flowsheet', () => {
     assert.equal(sent.kind, 'PUMP');
     assert.equal(sent.config.designFlowRateGpm, 80);
     assert.deepEqual(r.ignoredParameters, ['wingspan']);
+  });
+
+  it('adds a designed standard unit with its contract, and reports a value outside its range', async () => {
+    const r = await executeAddStandardUnitOp({ unit: 'cstr', name: 'R-201', parameters: { volumeGallons: 2500, rateConstantPerMin: 900 } });
+    assert.equal(r.success, true);
+    const sent = received.filter((x) => x.url === '/v1/nodes').at(-1)!.body.node;
+    assert.equal(sent.kind, 'CUSTOM_UNIT_OP');
+    assert.equal(sent.name, 'R-201');
+    assert.equal(sent.config.contract.parameters.find((p: any) => p.name === 'volumeGallons').value, 2500);
+    assert.deepEqual(r.ignoredParameters, ['rateConstantPerMin']);
+    assert.match(String(r.parametersNote), /rateConstantPerMin \(1\/min, 0.0001 to 100\)/);
   });
 
   it('names the catalog when the unit is unknown', async () => {

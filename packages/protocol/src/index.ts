@@ -16,6 +16,8 @@ export * from './unitop/examples/evaporator.js';
 export * from './unitop/examples/casePacker.js';
 export * from './unitop/examples/crystalliser.js';
 export * from './unitop/examples/componentUnits.js';
+export * from './unitop/examples/standardUnits.js';
+export * from './unitop/toNode.js';
 export * from './decisions/types.js';
 export * from './decisions/heuristic.js';
 export * from './decisions/questions.js';

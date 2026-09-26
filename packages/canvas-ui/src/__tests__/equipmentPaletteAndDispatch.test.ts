@@ -53,8 +53,9 @@ describe('Equipment Factory & Node Generation', () => {
     }
   });
 
-  it('verifies the standard catalog: 9 unit operations and the 4 feed and outlet arrows', () => {
-    assert.strictEqual(STANDARD_EQUIPMENT_CATALOG.filter((item) => item.kind !== 'TERMINAL').length, 9);
+  it('verifies the standard catalog: 9 built-in kinds, the designed units, and the 4 feed and outlet arrows', () => {
+    assert.strictEqual(STANDARD_EQUIPMENT_CATALOG.filter((item) => item.kind !== 'TERMINAL' && item.kind !== 'CUSTOM_UNIT_OP').length, 9);
+    assert.ok(STANDARD_EQUIPMENT_CATALOG.filter((item) => item.contract).length >= 10);
     assert.deepStrictEqual(
       STANDARD_EQUIPMENT_CATALOG.filter((item) => item.kind === 'TERMINAL').map((item) => item.terminalRole),
       ['feed', 'product', 'byproduct', 'waste']
@@ -62,7 +63,7 @@ describe('Equipment Factory & Node Generation', () => {
     assert.strictEqual(new Set(STANDARD_EQUIPMENT_CATALOG.map((item) => item.id)).size, STANDARD_EQUIPMENT_CATALOG.length, 'ids are unique');
     const pumpItem = STANDARD_EQUIPMENT_CATALOG.find((item) => item.kind === 'PUMP');
     assert.ok(pumpItem);
-    assert.strictEqual(pumpItem?.category, 'FLUID_PROCESSING');
+    assert.strictEqual(pumpItem?.category, 'TRANSFER_STORAGE');
     assert.strictEqual(pumpItem?.defaultFlowGpm, 100);
   });
 });

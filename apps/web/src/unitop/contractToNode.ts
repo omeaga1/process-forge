@@ -1,2 +1,2 @@
-// Lives in canvas-ui so the equipment palette can place saved unit ops.
-export { contractToProcessNode } from '@process-forge/canvas-ui';
+// Lives in the protocol package, so the catalog, the MCP server and the app build designed units the same way.
+export { contractToProcessNode } from '@process-forge/protocol';
