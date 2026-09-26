@@ -222,6 +222,19 @@ fn handle(mut stream: TcpStream, bridge: Bridge) {
             let (code, body) = queue_and_wait(&bridge, "node", payload);
             respond(&mut stream, code, &body)
         }
+        ("POST", "/v1/publish") => {
+            // A request to publish a unit to the community library. The web
+            // view only opens its publish dialog; the engineer decides there.
+            let payload: Value = match serde_json::from_slice(&req.body) {
+                Ok(v) => v,
+                Err(e) => return respond(&mut stream, 400, &json!({ "error": format!("body is not JSON: {e}") })),
+            };
+            if payload.get("unit").map(Value::is_string) != Some(true) {
+                return respond(&mut stream, 400, &json!({ "error": "expected { \"unit\": \"id, name or tag\" }" }));
+            }
+            let (code, body) = queue_and_wait(&bridge, "publish", payload);
+            respond(&mut stream, code, &body)
+        }
         ("POST", "/v1/edits") => {
             // A change to what is already on the flowsheet: a unit's settings
             // or name, removing a unit, removing a stream. The web view applies

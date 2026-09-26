@@ -19,7 +19,7 @@ import { executePackageUnitOp } from './tools/packageUnitOp.js';
 import { executeForgeEquipmentDrawing } from './tools/forgeEquipmentDrawing.js';
 import { executeDesignUnitOp } from './tools/designUnitOp.js';
 import { executeValidateUnitOp } from './tools/validateUnitOp.js';
-import { executeAddUnitOpToFlowsheet, executeGetOpenFlowsheet, executeAddStream, executeFlowsheetEdit } from './tools/desktopBridge.js';
+import { executeAddUnitOpToFlowsheet, executeGetOpenFlowsheet, executeAddStream, executeFlowsheetEdit, executeRequestPublish } from './tools/desktopBridge.js';
 import { executeListStandardUnitOps, executeAddStandardUnitOp } from './tools/standardUnitOps.js';
 import { executeSearchCommunityUnitOps, executeAddCommunityUnitOp } from './tools/communityLibrary.js';
 import { executeCompareScenarios } from './tools/compareScenarios.js';
@@ -39,7 +39,7 @@ Typical workflow:
 1. Read the line. get_open_flowsheet returns what the engineer has open in ProcessForge Desktop. simulate_process_line, diagnose_bottlenecks and compare_scenarios use that open flowsheet automatically when you pass no graph or templateName; if the app is not running they fall back to a demo line and say so in "source".
 2. Find the limit. diagnose_bottlenecks is instant (static capacities); simulate_process_line runs the line over time (throughput, starved/blocked time, OEE, liquid levels, temperatures, heat duty).
 3. Test changes before making them. compare_scenarios runs the same line with settings changed (e.g. a bigger pump, a second filler nozzle count, a larger reactor jacket) and reports the difference. Nothing on the flowsheet changes.
-4. Build. Prefer standard equipment: list_standard_unit_ops, then add_standard_unit_op. Next, search_community_unit_ops / add_community_unit_op (community listings are unreviewed; say so). Only for equipment neither has, design one: design_unit_op gives the brief, you write a UnitOpContract, validate_unit_op checks it, add_unit_op_to_flowsheet places it. Connect units with add_stream (by id, name or tag like P-101). Change an existing unit with update_unit; remove_unit and remove_stream delete, so confirm with the engineer first.
+4. Build. Prefer standard equipment: list_standard_unit_ops, then add_standard_unit_op. Next, search_community_unit_ops / add_community_unit_op (community listings are unreviewed; say so). Only for equipment neither has, design one: design_unit_op gives the brief, you write a UnitOpContract, validate_unit_op checks it, add_unit_op_to_flowsheet places it. Connect units with add_stream (by id, name or tag like P-101). Change an existing unit with update_unit; remove_unit and remove_stream delete, so confirm with the engineer first. To share a unit with others, publish_unit_op opens the publish dialog in the app for the engineer to confirm.
 5. Re-simulate after changes and report what moved.
 
 Units: liquid in gal/min and gallons, items per minute, temperatures in °C, duty in kW. Tools that change the flowsheet need ProcessForge Desktop running on this computer; every other tool works without it.`;
@@ -292,6 +292,25 @@ export const TOOLS: ToolDef[] = [
     },
     annotations: { ...WRITE, openWorldHint: true },
     run: (args) => executeAddCommunityUnitOp(args as never)
+  },
+  {
+    name: 'publish_unit_op',
+    title: 'Ask to publish a unit',
+    description:
+      'Asks the engineer to publish a unit from the open flowsheet to the ProcessForge community library, where anyone can find and use it. It opens the publish dialog in ProcessForge Desktop, filled in with the description, category and tags you suggest; nothing is published unless the engineer reviews it and clicks Publish there (signed in with Google). If they published one by that name before, the dialog offers a new version. A designed unit is checked by the engine before it is published. Only suggest this when the engineer wants to share the unit. Requires ProcessForge Desktop 0.1.39 or later.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        unit: { type: 'string', description: 'The unit on the open flowsheet: id, name or tag.' },
+        description: { type: 'string', description: 'What it is, what it models and what it assumes, for other engineers.' },
+        category: { type: 'string', enum: ['PACKAGING', 'FLUID_PROCESSING', 'MATERIAL_HANDLING', 'QUALITY'] },
+        tags: { type: 'array', items: { type: 'string' } },
+        releaseNotes: { type: 'string', description: 'For a new version: what changed.' }
+      },
+      required: ['unit']
+    },
+    annotations: { ...WRITE, openWorldHint: true },
+    run: (args) => executeRequestPublish(args as never)
   },
   {
     name: 'design_unit_op',

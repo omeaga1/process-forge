@@ -21,6 +21,7 @@ server does no model inference itself: your MCP client is the model.
 | `remove_stream` | Removes one stream, by id or by the units at its ends. Needs 0.1.33 or later. |
 | `list_standard_unit_ops` | Lists the equipment that ships with ProcessForge (the app's Standard palette), with ports and default settings, and the Feed, Product, Byproduct and Waste arrows that mark where material enters and leaves a flowsheet. |
 | `add_standard_unit_op` | Places a standard unit or a feed/outlet arrow on the open flowsheet, with any settings changed, and optionally pipes it in (`connectFrom`, `connectTo`). Only Product outlets count as the line's output. Needs ProcessForge Desktop 0.1.30 or later. |
+| `publish_unit_op` | Asks the engineer to publish a unit from the open flowsheet to the community library: opens the publish dialog in ProcessForge Desktop, filled in with the details you suggest. Nothing is published unless the engineer clicks Publish there. Needs 0.1.39 or later. |
 | `search_community_unit_ops` | Searches the community library of unit ops people have published from the app. Public and read-only; listings are not reviewed by ProcessForge. |
 | `add_community_unit_op` | Places a community listing on the open flowsheet as its author published it, and optionally pipes it in. Needs ProcessForge Desktop 0.1.30 or later. |
 | `simulate_process_line` | Runs the discrete-event simulation. Returns throughput, scrap, per-unit states, liquid levels, temperatures and heat duty, and the bottleneck. |

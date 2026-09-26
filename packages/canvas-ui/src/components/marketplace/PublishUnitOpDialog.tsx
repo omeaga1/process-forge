@@ -5,9 +5,20 @@ import { draftingRadius } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { CommunityLibraryService, type CommunityUnitOpItem, type PublishResult } from '../../marketplace/communityLibraryClient.js';
 
+export interface PublishSuggestion {
+  description?: string;
+  category?: CommunityUnitOpItem['category'];
+  tags?: string[];
+  releaseNotes?: string;
+  /** An MCP client asked for this: the dialog says so. */
+  requestedByClient?: boolean;
+}
+
 export interface PublishUnitOpDialogProps {
   /** The unit to publish; null closes the dialog. */
   node: ProcessNode | null;
+  /** Details an MCP client suggested, to review before publishing. */
+  suggestion?: PublishSuggestion;
   onClose: () => void;
 }
 
@@ -34,7 +45,7 @@ export function guessCategory(n: ProcessNode): Category {
  * before -- the choice of a new version of it. Nothing is sent until you
  * confirm.
  */
-export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, onClose }) => {
+export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, suggestion, onClose }) => {
   const { palette, font } = useTheme();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -51,10 +62,10 @@ export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, 
     if (!node) return;
     const contract = (node.config as { contract?: { description?: string } }).contract;
     setName(node.name);
-    setDescription(contract?.description || '');
-    setCategory(guessCategory(node));
-    setTags('');
-    setNotes('');
+    setDescription(suggestion?.description || contract?.description || '');
+    setCategory(suggestion?.category ?? guessCategory(node));
+    setTags(suggestion?.tags?.join(', ') ?? '');
+    setNotes(suggestion?.releaseNotes ?? '');
     setResult(null);
     setTarget('new');
     CommunityLibraryService.fetchMine().then(({ items }) => {
@@ -62,7 +73,7 @@ export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, 
       const same = items.find((i) => i.name.trim().toLowerCase() === node.name.trim().toLowerCase());
       if (same) setTarget(same.id);
     });
-  }, [node]);
+  }, [node, suggestion]);
 
   if (!node) return null;
   const designed = Boolean((node.config as { contract?: unknown }).contract);
@@ -112,6 +123,11 @@ export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, 
         </div>
 
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {suggestion?.requestedByClient && (
+            <div role="note" style={{ padding: '8px 10px', borderRadius: draftingRadius.soft, border: `1px solid ${palette.jade[600]}`, fontSize: 12, color: palette.text.primary, lineHeight: 1.5 }}>
+              Your AI client asked to publish this unit and filled in the details below. Review them: nothing is published unless you click Publish.
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 10, fontSize: 12, lineHeight: 1.5, color: palette.text.secondary }}>
             <Globe size={16} color={palette.jade[400]} style={{ flexShrink: 0, marginTop: 2 }} />
             <span>
