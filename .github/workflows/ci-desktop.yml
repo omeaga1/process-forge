@@ -37,3 +37,11 @@ jobs:
       - name: cargo test
         working-directory: apps/desktop/src-tauri
         run: cargo test
+
+      # TEMPORARY: capture the lockfile this run resolved so it can be committed.
+      - name: Upload Cargo.lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-lock
+          path: apps/desktop/src-tauri/Cargo.lock
+          if-no-files-found: error
