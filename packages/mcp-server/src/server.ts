@@ -28,7 +28,7 @@ import { resolveGraph, type ResolvedGraph } from './tools/graphSource.js';
 import { AVAILABLE_TEMPLATES } from './templates.js';
 import { PROMPTS, renderPrompt } from './prompts.js';
 
-export const SERVER_VERSION = '0.5.0';
+export const SERVER_VERSION = '0.6.0';
 
 /**
  * Sent to every client at connect time (the MCP `instructions` field), so a
