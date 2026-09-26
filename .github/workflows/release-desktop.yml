@@ -80,6 +80,15 @@ jobs:
       - name: Build Core Packages
         run: pnpm run build
 
+      # `tauri build` runs cargo without --locked, so check the lockfile first:
+      # this fails if Cargo.lock is out of date with Cargo.toml, and when it is
+      # current cargo builds exactly the versions it pins. Without a committed
+      # lock every release re-resolved crates fresh and could pick up a
+      # half-published tauri release (tauri-runtime 2.12.0 before tauri 2.12.0).
+      - name: Verify Cargo.lock is current
+        working-directory: apps/desktop/src-tauri
+        run: cargo fetch --locked
+
       # TAURI_SIGNING_PRIVATE_KEY must be present or `tauri build` emits no .sig
       # files, latest.json cannot be assembled, and the in-app updater stays
       # permanently blind. The pubkey baked into tauri.conf.json must be the

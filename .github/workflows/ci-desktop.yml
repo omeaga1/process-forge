@@ -34,6 +34,9 @@ jobs:
       - name: Stub the frontend bundle
         run: mkdir -p apps/web/dist && echo '<!doctype html>' > apps/web/dist/index.html
 
+      # --locked: build exactly what Cargo.lock pins, and fail if Cargo.toml
+      # has drifted from it (e.g. a version bump without the matching lock
+      # edit) instead of silently re-resolving against whatever crates.io has.
       - name: cargo test
         working-directory: apps/desktop/src-tauri
-        run: cargo test
+        run: cargo test --locked

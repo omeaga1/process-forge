@@ -21,6 +21,17 @@ git tag v0.1.13
 git push origin v0.1.13
 ```
 
+Bumping the version means editing three files, not two: `version` in
+`apps/desktop/src-tauri/Cargo.toml`, `version` in `tauri.conf.json`, **and** the
+`process-forge-desktop` entry near the top of `apps/desktop/src-tauri/Cargo.lock`.
+CI and the release build run cargo with `--locked`, so a stale lock fails the
+build instead of being re-resolved. Editing that one `version =` line by hand is
+fine; `cargo update -p process-forge-desktop` does the same if cargo is installed.
+
+To move to newer crates (e.g. a new tauri), run `cargo update` in
+`apps/desktop/src-tauri` and commit the resulting `Cargo.lock` in its own PR so
+the Rust CI job proves it compiles.
+
 `release-desktop.yml` builds Windows, macOS and Linux, publishes the installers,
 and then assembles `latest.json` so installed clients can discover the release.
 
