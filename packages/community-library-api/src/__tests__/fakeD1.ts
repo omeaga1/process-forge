@@ -11,12 +11,13 @@ import type { D1Database, D1PreparedStatement } from '../index.js';
  * the SQL that production runs -- including the `ON CONFLICT ... WHERE` guard,
  * which a hand-written mock would simply reimplement and agree with.
  */
-export function createFakeD1(): D1Database & { raw: DatabaseSync } {
+/** `upTo`: apply migrations only through this one (a database the worker has yet to update). */
+export function createFakeD1(opts: { upTo?: string } = {}): D1Database & { raw: DatabaseSync } {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON');
   // dist/__tests__ -> package root -> migrations
   const migrations = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations');
-  for (const file of readdirSync(migrations).filter((f) => f.endsWith('.sql')).sort()) {
+  for (const file of readdirSync(migrations).filter((f) => f.endsWith('.sql') && (!opts.upTo || f.replace(/\.sql$/, '') <= opts.upTo)).sort()) {
     db.exec(readFileSync(join(migrations, file), 'utf8'));
   }
 
