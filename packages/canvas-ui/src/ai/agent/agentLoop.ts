@@ -38,7 +38,7 @@ interface ToolCall {
 }
 
 export type AgentEvent =
-  | { type: 'tool'; id: string; name: string; summary: string; access: AgentTool['access']; status: 'running' | 'done' | 'failed' | 'declined'; detail?: string }
+  | { type: 'tool'; id: string; name: string; summary: string; access: AgentTool['access']; status: 'running' | 'done' | 'failed' | 'declined'; detail?: string; decidedBy?: string }
   | { type: 'text'; text: string };
 
 export interface ApprovalRequest {
@@ -123,7 +123,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<string> {
           try {
             result = await tool.run(args, host, { decider: opts.decider ?? offlineDecider('no decision model') });
             const failed = isFailure(result);
-            onEvent({ type: 'tool', id: call.id, name: tool.name, summary, access: tool.access, status: failed ? 'failed' : 'done', ...(failed ? { detail: failed } : {}) });
+            const decided = decidedByOf(result);
+            onEvent({ type: 'tool', id: call.id, name: tool.name, summary, access: tool.access, status: failed ? 'failed' : 'done', ...(failed ? { detail: failed } : {}), ...(decided ? { decidedBy: decided } : {}) });
           } catch (e) {
             result = { error: e instanceof Error ? e.message : String(e) };
             onEvent({ type: 'tool', id: call.id, name: tool.name, summary, access: tool.access, status: 'failed', detail: (result as { error: string }).error });
@@ -143,6 +144,12 @@ function safeSummary(tool: AgentTool, args: Record<string, any>, host: AgentHost
   } catch {
     return tool.name;
   }
+}
+
+/** Who decided a design checklist or completeness warnings in a result, if it has them. */
+function decidedByOf(result: unknown): string | undefined {
+  const r = (result ?? {}) as { designChecklist?: { decidedBy?: string }; completeness?: { decidedBy?: string } };
+  return r.designChecklist?.decidedBy ?? r.completeness?.decidedBy;
 }
 
 /** A tool result that reports it did not do its job: its error, for the activity list. */
