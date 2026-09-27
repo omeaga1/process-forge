@@ -5,6 +5,7 @@ import { loadLlmCredentials } from '../../ai/aiModelManager.js';
 import { runAgent, type AgentMessage, type ApprovalRequest } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
 import { JevOpenRouterProvider, isJevEnabled, offlineDecider, setJevEnabled } from '../../ai/agent/jevProvider.js';
+import { DESIGN_QUESTIONS } from '@process-forge/protocol';
 
 /**
  * The in-app assistant: chat with a model (OpenRouter or OpenAI) that works on
@@ -16,7 +17,7 @@ import { JevOpenRouterProvider, isJevEnabled, offlineDecider, setJevEnabled } fr
 type Line =
   | { kind: 'user'; id: string; text: string }
   | { kind: 'assistant'; id: string; text: string }
-  | { kind: 'tool'; id: string; summary: string; access: 'read' | 'write'; status: 'running' | 'done' | 'failed' | 'declined'; detail?: string }
+  | { kind: 'tool'; id: string; summary: string; access: 'read' | 'write'; status: 'running' | 'done' | 'failed' | 'declined'; detail?: string; decidedBy?: string }
   | { kind: 'error'; id: string; text: string };
 
 const EXAMPLES = [
@@ -37,6 +38,29 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<(ApprovalRequest & { resolve: (ok: boolean) => void }) | null>(null);
   const [jevOn, setJevOn] = useState(isJevEnabled);
+  const [jevTest, setJevTest] = useState<{ busy: boolean; text?: string; ok?: boolean }>({ busy: false });
+
+  // Asks Jev about a sample unit on the engineer's OpenRouter sign-in, and says what came back.
+  const testJev = async () => {
+    setJevTest({ busy: true });
+    const creds = await loadLlmCredentials();
+    const key = creds.provider === 'openrouter' ? creds.openrouterApiKey?.trim() : undefined;
+    if (!key) {
+      setJevTest({ busy: false, ok: false, text: 'Jev runs on OpenRouter: sign in with OpenRouter in the AI model settings first.' });
+      return;
+    }
+    const probe = new JevOpenRouterProvider(key, { timeoutMs: 30000 });
+    const a = await probe.ask({ message: 'Spray dryer: dries milk concentrate to powder with hot air; the moist air leaves as exhaust.' }, DESIGN_QUESTIONS);
+    setJevTest(
+      probe.lastSource.by === 'jev'
+        ? {
+            busy: false,
+            ok: true,
+            text: `Jev answered. For a spray dryer: energy balance ${Math.round(a.energyBalance.value * 100)}%, vapour leaves ${Math.round(a.gasLeaves.value * 100)}%, solids leave ${Math.round(a.solidLeaves.value * 100)}%, discrete items ${Math.round(a.handlesItems.value * 100)}%; runs ${a.mode.value} (${Math.round(a.mode.confidence * 100)}%).`
+          }
+        : { busy: false, ok: false, text: `Jev did not answer: ${probe.lastSource.reason}. Design checks use the offline rules until this works.` }
+    );
+  };
   const jev = useRef<JevOpenRouterProvider | null>(null);
   const history = useRef<AgentMessage[]>([]);
   const abort = useRef<AbortController | null>(null);
@@ -71,7 +95,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
         signal: abort.current.signal,
         onEvent: (e) => {
           if (e.type === 'text') add({ kind: 'assistant', id: `a-${Date.now()}-${Math.random()}`, text: e.text });
-          else upsertTool({ kind: 'tool', id: e.id, summary: e.summary, access: e.access, status: e.status, ...(e.detail ? { detail: e.detail } : {}) });
+          else upsertTool({ kind: 'tool', id: e.id, summary: e.summary, access: e.access, status: e.status, ...(e.detail ? { detail: e.detail } : {}), ...(e.decidedBy ? { decidedBy: e.decidedBy } : {}) });
         },
         approve: (req) => new Promise<boolean>((resolve) => setPending({ ...req, resolve }))
       });
@@ -151,6 +175,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
               <Icon size={12} className={l.status === 'running' ? 'animate-spin' : undefined} style={{ flexShrink: 0 }} />
               <span style={{ textDecoration: l.status === 'declined' ? 'line-through' : 'none' }}>{l.summary}</span>
               {l.status === 'declined' && <span>(declined)</span>}
+              {l.decidedBy && <span style={{ color: palette.text.muted }}>· design checks by {l.decidedBy}</span>}
             </div>
           );
         })}
@@ -199,7 +224,23 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
           }}
         />
         Design checks by Jev (OpenRouter, a fraction of a cent each)
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            void testJev();
+          }}
+          disabled={jevTest.busy}
+          style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, color: palette.jade.glow, fontSize: 11, cursor: 'pointer' }}
+        >
+          {jevTest.busy ? 'Testing…' : 'Test Jev'}
+        </button>
       </label>
+      {jevTest.text && (
+        <div role="status" style={{ padding: '0 12px 6px', fontSize: 11, lineHeight: 1.45, color: jevTest.ok ? palette.jade.glow : palette.text.secondary }}>
+          {jevTest.text}
+        </div>
+      )}
       <div style={{ padding: 10, borderTop: `1px solid ${palette.border.default}`, display: 'flex', gap: 6, background: palette.background.base }}>
         <textarea
           value={input}
