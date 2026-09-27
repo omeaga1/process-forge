@@ -1,0 +1,71 @@
+name: Deploy Cloud API to Cloudflare Workers
+
+# Tests and deploys the community library / cloud projects API
+# (packages/community-library-api) whenever it, or the protocol package it
+# bundles, changes on main. Schema changes need no step here: the worker
+# applies new migrations itself on its first request (src/schema.ts).
+#
+# Uses the same CLOUDFLARE_API_TOKEN as the Pages deploy; the token needs
+# Account > Workers Scripts > Edit (and D1 > Edit) as well as Pages.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/community-library-api/**'
+      - 'packages/protocol/**'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: api-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Test & Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The API bundles @process-forge/protocol; build it (and the API's tests
+      # run against it) before anything is deployed.
+      - name: Build and Test
+        run: pnpm turbo run test --filter=@process-forge/community-library-api...
+
+      # wrangler through `pnpm dlx`, as in deploy-pages.yml: wrangler-action
+      # cannot install itself in this workspace.
+      - name: Deploy Worker
+        working-directory: packages/community-library-api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@4 deploy
+
+      # The first request applies any new migration; health then reports the
+      # schema this code expects. Fails the run if the API is not answering.
+      - name: Check the live API
+        run: |
+          expected=$(node packages/community-library-api/scripts/latest-migration.mjs)
+          for i in 1 2 3 4 5 6; do
+            body=$(curl -fsS https://process-forge-community-library.vprescenzi.workers.dev/api/health) && break
+            sleep 5
+          done
+          echo "$body"
+          echo "$body" | grep -Eq "\"schema\": ?\"$expected\"" \
+            || { echo "::error::the live API does not report schema $expected"; exit 1; }
+          curl -fsS -o /dev/null https://process-forge-community-library.vprescenzi.workers.dev/api/unitops \
+            || { echo "::error::GET /api/unitops failed after deploy"; exit 1; }

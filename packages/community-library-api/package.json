@@ -12,7 +12,7 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "tsc -p tsconfig.test.json && node --test dist/__tests__/*.test.js",
-    "db:migrate": "wrangler d1 migrations apply process-forge-community-unitops-db --remote"
+    "migrations:gen": "node scripts/gen-migrations.mjs"
   },
   "dependencies": {
     "@process-forge/protocol": "workspace:*"

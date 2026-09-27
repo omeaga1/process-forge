@@ -47,15 +47,27 @@ characters. Rotating it signs everyone out.
 
 ## Deploying
 
+Automatic: `.github/workflows/deploy-api.yml` tests and deploys the worker on
+every push to main that touches `packages/community-library-api` or
+`packages/protocol`, then checks the live `/api/health`. It uses the repo's
+`CLOUDFLARE_API_TOKEN`, which needs **Workers Scripts: Edit** and **D1: Edit**
+on the account (besides Pages). Run it by hand from the Actions tab if needed.
+
+Schema changes ship with the code. Add `migrations/000N_name.sql`, run
+`pnpm migrations:gen`, and the worker applies it on its first request after the
+deploy, recorded in `schema_migrations` (`src/schema.ts`). Write migrations to
+be harmless if run twice (`CREATE ... IF NOT EXISTS`). Migrations through
+0003 were applied by hand before this and are never run by the worker.
+`wrangler d1 migrations apply --remote` is refused on this account (error
+7403), which is why it is not used.
+
+By hand, if the workflow cannot run:
+
 ```
 cd packages/community-library-api
-pnpm test                 # real SQLite, real SQL, forged-token cases
-pnpm db:migrate           # wrangler d1 migrations apply ... --remote
-npx wrangler deploy
+pnpm test
+npx wrangler@4 deploy
 ```
-
-Deploy the worker **before** the web app when a change touches both: the app
-calls the new routes as soon as it is live.
 
 ## Desktop Google sign-in
 

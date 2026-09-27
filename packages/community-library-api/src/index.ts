@@ -20,6 +20,7 @@ import {
   type Session
 } from './auth.js';
 import { ProcessNodeSchema, UnitOpContractSchema, executeValidateUnitOp } from '@process-forge/protocol';
+import { ensureSchema, SCHEMA_VERSION } from './schema.js';
 
 export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -282,12 +283,16 @@ export function createHandler(deps: { jwks?: JwksFetcher } = {}) {
     if (method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
 
     try {
+      // Schema changes ship with the code: applied on the first request after a deploy.
+      await ensureSchema(env.DB);
+
       // ── GET /api/health ─────────────────────────────────────────────────
       if (path === '/api/health' && method === 'GET') {
         return jsonResponse({
           status: 'healthy',
           service: 'ProcessForge Community UnitOp Library API',
           version: '1.1.0',
+          schema: SCHEMA_VERSION,
           environment: env.ENVIRONMENT || 'production',
           timestamp: new Date().toISOString()
         });
