@@ -36,6 +36,7 @@ import { MasterOrchestratorDock } from './dock/MasterOrchestratorDock.js';
 import { UnitOpPopOutStudio } from './studio/UnitOpPopOutStudio.js';
 import { CommunityUnitOpLibraryModal } from './marketplace/CommunityUnitOpLibraryModal.js';
 import { PublishUnitOpDialog, type PublishSuggestion } from './marketplace/PublishUnitOpDialog.js';
+import type { AgentHost } from '../ai/agent/agentTools.js';
 import { EquipmentPaletteModal } from './palette/EquipmentPaletteModal.js';
 import { MobileFieldView } from './mobile/MobileFieldView.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
@@ -243,6 +244,21 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const [isForgeHubOpen, setIsForgeHubOpen] = useState(false);
   const [publishing, setPublishing] = useState<ProcessNode | null>(null);
   const [publishSuggestion, setPublishSuggestion] = useState<PublishSuggestion | null>(null);
+  // The in-app assistant works on this flowsheet; its changes go through the
+  // same undoable path as the engineer's.
+  const agentHost = useMemo<AgentHost>(
+    () => ({
+      getGraph: () => graphRef.current,
+      commit: (next) => updateGraph(() => next),
+      requestPublish: (nodeId, suggestion) => {
+        const n = graphRef.current.nodes.find((x) => x.id === nodeId);
+        if (!n) return;
+        setPublishSuggestion({ ...(suggestion as PublishSuggestion), requestedByClient: true });
+        setPublishing(n);
+      }
+    }),
+    [updateGraph]
+  );
   // An MCP client asking to publish a unit: open the dialog for the engineer to decide.
   useEffect(() => {
     const on = (e: Event) => {
@@ -1279,6 +1295,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         onBroadcastContext={() => {}}
         onAddNode={handleAddNode}
         onOpenPopOutStudio={(nodeId) => setPopOutNodeId(nodeId)}
+        agentHost={agentHost}
       />
 
       {/* Double-Click Unit-Op Pop-Out Studio Drawer */}

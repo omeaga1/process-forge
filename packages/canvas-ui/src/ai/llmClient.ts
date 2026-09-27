@@ -120,7 +120,7 @@ export function openRouterErrorMessage(status: number, detail?: string): string 
       return detail || `OpenRouter error (HTTP ${status}).`;
   }
 }
-function openRouterHeaders(key: string): Record<string, string> {
+export function openRouterHeaders(key: string): Record<string, string> {
   return {
     Authorization: `Bearer ${key.trim()}`,
     'Content-Type': 'application/json',
