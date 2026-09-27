@@ -4,6 +4,7 @@ import { useTheme } from '../../hooks/useTheme.js';
 import { loadLlmCredentials } from '../../ai/aiModelManager.js';
 import { runAgent, type AgentMessage, type ApprovalRequest } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
+import { JevOpenRouterProvider, isJevEnabled, offlineDecider, setJevEnabled } from '../../ai/agent/jevProvider.js';
 
 /**
  * The in-app assistant: chat with a model (OpenRouter or OpenAI) that works on
@@ -35,6 +36,8 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<(ApprovalRequest & { resolve: (ok: boolean) => void }) | null>(null);
+  const [jevOn, setJevOn] = useState(isJevEnabled);
+  const jev = useRef<JevOpenRouterProvider | null>(null);
   const history = useRef<AgentMessage[]>([]);
   const abort = useRef<AbortController | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -56,8 +59,13 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
     abort.current = new AbortController();
     try {
       const creds = await loadLlmCredentials();
+      // Design checks: Jev on the engineer's OpenRouter account when it is on; offline otherwise.
+      const key = creds.provider === 'openrouter' ? creds.openrouterApiKey?.trim() : undefined;
+      if (jevOn && key && !jev.current) jev.current = new JevOpenRouterProvider(key);
+      const decider = jevOn && key && jev.current ? jev.current : offlineDecider(key ? 'Jev is turned off' : 'Jev needs OpenRouter');
       const answer = await runAgent({
         creds,
+        decider,
         history: history.current,
         host,
         signal: abort.current.signal,
@@ -178,6 +186,20 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
         )}
       </div>
 
+      <label
+        title="Jev, a decision model on your OpenRouter account, decides what a complete design of each unit needs (energy balance, outlets, components) and checks designs for what is missing. About $0.0004 a check. Off: the same checks with offline keyword rules, less accurate."
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderTop: `1px solid ${palette.border.subtle}`, fontSize: 11, color: palette.text.muted, cursor: 'pointer' }}
+      >
+        <input
+          type="checkbox"
+          checked={jevOn}
+          onChange={(e) => {
+            setJevOn(e.target.checked);
+            setJevEnabled(e.target.checked);
+          }}
+        />
+        Design checks by Jev (OpenRouter, a fraction of a cent each)
+      </label>
       <div style={{ padding: 10, borderTop: `1px solid ${palette.border.default}`, display: 'flex', gap: 6, background: palette.background.base }}>
         <textarea
           value={input}

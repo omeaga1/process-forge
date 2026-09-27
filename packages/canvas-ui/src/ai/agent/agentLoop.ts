@@ -1,5 +1,6 @@
 import { OPENROUTER_CHAT_URL, openRouterErrorMessage, openRouterHeaders, type LlmCredentials } from '../llmClient.js';
 import { AGENT_TOOLS, findAgentTool, type AgentHost, type AgentTool } from './agentTools.js';
+import { offlineDecider, type SourcedDecisionProvider } from './jevProvider.js';
 
 /**
  * The in-app assistant's loop: the model answers or calls tools, the tools run
@@ -19,7 +20,7 @@ export const AGENT_SYSTEM_PROMPT = `You are the assistant inside ProcessForge, a
 How to work:
 1. Look first: get_open_flowsheet. Simulate (simulate_process_line) or try what-ifs (compare_scenarios) freely; they change nothing.
 2. Build with standard equipment first (list_standard_unit_ops, add_standard_unit_op); then the community library (search_community_unit_ops, add_community_unit_op; listings are unreviewed, say so).
-3. For equipment neither has, design it: design_unit_op gives the brief; write a UnitOpContract; validate_unit_op until the engine ACCEPTS it; then add_unit_op_to_flowsheet. Never claim a design works because you believe it does: the engine's verdict decides.
+3. For equipment neither has, design it: design_unit_op gives the brief and a designChecklist of what a complete design of this unit includes (energy balance, outlets, components...); write a UnitOpContract that covers it; validate_unit_op until the engine ACCEPTS it; then add_unit_op_to_flowsheet. validate_unit_op also returns completeness warnings: fix each one, or tell the engineer why it does not apply. Never claim a design works because you believe it does: the engine's verdict decides.
 4. Every change to the flowsheet (adding, piping, changing settings, removing) is shown to the engineer to approve before it happens. Propose the change with the tool call itself, one clear step at a time. If they decline, do not retry the same change; ask what they want instead.
 5. After changes, simulate again and report what moved, with numbers.
 
@@ -56,6 +57,8 @@ export interface AgentRunOptions {
   /** Resolves true when the engineer approves this change. */
   approve: (req: ApprovalRequest) => Promise<boolean>;
   signal?: AbortSignal;
+  /** Answers the design questions: Jev through OpenRouter, or offline heuristics. */
+  decider?: SourcedDecisionProvider;
   /** Test seam: the chat endpoint call. */
   complete?: (messages: AgentMessage[]) => Promise<{ content: string | null; tool_calls?: ToolCall[] }>;
   maxSteps?: number;
@@ -118,7 +121,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<string> {
         } else {
           onEvent({ type: 'tool', id: call.id, name: tool.name, summary, access: tool.access, status: 'running' });
           try {
-            result = await tool.run(args, host);
+            result = await tool.run(args, host, { decider: opts.decider ?? offlineDecider('no decision model') });
             const failed = isFailure(result);
             onEvent({ type: 'tool', id: call.id, name: tool.name, summary, access: tool.access, status: failed ? 'failed' : 'done', ...(failed ? { detail: failed } : {}) });
           } catch (e) {

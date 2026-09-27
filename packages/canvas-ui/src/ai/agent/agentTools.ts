@@ -1,4 +1,8 @@
 import {
+  DESIGN_QUESTIONS,
+  checkDesignCompleteness,
+  designChecklist,
+  designStateOf,
   EQUIPMENT_CATEGORIES,
   STANDARD_EQUIPMENT_CATALOG,
   ProcessNodeSchema,
@@ -20,6 +24,7 @@ import {
 import { simulateProcess } from '@process-forge/simulation-core';
 import { CommunityLibraryService } from '../../marketplace/communityLibraryClient.js';
 import { saveUnitOp } from '../../library/savedUnitOps.js';
+import type { SourcedDecisionProvider } from './jevProvider.js';
 
 /**
  * The in-app assistant's tools: the MCP server's toolset, run against the
@@ -43,6 +48,15 @@ export interface AgentHost {
 
 export type ToolAccess = 'read' | 'write';
 
+/** What a tool can use besides the flowsheet: the decision model for design checks. */
+export interface AgentContext {
+  decider: SourcedDecisionProvider;
+}
+
+/** Who decided a design's checklist or warnings, for the model and the engineer. */
+const decidedBy = (d: SourcedDecisionProvider) =>
+  d.lastSource.by === 'jev' ? 'Jev (decision model)' : `offline heuristics${d.lastSource.reason ? ` (${d.lastSource.reason})` : ''}`;
+
 export interface AgentTool {
   name: string;
   description: string;
@@ -50,7 +64,7 @@ export interface AgentTool {
   access: ToolAccess;
   /** One line for the approval card and the activity list. */
   summarize(args: Record<string, any>, graph: ProcessGraph): string;
-  run(args: Record<string, any>, host: AgentHost): Promise<unknown> | unknown;
+  run(args: Record<string, any>, host: AgentHost, ctx: AgentContext): Promise<unknown> | unknown;
 }
 
 const nameOf = (graph: ProcessGraph, ref: unknown): string => {
@@ -277,15 +291,18 @@ export const AGENT_TOOLS: AgentTool[] = [
       required: ['description']
     },
     summarize: (a) => `Get the design brief: ${String(a.description ?? '').slice(0, 60)}`,
-    run: (a, host) => {
+    run: async (a, host, ctx) => {
       const g = host.getGraph();
       const target = a.targetUnit ? resolveUnit(g, String(a.targetUnit)) : null;
-      return executeDesignUnitOp({
+      const brief = executeDesignUnitOp({
         description: String(a.description ?? ''),
         graph: g,
         ...(target && typeof target !== 'string' ? { targetNodeId: target.id } : {}),
         ...(a.preferredMode ? { preferredMode: a.preferredMode } : {})
       });
+      // What a complete design of this unit carries, decided from its description.
+      const profile = await ctx.decider.ask({ message: String(a.description ?? '') }, DESIGN_QUESTIONS);
+      return { ...brief, designChecklist: { decidedBy: decidedBy(ctx.decider), include: designChecklist(profile) } };
     }
   },
   {
@@ -294,7 +311,16 @@ export const AGENT_TOOLS: AgentTool[] = [
     description: 'The engine\'s verdict on a UnitOpContract: schema, references, physics (constraints evaluated) and drawing. Revise against the failures until ACCEPTED.',
     parameters: { type: 'object', properties: { contract: { type: 'object' }, parameterOverrides: { type: 'object' } }, required: ['contract'] },
     summarize: (a) => `Check the design "${a.contract?.name ?? 'unit'}" with the engine`,
-    run: (a) => executeValidateUnitOp({ contract: a.contract, ...(a.parameterOverrides ? { parameterOverrides: a.parameterOverrides } : {}) })
+    run: async (a, _host, ctx) => {
+      const verdict = executeValidateUnitOp({ contract: a.contract, ...(a.parameterOverrides ? { parameterOverrides: a.parameterOverrides } : {}) });
+      const parsed = UnitOpContractSchema.safeParse(a.contract);
+      if (!parsed.success) return verdict;
+      // Consistency is the engine's verdict; completeness is a judgment about what
+      // the unit is, so it comes back as warnings to address or explain.
+      const profile = await ctx.decider.ask(designStateOf(parsed.data), DESIGN_QUESTIONS);
+      const warnings = checkDesignCompleteness(parsed.data, profile);
+      return { ...verdict, completeness: { decidedBy: decidedBy(ctx.decider), warnings } };
+    }
   },
 
   // ── Changes to the flowsheet: each waits for the engineer's approval
