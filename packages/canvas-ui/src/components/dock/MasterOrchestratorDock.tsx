@@ -16,6 +16,9 @@ import { createDefaultProcessNode } from '../../utils/nodeFactory.js';
 import { draftingRadius } from '@process-forge/theme';
 import { AiModelModal } from '../modals/AiModelModal.js';
 import { McpAssistantPanel } from './McpAssistantPanel.js';
+import { AgentChat } from './AgentChat.js';
+import { supportsAgent } from '../../ai/agent/agentLoop.js';
+import type { AgentHost } from '../../ai/agent/agentTools.js';
 import { Cpu, Loader2, ChevronRight, ChevronLeft, Sparkles, KeyRound } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
@@ -31,6 +34,8 @@ interface MasterOrchestratorDockProps {
   onOpenPopOutStudio?: (nodeId: string) => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  /** The open flowsheet, for the assistant's tools. Without it the chat cannot act on the flowsheet. */
+  agentHost?: AgentHost;
 }
 
 export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
@@ -45,7 +50,8 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   onAddNode,
   onOpenPopOutStudio,
   isCollapsed = false,
-  onToggleCollapse
+  onToggleCollapse,
+  agentHost
 }) => {
   const { palette, font, size, weight, space, radius: r, motion } = useTheme();
   const OsakaJadePalette = palette;
@@ -55,6 +61,9 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [lockStatus, setLockStatus] = useState(() => isAgentChatUnlocked(getAiConnection(), getLlmCredentials()));
   const route = useAssistantRoute();
+  // OpenRouter or OpenAI in the app: the assistant that works on the flowsheet with tools.
+  const agentCreds = getLlmCredentials();
+  const agentMode = route === 'api-key' && Boolean(agentHost) && supportsAgent(agentCreds) && lockStatus.unlocked;
 
   const refreshAiState = () => {
     setAiConfig(getAiConfig());
@@ -411,8 +420,10 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         </div>
       </div>
 
+      {agentMode && agentHost && <AgentChat host={agentHost} modelLabel={agentCreds.modelId} />}
+
       {/* Chat history: only when the assistant runs in the app. */}
-      {route !== 'claude-desktop' && (
+      {route !== 'claude-desktop' && !agentMode && (
       <div
         style={{
           flex: 1,
@@ -639,7 +650,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       )}
 
       {/* Chat Input Bar */}
-      {route !== 'claude-desktop' && (
+      {route !== 'claude-desktop' && !agentMode && (
       <div
         style={{
           padding: space[3],
