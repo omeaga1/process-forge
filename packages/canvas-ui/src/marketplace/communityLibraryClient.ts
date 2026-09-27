@@ -70,6 +70,9 @@ const API_BASE_URL =
     ? (window as any).__PF_COMMUNITY_API_URL__
     : 'https://process-forge-community-library.vprescenzi.workers.dev/api';
 
+/** A route on the cloud API, e.g. communityApiUrl('/me/unitops'). */
+export const communityApiUrl = (route: string): string => `${API_BASE_URL}${route}`;
+
 /** Written by the web app's account module; see apps/web/src/auth. */
 const APP_SESSION_KEY = 'pf_user_session';
 

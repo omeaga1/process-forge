@@ -19,7 +19,7 @@ import {
   type JwksFetcher,
   type Session
 } from './auth.js';
-import { ProcessNodeSchema, executeValidateUnitOp } from '@process-forge/protocol';
+import { ProcessNodeSchema, UnitOpContractSchema, executeValidateUnitOp } from '@process-forge/protocol';
 
 export interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement;
@@ -170,6 +170,19 @@ async function ownListing(env: Env, id: string, uid: string): Promise<UnitOpReco
 
 /** A flowsheet bundle larger than this is almost certainly not a flowsheet. */
 const MAX_BUNDLE_BYTES = 2 * 1024 * 1024;
+/** My unit ops: one saved design, and how many an account keeps. */
+const MAX_SAVED_CONTRACT_BYTES = 256 * 1024;
+const MAX_SAVED_UNITOPS = 500;
+const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/;
+const SAVED_SOURCES = ['designed', 'mcp', 'studio'];
+
+interface SavedUnitOpRow {
+  id: string;
+  contract_json: string | null;
+  source: string;
+  saved_at: string;
+  deleted: number;
+}
 
 // Bearer tokens, not cookies, so a wildcard origin does not expose sessions to
 // cross-site requests: a page on another origin has no token to send.
@@ -490,6 +503,60 @@ export function createHandler(deps: { jwks?: JwksFetcher } = {}) {
           success: true,
           message: `Unpublished "${record.name}". Flowsheets that already use it keep their copy; publish it again with an update.`
         });
+      }
+
+      // ── My unit ops — the signed-in engineer's saved designs, synced ─────
+      // Each device merges by saved_at, newest wins; removals are kept as
+      // tombstones so they reach the other devices.
+      const savedMatch = path.match(/^\/api\/me\/unitops\/([^/]+)$/);
+
+      if (path === '/api/me/unitops' && method === 'GET') {
+        const s = await requireSession(request, env);
+        const res = await env.DB.prepare('SELECT id, contract_json, source, saved_at, deleted FROM user_unitops WHERE user_id = ? ORDER BY saved_at DESC')
+          .bind(s.uid)
+          .all<SavedUnitOpRow>();
+        const items = (res.results || []).map((r) => ({
+          id: r.id,
+          savedAt: r.saved_at,
+          source: r.source,
+          ...(r.deleted ? { deleted: true } : { contract: r.contract_json ? JSON.parse(r.contract_json) : null })
+        }));
+        return jsonResponse({ success: true, count: items.length, unitops: items });
+      }
+
+      if (savedMatch && (method === 'PUT' || method === 'DELETE')) {
+        const s = await requireSession(request, env);
+        const id = decodeURIComponent(savedMatch[1]!);
+        const body = await readJson<{ contract?: unknown; source?: string; savedAt?: string }>(request).catch(() => ({}) as { contract?: unknown; source?: string; savedAt?: string });
+        const savedAt = typeof body.savedAt === 'string' && ISO_TIME.test(body.savedAt) ? body.savedAt : new Date().toISOString();
+        let contractJson: string | null = null;
+        const source = SAVED_SOURCES.includes(String(body.source)) ? String(body.source) : 'designed';
+        if (method === 'PUT') {
+          const parsed = UnitOpContractSchema.safeParse(body.contract);
+          if (!parsed.success) return errorResponse('contract is not a unit op contract ProcessForge can read.');
+          if (parsed.data.id !== id) return errorResponse(`The contract's id (${parsed.data.id}) is not "${id}".`);
+          contractJson = JSON.stringify(body.contract);
+          if (contractJson.length > MAX_SAVED_CONTRACT_BYTES) return errorResponse('That design is too large to keep in the cloud.', 413);
+          const existing = await env.DB.prepare('SELECT deleted FROM user_unitops WHERE user_id = ? AND id = ?').bind(s.uid, id).first<{ deleted: number }>();
+          if (!existing || existing.deleted) {
+            const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM user_unitops WHERE user_id = ? AND deleted = 0').bind(s.uid).first<{ n: number }>();
+            if ((n?.n ?? 0) >= MAX_SAVED_UNITOPS) return errorResponse(`Your account keeps up to ${MAX_SAVED_UNITOPS} unit ops; remove some first.`, 409);
+          }
+        }
+        // Only a newer save or removal replaces what is there.
+        const result = await env.DB.prepare(
+          `INSERT INTO user_unitops (user_id, id, contract_json, source, saved_at, deleted) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, id) DO UPDATE SET
+             contract_json = excluded.contract_json,
+             source = excluded.source,
+             saved_at = excluded.saved_at,
+             deleted = excluded.deleted
+           WHERE excluded.saved_at > user_unitops.saved_at`
+        )
+          .bind(s.uid, id, contractJson, source, savedAt, method === 'DELETE' ? 1 : 0)
+          .run();
+        const applied = (result.meta?.changes ?? 1) > 0;
+        return jsonResponse({ success: true, applied, id, savedAt });
       }
 
       // ── Cloud projects — every route is owner-scoped ────────────────────

@@ -29,4 +29,5 @@ export * from './nozzles/EquipmentFigure.js';
 export * from './nozzles/NozzlePlacementEditor.js';
 export * from './unitop/contractToNode.js';
 export * from './library/savedUnitOps.js';
+export * from './library/unitOpCloudSync.js';
 export * from './model/unitBehavior.js';
