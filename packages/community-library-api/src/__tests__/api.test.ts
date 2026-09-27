@@ -407,3 +407,50 @@ describe('Sign-in with a profile left by the old flow', () => {
     assert.equal(ids.find((x) => x.id === 'google:1001')?.email, 'alice@example.com');
   });
 });
+
+describe('My unit ops: kept with the account, synced between devices', () => {
+  const t1 = '2026-09-26T10:00:00.000Z';
+  const t2 = '2026-09-26T11:00:00.000Z';
+
+  it('keeps a saved design for its owner only, and a newer save replaces an older one', async () => {
+    const { call, signIn } = setup();
+    const alice = await signIn();
+    const bob = await signIn({ sub: '2002', email: 'bob@example.com', name: 'Bob' });
+    const id = EVAPORATOR_CONTRACT.id;
+    assert.equal((await call('GET', '/api/me/unitops')).status, 401);
+    const put = await call('PUT', `/api/me/unitops/${id}`, { token: alice, body: { contract: EVAPORATOR_CONTRACT, source: 'mcp', savedAt: t2 } });
+    assert.equal(put.status, 200);
+    assert.equal(put.body.applied, true);
+
+    const older = { ...EVAPORATOR_CONTRACT, name: 'Older' };
+    const stale = await call('PUT', `/api/me/unitops/${id}`, { token: alice, body: { contract: older, savedAt: t1 } });
+    assert.equal(stale.body.applied, false, 'an older save does not overwrite a newer one');
+
+    const mine = await call('GET', '/api/me/unitops', { token: alice });
+    assert.equal(mine.body.count, 1);
+    assert.equal(mine.body.unitops[0].contract.name, EVAPORATOR_CONTRACT.name);
+    assert.equal(mine.body.unitops[0].source, 'mcp');
+    assert.equal((await call('GET', '/api/me/unitops', { token: bob })).body.count, 0, 'not visible to another account');
+  });
+
+  it('keeps a removal as a tombstone, and a later save brings it back', async () => {
+    const { call, signIn } = setup();
+    const alice = await signIn();
+    const id = EVAPORATOR_CONTRACT.id;
+    await call('PUT', `/api/me/unitops/${id}`, { token: alice, body: { contract: EVAPORATOR_CONTRACT, savedAt: t1 } });
+    const del = await call('DELETE', `/api/me/unitops/${id}`, { token: alice, body: { savedAt: t2 } });
+    assert.equal(del.body.applied, true);
+    const gone = (await call('GET', '/api/me/unitops', { token: alice })).body.unitops[0];
+    assert.equal(gone.deleted, true);
+    assert.equal(gone.contract, undefined);
+    await call('PUT', `/api/me/unitops/${id}`, { token: alice, body: { contract: EVAPORATOR_CONTRACT, savedAt: '2026-09-26T12:00:00.000Z' } });
+    assert.equal((await call('GET', '/api/me/unitops', { token: alice })).body.unitops[0].deleted, undefined);
+  });
+
+  it('refuses what is not a contract, or a contract under another id', async () => {
+    const { call, signIn } = setup();
+    const alice = await signIn();
+    assert.equal((await call('PUT', '/api/me/unitops/x', { token: alice, body: { contract: { name: 'nope' } } })).status, 400);
+    assert.equal((await call('PUT', '/api/me/unitops/other-id', { token: alice, body: { contract: EVAPORATOR_CONTRACT } })).status, 400);
+  });
+});

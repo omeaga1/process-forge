@@ -5,6 +5,7 @@ import { EQUIPMENT_CATEGORIES, STANDARD_EQUIPMENT_CATALOG, createStandardUnitOp,
 import { TerminalArrow, terminalColor } from '../nodes/TerminalNode.js';
 import { drawingToDressing } from '@process-forge/protocol';
 import { useSavedUnitOps, removeSavedUnitOp, type SavedUnitOp } from '../../library/savedUnitOps.js';
+import { useUnitOpSyncStatus } from '../../library/unitOpCloudSync.js';
 import { contractToProcessNode } from '../../unitop/contractToNode.js';
 import { describeUnitBehavior, formatRate } from '../../model/unitBehavior.js';
 import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
@@ -42,6 +43,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<'MINE' | 'ALL' | EquipmentPaletteItem['category']>('ALL');
   const [justAddedKind, setJustAddedKind] = useState<string | null>(null);
   const saved = useSavedUnitOps();
+  const sync = useUnitOpSyncStatus();
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   // Open on your own designs when there are any: they are why you came.
   useEffect(() => {
@@ -327,6 +329,17 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
             gap: 16
           }}
         >
+          {selectedCategory === 'MINE' && (
+            <div role="status" style={{ gridColumn: '1 / -1', fontSize: 11, color: sync.kind === 'error' ? OsakaJadePalette.status.blocked : OsakaJadePalette.text.muted }}>
+              {sync.kind === 'signed-out'
+                ? 'Kept on this device. Sign in with Google to have them on your other devices too.'
+                : sync.kind === 'syncing'
+                  ? 'Syncing with your account…'
+                  : sync.kind === 'synced'
+                    ? `Synced with your account: on every device you sign in on.`
+                    : sync.message}
+            </div>
+          )}
           {selectedCategory === 'MINE' && savedShown.length === 0 && (
             <div style={{ gridColumn: '1 / -1', padding: '32px 12px', textAlign: 'center', color: OsakaJadePalette.text.muted, fontSize: 13, lineHeight: 1.6 }}>
               <Bookmark size={20} style={{ display: 'block', margin: '0 auto 8px' }} />

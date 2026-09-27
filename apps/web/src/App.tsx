@@ -26,7 +26,7 @@ import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModa
 import { StudioEntryGateModal } from './components/StudioEntryGateModal.js';
 import { initialViewMode, homeViewMode, isDesktopRuntime } from './runtime/desktop.js';
 import { contractToProcessNode } from './unitop/contractToNode.js';
-import { saveUnitOp } from '@process-forge/canvas-ui';
+import { saveUnitOp, useUnitOpCloudSync } from '@process-forge/canvas-ui';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
 import { AccountModal } from './components/AccountModal.js';
@@ -54,6 +54,8 @@ const AppInner: React.FC = () => {
   const updater = useAppUpdater();
   const assistantRoute = useAssistantRoute();
   const { isAccountModalOpen, accountModalTab, openAccountModal, closeAccountModal, isAuthenticated, user } = useAccount();
+  // My unit ops follow the account between devices while signed in.
+  useUnitOpCloudSync(hasCloudSession(user));
   const [isEntryGateOpen, setIsEntryGateOpen] = useState<boolean>(false);
   const [isProjectBrowserOpen, setIsProjectBrowserOpen] = useState<boolean>(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState<boolean>(false);
