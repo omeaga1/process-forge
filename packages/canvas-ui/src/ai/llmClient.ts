@@ -80,8 +80,18 @@ export const DEFAULT_PROVIDER_MODELS: Record<LlmProvider, { defaultModel: string
       { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
       { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick' },
       { id: 'openrouter/auto', name: 'Auto (OpenRouter picks)' },
-      // Needs no credit, so a brand-new account can test the connection.
-      { id: 'openrouter/free', name: 'Free models (rate-limited)' }
+      // Free, and support tool calling, so the in-app assistant works on them
+      // (checked against OpenRouter's catalogue 2026-09-27; rate-limited, and
+      // some free providers log prompts). Largest first: designing a unit
+      // needs a capable model.
+      { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra (free, assistant)' },
+      { id: 'thinkingmachines/inkling:free', name: 'Inkling (free, assistant)' },
+      { id: 'qwen/qwen3.8-27b:free', name: 'Qwen 3.8 27B (free, assistant)' },
+      { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (free, assistant)' },
+      { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super (free, assistant)' },
+      // Needs no credit, so a brand-new account can test the connection. It
+      // picks a different free model per request, so the assistant is uneven on it.
+      { id: 'openrouter/free', name: 'Any free model (rate-limited)' }
     ]
   },
   ollama: {
