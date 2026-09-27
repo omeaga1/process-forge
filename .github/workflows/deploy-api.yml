@@ -56,16 +56,16 @@ jobs:
         run: pnpm dlx wrangler@4 deploy
 
       # The first request applies any new migration; health then reports the
-      # schema this code expects. Fails the run if the API is not answering.
+      # schema this code expects. Cloudflare takes a few seconds to switch to
+      # the new version, so this waits up to a minute for it.
       - name: Check the live API
         run: |
           expected=$(node packages/community-library-api/scripts/latest-migration.mjs)
-          for i in 1 2 3 4 5 6; do
-            body=$(curl -fsS https://process-forge-community-library.vprescenzi.workers.dev/api/health) && break
+          for i in $(seq 1 12); do
+            body=$(curl -fsS https://process-forge-community-library.vprescenzi.workers.dev/api/health || true)
+            echo "$body" | grep -Eq "\"schema\": ?\"$expected\"" && break
             sleep 5
           done
           echo "$body"
-          echo "$body" | grep -Eq "\"schema\": ?\"$expected\"" \
-            || { echo "::error::the live API does not report schema $expected"; exit 1; }
-          curl -fsS -o /dev/null https://process-forge-community-library.vprescenzi.workers.dev/api/unitops \
-            || { echo "::error::GET /api/unitops failed after deploy"; exit 1; }
+          echo "$body" | grep -Eq "\"schema\": ?\"$expected\""             || { echo "::error::the live API does not report schema $expected"; exit 1; }
+          curl -fsS -o /dev/null https://process-forge-community-library.vprescenzi.workers.dev/api/unitops             || { echo "::error::GET /api/unitops failed after deploy"; exit 1; }
