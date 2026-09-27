@@ -23,6 +23,7 @@ export * from './decisions/types.js';
 export * from './decisions/heuristic.js';
 export * from './decisions/questions.js';
 export * from './decisions/fixtures.js';
+export * from './decisions/designQuestions.js';
 export * from './connect.js';
 export * from './edit.js';
 export * from './terminals.js';
