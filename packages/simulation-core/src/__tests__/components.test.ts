@@ -63,7 +63,7 @@ const designed = (id: string, extra: Partial<UnitOpContract>, outlets: string[] 
   }) as unknown as UnitOpContract;
 
 describe('Components: mixing', () => {
-  it('two streams mix by volume: 12% sugar and plain water, 1:1, is 6%', () => {
+  it('two streams mix by mass: 12% sugar and plain water, 1:1 at one density, is 6%', () => {
     const g = line(
       [tank('syrup', { water: 0.88, sugar: 0.12 }), tank('water', { water: 1 }), sink('blend')],
       [pipe('syrup', 'blend'), pipe('water', 'blend')]

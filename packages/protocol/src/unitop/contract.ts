@@ -150,8 +150,8 @@ export type UnitOpBatchPhase = z.infer<typeof UnitOpBatchPhaseSchema>;
  * How the node advances the simulation.
  *
  * DISCRETE_CYCLE -- the node processes `unitsPerCycle` items every
- *   `cycleSeconds`, both expressions. This is the packaging-line shape and is
- *   what the existing hardcoded handlers do.
+ *   `cycleSeconds`, both expressions. This is the packaging-line shape: the
+ *   built-in filler, conveyor, labeler and palletizer run on it.
  *
  * CONTINUOUS_RATE -- the node transforms a continuous stream at a steady rate.
  *   `throughputPerMinute` sets material flow; `dutyKw` reports the energy term.
@@ -166,8 +166,27 @@ export const UnitOpBehaviorSchema = z.discriminatedUnion('mode', [
     mode: z.literal('DISCRETE_CYCLE'),
     cycleSeconds: z.string().min(1),
     unitsPerCycle: z.string().min(1),
-    /** Fraction 0..1 of units scrapped per cycle. Deterministic by design. */
+    /**
+     * Fraction 0..1 of units scrapped per cycle. By default deterministic:
+     * floor(items x fraction) a cycle. With scrapRandom, it is each item's
+     * chance of being a reject, drawn from the run's seeded random stream (an
+     * inspection camera, a fill-weight check).
+     */
     scrapFraction: z.string().optional(),
+    scrapRandom: z.boolean().optional(),
+    /** Items its inlet queue holds before the units feeding it block (default 100). */
+    queueCapacity: z.string().optional(),
+    /**
+     * A cycle waits until unitsPerCycle items are queued, rather than taking
+     * what is there: a palletizer builds a whole layer, a case packer a whole case.
+     */
+    fullCyclesOnly: z.boolean().optional(),
+    /**
+     * It only works on items it is sent: with no item pipe in, it waits
+     * instead of starting cycles on its own (a conveyor, a labeler). Without
+     * it, a cycle unit with no item pipe in is a source (a printer, a press).
+     */
+    itemsRequired: z.boolean().optional(),
     /**
      * Gallons of liquid each cycle draws from the unit's liquid inlet (a
      * filler, a moulding press, a dosing station). The cycle waits until the
@@ -206,6 +225,18 @@ export const UnitOpBehaviorSchema = z.discriminatedUnion('mode', [
     mode: z.literal('BATCH'),
     batchGallons: z.string().min(1),
     phases: z.array(UnitOpBatchPhaseSchema).min(1)
+  }),
+  z.object({
+    /**
+     * A vessel that holds liquid between units: a storage, surge or day tank.
+     * It takes what arrives while it has room and sends what it holds, up to
+     * maxOutflowGpm. Full, it backs up whatever feeds it; empty, it starves
+     * whatever it feeds.
+     */
+    mode: z.literal('STORAGE'),
+    capacityGallons: z.string().min(1),
+    initialGallons: z.string().optional(),
+    maxOutflowGpm: z.string().optional()
   })
 ]);
 export type UnitOpBehavior = z.infer<typeof UnitOpBehaviorSchema>;
@@ -270,6 +301,31 @@ export const UnitOpReactionSchema = z.object({
 });
 export type UnitOpReaction = z.infer<typeof UnitOpReactionSchema>;
 
+/**
+ * Breakdowns. The unit runs for an exponentially distributed time with mean
+ * mtbfMinutes, stops (FAILED) for an exponentially distributed repair with
+ * mean mttrMinutes, and picks up where it left off. Any mode: a cycle unit's
+ * cycle pauses, a liquid unit passes nothing and a batch's clock stops.
+ * Drawn from a random stream of its own, so turning breakdowns on for one
+ * unit does not change any other draw in the run.
+ */
+export const UnitOpReliabilitySchema = z.object({
+  mtbfMinutes: z.string().min(1),
+  mttrMinutes: z.string().min(1)
+});
+export type UnitOpReliability = z.infer<typeof UnitOpReliabilitySchema>;
+
+/**
+ * Random variation. cycleTimeCv is the coefficient of variation (standard
+ * deviation over mean) of a DISCRETE_CYCLE unit's cycle time: each cycle is
+ * drawn from a lognormal with mean cycleSeconds and that spread. 0, or
+ * absent, keeps every cycle exactly cycleSeconds.
+ */
+export const UnitOpVariabilitySchema = z.object({
+  cycleTimeCv: z.string().optional()
+});
+export type UnitOpVariability = z.infer<typeof UnitOpVariabilitySchema>;
+
 /** Records who authored what, so generated values are never mistaken for engineered ones. */
 export const UnitOpProvenanceSchema = z.object({
   authoredBy: z.enum(['ENGINEER', 'SUB_AGENT', 'TEMPLATE']),
@@ -305,6 +361,8 @@ export const UnitOpContractSchema = z.object({
    */
   components: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Component names must be valid identifiers')).optional(),
   reactions: z.array(UnitOpReactionSchema).optional(),
+  reliability: UnitOpReliabilitySchema.optional(),
+  variability: UnitOpVariabilitySchema.optional(),
   provenance: UnitOpProvenanceSchema,
   /**
    * How the unit is drawn on the flowsheet, with a nozzle for every port.
@@ -482,11 +540,27 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     });
     if (!b.phases.some((ph) => ph.kind === 'FILL')) issues.push({ path: 'behavior.phases', message: 'a batch needs a FILL phase' });
     if (!b.phases.some((ph) => ph.kind === 'DRAIN')) issues.push({ path: 'behavior.phases', message: 'a batch needs a DRAIN phase, or it fills once and stops' });
+  } else if (b.mode === 'STORAGE') {
+    checkExpr(b.capacityGallons, 'behavior.capacityGallons');
+    if (b.initialGallons) checkExpr(b.initialGallons, 'behavior.initialGallons');
+    if (b.maxOutflowGpm) checkExpr(b.maxOutflowGpm, 'behavior.maxOutflowGpm');
   } else {
     checkExpr(b.throughputPerMinute, 'behavior.throughputPerMinute');
     if (b.capacityGpm) checkExpr(b.capacityGpm, 'behavior.capacityGpm');
     if (b.dutyKw) checkExpr(b.dutyKw, 'behavior.dutyKw');
     if (b.residenceTimeSeconds) checkExpr(b.residenceTimeSeconds, 'behavior.residenceTimeSeconds');
+  }
+  if (b.mode === 'DISCRETE_CYCLE' && b.queueCapacity) checkExpr(b.queueCapacity, 'behavior.queueCapacity');
+  if (b.mode === 'DISCRETE_CYCLE' && b.scrapRandom && !b.scrapFraction) {
+    issues.push({ path: 'behavior.scrapRandom', message: 'scrapRandom draws each item against scrapFraction, so give scrapFraction too' });
+  }
+  if (contract.reliability) {
+    checkExpr(contract.reliability.mtbfMinutes, 'reliability.mtbfMinutes');
+    checkExpr(contract.reliability.mttrMinutes, 'reliability.mttrMinutes');
+  }
+  if (contract.variability?.cycleTimeCv) {
+    checkExpr(contract.variability.cycleTimeCv, 'variability.cycleTimeCv');
+    if (b.mode !== 'DISCRETE_CYCLE') issues.push({ path: 'variability.cycleTimeCv', message: 'cycle-time variation applies to DISCRETE_CYCLE units only' });
   }
 
   const inlets = contract.ports.filter((p) => p.direction === 'INLET');
@@ -540,17 +614,7 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   }
 
   // Every inlet.* or utility.* a design reads needs a value to check it at.
-  const allExprs = [
-    ...contract.derived.map((d) => d.expr),
-    ...contract.constraints.map((c) => c.expr),
-    ...(b.mode === 'DISCRETE_CYCLE'
-      ? [b.cycleSeconds, b.unitsPerCycle, b.scrapFraction, b.liquidPerCycleGallons, ...(b.inputs ?? []).map((x) => x.perCycle), ...(b.outputs ?? []).map((x) => x.perCycle)]
-      : b.mode === 'BATCH'
-        ? [b.batchGallons, ...b.phases.flatMap((ph) => [ph.gallons, ph.rateGpm, ph.seconds, ph.temperatureC, ph.dutyKw])]
-        : [b.throughputPerMinute, b.capacityGpm, b.dutyKw, b.residenceTimeSeconds]),
-    ...(contract.outlets ?? []).flatMap((o) => [o.share, o.temperatureC, ...Object.values(o.recovery ?? {})]),
-    ...(contract.reactions ?? []).map((r) => r.conversion)
-  ].filter((e): e is string => typeof e === 'string');
+  const allExprs = contractExpressions(contract).map((e) => e.expr);
   const streamRefs = new Set<string>();
   for (const e of allExprs) {
     try {
@@ -599,6 +663,66 @@ function dimensionEnv(contract: UnitOpContract): DimensionEnv {
   };
 }
 
+/** One expression a contract holds: where it is, and what it must work out to (null: any number, or a constraint). */
+export interface ContractExpression {
+  path: string;
+  expr: string;
+  expected: Dimension | null;
+  what: string;
+}
+
+/** Every expression in a contract, with the dimension its field needs. */
+export function contractExpressions(contract: UnitOpContract): ContractExpression[] {
+  const out: ContractExpression[] = [];
+  const add = (expr: string | undefined, expected: Dimension | null, path: string, what: string) => {
+    if (expr) out.push({ path, expr, expected, what });
+  };
+  for (const d of contract.derived) add(d.expr, parseUnit(d.unit), `derived.${d.name}`, `"${d.name}" is declared in ${d.unit}, so it`);
+  for (const c of contract.constraints) add(c.expr, null, `constraints.${c.id}`, 'a constraint');
+
+  const b = contract.behavior;
+  if (b.mode === 'DISCRETE_CYCLE') {
+    add(b.cycleSeconds, TIME, 'behavior.cycleSeconds', 'cycleSeconds');
+    add(b.unitsPerCycle, DIMENSIONLESS, 'behavior.unitsPerCycle', 'unitsPerCycle (a count)');
+    add(b.scrapFraction, DIMENSIONLESS, 'behavior.scrapFraction', 'scrapFraction');
+    add(b.queueCapacity, DIMENSIONLESS, 'behavior.queueCapacity', 'queueCapacity (a count)');
+    add(b.liquidPerCycleGallons, VOLUME, 'behavior.liquidPerCycleGallons', 'liquidPerCycleGallons');
+    (b.inputs ?? []).forEach((x, i) => add(x.perCycle, DIMENSIONLESS, `behavior.inputs[${i}].perCycle`, 'perCycle (a count)'));
+    (b.outputs ?? []).forEach((x, i) => add(x.perCycle, DIMENSIONLESS, `behavior.outputs[${i}].perCycle`, 'perCycle (a count)'));
+  } else if (b.mode === 'BATCH') {
+    add(b.batchGallons, VOLUME, 'behavior.batchGallons', 'batchGallons');
+    b.phases.forEach((ph, i) => {
+      const path = `behavior.phases[${i}]`;
+      add(ph.gallons, VOLUME, `${path}.gallons`, 'gallons');
+      add(ph.rateGpm, VOLUME_FLOW, `${path}.rateGpm`, 'rateGpm');
+      add(ph.seconds, TIME, `${path}.seconds`, 'seconds');
+      add(ph.temperatureC, TEMPERATURE, `${path}.temperatureC`, 'temperatureC');
+      add(ph.dutyKw, POWER, `${path}.dutyKw`, 'dutyKw');
+    });
+  } else if (b.mode === 'STORAGE') {
+    add(b.capacityGallons, VOLUME, 'behavior.capacityGallons', 'capacityGallons');
+    add(b.initialGallons, VOLUME, 'behavior.initialGallons', 'initialGallons');
+    add(b.maxOutflowGpm, VOLUME_FLOW, 'behavior.maxOutflowGpm', 'maxOutflowGpm');
+  } else {
+    add(b.throughputPerMinute, null, 'behavior.throughputPerMinute', 'throughputPerMinute');
+    add(b.capacityGpm, VOLUME_FLOW, 'behavior.capacityGpm', 'capacityGpm');
+    add(b.dutyKw, POWER, 'behavior.dutyKw', 'dutyKw');
+    add(b.residenceTimeSeconds, TIME, 'behavior.residenceTimeSeconds', 'residenceTimeSeconds');
+  }
+  (contract.outlets ?? []).forEach((o, i) => {
+    add(o.share, DIMENSIONLESS, `outlets[${i}].share`, 'a share');
+    add(o.temperatureC, TEMPERATURE, `outlets[${i}].temperatureC`, 'an outlet temperature');
+    for (const [c, expr] of Object.entries(o.recovery ?? {})) add(expr, DIMENSIONLESS, `outlets[${i}].recovery.${c}`, 'a recovery');
+  });
+  (contract.reactions ?? []).forEach((r, i) => add(r.conversion, DIMENSIONLESS, `reactions[${i}].conversion`, 'a conversion'));
+  if (contract.reliability) {
+    add(contract.reliability.mtbfMinutes, TIME, 'reliability.mtbfMinutes', 'mtbfMinutes');
+    add(contract.reliability.mttrMinutes, TIME, 'reliability.mttrMinutes', 'mttrMinutes');
+  }
+  add(contract.variability?.cycleTimeCv, DIMENSIONLESS, 'variability.cycleTimeCv', 'cycleTimeCv');
+  return out;
+}
+
 /**
  * Dimensional checks: every expression adds and compares like with like, and
  * gives what its field needs (a time for cycleSeconds, a power for dutyKw, the
@@ -606,49 +730,9 @@ function dimensionEnv(contract: UnitOpContract): DimensionEnv {
  */
 export function dimensionIssues(contract: UnitOpContract): ContractValidationIssue[] {
   const env = dimensionEnv(contract);
-  const issues: ContractValidationIssue[] = [];
-  const check = (expr: string | undefined, expected: Dimension | null, path: string, what: string) => {
-    if (!expr) return;
-    for (const message of checkDimension(expr, expected, env, what)) issues.push({ path, message, unit: true });
-  };
-
-  for (const d of contract.derived) {
-    const dim = parseUnit(d.unit);
-    check(d.expr, dim, `derived.${d.name}`, `"${d.name}" is declared in ${d.unit}, so it`);
-  }
-  for (const c of contract.constraints) check(c.expr, null, `constraints.${c.id}`, 'a constraint');
-
-  const b = contract.behavior;
-  if (b.mode === 'DISCRETE_CYCLE') {
-    check(b.cycleSeconds, TIME, 'behavior.cycleSeconds', 'cycleSeconds');
-    check(b.unitsPerCycle, DIMENSIONLESS, 'behavior.unitsPerCycle', 'unitsPerCycle (a count)');
-    check(b.scrapFraction, DIMENSIONLESS, 'behavior.scrapFraction', 'scrapFraction');
-    check(b.liquidPerCycleGallons, VOLUME, 'behavior.liquidPerCycleGallons', 'liquidPerCycleGallons');
-    (b.inputs ?? []).forEach((x, i) => check(x.perCycle, DIMENSIONLESS, `behavior.inputs[${i}].perCycle`, 'perCycle (a count)'));
-    (b.outputs ?? []).forEach((x, i) => check(x.perCycle, DIMENSIONLESS, `behavior.outputs[${i}].perCycle`, 'perCycle (a count)'));
-  } else if (b.mode === 'BATCH') {
-    check(b.batchGallons, VOLUME, 'behavior.batchGallons', 'batchGallons');
-    b.phases.forEach((ph, i) => {
-      const path = `behavior.phases[${i}]`;
-      check(ph.gallons, VOLUME, `${path}.gallons`, 'gallons');
-      check(ph.rateGpm, VOLUME_FLOW, `${path}.rateGpm`, 'rateGpm');
-      check(ph.seconds, TIME, `${path}.seconds`, 'seconds');
-      check(ph.temperatureC, TEMPERATURE, `${path}.temperatureC`, 'temperatureC');
-      check(ph.dutyKw, POWER, `${path}.dutyKw`, 'dutyKw');
-    });
-  } else {
-    check(b.throughputPerMinute, null, 'behavior.throughputPerMinute', 'throughputPerMinute');
-    check(b.capacityGpm, VOLUME_FLOW, 'behavior.capacityGpm', 'capacityGpm');
-    check(b.dutyKw, POWER, 'behavior.dutyKw', 'dutyKw');
-    check(b.residenceTimeSeconds, TIME, 'behavior.residenceTimeSeconds', 'residenceTimeSeconds');
-  }
-  (contract.outlets ?? []).forEach((o, i) => {
-    check(o.share, DIMENSIONLESS, `outlets[${i}].share`, 'a share');
-    check(o.temperatureC, TEMPERATURE, `outlets[${i}].temperatureC`, 'an outlet temperature');
-    for (const [c, expr] of Object.entries(o.recovery ?? {})) check(expr, DIMENSIONLESS, `outlets[${i}].recovery.${c}`, 'a recovery');
-  });
-  (contract.reactions ?? []).forEach((r, i) => check(r.conversion, DIMENSIONLESS, `reactions[${i}].conversion`, 'a conversion'));
-  return issues;
+  return contractExpressions(contract).flatMap(({ expr, expected, path, what }) =>
+    checkDimension(expr, expected, env, what).map((message) => ({ path, message, unit: true as const }))
+  );
 }
 
 /**

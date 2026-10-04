@@ -5,14 +5,7 @@ export interface SimEvent {
   timeSeconds: number;
   nodeId: string;
   type:
-    | 'REACTOR_CYCLE_START'
-    | 'REACTOR_DISCHARGE_COMPLETE'
-    | 'FILLER_CYCLE_START'
-    | 'FILLER_CYCLE_COMPLETE'
-    | 'CONVEYOR_TRANSFER_COMPLETE'
-    | 'LABELER_CYCLE_COMPLETE'
-    | 'PALLETIZER_CYCLE_COMPLETE'
-    | 'CONTRACT_CYCLE_COMPLETE'
+    | 'CYCLE_COMPLETE'
     | 'FLUID_TICK'
     | 'MACHINE_FAILURE'
     | 'MACHINE_REPAIRED'
@@ -30,6 +23,8 @@ export interface NodeTelemetrySnapshot {
   instantaneousRatePerMin: number;
   /** Liquid units: gallons held (a tank's level, a reactor's contents). */
   levelGallons?: number;
+  /** Liquid units: kg held. */
+  levelKg?: number;
   /** Liquid units: the level as a fraction of capacity, 0..1. */
   levelFraction?: number;
   /** Liquid units: gallons per minute leaving right now. */
@@ -38,7 +33,7 @@ export interface NodeTelemetrySnapshot {
   temperatureC?: number;
   /** Designed batch units: the name of the phase it is in. */
   phaseName?: string;
-  /** Batch reactors: where the batch is. HEATING: coming up to reaction temperature on its jacket. */
+  /** Batch units whose phases are named Filling, Heating, Reacting, Discharging (the built-in batch reactor): the phase, for the canvas. */
   phase?: 'FILLING' | 'HEATING' | 'REACTING' | 'DISCHARGING';
 }
 
@@ -62,22 +57,27 @@ export interface MachineOeeReport {
     receivedGallons: number;
     deliveredGallons: number;
     levelGallons: number;
-    /** Batch reactors: batches completed (fully discharged). */
+    /** The same in kg: mass is what the engine conserves; gallons follow from each parcel's density. */
+    receivedKg: number;
+    deliveredKg: number;
+    levelKg: number;
+    /** Batch units: batches completed (fully discharged). */
     batches?: number;
     /** °C of what the unit holds at the end of the run. */
     temperatureC: number;
-    /** Volume-weighted °C of everything it sent on. Absent if it sent nothing. */
+    /** °C of everything it sent on, mixed by heat content. Absent if it sent nothing. */
     averageOutletTemperatureC?: number;
     /** Designed units: gallons no outlet took (vented, evaporated). */
     lostGallons?: number;
+    lostKg?: number;
     /** Mass fractions by component of what it holds at the end (a pass-through unit: what it last sent). */
     composition?: Record<string, number>;
-    /** Volume-weighted mass fractions of everything it sent on. */
+    /** Mass fractions of everything it sent on. */
     averageOutletComposition?: Record<string, number>;
   };
-  /** Heat exchangers with a target temperature, batch reactors with a reaction temperature, designed units with a duty. */
+  /** Units that state a duty, and batch units that heat or cool their batch. */
   heat?: HeatReport;
-  /** Designed continuous units: how the design held up at the conditions it actually saw. */
+  /** Liquid units: how the unit's contract held up at the conditions it actually saw. */
   designedUnit?: DesignedUnitReport;
 }
 
@@ -100,17 +100,9 @@ export interface DesignedUnitReport {
 export interface HeatReport {
   /** Heat moved over the run, kWh (heating and cooling both count). */
   energyKwh: number;
-  /** Heat exchangers: the outlet temperature it is set to reach. */
-  targetTemperatureC?: number;
-  /** Heat exchangers: average duty while liquid was flowing through, kW. */
+  /** Continuous units with a duty: average duty while liquid was flowing through, kW. */
   averageDutyKw?: number;
-  /** Heat exchangers: the rated duty, kW. Absent if none is set (unlimited). */
-  ratedDutyKw?: number;
-  /** Heat exchangers: share of flowing time the rated duty was too small to reach the target. */
-  dutyLimitedPercentage?: number;
-  /** Batch reactors: the jacket duty, kW. Absent if none is set (batches reach temperature at once). */
-  jacketDutyKw?: number;
-  /** Batch reactors: time spent bringing batches to reaction temperature. */
+  /** Batch units: time spent in phases that change the batch's temperature. */
   heatingTimeSeconds?: number;
 }
 
@@ -125,7 +117,9 @@ export interface TerminalReport {
   units: number;
   /** Gallons supplied or received. */
   gallons: number;
-  /** Liquid outlets: volume-weighted °C of what arrived. Liquid feeds: °C supplied. */
+  /** kg supplied or received. */
+  kg: number;
+  /** Liquid outlets: °C of what arrived, mixed by heat content. Liquid feeds: °C supplied. */
   temperatureC?: number;
   /** Liquid outlets and feeds with a composition: kg of each component received or supplied. */
   componentsKg?: Record<string, number>;
@@ -149,6 +143,8 @@ export interface SimulationResult {
    * the line from a unit with no outlet pipe.
    */
   totalFluidDeliveredGallons: number;
+  /** The same liquid output in kg. */
+  totalFluidDeliveredKg: number;
   /** Every feed and outlet on the flowsheet, with its totals. Empty when there are none. */
   terminals: TerminalReport[];
   nodeReports: Record<string, MachineOeeReport>;

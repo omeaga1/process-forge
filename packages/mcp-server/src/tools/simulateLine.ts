@@ -77,33 +77,27 @@ export function executeSimulateLine(params: SimulateLineParams): SimulationResul
     };
   });
 
-  // Designed units that broke an ERROR constraint at the conditions they saw.
+  // Units whose contract broke an ERROR constraint at the conditions they saw,
+  // or a WARNING one for a real share of the run (an exchanger short of duty).
   const designNotes = graphToRun.nodes.flatMap((node) => {
     const d = result.nodeReports[node.id]?.designedUnit;
-    const bad = d?.brokenConstraints.filter((c) => c.severity === 'ERROR') ?? [];
+    const bad = d?.brokenConstraints.filter((c) => c.severity === 'ERROR' || c.seconds > duration * 60 * 0.05) ?? [];
     const failed = [
-      ...(d?.evaluationError ? [`its design failed to evaluate for ${d.evaluationErrorSeconds} s (${d.evaluationError})`] : []),
+      ...(d?.evaluationError ? [`its contract failed to evaluate for ${d.evaluationErrorSeconds} s (${d.evaluationError})`] : []),
       ...(d?.shortReactions?.length ? [`reaction ${d.shortReactions.join(', ')} ran short of a co-reactant and stopped there`] : [])
     ];
-    const reasons = [...bad.map((c) => `"${c.message}" for ${c.seconds} s`), ...failed];
-    return reasons.length ? [`Designed unit "${node.name}" at the conditions it actually got: ${reasons.join('; ')}. Revise it with validate_unit_op at those conditions (designInlet).`] : [];
+    const reasons = [...bad.map((c) => `"${c.message}" for ${Math.round((c.seconds / (duration * 60)) * 100)}% of the run`), ...failed];
+    if (!reasons.length) return [];
+    const out = result.nodeReports[node.id]?.fluid?.averageOutletTemperatureC;
+    return [`"${node.name}" at the conditions it actually got: ${reasons.join('; ')}${out !== undefined ? ` (it sent liquid at ${out} °C on average)` : ''}. Change its parameters, or revise its contract with validate_unit_op at those conditions (designInlet).`];
   });
 
-  // Heat that holds the line back, or misses its target.
+  // Batches held back by heating.
   const heatNotes = graphToRun.nodes.flatMap((node) => {
     const h = result.nodeReports[node.id]?.heat;
-    if (!h) return [];
-    if (h.dutyLimitedPercentage !== undefined && h.dutyLimitedPercentage > 5 && h.targetTemperatureC !== undefined) {
-      const out = result.nodeReports[node.id]?.fluid?.averageOutletTemperatureC;
-      return [
-        `"${node.name}" is short of duty ${Math.round(h.dutyLimitedPercentage)}% of the time: it runs at its ${h.ratedDutyKw} kW and the liquid leaves at ${out ?? '?'} °C on average against a ${h.targetTemperatureC} °C target. Raise its duty, or slow the flow through it.`
-      ];
-    }
-    if (h.heatingTimeSeconds !== undefined && h.heatingTimeSeconds > 0) {
-      const share = Math.round((h.heatingTimeSeconds / (duration * 60)) * 100);
-      return share >= 10 ? [`"${node.name}" spent ${share}% of the run heating batches on its ${h.jacketDutyKw} kW jacket; a larger jacket shortens every batch.`] : [];
-    }
-    return [];
+    if (!h?.heatingTimeSeconds) return [];
+    const share = Math.round((h.heatingTimeSeconds / (duration * 60)) * 100);
+    return share >= 10 ? [`"${node.name}" spent ${share}% of the run heating batches; more heating duty shortens every batch.`] : [];
   });
   const heat = [...heatNotes, ...designNotes].length ? ` ${[...heatNotes, ...designNotes].join(' ')}` : '';
 

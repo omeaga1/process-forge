@@ -28,10 +28,11 @@ import {
  * what an MCP client gets from list_standard_unit_ops. One list, so both show
  * the same units with the same defaults.
  *
- * Grouped the way process engineers group equipment. Some entries are
- * built-in kinds with their own handling in the engine; the rest are designed
- * units (contracts), the same form an MCP client writes its own in, so any of
- * them can be tuned or redesigned like a unit you made.
+ * Grouped the way process engineers group equipment. Every entry runs on a
+ * contract, the same form an MCP client writes its own in: the built-in kinds
+ * on the one standardKinds.ts builds from their config, the rest on the
+ * contract they carry. So any of them can be tuned or redesigned like a unit
+ * you made.
  */
 export type EquipmentCategory = 'FEEDS_OUTLETS' | 'TRANSFER_STORAGE' | 'HEAT_TRANSFER' | 'REACTION' | 'SEPARATION' | 'PACKAGING';
 

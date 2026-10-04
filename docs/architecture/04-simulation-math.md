@@ -5,36 +5,55 @@ and the evaluator in `@process-forge/protocol` do all the arithmetic, so a run
 can be repeated and every number traced to a formula. See
 [ADR-0002](../adr/0002-deterministic-sim-vs-llm.md).
 
+## One engine, contracts only
+
+Every unit runs on a unit-op contract. A node of a built-in kind (pump, tank,
+reactor, filler, labeler...) that carries no contract of its own runs on the
+contract `effectiveContract` builds for it from its config
+(`packages/protocol/src/unitop/standardKinds.ts`), with one parameter per
+config key under the same name. The engine has no handler per kind of
+equipment: a pump and a unit a model designed go through the same code. Feeds
+and outlets (`TERMINAL` nodes) are the line's boundary, not units.
+
+The unit panel's description of a unit (`describeUnit`,
+`packages/simulation-core/src/describe.ts`) is generated from the same
+contract and the same rules (`roles.ts`), so it cannot drift from the run.
+
 ## Discrete-event loop
 
-The engine keeps a priority queue of events ordered by time. Each event is a
-unit finishing a cycle or a transfer. Handling an event moves units to the
-next buffer, updates the unit's state and schedules its next event. The run
-stops when the queue is empty or the next event is past the run duration.
+The engine keeps a priority queue of events ordered by time: cycles ending,
+breakdowns and repairs, item feed arrivals, and a liquid step every second.
+A cycle unit takes its items (and, piped, its liquid) when a cycle starts and
+hands on what it made when it ends, holding it (BLOCKED) when there is no room
+downstream. The run stops when the queue is empty or the next event is past
+the run duration.
 
 Every second of a unit's time is attributed to one state: BUSY, BLOCKED,
 STARVED, FAILED or IDLE.
 
-Random draws (filler rejects, labeler inspection failures) come from a seeded
-generator. The seed is returned with the result; passing it back reproduces
-the run exactly.
+Random draws come from seeded generators: per-item rejects from one stream,
+breakdowns from another, cycle-time variation from a third, so turning one on
+changes no other draw. The seed is returned with the result; passing it back
+reproduces the run exactly.
 
 ## Cycle time and capacity
 
-For a rotary filler with $N$ nozzles:
+A cycle unit makes `unitsPerCycle` every `cycleSeconds`; its capacity is
+$\text{units per cycle} / T_{cycle} \times 60$, net of rejects and of the share
+of time it is down. The built-in kinds' contracts:
 
-$$T_{cycle} = T_{fill} + T_{index}$$
-
-$$\text{Capacity (units/min)} = \frac{N}{T_{cycle}} \times 60$$
+| Kind | cycleSeconds | unitsPerCycle | Notes |
+| --- | --- | --- | --- |
+| Rotary filler | $T_{fill} + T_{index}$ | nozzles | draws nozzles × container volume per cycle when piped; rejects per container, at random |
+| Conveyor | $\max(0.1, L / v / \text{capacity})$ | 1 | holds up to its capacity; waits for items |
+| Labeler | $60 / \text{max speed}$ | 1 | inspection rejects per item, at random; waits for items |
+| Palletizer | seconds per layer | containers per layer | waits for a whole layer (its queue always fits one) |
 
 Container throughput from a fluid flow:
 
 $$\text{Throughput (units/min)} = \frac{Q_{in}\ (\text{gal/min})}{V_{container}\ (\text{gal/unit})}$$
 
 (`UnitConverters.volumetricRateToDiscreteUnitsPerMin` in `protocol/src/units.ts`.)
-
-A palletizer's capacity is containers per layer divided by seconds per layer,
-times 60. A labeler's capacity is its configured maximum speed.
 
 ## Static bottleneck estimate
 
@@ -56,8 +75,12 @@ A designed unit is first evaluated at its `designInlet` (the conditions
 the run from starting.
 
 - `DISCRETE_CYCLE`: the unit processes `unitsPerCycle` every `cycleSeconds`,
-  scrapping `scrapFraction` of them. A unit with no inbound item stream is a
-  source and starts immediately; others wait for input. It blocks when
+  scrapping `scrapFraction` of them: floor(items × fraction) a cycle, or,
+  with `scrapRandom`, each item drawn at random. A unit with no inbound item
+  stream is a source and starts immediately, unless it sets `itemsRequired`
+  (a conveyor, a labeler), in which case it waits. `fullCyclesOnly` makes a
+  cycle wait for `unitsPerCycle` queued items; `queueCapacity` sizes its
+  inlet queue (default 100). It blocks when
   downstream buffers are full, like the filler. With `liquidPerCycleGallons`
   and a liquid inlet pipe, each cycle draws that much from its bowl (which
   holds two cycles' worth) and waits, starved, until it is there.
@@ -89,7 +112,10 @@ the run from starting.
     only reported.
 
   It evaluates algebraic relations each second; it does not integrate
-  holdup, so a designed continuous unit holds no liquid of its own.
+  holdup, so a continuous unit holds no liquid of its own.
+- `STORAGE`: a tank of `capacityGallons`, starting at `initialGallons`. It
+  takes what arrives while it has room and sends up to `maxOutflowGpm`
+  (unlimited when absent: its pipes decide).
 - `BATCH`: a vessel of `batchGallons` that runs `phases` in order and then
   repeats. Each phase is evaluated as it starts, with `batch.gallons`,
   `batch.temperatureC`, `batch.massKg` and `batch.number` describing the batch
@@ -98,7 +124,9 @@ the run from starting.
     in, at most `rateGpm`; it is starved while its feed has none. With no feed
     pipe it charges itself at `rateGpm`.
   - `HOLD` lasts `seconds`; the contents move linearly to `temperatureC` and
-    `dutyKw` is counted as energy.
+    `dutyKw` is counted as energy. With no duty stated, a change of
+    temperature still counts its heat, $m\,c_p\,|\Delta T|$. A HOLD of no time
+    takes effect at once.
   - `DRAIN` sends `gallons` (default: everything) out at most `rateGpm`
     (default: its outlet pipes' design flow), to `port` if named, else by
     `outlets[]` shares; it is blocked while downstream is full.
@@ -107,6 +135,12 @@ the run from starting.
   report gives seconds per phase, and constraints broken at a phase's start
   are timed while that phase runs. The static analysis counts a batch unit on
   the liquid path at `batchGallons` over its estimated cycle.
+
+Any mode can add:
+
+- `reliability: { mtbfMinutes, mttrMinutes }`: breakdowns (below);
+- `variability: { cycleTimeCv }`: a cycle unit's cycle times drawn from a
+  lognormal with mean `cycleSeconds` and that coefficient of variation.
 
 ## OEE
 
@@ -118,85 +152,71 @@ $$\text{OEE} = \text{Availability} \times \text{Performance} \times \text{Qualit
 - $\text{Performance} = \min\left(1,\ \dfrac{U_{good} + U_{scrapped}}{(T_{busy}/60) \times \text{theoretical speed}}\right)$
 - $\text{Quality} = \dfrac{U_{good}}{U_{good} + U_{scrapped}}$
 
-Theoretical speed is the filler's nozzle capacity or the labeler's maximum
-speed. Other units use a default of 40 units/min.
+Theoretical speed is a cycle unit's own rate, $\text{unitsPerCycle} / T_{cycle} \times 60$.
+Liquid units have no item rate to compare against, so their performance is 1.
 
 ## Breakdowns
 
-A machine the engine steps (a filler, conveyor, labeler, palletizer or designed
-cycle unit) breaks down when its config sets both `meanTimeBetweenFailuresMinutes`
-and `meanTimeToRepairMinutes`. The time to each failure and each repair time are
-exponential, with those means. They are drawn from their own seeded stream, so
-turning breakdowns on for one machine changes no other random draw.
+Any unit whose contract has `reliability` breaks down (a built-in kind does
+when its config sets both `meanTimeBetweenFailuresMinutes` and
+`meanTimeToRepairMinutes`). The time to each failure and each repair time are
+exponential, with those means, drawn from their own seeded stream.
 
-While a machine is down it is FAILED, and that time is $T_{down}$. The cycle it
-was in pauses, and it finishes the rest after the repair. A machine that was
-waiting when it failed goes back to waiting, and takes any work that arrived
-while it was down. Over a long run it is down about
-$T_{repair} / (T_{fail} + T_{repair})$ of the time.
+While a unit is down it is FAILED, and that time is $T_{down}$. A cycle unit's
+cycle pauses and finishes after the repair; a unit that was waiting goes back
+to waiting and takes any work that arrived meanwhile. A liquid unit passes
+nothing while it is down, and a batch's phase clock stops. Over a long run a
+unit is down about $T_{repair} / (T_{fail} + T_{repair})$ of the time.
 
 ## Liquid
 
-Reactors, tanks, pumps and the other process units carry liquid. The engine
-steps liquid once every simulated second (`packages/simulation-core/src/fluid.ts`).
-A pipe carries liquid when the port it leaves from is continuous. Each step has
-two passes:
+Liquid is on a mass basis (`packages/simulation-core/src/material.ts`). What
+a unit holds, and what moves between units each tick, is a parcel: mass (kg),
+volume (m³), temperature, specific heat and composition. Density and heat
+capacity travel with the material, so a dense brine mixed with water makes a
+holdup of the right mass and the right volume. Inside, everything is SI;
+gallons appear only where a contract states its figures in gallons, and in the
+reports, which give liquid totals in both gallons and kg.
+
+What a unit does with liquid comes from its contract: `STORAGE` holds,
+`BATCH` runs phases, `CONTINUOUS_RATE` passes through (when piped), and a
+`DISCRETE_CYCLE` unit with `liquidPerCycleGallons` and a feed pipe draws from
+a bowl that holds two cycles' worth. A pipe carries liquid when the port it
+leaves from is continuous. Each second has two passes:
 
 1. **Backward, in reverse flow order.** Each unit states how much it can take:
-   - a tank: its free space;
-   - a filling reactor: the rest of its batch, at $V_{batch}/t_{fill}$;
-   - a pipe-fed filler: its bowl, which holds two cycles' worth;
-   - a pump or other pass-through unit: its rate limit, capped by what the
-     units downstream of it can take.
-2. **Forward, in flow order.** Each unit offers what it can send:
-   - a discharging reactor: at its discharge rate;
-   - a tank: at up to its maximum discharge rate;
-   - a pump: whatever just reached it.
-
-   The offer is split among the unit's outlets without exceeding what each one
-   can take. A separator splits it by its vapor ratio.
+   a tank its free space; a filling batch the rest of the phase, at most its
+   rate; a bowl its free space; a pass-through its capacity, capped by what the
+   units downstream of it can take.
+2. **Forward, in flow order.** Each unit offers what it can send (a draining
+   batch at its rate, a tank up to its outflow limit, a pass-through what just
+   reached it), split among its outlets by its contract's outlet plan, or
+   evenly, without exceeding what each can take.
 
 So a full tank backs up whatever feeds it, and an empty tank starves whatever
 it feeds.
 
-**Batch reactors.** A batch reactor cycles through filling, reacting for
-$t_{react}$, and then discharging. A reactor with no feed pipe fills itself,
-because its raw materials are not modelled. Its long-run rate is
+**Heat.** Temperature travels with the liquid. Liquid from a feed is at its
+pipe's temperature; a self-charging batch charges at its design inlet
+temperature (20 °C unless stated). Arriving liquid mixes with what a unit
+holds by heat content:
 
-$$\frac{V_{batch}}{t_{fill} + t_{heat} + t_{react} + V_{batch}/Q_{discharge}}$$
+$$T = \frac{m_{held} c_{p,held} T_{held} + m_{in} c_{p,in} T_{in}}{m_{held} c_{p,held} + m_{in} c_{p,in}}$$
 
-where $t_{heat}$ is zero unless the reactor has a jacket duty (see Heat below).
+with $c_p$ from the fluid's `specificHeatKjPerKgK`, else water's 4.186 kJ/kg·K.
 
-**Heat.** Temperature travels with the liquid (`fluid.ts`, shared constants
-in `packages/protocol/src/thermal.ts`). Liquid from a feed is at its pipe's
-temperature; a self-charging reactor charges at 20 °C. When liquid arrives at a
-unit, it mixes by volume with what the unit holds:
+- A **heat exchanger** with `targetTemperatureCelsius` runs a continuous
+  contract: it needs $Q = \dot m c_p (T_{in} - T_{target})$ at the live stream,
+  uses $\min(|Q|, Q_{duty})$ (`dutyKw`, unlimited when 0), and sends the
+  liquid on at the temperature that gives. When the duty is short, its
+  `duty-limited` check breaks, and the report says for how long.
+- A **batch reactor** runs a `BATCH` contract: fill at $V_{batch}/t_{fill}$,
+  heat to its `fluid.temperatureCelsius` on its jacket in
+  $t_{heat} = m\,c_p\,|T_{react} - T_{charge}| / Q_{jacket}$ (at once with no
+  jacket, the heat still counted), react for $t_{react}$, then discharge. Its
+  long-run rate is
 
-$$T = \frac{V_{held} T_{held} + V_{in} T_{in}}{V_{held} + V_{in}}$$
-
-Mass is $V \times 3.785\,\text{L/gal} \times \rho$, and $c_p$ is the unit's
-fluid `specificHeatKjPerKgK` (or a pipe's), else water's 4.186 kJ/kg·K.
-
-- A **heat exchanger** with `targetTemperatureCelsius` conditions what passes
-  through it each tick. It needs $Q = \dot m c_p (T_{in} - T_{target})$, and
-  moves $\min(|Q|, Q_{duty})$, where $Q_{duty}$ is `dutyKw` (unlimited if
-  unset). An undersized exchanger lets the liquid leave short of the target.
-  It changes temperatures, not flow. Its report gives the energy moved, the
-  average duty while flowing, and the share of that time it was duty-limited.
-  Without a target, it passes liquid through unchanged.
-- A **batch reactor** reacts at its `fluid.temperatureCelsius`. With
-  `jacketDutyKw` set, a full batch first heats (or cools) to it, which takes
-
-  $$t_{heat} = \frac{m\,c_p\,|T_{react} - T_{charge}|}{Q_{jacket}}$$
-
-  in the `HEATING` phase, before the reaction clock starts. Without a jacket
-  duty the batch is at temperature at once, but the heat is still counted. The
-  static bottleneck analysis uses the same $t_{heat}$, with the charge at its
-  inlet pipe's temperature or 20 °C.
-
-**Pipe-fed fillers.** A pipe-fed filler draws $N_{nozzles} \times V_{container}$
-gallons at the start of each cycle, and waits while its bowl holds less than
-that. A filler with no feed pipe fills on its own.
+  $$\frac{V_{batch}}{t_{fill} + t_{heat} + t_{react} + V_{batch}/Q_{discharge}}$$
 
 **Static bottleneck analysis.** The static analysis converts reactors, pumps
 and tank outlets into containers per minute: their gallons per minute divided
@@ -207,7 +227,7 @@ by the container volume of the pipe-fed filler.
 A liquid can carry components: mass fractions by name, such as
 `{ water: 0.88, sugar: 0.12 }`, from a feed's config, a tank's or a pipe's
 `fluid.composition`. Every unit mixes what arrives into what it holds, by
-volume, as it does temperature. Units that do not name a component pass it
+mass. Units that do not name a component pass it
 through.
 
 A designed unit that lists `components` can read `inlet.x.<name>` (and
@@ -224,7 +244,7 @@ A designed unit that lists `components` can read `inlet.x.<name>` (and
   others leave; what no port takes is lost.
 
 Reports give each liquid unit's `composition` and `averageOutletComposition`,
-and each feed and outlet arrow's `componentsKg`.
+and each feed and outlet arrow's `componentsKg`, from the mass that moved.
 
 ## Feeds and outlets
 
@@ -267,10 +287,9 @@ filler's container volume.
 - **Heat:** there are no utility streams (steam, cooling water) and no heat
   losses. An exchanger's duty is a fixed ceiling, not computed from area and
   LMTD, and a reactor does not cool its batch before discharging.
-- **Designed units:** a designed cycle unit's inputs are not read live, and a
-  batch unit's phase is worked out once, when it starts.
-- **Components:** one density per unit, so volumes follow mass at that
-  density; mixing is by volume. A batch unit drains its own composition (no
-  recoveries on drains).
-- **Breakdowns on liquid units:** only machines that make or move whole items
-  break down. Reactors, tanks and pumps do not.
+- **Contracts:** a cycle unit's contract is not re-evaluated live (its inputs
+  are read at the design point), and a batch unit's phase is worked out once,
+  when it starts.
+- **Components:** one density per parcel: components do not carry densities
+  of their own, so volumes add when liquids mix. A batch unit drains its own
+  composition (no recoveries on drains).

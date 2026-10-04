@@ -1,8 +1,17 @@
 import type { ProcessGraph, ProcessNode, UnitOpContract, UnitOpEvaluation } from '@process-forge/protocol';
-import { evaluateUnitOp, blockingViolations, terminalRole, terminalMaterial, terminalSupplyRate, terminalCarries } from '@process-forge/protocol';
+import {
+  blockingViolations,
+  effectiveContract,
+  evaluateUnitOp,
+  terminalCarries,
+  terminalMaterial,
+  terminalRole,
+  terminalSupplyRate,
+  type TerminalRole
+} from '@process-forge/protocol';
 import { PriorityQueue } from './priority-queue.js';
-import { FluidNetwork, fillerDemandGallons, isFluidEdge, type FluidUnit } from './fluid.js';
-import { LITERS_PER_GALLON } from '@process-forge/protocol';
+import { M3_PER_GALLON, MaterialNetwork, gallonsOf, type MaterialUnit, type Parcel } from './material.js';
+import { isCycleSource, isFluidEdge } from './roles.js';
 import { createRng, seedFromString, type SeededRng } from './rng.js';
 import type {
   DesignedUnitReport,
@@ -15,8 +24,26 @@ import type {
   TerminalReport
 } from './types.js';
 
-interface InternalNodeRuntime {
+/**
+ * The line simulation.
+ *
+ * Every unit runs on a contract (see protocol/unitop/standardKinds.ts for the
+ * built-in kinds); there is no handler per kind of equipment. Feeds and
+ * outlets are the line's boundary. Items move as discrete events: a cycle
+ * takes what it needs when it starts and hands on what it made when it ends,
+ * holding it (BLOCKED) when there is no room downstream. Liquid is stepped
+ * each second by the material network (material.ts) inside the same event
+ * loop, so a filler waiting on a reactor and a reactor backed up by a full
+ * tank are the same backpressure.
+ */
+
+interface UnitRuntime {
   node: ProcessNode;
+  /** Feeds and outlets. */
+  terminal: TerminalRole | null;
+  contract?: UnitOpContract;
+  /** The contract at its design point, evaluated before the clock starts. */
+  ev?: UnitOpEvaluation;
   state: MachineOperationalState;
   stateStartTime: number;
   busyTime: number;
@@ -25,164 +52,80 @@ interface InternalNodeRuntime {
   downTime: number;
   unitsProduced: number;
   unitsScrapped: number;
-  /** Input queue: units waiting to be processed by this node. */
-  bufferCans: number;
-  maxBuffer: number;
-  /**
-   * Finished units that could not leave because every downstream buffer was
-   * full. Kept apart from the input queue, so held output is not processed (and
-   * scrapped) a second time. (The filler has no input queue and holds its
-   * output in bufferCans.)
-   */
-  heldUnits: number;
-  /**
-   * A designed unit with inputs[]: its queue per item inlet port, so a cycle
-   * can wait for a whole kit. bufferCans stays the total.
-   */
-  portBuffers?: Map<string, number>;
-  /** A designed unit with outputs[]: finished items per outlet port that could not leave yet. */
+  /** Items waiting to be processed (an outlet: items received this instant). */
+  queue: number;
+  maxQueue: number;
+  /** A unit that takes a kit (inputs[]): its queue per item inlet port. `queue` stays the total. */
+  portQueue?: Map<string, number>;
+  /** Items the cycle in progress took. */
+  inProcess: number;
+  /** Finished items that could not leave yet. */
+  held: number;
+  /** A unit with outputs[]: finished items per outlet port that could not leave yet. */
   heldByPort?: Map<string, number>;
-  fluidLevelGallons: number;
-  /**
-   * Present when this node's behavior comes from a UnitOpContract rather than
-   * one of the hardcoded machine handlers. This is what lets the engine run a
-   * unit operation that did not exist when the engine was compiled.
-   */
-  contract?: UnitOpContract;
-  contractEval?: UnitOpEvaluation;
-  /**
-   * Breakdowns, for a machine whose config sets both meanTimeBetweenFailures-
-   * Minutes and meanTimeToRepairMinutes. Times between failures and repair
-   * times are exponential with those means.
-   */
   failure?: { mtbfSeconds: number; mttrSeconds: number };
-  /** While FAILED: the state to go back to, and the cycle it interrupted. */
   beforeFailure?: MachineOperationalState;
   interrupted?: { type: SimEvent['type']; remainingSeconds: number };
-  /** The one cycle event this machine has queued, so a failure can pause it. */
+  /** The one cycle event this unit has queued, so a breakdown can pause it. */
   pending?: { id: string; type: SimEvent['type']; timeSeconds: number };
 }
+
+type CycleBehavior = Extract<UnitOpEvaluation['behavior'], { mode: 'DISCRETE_CYCLE' }>;
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const round4 = (x: number) => Math.round(x * 1e4) / 1e4;
 
 /** Mass fractions rounded for a report, largest first; undefined when there are none. */
-function fractions(comp: Record<string, number>, total = 1): Record<string, number> | undefined {
+function fractions(comp: Record<string, number>): Record<string, number> | undefined {
   const entries = Object.entries(comp)
-    .map(([k, v]) => [k, v / (total || 1)] as const)
     .filter(([, v]) => v > 1e-6)
     .sort((a, b) => b[1] - a[1]);
   return entries.length ? Object.fromEntries(entries.map(([k, v]) => [k, round4(v)])) : undefined;
 }
 
-/** kg of each component in `gallons` of a unit's liquid of mass fractions `comp`. */
-function componentKg(comp: Record<string, number>, gallons: number, density: number): Record<string, number> | undefined {
-  const entries = Object.entries(comp).filter(([, v]) => v > 1e-9);
-  if (!entries.length || gallons <= 0) return undefined;
-  return Object.fromEntries(entries.map(([k, v]) => [k, round1(v * gallons * LITERS_PER_GALLON * density)]));
+/** kg of each component in a parcel. */
+function componentKg(p: Parcel): Record<string, number> | undefined {
+  const entries = Object.entries(p.comp).filter(([, v]) => v > 1e-9);
+  if (!entries.length || p.kg <= 0) return undefined;
+  return Object.fromEntries(entries.map(([k, v]) => [k, round1(v * p.kg)]));
 }
 
-/** How a designed continuous unit held up at the conditions it actually saw. */
-function designedUnitReport(u: FluidUnit): DesignedUnitReport {
-  const run = u.contractRun!;
-  return {
-    liveEvaluations: run.evaluations,
-    brokenConstraints: Object.entries(run.broken)
-      .map(([id, b]) => ({ id, message: b.message, severity: b.severity, seconds: Math.round(b.seconds) }))
-      .sort((a, b) => (a.severity === b.severity ? b.seconds - a.seconds : a.severity === 'ERROR' ? -1 : 1)),
-    ...(run.firstError ? { evaluationError: run.firstError, evaluationErrorSeconds: Math.round(run.errorSeconds) } : {}),
-    ...(Object.keys(run.shortReactions).length ? { shortReactions: Object.keys(run.shortReactions) } : {}),
-    ...(u.live?.capacityGpm !== undefined ? { capacityGpm: round1(u.live.capacityGpm) } : {}),
-    ...(u.batchRun
-      ? { secondsByPhase: Object.fromEntries(Object.entries(u.batchRun.secondsByPhase).map(([k, v]) => [k, Math.round(v)])) }
-      : {})
-  };
-}
+/** Event types that are a unit's own cycle, and so pause while it is down. */
+const CYCLE_EVENTS = new Set<SimEvent['type']>(['CYCLE_COMPLETE']);
 
-/** The heat a liquid unit moved: heat exchangers with a target, reactors with a reaction temperature, designed units with a duty. */
-function heatReport(u: FluidUnit): { heat?: HeatReport } {
-  const c = u.node.config as Record<string, unknown>;
-  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
-  const energyKwh = round1(u.heat.energyKwh);
-  if (u.contract?.behavior.mode === 'BATCH') {
-    return u.heat.energyKwh > 0 ? { heat: { energyKwh } } : {};
-  }
-  if (u.contract?.behavior.mode === 'CONTINUOUS_RATE' && u.contract.behavior.dutyKw) {
-    const active = u.heat.activeSeconds;
-    return { heat: { energyKwh, ...(active > 0 ? { averageDutyKw: round1((u.heat.energyKwh * 3600) / active) } : {}) } };
-  }
-  if (u.node.kind === 'HEAT_EXCHANGER') {
-    const target = num(c.targetTemperatureCelsius);
-    if (target === undefined) return {};
-    const rated = num(c.dutyKw);
-    const active = u.heat.activeSeconds;
-    return {
-      heat: {
-        energyKwh,
-        targetTemperatureC: target,
-        ...(rated !== undefined && rated >= 0 ? { ratedDutyKw: rated } : {}),
-        ...(active > 0
-          ? {
-              averageDutyKw: round1((u.heat.energyKwh * 3600) / active),
-              dutyLimitedPercentage: round1((u.heat.limitedSeconds / active) * 100)
-            }
-          : {})
-      }
-    };
-  }
-  if (u.role === 'reactor' && num((c.fluid as { temperatureCelsius?: unknown } | undefined)?.temperatureCelsius) !== undefined) {
-    const jacket = num(c.jacketDutyKw);
-    return {
-      heat: {
-        energyKwh,
-        ...(jacket !== undefined && jacket > 0 ? { jacketDutyKw: jacket, heatingTimeSeconds: Math.round(u.heat.heatingSeconds) } : {})
-      }
-    };
-  }
-  return {};
-}
-
-/** Event types that are a machine's own cycle, and so pause while it is down. */
-const CYCLE_EVENTS = new Set<SimEvent['type']>([
-  'FILLER_CYCLE_COMPLETE',
-  'CONVEYOR_TRANSFER_COMPLETE',
-  'LABELER_CYCLE_COMPLETE',
-  'PALLETIZER_CYCLE_COMPLETE',
-  'CONTRACT_CYCLE_COMPLETE'
-]);
+/** Batch phase names the canvas animates as a reactor's phases. */
+const REACTOR_PHASES = new Set(['FILLING', 'HEATING', 'REACTING', 'DISCHARGING']);
 
 export class SimulationEngine {
   private queue = new PriorityQueue<SimEvent>();
   private currentTimeSeconds = 0;
-  private nodes = new Map<string, InternalNodeRuntime>();
+  private nodes = new Map<string, UnitRuntime>();
   private telemetry: NodeTelemetrySnapshot[] = [];
   private eventCounter = 0;
   private lastTelemetrySnapshotMinute = -1;
-  /** Round-robin position per node with more than one outgoing edge. */
+  /** Round-robin position per node (and port) with more than one outgoing edge. */
   private routeCursor = new Map<string, number>();
-  /** Liquid: reactors, tanks, pumps, and what pipe-fed fillers draw. */
-  private readonly fluid: FluidNetwork;
-  /** Seconds between fluid steps. */
+  private readonly material: MaterialNetwork;
+  /** Seconds between liquid steps. */
   private static readonly FLUID_DT = 1;
-  /** Edges that carry containers or parts, not liquid. */
+  /** Edges that carry items, not liquid. */
   private readonly discreteEdges: ProcessGraph['edges'];
 
   private readonly rng: SeededRng;
   /**
-   * Breakdowns draw from their own stream, so turning them on for one machine
-   * does not change any other random draw (rejects, inspection failures).
+   * Breakdowns and cycle-time variation draw from streams of their own, so
+   * turning them on for one unit does not change any other draw in the run.
    */
   private readonly failureRng: SeededRng;
+  private readonly variationRng: SeededRng;
   /** Cycle events paused by a breakdown; skipped when they come due. */
   private readonly cancelled = new Set<string>();
 
   /**
-   * @param options.seed Seed for the simulation's random draws (machine
-   * rejects, inspection failures). Omit it and the seed is derived from the
-   * graph id, so the same graph is reproducible by identity without the caller
-   * having to supply a number. Supply one explicitly to compare two designs
-   * under identical random draws, which is the only way a throughput difference
-   * between them means anything.
+   * @param options.seed Seed for the run's random draws. Omit it and the seed
+   * is derived from the graph id, so the same graph is reproducible by
+   * identity. Supply one to compare two designs under identical draws, which
+   * is the only way a throughput difference between them means anything.
    */
   constructor(
     private readonly graph: ProcessGraph,
@@ -190,9 +133,12 @@ export class SimulationEngine {
   ) {
     this.rng = createRng(options.seed ?? seedFromString(graph.id));
     this.failureRng = createRng(((this.rng.seed ^ 0x9e3779b9) >>> 0) || 1);
+    this.variationRng = createRng(((this.rng.seed ^ 0x85ebca6b) >>> 0) || 1);
     this.discreteEdges = graph.edges.filter((e) => !isFluidEdge(e, graph));
-    this.fluid = new FluidNetwork(graph);
-    this.initializeNodes();
+    const contracts = new Map<string, UnitOpContract>();
+    const evaluations = new Map<string, UnitOpEvaluation>();
+    this.initializeNodes(contracts, evaluations);
+    this.material = new MaterialNetwork(graph, contracts, evaluations);
   }
 
   /** The seed this run used. Reported on the result so a run can be replayed. */
@@ -200,63 +146,38 @@ export class SimulationEngine {
     return this.rng.seed;
   }
 
-  private initializeNodes(): void {
+  private initializeNodes(contracts: Map<string, UnitOpContract>, evaluations: Map<string, UnitOpEvaluation>): void {
     for (const node of this.graph.nodes) {
-      let maxBuffer = 100;
-      let initialFluid = 0;
-
-      if (node.kind === 'ROTARY_FILLER') {
-        const cfg = node.config as { bufferQueueCapacity?: number };
-        maxBuffer = cfg.bufferQueueCapacity ?? 50;
-      } else if (node.kind === 'SURGE_TANK') {
-        const cfg = node.config as { capacityGallons?: number; initialLevelGallons?: number };
-        maxBuffer = cfg.capacityGallons ?? 1000;
-        initialFluid = cfg.initialLevelGallons ?? 500;
-      } else if (node.kind === 'CONVEYOR') {
-        const cfg = node.config as { maxItemCapacity?: number };
-        maxBuffer = cfg.maxItemCapacity ?? 48;
-      } else if (node.kind === 'TERMINAL' && terminalRole(node) !== 'feed') {
-        // An outlet takes everything it is sent.
-        maxBuffer = Infinity;
-      }
-
-      // A node whose config carries a contract is executed generically. The
-      // contract is evaluated once, up front, so that a physically incoherent
-      // unit op fails before the clock starts rather than partway through a run.
-      const contractCfg = node.config as { contract?: UnitOpContract; bufferCapacity?: number };
-      const contract = contractCfg.contract;
-      let contractEval: UnitOpEvaluation | undefined;
+      const terminal = node.kind === 'TERMINAL' ? terminalRole(node) ?? 'product' : null;
+      const contract = terminal ? undefined : effectiveContract(node, this.graph.edges);
+      let ev: UnitOpEvaluation | undefined;
       if (contract) {
-        contractEval = evaluateUnitOp(contract);
-        if (contractEval.error) {
-          throw new Error(
-            `Node "${node.id}" contract "${contract.id}" failed to evaluate at ` +
-              `${contractEval.error.path}: ${contractEval.error.message}`
-          );
+        // Evaluated once, up front, so a physically incoherent unit fails
+        // before the clock starts rather than partway through a run.
+        ev = evaluateUnitOp(contract);
+        if (ev.error) {
+          throw new Error(`Node "${node.id}" contract "${contract.id}" failed to evaluate at ${ev.error.path}: ${ev.error.message}`);
         }
-        const blocking = blockingViolations(contractEval);
+        const blocking = blockingViolations(ev);
         if (blocking.length > 0) {
-          throw new Error(
-            `Node "${node.id}" contract "${contract.id}" is not physically valid: ` +
-              blocking.map((c) => c.message).join(' | ')
-          );
+          throw new Error(`Node "${node.id}" contract "${contract.id}" is not physically valid: ` + blocking.map((c) => c.message).join(' | '));
         }
-        maxBuffer = contractCfg.bufferCapacity ?? maxBuffer;
+        contracts.set(node.id, contract);
+        evaluations.set(node.id, ev);
       }
-
-      const cfg = node.config as { meanTimeBetweenFailuresMinutes?: unknown; meanTimeToRepairMinutes?: unknown };
-      const mtbf = typeof cfg.meanTimeBetweenFailuresMinutes === 'number' ? cfg.meanTimeBetweenFailuresMinutes : 0;
-      const mttr = typeof cfg.meanTimeToRepairMinutes === 'number' ? cfg.meanTimeToRepairMinutes : 0;
-      const steppedKind =
-        node.kind === 'ROTARY_FILLER' ||
-        node.kind === 'CONVEYOR' ||
-        node.kind === 'LABELER' ||
-        node.kind === 'PALLETIZER' ||
-        contractEval?.behavior.mode === 'DISCRETE_CYCLE';
+      const b = ev?.behavior;
+      const cycle = b?.mode === 'DISCRETE_CYCLE' ? b : undefined;
+      const configured = (node.config as { bufferCapacity?: unknown }).bufferCapacity;
+      const maxQueue =
+        terminal && terminal !== 'feed'
+          ? Infinity // an outlet takes everything it is sent
+          : cycle?.queueCapacity ?? (typeof configured === 'number' && configured > 0 ? configured : 100);
 
       this.nodes.set(node.id, {
         node,
-        ...(steppedKind && mtbf > 0 && mttr > 0 ? { failure: { mtbfSeconds: mtbf * 60, mttrSeconds: mttr * 60 } } : {}),
+        terminal,
+        ...(contract ? { contract, ev } : {}),
+        ...(ev?.reliability ? { failure: ev.reliability } : {}),
         state: 'IDLE',
         stateStartTime: 0,
         busyTime: 0,
@@ -265,46 +186,31 @@ export class SimulationEngine {
         downTime: 0,
         unitsProduced: 0,
         unitsScrapped: 0,
-        bufferCans: 0,
-        maxBuffer,
-        heldUnits: 0,
-        fluidLevelGallons: initialFluid,
-        ...(contract ? { contract, contractEval } : {}),
-        ...(contractEval?.behavior.mode === 'DISCRETE_CYCLE' && contractEval.behavior.inputs
-          ? { portBuffers: new Map(contractEval.behavior.inputs.map((x) => [x.port, 0])) }
-          : {}),
-        ...(contractEval?.behavior.mode === 'DISCRETE_CYCLE' && contractEval.behavior.outputs
-          ? { heldByPort: new Map(contractEval.behavior.outputs.map((x) => [x.port, 0])) }
-          : {})
+        queue: 0,
+        maxQueue,
+        inProcess: 0,
+        held: 0,
+        ...(cycle?.inputs ? { portQueue: new Map(cycle.inputs.map((x) => [x.port, 0])) } : {}),
+        ...(cycle?.outputs ? { heldByPort: new Map(cycle.outputs.map((x) => [x.port, 0])) } : {})
       });
     }
   }
 
-  private scheduleEvent(
-    delaySeconds: number,
-    nodeId: string,
-    type: SimEvent['type'],
-    payload?: Record<string, unknown>
-  ): void {
+  private cycleOf(rt: UnitRuntime): CycleBehavior | undefined {
+    return rt.ev?.behavior.mode === 'DISCRETE_CYCLE' ? rt.ev.behavior : undefined;
+  }
+
+  private scheduleEvent(delaySeconds: number, nodeId: string, type: SimEvent['type'], payload?: Record<string, unknown>): void {
     const timeSeconds = this.currentTimeSeconds + delaySeconds;
     const id = `evt-${++this.eventCounter}`;
-    this.queue.enqueue(
-      {
-        id,
-        timeSeconds,
-        nodeId,
-        type,
-        payload
-      },
-      timeSeconds
-    );
+    this.queue.enqueue({ id, timeSeconds, nodeId, type, payload }, timeSeconds);
     if (CYCLE_EVENTS.has(type)) {
       const runtime = this.nodes.get(nodeId);
       if (runtime) runtime.pending = { id, type, timeSeconds };
     }
   }
 
-  private setNodeState(runtime: InternalNodeRuntime, newState: MachineOperationalState): void {
+  private setNodeState(runtime: UnitRuntime, newState: MachineOperationalState): void {
     if (runtime.state === newState) return;
     this.creditElapsed(runtime);
     runtime.state = newState;
@@ -312,12 +218,10 @@ export class SimulationEngine {
 
   /**
    * Adds the time since the last state change to the current state's bucket.
-   *
-   * Split out of setNodeState so finalization can call it directly:
-   * setNodeState returns early on an unchanged state, so a node that is IDLE
-   * all run would otherwise end with zero seconds in every bucket.
+   * Split out of setNodeState so finalization can call it: a unit IDLE all
+   * run would otherwise end with zero seconds in every bucket.
    */
-  private creditElapsed(runtime: InternalNodeRuntime): void {
+  private creditElapsed(runtime: UnitRuntime): void {
     const duration = this.currentTimeSeconds - runtime.stateStartTime;
     switch (runtime.state) {
       case 'BUSY':
@@ -326,12 +230,10 @@ export class SimulationEngine {
       case 'BLOCKED':
         runtime.blockedTime += duration;
         break;
-      case 'STARVED':
-        runtime.starvedTime += duration;
-        break;
       case 'FAILED':
         runtime.downTime += duration;
         break;
+      case 'STARVED':
       case 'IDLE':
         runtime.starvedTime += duration;
         break;
@@ -339,60 +241,31 @@ export class SimulationEngine {
     runtime.stateStartTime = this.currentTimeSeconds;
   }
 
-  /**
-   * Runs the simulation for the requested duration in minutes.
-   */
+  /** Runs the simulation for the requested duration in minutes. */
   public run(durationMinutes: number): SimulationResult {
     const startWallClock = performance.now();
     const maxTimeSeconds = durationMinutes * 60;
 
-    // Bootstrap initial events for machine nodes
+    // Cycle units: a source starts at once; anything else waits for material.
     for (const runtime of this.nodes.values()) {
-      if (runtime.node.kind === 'ROTARY_FILLER') {
-        this.startFillerCycle(runtime);
-      } else if (runtime.node.kind === 'LABELER') {
-        this.setNodeState(runtime, 'STARVED');
-      } else if (runtime.node.kind === 'PALLETIZER') {
-        this.setNodeState(runtime, 'STARVED');
-      }
-
-      // Contract-defined nodes. A node with no inbound edge is a source and
-      // starts cycling immediately; anything downstream waits for material.
-      if (runtime.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
-        if (this.isSourceNode(runtime.node.id)) {
-          this.setNodeState(runtime, 'BUSY');
-          this.scheduleEvent(
-            runtime.contractEval.behavior.cycleSeconds,
-            runtime.node.id,
-            'CONTRACT_CYCLE_COMPLETE'
-          );
-        } else {
-          this.setNodeState(runtime, 'STARVED');
-        }
-      }
+      if (this.cycleOf(runtime)) this.startCycle(runtime);
     }
-
     // Feeds last, once every unit they feed is waiting for material.
     for (const runtime of this.nodes.values()) {
       if (this.isItemFeed(runtime)) this.startFeed(runtime);
     }
-
-    if (this.fluid.active) this.scheduleEvent(SimulationEngine.FLUID_DT, '__fluid__', 'FLUID_TICK');
+    if (this.material.active) this.scheduleEvent(SimulationEngine.FLUID_DT, '__fluid__', 'FLUID_TICK');
     for (const runtime of this.nodes.values()) {
       if (runtime.failure) this.scheduleEvent(this.drawExponential(runtime.failure.mtbfSeconds), runtime.node.id, 'MACHINE_FAILURE');
     }
 
-    // Main discrete-event loop
     while (!this.queue.isEmpty()) {
       const event = this.queue.dequeue();
-      if (!event || event.timeSeconds > maxTimeSeconds) {
-        break;
-      }
-
+      if (!event || event.timeSeconds > maxTimeSeconds) break;
       this.currentTimeSeconds = event.timeSeconds;
       this.handleEvent(event);
 
-      // Record periodic telemetry snapshot once per simulation minute
+      // A telemetry snapshot once per simulated minute.
       const currentMinute = Math.floor(this.currentTimeSeconds / 60);
       if (currentMinute > this.lastTelemetrySnapshotMinute) {
         this.recordTelemetrySnapshot();
@@ -401,15 +274,8 @@ export class SimulationEngine {
     }
 
     this.currentTimeSeconds = maxTimeSeconds;
-
-    // Finalize: every node's trailing time lands in the bucket it was in.
-    for (const runtime of this.nodes.values()) {
-      this.creditElapsed(runtime);
-    }
-
-    const endWallClock = performance.now();
-
-    return this.buildSimulationResult(durationMinutes, endWallClock - startWallClock);
+    for (const runtime of this.nodes.values()) this.creditElapsed(runtime);
+    return this.buildSimulationResult(durationMinutes, performance.now() - startWallClock);
   }
 
   private handleEvent(event: SimEvent): void {
@@ -422,361 +288,118 @@ export class SimulationEngine {
     if (this.cancelled.delete(event.id)) return;
     if (runtime.pending?.id === event.id) delete runtime.pending;
 
-    if (event.type === 'MACHINE_FAILURE') {
-      this.handleFailure(runtime);
-      return;
-    }
-    if (event.type === 'MACHINE_REPAIRED') {
-      this.handleRepair(runtime);
-      return;
-    }
-
     switch (event.type) {
-      case 'FILLER_CYCLE_COMPLETE': {
-        const cfg = runtime.node.config as {
-          nozzleCount?: number;
-          fillTimePerCycleSeconds?: number;
-          indexTimePerCycleSeconds?: number;
-          rejectRatePercentage?: number;
-        };
-        const nozzles = cfg.nozzleCount ?? 10;
-        const rejectRate = (cfg.rejectRatePercentage ?? 0.5) / 100;
-        const rejected = this.rng.next() < rejectRate ? 1 : 0;
-        const produced = nozzles - rejected;
-
-        runtime.unitsProduced += produced;
-        runtime.unitsScrapped += rejected;
-
-        // Route cans downstream. Whatever does not fit is held, and the
-        // filler blocks until a downstream machine makes room.
-        if (this.hasDownstream(runtime.node.id)) {
-          const held = produced - this.routeUnits(runtime, produced);
-          if (held > 0) {
-            runtime.bufferCans += held;
-            this.setNodeState(runtime, 'BLOCKED');
-          } else {
-            this.setNodeState(runtime, 'BUSY');
-          }
-        }
-
-        // Next cycle, unless blocked. A pipe-fed filler needs the product for it.
-        if (runtime.state === 'BUSY') this.startFillerCycle(runtime);
+      case 'MACHINE_FAILURE':
+        this.handleFailure(runtime);
         break;
-      }
-
-      case 'CONVEYOR_TRANSFER_COMPLETE': {
-        if (runtime.bufferCans > 0) {
-          // A conveyor at the end of a line discharges off the end.
-          const moved = this.hasDownstream(runtime.node.id) ? this.routeUnits(runtime, 1) : 1;
-          if (moved > 0) {
-            runtime.bufferCans--;
-            runtime.unitsProduced++;
-            this.unblockUpstreamIfWaiting(runtime.node.id);
-          } else {
-            this.setNodeState(runtime, 'BLOCKED');
-          }
-
-          if (runtime.bufferCans > 0 && runtime.state !== 'BLOCKED') {
-            this.setNodeState(runtime, 'BUSY');
-            const cfg = runtime.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
-            const speed = cfg.speedMetersPerSecond ?? 0.5;
-            const length = cfg.lengthMeters ?? 10;
-            const transitTimePerItem = Math.max(0.1, (length / speed) / Math.max(1, runtime.maxBuffer));
-            this.scheduleEvent(transitTimePerItem, runtime.node.id, 'CONVEYOR_TRANSFER_COMPLETE');
-          } else if (runtime.bufferCans === 0) {
-            this.setNodeState(runtime, 'IDLE');
-          }
-        } else {
-          this.setNodeState(runtime, 'IDLE');
-        }
+      case 'MACHINE_REPAIRED':
+        this.handleRepair(runtime);
         break;
-      }
-
-      case 'LABELER_CYCLE_COMPLETE': {
-        const cfg = runtime.node.config as {
-          maxSpeedUnitsPerMinute?: number;
-          opticalInspectionFailRate?: number;
-        };
-        const speedPerMin = cfg.maxSpeedUnitsPerMinute ?? 40;
-        const failRate = (cfg.opticalInspectionFailRate ?? 0.2) / 100;
-
-        if (runtime.bufferCans > 0) {
-          runtime.bufferCans--;
-          const failed = this.rng.next() < failRate;
-          if (failed) {
-            runtime.unitsScrapped++;
-          } else if (!this.hasDownstream(runtime.node.id) || this.routeUnits(runtime, 1) > 0) {
-            runtime.unitsProduced++;
-          } else {
-            // Was: downstream.bufferCans++ with no capacity check -- measured
-            // at 17,351 in a buffer of 100. Now the labeled can waits here and
-            // the labeler blocks, the same discipline as the filler.
-            runtime.heldUnits = 1;
-            this.unblockUpstreamIfWaiting(runtime.node.id);
-            this.setNodeState(runtime, 'BLOCKED');
-            break;
-          }
-
-          // Unblock upstream machine if it was waiting on this buffer
-          this.unblockUpstreamIfWaiting(runtime.node.id);
-
-          // Continue labeling next can if available
-          if (runtime.bufferCans > 0) {
-            this.setNodeState(runtime, 'BUSY');
-            const cycleSec = 60 / speedPerMin;
-            this.scheduleEvent(cycleSec, runtime.node.id, 'LABELER_CYCLE_COMPLETE');
-          } else {
-            this.setNodeState(runtime, 'STARVED');
-          }
-        } else {
-          this.setNodeState(runtime, 'STARVED');
-        }
+      case 'CYCLE_COMPLETE':
+        this.completeCycle(runtime);
         break;
-      }
-
-      case 'PALLETIZER_CYCLE_COMPLETE': {
-        const cfg = runtime.node.config as {
-          containersPerLayer?: number;
-          cycleSecondsPerLayer?: number;
-        };
-        const cpl = cfg.containersPerLayer ?? 20;
-
-        if (runtime.bufferCans >= cpl) {
-          runtime.bufferCans -= cpl;
-          this.unblockUpstreamIfWaiting(runtime.node.id);
-          // A layer goes on to whatever follows (a product outlet), or off
-          // the end of the line when nothing does.
-          if (this.hasDownstream(runtime.node.id)) {
-            const moved = this.routeUnits(runtime, cpl);
-            runtime.unitsProduced += moved;
-            if (moved < cpl) {
-              runtime.heldUnits += cpl - moved;
-              this.setNodeState(runtime, 'BLOCKED');
-              break;
-            }
-          } else {
-            runtime.unitsProduced += cpl;
-          }
-
-          if (runtime.bufferCans >= cpl) {
-            this.setNodeState(runtime, 'BUSY');
-            this.scheduleEvent(
-              cfg.cycleSecondsPerLayer ?? 30,
-              runtime.node.id,
-              'PALLETIZER_CYCLE_COMPLETE'
-            );
-          } else {
-            this.setNodeState(runtime, 'STARVED');
-          }
-        } else {
-          this.setNodeState(runtime, 'STARVED');
-        }
-        break;
-      }
-
-      case 'CONTRACT_CYCLE_COMPLETE': {
-        this.handleContractCycle(runtime);
-        break;
-      }
-
-      case 'FEED_ARRIVAL': {
+      case 'FEED_ARRIVAL':
         // One item from a rate-limited feed: in, or held until there is room.
         if (this.routeUnits(runtime, 1) > 0) {
           runtime.unitsProduced++;
           this.scheduleFeedArrival(runtime);
         } else {
-          runtime.heldUnits = 1;
+          runtime.held = 1;
           this.setNodeState(runtime, 'BLOCKED');
         }
         break;
-      }
-
       default:
         break;
     }
   }
 
-  /**
-   * No inbound pipe that carries units. A unit fed only liquid it does not
-   * consume (a designed cycle unit with a feedstock pipe) still starts on its
-   * own; before, any inbound pipe made it wait forever for units.
-   */
-  private drawExponential(mean: number): number {
-    // Never exactly 0 or infinite: u is in [0, 1).
-    return -Math.log(1 - this.failureRng.next()) * mean;
+  // ------------------------------------------------------------- cycles
+
+  /** Whether a cycle unit starts cycles on its own (roles.ts). */
+  private isSource(runtime: UnitRuntime): boolean {
+    const b = this.cycleOf(runtime);
+    return Boolean(b) && isCycleSource(b!, this.discreteEdges.filter((e) => e.targetNodeId === runtime.node.id).length);
+  }
+
+  /** Whether the next cycle has its items: a whole kit, a whole cycle's worth, or anything (a source: nothing). */
+  private inputsReady(runtime: UnitRuntime): boolean {
+    const b = this.cycleOf(runtime);
+    if (!b) return false;
+    if (b.inputs && runtime.portQueue) return b.inputs.every((x) => (runtime.portQueue!.get(x.port) ?? 0) >= x.perCycle);
+    if (this.isSource(runtime)) return true;
+    if (b.fullCyclesOnly) return runtime.queue >= b.unitsPerCycle;
+    return runtime.queue > 0;
   }
 
   /**
-   * A breakdown: the machine stops, the cycle it was in pauses where it is,
-   * and it comes back after an exponentially distributed repair.
+   * Starts a cycle if the unit can: not down, not busy, not holding finished
+   * items, with its items (and, piped, its liquid) on hand. It takes them now,
+   * which frees room upstream; it waits (STARVED) when they are not there.
    */
-  private handleFailure(runtime: InternalNodeRuntime): void {
-    if (!runtime.failure) return;
-    runtime.beforeFailure = runtime.state;
-    if (runtime.pending) {
-      this.cancelled.add(runtime.pending.id);
-      runtime.interrupted = {
-        type: runtime.pending.type,
-        remainingSeconds: Math.max(0, runtime.pending.timeSeconds - this.currentTimeSeconds)
-      };
-      delete runtime.pending;
+  private startCycle(runtime: UnitRuntime): void {
+    const b = this.cycleOf(runtime);
+    if (!b || runtime.state === 'FAILED' || runtime.pending) return;
+    if (runtime.held > 0 || [...(runtime.heldByPort?.values() ?? [])].some((n) => n > 0)) {
+      this.setNodeState(runtime, 'BLOCKED');
+      return;
     }
-    this.setNodeState(runtime, 'FAILED');
-    this.scheduleEvent(this.drawExponential(runtime.failure.mttrSeconds), runtime.node.id, 'MACHINE_REPAIRED');
-  }
-
-  /** Back from repair: finish the interrupted cycle, or pick up where it stood. */
-  private handleRepair(runtime: InternalNodeRuntime): void {
-    if (!runtime.failure) return;
-    const before = runtime.beforeFailure ?? 'IDLE';
-    delete runtime.beforeFailure;
-    const interrupted = runtime.interrupted;
-    delete runtime.interrupted;
-
-    if (interrupted) {
-      this.setNodeState(runtime, 'BUSY');
-      this.scheduleEvent(interrupted.remainingSeconds, runtime.node.id, interrupted.type);
-    } else {
-      // It was waiting (starved, blocked or idle): wait again, and take any
-      // work that arrived while it was down.
-      this.setNodeState(runtime, before === 'BUSY' ? 'IDLE' : before);
-      if (runtime.state === 'BLOCKED') this.resumeBlocked(runtime);
-      else if (runtime.node.kind === 'ROTARY_FILLER') this.startFillerCycle(runtime);
-      else this.triggerDownstreamMachine(runtime);
-    }
-    this.scheduleEvent(this.drawExponential(runtime.failure.mtbfSeconds), runtime.node.id, 'MACHINE_FAILURE');
-  }
-
-  /** A feed arrow piped to units that take items (a liquid feed is the fluid network's). */
-  private isItemFeed(runtime: InternalNodeRuntime): boolean {
-    return terminalRole(runtime.node) === 'feed' && this.hasDownstream(runtime.node.id);
-  }
-
-  /**
-   * Starts a feed. With a supply rate, items arrive one at a time at that
-   * rate; without one, the feed keeps every buffer it feeds full, so the
-   * units it feeds are never short of material.
-   */
-  private startFeed(runtime: InternalNodeRuntime): void {
-    if (terminalSupplyRate(runtime.node) > 0) this.scheduleFeedArrival(runtime);
-    else this.topUpFeed(runtime);
-  }
-
-  private scheduleFeedArrival(runtime: InternalNodeRuntime): void {
-    this.setNodeState(runtime, 'BUSY');
-    this.scheduleEvent(60 / terminalSupplyRate(runtime.node), runtime.node.id, 'FEED_ARRIVAL');
-  }
-
-  private topUpFeed(runtime: InternalNodeRuntime): void {
-    // Only the room there is: a feed straight into an outlet (which has no
-    // limit) would otherwise never stop.
-    const room = this.downstreamRuntimes(runtime.node.id).reduce(
-      (sum, t) => sum + (Number.isFinite(t.maxBuffer) ? Math.max(0, t.maxBuffer - t.bufferCans) : 0),
-      0
-    );
-    if (room > 0) runtime.unitsProduced += this.routeUnits(runtime, room);
-    this.setNodeState(runtime, 'IDLE');
-  }
-
-  private isSourceNode(nodeId: string): boolean {
-    return !this.discreteEdges.some((e) => e.targetNodeId === nodeId);
-  }
-
-  /**
-   * Starts a filler cycle. A filler fed by a pipe draws one cycle's product
-   * from its bowl first, and waits (starved) until the bowl has it; a filler
-   * with no feed pipe fills on its own, as before.
-   */
-  private startFillerCycle(runtime: InternalNodeRuntime): void {
-    if (runtime.state === 'FAILED') return;
-    const cfg = runtime.node.config as { fillTimePerCycleSeconds?: number; indexTimePerCycleSeconds?: number };
-    const cycleTime = (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2);
-    if (this.fluid.isPipeFedFiller(runtime.node.id)) {
-      const need = fillerDemandGallons(runtime.node);
-      if (this.fluid.bowl(runtime.node.id) + 1e-6 < need) {
-        this.setNodeState(runtime, 'STARVED');
-        return;
-      }
-      this.fluid.draw(runtime.node.id, need);
-    }
-    this.setNodeState(runtime, 'BUSY');
-    this.scheduleEvent(cycleTime, runtime.node.id, 'FILLER_CYCLE_COMPLETE');
-  }
-
-  /** One step of the liquid, then the states it implies and the fillers it can restart. */
-  private handleFluidTick(): void {
-    this.fluid.tick(this.currentTimeSeconds, SimulationEngine.FLUID_DT);
-    for (const unit of this.fluid.units.values()) {
-      const runtime = this.nodes.get(unit.id);
-      if (!runtime) continue;
-      if (unit.role === 'filler') {
-        if (runtime.state !== 'STARVED') continue;
-        if (runtime.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
-          // A designed unit waiting on liquid restarts once a cycle's worth is there.
-          const ready = this.fluid.bowl(unit.id) + 1e-6 >= this.fluid.drawPerCycle(unit.id);
-          if (ready && this.contractInputsReady(runtime)) this.handleContractCycle(runtime);
-        } else {
-          this.startFillerCycle(runtime);
-        }
-        continue;
-      }
-      this.setNodeState(runtime, this.fluid.stateOf(unit));
-      if (unit.role === 'reactor' || unit.role === 'batch') runtime.unitsProduced = unit.batches;
-    }
-    this.scheduleEvent(SimulationEngine.FLUID_DT, '__fluid__', 'FLUID_TICK');
-  }
-
-  /**
-   * Generic handler for a contract-defined unit operation in DISCRETE_CYCLE
-   * mode. Deliberately mirrors the filler's backpressure discipline rather than
-   * the labeler's: capacity is checked before any transfer, and the node blocks
-   * when downstream is full. A contract-defined node therefore participates in
-   * bottleneck analysis on the same terms as a built-in one.
-   */
-  private handleContractCycle(runtime: InternalNodeRuntime): void {
-    const evaluation = runtime.contractEval;
-    if (!evaluation || evaluation.behavior.mode !== 'DISCRETE_CYCLE') return;
-
-    const { cycleSeconds, unitsPerCycle, scrapFraction } = evaluation.behavior;
-    const isSource = this.isSourceNode(runtime.node.id);
-
-    // Determine how many units this cycle can act on.
-    if (!this.contractInputsReady(runtime)) {
+    if (!this.inputsReady(runtime) || !this.material.cycleReady(runtime.node.id)) {
       this.setNodeState(runtime, 'STARVED');
       return;
     }
-    // A unit that draws liquid each cycle waits for it, as a pipe-fed filler does.
-    if (this.fluid.isPipeFedFiller(runtime.node.id)) {
-      const need = this.fluid.drawPerCycle(runtime.node.id);
-      if (this.fluid.bowl(runtime.node.id) + 1e-6 < need) {
-        this.setNodeState(runtime, 'STARVED');
-        return;
+    const source = this.isSource(runtime);
+    let taken: number;
+    if (b.inputs && runtime.portQueue) {
+      for (const x of b.inputs) {
+        runtime.portQueue.set(x.port, (runtime.portQueue.get(x.port) ?? 0) - x.perCycle);
+        runtime.queue -= x.perCycle;
       }
-      this.fluid.draw(runtime.node.id, need);
-    }
-    let available: number;
-    const kit = evaluation.behavior.inputs;
-    if (kit && runtime.portBuffers) {
-      // A whole kit: exactly what each port needs, then the declared output.
-      for (const x of kit) {
-        runtime.portBuffers.set(x.port, (runtime.portBuffers.get(x.port) ?? 0) - x.perCycle);
-        runtime.bufferCans -= x.perCycle;
-      }
-      available = unitsPerCycle;
-    } else if (isSource) {
-      available = unitsPerCycle;
+      taken = b.unitsPerCycle;
+    } else if (source) {
+      taken = b.unitsPerCycle;
     } else {
-      available = Math.min(unitsPerCycle, runtime.bufferCans);
-      runtime.bufferCans -= available;
+      taken = Math.min(b.unitsPerCycle, runtime.queue);
+      runtime.queue -= taken;
     }
-    // Consuming input frees room upstream. Without this a filler blocked
-    // behind a contract node stayed blocked for the rest of the run.
-    if (!isSource) this.unblockUpstreamIfWaiting(runtime.node.id);
+    this.material.drawCycle(runtime.node.id);
+    runtime.inProcess = taken;
+    this.setNodeState(runtime, 'BUSY');
+    this.scheduleEvent(this.cycleDuration(runtime, b), runtime.node.id, 'CYCLE_COMPLETE');
+    if (!source) this.unblockUpstreamIfWaiting(runtime.node.id);
+  }
 
-    const outputs = evaluation.behavior.outputs;
-    if (outputs && runtime.heldByPort) {
+  /** The cycle's length: cycleSeconds, or a lognormal draw around it with the contract's spread. */
+  private cycleDuration(runtime: UnitRuntime, b: CycleBehavior): number {
+    const cv = runtime.ev?.cycleTimeCv ?? 0;
+    if (!(cv > 0)) return b.cycleSeconds;
+    const s2 = Math.log(1 + cv * cv);
+    const mu = Math.log(b.cycleSeconds) - s2 / 2;
+    // Box-Muller; u1 in (0, 1] so the log is finite.
+    const u1 = 1 - this.variationRng.next();
+    const u2 = this.variationRng.next();
+    const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    return Math.exp(mu + Math.sqrt(s2) * z);
+  }
+
+  /** How many of `n` items are rejects: a fixed fraction, or each drawn at random. */
+  private rejects(n: number, b: CycleBehavior): number {
+    if (!(b.scrapFraction > 0) || n <= 0) return 0;
+    if (!b.scrapRandom) return Math.floor(n * b.scrapFraction);
+    let r = 0;
+    for (let i = 0; i < n; i++) if (this.rng.next() < b.scrapFraction) r++;
+    return r;
+  }
+
+  /** A cycle ends: what it made goes downstream, or is held (BLOCKED) until there is room. */
+  private completeCycle(runtime: UnitRuntime): void {
+    const b = this.cycleOf(runtime);
+    if (!b) return;
+    const made = runtime.inProcess;
+    runtime.inProcess = 0;
+
+    if (b.outputs && runtime.heldByPort) {
       let held = 0;
-      for (const o of outputs) {
+      for (const o of b.outputs) {
         if (o.scrap) runtime.unitsScrapped += o.perCycle;
         if (!this.hasDownstream(runtime.node.id, o.port)) {
           // Nothing piped to this port: its items leave the line.
@@ -788,142 +411,148 @@ export class SimulationEngine {
         runtime.heldByPort.set(o.port, (runtime.heldByPort.get(o.port) ?? 0) + o.perCycle - moved);
         held += o.perCycle - moved;
       }
-      this.setNodeState(runtime, held > 0 ? 'BLOCKED' : 'BUSY');
-      this.nextContractCycle(runtime, cycleSeconds);
+      if (held > 0) this.setNodeState(runtime, 'BLOCKED');
+      else this.startCycle(runtime);
       return;
     }
 
-    // Scrap is a deterministic fraction, not a coin flip, so that a
-    // contract-defined node does not reintroduce the nondeterminism that the
-    // hardcoded handlers suffer from.
-    const scrapped = Math.floor(available * scrapFraction);
-    const produced = available - scrapped;
+    const scrapped = this.rejects(made, b);
+    const good = made - scrapped;
     runtime.unitsScrapped += scrapped;
-
     if (this.hasDownstream(runtime.node.id)) {
-      const transferred = this.routeUnits(runtime, produced);
-      runtime.unitsProduced += transferred;
-
-      const heldBack = produced - transferred;
-      if (heldBack > 0) {
-        // Downstream is full: hold the remainder and block, exactly as the
-        // filler does. This is what makes backpressure propagate.
-        runtime.heldUnits += heldBack;
+      const moved = this.routeUnits(runtime, good);
+      runtime.unitsProduced += moved;
+      if (good - moved > 0) {
+        // Downstream is full: hold the rest and block. This is what makes backpressure propagate.
+        runtime.held += good - moved;
         this.setNodeState(runtime, 'BLOCKED');
-      } else {
-        this.setNodeState(runtime, 'BUSY');
+        return;
       }
     } else {
-      // Terminal node: everything produced leaves the system.
-      runtime.unitsProduced += produced;
+      // The end of a line: what it made leaves the line.
+      runtime.unitsProduced += good;
+    }
+    this.startCycle(runtime);
+  }
+
+  // -------------------------------------------------------- breakdowns
+
+  private drawExponential(mean: number): number {
+    // Never exactly 0 or infinite: u is in [0, 1).
+    return -Math.log(1 - this.failureRng.next()) * mean;
+  }
+
+  /** A breakdown: the unit stops, the cycle it was in pauses where it is, and it comes back after an exponential repair. */
+  private handleFailure(runtime: UnitRuntime): void {
+    if (!runtime.failure) return;
+    runtime.beforeFailure = runtime.state;
+    if (runtime.pending) {
+      this.cancelled.add(runtime.pending.id);
+      runtime.interrupted = { type: runtime.pending.type, remainingSeconds: Math.max(0, runtime.pending.timeSeconds - this.currentTimeSeconds) };
+      delete runtime.pending;
+    }
+    this.material.setDown(runtime.node.id, true);
+    this.setNodeState(runtime, 'FAILED');
+    this.scheduleEvent(this.drawExponential(runtime.failure.mttrSeconds), runtime.node.id, 'MACHINE_REPAIRED');
+  }
+
+  /** Back from repair: finish the interrupted cycle, or pick up where it stood. */
+  private handleRepair(runtime: UnitRuntime): void {
+    if (!runtime.failure) return;
+    const before = runtime.beforeFailure ?? 'IDLE';
+    delete runtime.beforeFailure;
+    const interrupted = runtime.interrupted;
+    delete runtime.interrupted;
+    this.material.setDown(runtime.node.id, false);
+
+    if (interrupted) {
       this.setNodeState(runtime, 'BUSY');
+      this.scheduleEvent(interrupted.remainingSeconds, runtime.node.id, interrupted.type);
+    } else {
+      // It was waiting: wait again, and take any work that arrived while it was down.
+      this.setNodeState(runtime, before === 'BUSY' ? 'IDLE' : before);
+      if (runtime.state === 'BLOCKED') this.resumeBlocked(runtime);
+      else if (this.cycleOf(runtime)) this.startCycle(runtime);
     }
-
-    this.nextContractCycle(runtime, cycleSeconds);
+    this.scheduleEvent(this.drawExponential(runtime.failure.mtbfSeconds), runtime.node.id, 'MACHINE_FAILURE');
   }
 
-  /**
-   * After a cycle: start the next one if there is material for it, otherwise
-   * wait (starved) until some arrives, rather than counting an empty cycle as
-   * busy time.
-   */
-  private nextContractCycle(runtime: InternalNodeRuntime, cycleSeconds: number): void {
-    if (runtime.state !== 'BUSY') return;
-    if (this.contractInputsReady(runtime)) this.scheduleEvent(cycleSeconds, runtime.node.id, 'CONTRACT_CYCLE_COMPLETE');
-    else this.setNodeState(runtime, 'STARVED');
+  // ------------------------------------------------------------- feeds
+
+  /** A feed arrow piped to units that take items (a liquid feed is the material network's). */
+  private isItemFeed(runtime: UnitRuntime): boolean {
+    return runtime.terminal === 'feed' && this.hasDownstream(runtime.node.id);
   }
 
-  private triggerDownstreamMachine(downstream: InternalNodeRuntime): void {
-    if (downstream.state === 'FAILED') return;
-    if (downstream.node.kind === 'TERMINAL') {
+  /** With a supply rate, items arrive one at a time at that rate; without one, the feed keeps every queue it feeds full. */
+  private startFeed(runtime: UnitRuntime): void {
+    if (terminalSupplyRate(runtime.node) > 0) this.scheduleFeedArrival(runtime);
+    else this.topUpFeed(runtime);
+  }
+
+  private scheduleFeedArrival(runtime: UnitRuntime): void {
+    this.setNodeState(runtime, 'BUSY');
+    this.scheduleEvent(60 / terminalSupplyRate(runtime.node), runtime.node.id, 'FEED_ARRIVAL');
+  }
+
+  private topUpFeed(runtime: UnitRuntime): void {
+    // Only the room there is: a feed straight into an outlet (which has no limit) would otherwise never stop.
+    const room = this.downstreamRuntimes(runtime.node.id).reduce(
+      (sum, t) => sum + (Number.isFinite(t.maxQueue) ? Math.max(0, t.maxQueue - t.queue) : 0),
+      0
+    );
+    if (room > 0) runtime.unitsProduced += this.routeUnits(runtime, room);
+    this.setNodeState(runtime, 'IDLE');
+  }
+
+  // ------------------------------------------------------------- liquid
+
+  /** One step of the liquid, then the states it implies and the cycles it can restart. */
+  private handleFluidTick(): void {
+    this.material.tick(this.currentTimeSeconds, SimulationEngine.FLUID_DT);
+    for (const unit of this.material.units.values()) {
+      const runtime = this.nodes.get(unit.id);
+      if (!runtime || runtime.state === 'FAILED') continue;
+      if (unit.role === 'drawer') {
+        // A cycle waiting on liquid starts once a cycle's worth is there.
+        if (runtime.state === 'STARVED') this.startCycle(runtime);
+        continue;
+      }
+      this.setNodeState(runtime, this.material.stateOf(unit));
+      if (unit.role === 'batch') runtime.unitsProduced = unit.batches;
+    }
+    this.scheduleEvent(SimulationEngine.FLUID_DT, '__fluid__', 'FLUID_TICK');
+  }
+
+  // ----------------------------------------------------------- routing
+
+  /** Items arrived at a unit that was waiting for them. */
+  private onArrival(target: UnitRuntime): void {
+    if (target.state === 'FAILED') return;
+    if (target.terminal) {
       // An outlet: what arrives has left the line.
-      downstream.unitsProduced += downstream.bufferCans;
-      downstream.bufferCans = 0;
+      target.unitsProduced += target.queue;
+      target.queue = 0;
       return;
     }
-    if (downstream.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
-      if (downstream.bufferCans > 0 && this.contractInputsReady(downstream) && downstream.state !== 'BUSY') {
-        this.setNodeState(downstream, 'BUSY');
-        this.scheduleEvent(
-          downstream.contractEval.behavior.cycleSeconds,
-          downstream.node.id,
-          'CONTRACT_CYCLE_COMPLETE'
-        );
-      }
-      return;
-    }
-
-    if (downstream.node.kind === 'CONVEYOR' && downstream.bufferCans > 0) {
-      if (downstream.state !== 'BUSY') {
-        this.setNodeState(downstream, 'BUSY');
-        const cfg = downstream.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
-        const speed = cfg.speedMetersPerSecond ?? 0.5;
-        const length = cfg.lengthMeters ?? 10;
-        const transitTimePerItem = Math.max(0.1, (length / speed) / Math.max(1, downstream.maxBuffer));
-        this.scheduleEvent(transitTimePerItem, downstream.node.id, 'CONVEYOR_TRANSFER_COMPLETE');
-      }
-    } else if (downstream.node.kind === 'LABELER' && downstream.bufferCans > 0) {
-      this.setNodeState(downstream, 'BUSY');
-      const cfg = downstream.node.config as { maxSpeedUnitsPerMinute?: number };
-      const speed = cfg.maxSpeedUnitsPerMinute ?? 40;
-      this.scheduleEvent(60 / speed, downstream.node.id, 'LABELER_CYCLE_COMPLETE');
-    } else if (downstream.node.kind === 'PALLETIZER') {
-      const cfg = downstream.node.config as {
-        containersPerLayer?: number;
-        cycleSecondsPerLayer?: number;
-      };
-      const cpl = cfg.containersPerLayer ?? 20;
-      if (downstream.bufferCans >= cpl) {
-        this.setNodeState(downstream, 'BUSY');
-        this.scheduleEvent(
-          cfg.cycleSecondsPerLayer ?? 30,
-          downstream.node.id,
-          'PALLETIZER_CYCLE_COMPLETE'
-        );
-      }
-    }
+    if (target.state === 'STARVED' || target.state === 'IDLE') this.startCycle(target);
   }
 
   private unblockUpstreamIfWaiting(currentNodeId: string): void {
     for (const edge of this.discreteEdges) {
       if (edge.targetNodeId !== currentNodeId) continue;
       const upstream = this.nodes.get(edge.sourceNodeId);
-      if (upstream && terminalRole(upstream.node) === 'feed' && terminalSupplyRate(upstream.node) === 0) this.topUpFeed(upstream);
-      else if (upstream && upstream.state === 'BLOCKED') this.resumeBlocked(upstream);
+      if (!upstream) continue;
+      if (upstream.terminal === 'feed' && terminalSupplyRate(upstream.node) === 0) this.topUpFeed(upstream);
+      else if (upstream.state === 'BLOCKED') this.resumeBlocked(upstream);
     }
   }
 
-  /**
-   * Gives a blocked node another chance to push its held output downstream,
-   * and restarts it if everything got out.
-   * Every kind is handled, including contract nodes, so a node is never BUSY
-   * without an event scheduled.
-   */
-  private resumeBlocked(upstream: InternalNodeRuntime): void {
+  /** Gives a blocked unit another chance to push its held output downstream, and restarts it if everything got out. */
+  private resumeBlocked(upstream: UnitRuntime): void {
     if (upstream.state === 'FAILED') return;
-    const id = upstream.node.id;
-
-    if (upstream.node.kind === 'ROTARY_FILLER') {
-      upstream.bufferCans -= this.routeUnits(upstream, upstream.bufferCans);
-      if (upstream.bufferCans > 0) return; // still full downstream: stay blocked
-      this.startFillerCycle(upstream);
-      return;
-    }
-
-    if (upstream.node.kind === 'CONVEYOR') {
-      this.setNodeState(upstream, 'BUSY');
-      const cfg = upstream.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
-      const transit = Math.max(
-        0.1,
-        (cfg.lengthMeters ?? 10) / (cfg.speedMetersPerSecond ?? 0.5) / Math.max(1, upstream.maxBuffer)
-      );
-      this.scheduleEvent(transit, id, 'CONVEYOR_TRANSFER_COMPLETE');
-      return;
-    }
-
-    // A designed unit with outputs[] holds finished items per outlet port.
+    const outs = this.cycleOf(upstream)?.outputs ?? [];
     if (upstream.heldByPort) {
-      const outs = upstream.contractEval?.behavior.mode === 'DISCRETE_CYCLE' ? upstream.contractEval.behavior.outputs ?? [] : [];
       let left = 0;
       for (const o of outs) {
         const held = upstream.heldByPort.get(o.port) ?? 0;
@@ -935,77 +564,35 @@ export class SimulationEngine {
       }
       if (left > 0) return;
     }
-
-    // Labeler and contract nodes hold finished units in heldUnits.
-    if (upstream.heldUnits > 0) {
-      const moved = this.routeUnits(upstream, upstream.heldUnits);
-      upstream.heldUnits -= moved;
+    if (upstream.held > 0) {
+      const moved = this.routeUnits(upstream, upstream.held);
+      upstream.held -= moved;
       upstream.unitsProduced += moved;
-      if (upstream.heldUnits > 0) return;
+      if (upstream.held > 0) return;
     }
-
-    if (upstream.node.kind === 'TERMINAL') {
+    if (upstream.terminal) {
       // A rate-limited feed whose held item got in: the next one is due.
       this.scheduleFeedArrival(upstream);
       return;
     }
-
-    if (upstream.node.kind === 'PALLETIZER') {
-      const cfg = upstream.node.config as { containersPerLayer?: number; cycleSecondsPerLayer?: number };
-      if (upstream.bufferCans >= (cfg.containersPerLayer ?? 20)) {
-        this.setNodeState(upstream, 'BUSY');
-        this.scheduleEvent(cfg.cycleSecondsPerLayer ?? 30, id, 'PALLETIZER_CYCLE_COMPLETE');
-      } else {
-        this.setNodeState(upstream, 'STARVED');
-      }
-      return;
-    }
-
-    if (upstream.node.kind === 'LABELER') {
-      if (upstream.bufferCans > 0) {
-        this.setNodeState(upstream, 'BUSY');
-        const cfg = upstream.node.config as { maxSpeedUnitsPerMinute?: number };
-        this.scheduleEvent(60 / (cfg.maxSpeedUnitsPerMinute ?? 40), id, 'LABELER_CYCLE_COMPLETE');
-      } else {
-        this.setNodeState(upstream, 'STARVED');
-      }
-      return;
-    }
-
-    if (upstream.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
-      if (this.contractInputsReady(upstream)) {
-        this.setNodeState(upstream, 'BUSY');
-        this.scheduleEvent(upstream.contractEval.behavior.cycleSeconds, id, 'CONTRACT_CYCLE_COMPLETE');
-      } else {
-        this.setNodeState(upstream, 'STARVED');
-      }
-    }
+    this.setNodeState(upstream, 'IDLE');
+    this.startCycle(upstream);
   }
 
-  /**
-   * Whether a designed cycle unit has what its next cycle takes: a whole kit
-   * when it declares inputs[], otherwise any item (or nothing, for a source).
-   */
-  private contractInputsReady(runtime: InternalNodeRuntime): boolean {
-    const b = runtime.contractEval?.behavior;
-    if (b?.mode === 'DISCRETE_CYCLE' && b.inputs && runtime.portBuffers) {
-      return b.inputs.every((x) => (runtime.portBuffers!.get(x.port) ?? 0) >= x.perCycle);
-    }
-    return this.isSourceNode(runtime.node.id) || runtime.bufferCans > 0;
+  /** A kit port's queue holds at least two cycles' worth, so one kit waits while the next gathers. */
+  private portCapacity(runtime: UnitRuntime, port: string): number {
+    const need = this.cycleOf(runtime)?.inputs?.find((x) => x.port === port)?.perCycle ?? 0;
+    return Math.max(runtime.maxQueue, 2 * need);
   }
 
-  /**
-   * A kit port's queue holds at least two cycles' worth: a cycle takes its kit
-   * when it ends, so one kit waits while the next one gathers.
-   */
-  private portCapacity(runtime: InternalNodeRuntime, port: string): number {
-    const b = runtime.contractEval?.behavior;
-    const need = b?.mode === 'DISCRETE_CYCLE' ? b.inputs?.find((x) => x.port === port)?.perCycle ?? 0 : 0;
-    return Math.max(runtime.maxBuffer, 2 * need);
+  /** A queue that waits for whole cycles holds at least one. */
+  private queueCapacity(runtime: UnitRuntime): number {
+    const b = this.cycleOf(runtime);
+    return b?.fullCyclesOnly ? Math.max(runtime.maxQueue, b.unitsPerCycle) : runtime.maxQueue;
   }
 
-  private downstreamRuntimes(nodeId: string): InternalNodeRuntime[] {
-    const out: InternalNodeRuntime[] = [];
+  private downstreamRuntimes(nodeId: string): UnitRuntime[] {
+    const out: UnitRuntime[] = [];
     for (const e of this.discreteEdges) {
       if (e.sourceNodeId !== nodeId) continue;
       const target = this.nodes.get(e.targetNodeId);
@@ -1015,23 +602,17 @@ export class SimulationEngine {
   }
 
   private hasDownstream(nodeId: string, port?: string): boolean {
-    return this.discreteEdges.some(
-      (e) => e.sourceNodeId === nodeId && (port === undefined || e.sourcePortId === port) && this.nodes.has(e.targetNodeId)
-    );
+    return this.discreteEdges.some((e) => e.sourceNodeId === nodeId && (port === undefined || e.sourcePortId === port) && this.nodes.has(e.targetNodeId));
   }
 
   /**
-   * Moves up to `count` units from `from` into its downstream buffers and
+   * Moves up to `count` items from `from` into its downstream queues and
    * returns how many moved. Every transfer is capacity-checked here, so no
-   * handler can overfill a buffer.
-   *
-   * With several outgoing edges, units are dealt round-robin to targets that
-   * have room.
+   * unit can overfill a queue. With several outgoing pipes, items are dealt
+   * round-robin to targets that have room.
    */
-  private routeUnits(from: InternalNodeRuntime, count: number, port?: string): number {
-    // Each target with the inlet port the item arrives at, so a unit that
-    // assembles kits can queue each part separately.
-    const targets: { runtime: InternalNodeRuntime; inPort: string }[] = [];
+  private routeUnits(from: UnitRuntime, count: number, port?: string): number {
+    const targets: { runtime: UnitRuntime; inPort: string }[] = [];
     for (const e of this.discreteEdges) {
       if (e.sourceNodeId !== from.node.id || (port !== undefined && e.sourcePortId !== port)) continue;
       const t = this.nodes.get(e.targetNodeId);
@@ -1043,15 +624,15 @@ export class SimulationEngine {
     let cursor = this.routeCursor.get(key) ?? 0;
     let moved = 0;
     let misses = 0;
-    const touched = new Set<InternalNodeRuntime>();
+    const touched = new Set<UnitRuntime>();
     while (moved < count && misses < targets.length) {
       const { runtime: target, inPort } = targets[cursor % targets.length]!;
       cursor++;
-      const queue = target.portBuffers;
-      const room = queue ? (queue.get(inPort) ?? 0) < this.portCapacity(target, inPort) : target.bufferCans < target.maxBuffer;
+      const ports = target.portQueue;
+      const room = ports ? (ports.get(inPort) ?? 0) < this.portCapacity(target, inPort) : target.queue < this.queueCapacity(target);
       if (room) {
-        target.bufferCans++;
-        if (queue) queue.set(inPort, (queue.get(inPort) ?? 0) + 1);
+        target.queue++;
+        if (ports) ports.set(inPort, (ports.get(inPort) ?? 0) + 1);
         moved++;
         misses = 0;
         touched.add(target);
@@ -1060,12 +641,11 @@ export class SimulationEngine {
       }
     }
     this.routeCursor.set(key, cursor % targets.length);
-
-    for (const target of touched) {
-      if (target.state === 'STARVED' || target.state === 'IDLE') this.triggerDownstreamMachine(target);
-    }
+    for (const target of touched) this.onArrival(target);
     return moved;
   }
+
+  // ----------------------------------------------------------- reports
 
   private recordTelemetrySnapshot(): void {
     for (const r of this.nodes.values()) {
@@ -1075,85 +655,81 @@ export class SimulationEngine {
         state: r.state,
         unitsProduced: r.unitsProduced,
         unitsScrapped: r.unitsScrapped,
-        bufferLevel: r.bufferCans,
-        instantaneousRatePerMin:
-          this.currentTimeSeconds > 0 ? (r.unitsProduced / this.currentTimeSeconds) * 60 : 0,
-        ...this.fluidTelemetry(r.node.id)
+        bufferLevel: r.queue,
+        instantaneousRatePerMin: this.currentTimeSeconds > 0 ? (r.unitsProduced / this.currentTimeSeconds) * 60 : 0,
+        ...this.liquidTelemetry(r.node.id)
       });
     }
   }
 
-  private fluidTelemetry(nodeId: string): Partial<NodeTelemetrySnapshot> {
-    const u = this.fluid.units.get(nodeId);
+  private liquidTelemetry(nodeId: string): Partial<NodeTelemetrySnapshot> {
+    const u = this.material.units.get(nodeId);
     if (!u) return {};
     // An outlet's "level" is everything it has received; a feed's, what it has supplied.
-    const level = u.role === 'sink' ? u.receivedGallons : u.role === 'feed' ? u.deliveredGallons : u.level;
+    const level = u.role === 'sink' ? u.received : u.role === 'feed' ? u.delivered : u.hold;
+    const phaseName = u.batchRun?.phase.name;
+    const phase = phaseName?.toUpperCase();
     return {
-      levelGallons: Math.round(level * 10) / 10,
-      ...(Number.isFinite(u.capacity) ? { levelFraction: Math.min(1, u.level / u.capacity) } : {}),
-      flowGpm: Math.round((u.role === 'sink' ? u.inRate : u.outRate) * 60 * 10) / 10,
-      temperatureC: Math.round(u.tempC * 10) / 10,
-      ...(u.phase ? { phase: u.phase } : {}),
-      ...(u.batchRun ? { phaseName: u.batchRun.phase.name } : {})
+      levelGallons: round1(gallonsOf(level)),
+      levelKg: round1(level.kg),
+      ...(Number.isFinite(u.capacity) ? { levelFraction: Math.min(1, u.hold.m3 / u.capacity) } : {}),
+      flowGpm: round1(((u.role === 'sink' ? u.inRate : u.outRate) / M3_PER_GALLON) * 60),
+      temperatureC: round1(u.role === 'feed' ? u.feedStock!.tempC : u.hold.tempC),
+      ...(phase && REACTOR_PHASES.has(phase) ? { phase: phase as NodeTelemetrySnapshot['phase'] } : {}),
+      ...(phaseName ? { phaseName } : {})
     };
   }
 
-  private buildSimulationResult(
-    durationMinutes: number,
-    wallClockExecutionTimeMs: number
-  ): SimulationResult {
+  /** How a contract unit with liquid held up at the conditions it actually saw. */
+  private contractReport(u: MaterialUnit): DesignedUnitReport {
+    const run = u.run!;
+    return {
+      liveEvaluations: run.evaluations,
+      brokenConstraints: Object.entries(run.broken)
+        .map(([id, b]) => ({ id, message: b.message, severity: b.severity, seconds: Math.round(b.seconds) }))
+        .sort((a, b) => (a.severity === b.severity ? b.seconds - a.seconds : a.severity === 'ERROR' ? -1 : 1)),
+      ...(run.firstError ? { evaluationError: run.firstError, evaluationErrorSeconds: Math.round(run.errorSeconds) } : {}),
+      ...(Object.keys(run.shortReactions).length ? { shortReactions: Object.keys(run.shortReactions) } : {}),
+      ...(u.live && Number.isFinite(u.live.capacity) ? { capacityGpm: round1((u.live.capacity / M3_PER_GALLON) * 60) } : {}),
+      ...(u.batchRun ? { secondsByPhase: Object.fromEntries(Object.entries(u.batchRun.secondsByPhase).map(([k, v]) => [k, Math.round(v)])) } : {})
+    };
+  }
+
+  /** The heat a liquid unit moved: a duty it states, or a batch's heating. */
+  private heatReport(u: MaterialUnit): { heat?: HeatReport } {
+    if (!(u.heat.energyKwh > 1e-9) && !(u.heat.activeSeconds > 0)) return {};
+    const energyKwh = round1(u.heat.energyKwh);
+    return {
+      heat: {
+        energyKwh,
+        ...(u.role === 'pass' && u.heat.activeSeconds > 0 ? { averageDutyKw: round1((u.heat.energyKwh * 3600) / u.heat.activeSeconds) } : {}),
+        ...(u.heat.heatingSeconds > 0 ? { heatingTimeSeconds: Math.round(u.heat.heatingSeconds) } : {})
+      }
+    };
+  }
+
+  private buildSimulationResult(durationMinutes: number, wallClockExecutionTimeMs: number): SimulationResult {
     const nodeReports: Record<string, MachineOeeReport> = {};
-    const totalSimTime = durationMinutes * 60;
+    const totalTime = durationMinutes * 60;
     let totalPackaged = 0;
     let totalScrapped = 0;
-    let totalFluidDelivered = 0;
+    let fluidOutM3 = 0;
+    let fluidOutKg = 0;
     const terminals: TerminalReport[] = [];
 
     for (const [nodeId, r] of this.nodes.entries()) {
-      // Every second is now attributed to a state, so the total is the run.
-      const totalTime = totalSimTime;
       const operatingTime = r.busyTime;
       const plannedProductionTime = totalTime - r.downTime;
-
       const availability = plannedProductionTime > 0 ? operatingTime / plannedProductionTime : 1.0;
       const totalUnits = r.unitsProduced + r.unitsScrapped;
       const quality = totalUnits > 0 ? r.unitsProduced / totalUnits : 1.0;
 
-      // Performance based on theoretical maximum capacity
-      let theoreticalSpeedPerMin = 40;
-      if (r.node.kind === 'ROTARY_FILLER') {
-        const cfg = r.node.config as {
-          nozzleCount?: number;
-          fillTimePerCycleSeconds?: number;
-          indexTimePerCycleSeconds?: number;
-        };
-        const nozzles = cfg.nozzleCount ?? 10;
-        const cycle = (cfg.fillTimePerCycleSeconds ?? 10) + (cfg.indexTimePerCycleSeconds ?? 2);
-        theoreticalSpeedPerMin = (nozzles / cycle) * 60;
-      } else if (r.node.kind === 'LABELER') {
-        const cfg = r.node.config as { maxSpeedUnitsPerMinute?: number };
-        theoreticalSpeedPerMin = cfg.maxSpeedUnitsPerMinute ?? 40;
-      } else if (r.node.kind === 'PALLETIZER') {
-        const cfg = r.node.config as { containersPerLayer?: number; cycleSecondsPerLayer?: number };
-        theoreticalSpeedPerMin = ((cfg.containersPerLayer ?? 20) / (cfg.cycleSecondsPerLayer ?? 30)) * 60;
-      } else if (r.node.kind === 'CONVEYOR') {
-        const cfg = r.node.config as { speedMetersPerSecond?: number; lengthMeters?: number };
-        const perItem = Math.max(0.1, (cfg.lengthMeters ?? 10) / (cfg.speedMetersPerSecond ?? 0.5) / Math.max(1, r.maxBuffer));
-        theoreticalSpeedPerMin = 60 / perItem;
-      } else if (r.contractEval?.behavior.mode === 'DISCRETE_CYCLE') {
-        theoreticalSpeedPerMin = r.contractEval.behavior.unitsPerMinute;
-      }
-
+      const unit = this.material.units.get(nodeId);
+      const isLiquid = Boolean(unit && unit.role !== 'drawer');
+      // Performance against the contract's own rate; liquid units have no item rate to compare against.
+      const theoreticalSpeedPerMin = this.cycleOf(r)?.unitsPerMinute ?? 0;
       const theoreticalMaxUnits = (operatingTime / 60) * theoreticalSpeedPerMin;
-      // Liquid units have no container rate to compare against.
-      const fluidUnit = this.fluid.units.get(nodeId);
-      const isLiquid = Boolean(fluidUnit && fluidUnit.role !== 'filler');
-      const performance = isLiquid
-        ? 1.0
-        : theoreticalMaxUnits > 0
-          ? Math.min(1.0, totalUnits / theoreticalMaxUnits)
-          : 1.0;
-
+      const performance = isLiquid || theoreticalMaxUnits <= 0 ? 1.0 : Math.min(1.0, totalUnits / theoreticalMaxUnits);
       const overallOee = availability * performance * quality;
 
       nodeReports[nodeId] = {
@@ -1169,81 +745,74 @@ export class SimulationEngine {
         downTimeSeconds: Math.round(r.downTime),
         unitsProduced: r.unitsProduced,
         unitsScrapped: r.unitsScrapped,
-        ...(isLiquid && fluidUnit
+        ...(isLiquid && unit
           ? {
               fluid: {
-                receivedGallons: Math.round(fluidUnit.receivedGallons * 10) / 10,
-                deliveredGallons: Math.round(fluidUnit.deliveredGallons * 10) / 10,
-                levelGallons: Math.round(fluidUnit.level * 10) / 10,
-                ...(fluidUnit.role === 'reactor' || fluidUnit.role === 'batch' ? { batches: fluidUnit.batches } : {}),
-                temperatureC: round1(fluidUnit.tempC),
-                ...(fractions(fluidUnit.comp) ? { composition: fractions(fluidUnit.comp) } : {}),
-                ...(fluidUnit.heat.sentGallons > 1e-6 && fractions(fluidUnit.sentComp, fluidUnit.heat.sentGallons)
-                  ? { averageOutletComposition: fractions(fluidUnit.sentComp, fluidUnit.heat.sentGallons) }
-                  : {}),
-                ...(fluidUnit.heat.sentGallons > 1e-6
-                  ? { averageOutletTemperatureC: round1(fluidUnit.heat.sentGallonDegrees / fluidUnit.heat.sentGallons) }
-                  : {}),
-                ...(fluidUnit.lostGallons > 1e-6 ? { lostGallons: round1(fluidUnit.lostGallons) } : {})
+                receivedGallons: round1(gallonsOf(unit.received)),
+                deliveredGallons: round1(gallonsOf(unit.delivered)),
+                levelGallons: round1(gallonsOf(unit.hold)),
+                receivedKg: round1(unit.received.kg),
+                deliveredKg: round1(unit.delivered.kg),
+                levelKg: round1(unit.hold.kg),
+                ...(unit.role === 'batch' ? { batches: unit.batches } : {}),
+                temperatureC: round1(unit.role === 'sink' && unit.received.m3 > 0 ? unit.received.tempC : unit.role === 'feed' ? unit.feedStock!.tempC : unit.hold.tempC),
+                ...(fractions(unit.role === 'sink' ? unit.received.comp : unit.hold.comp) ? { composition: fractions(unit.role === 'sink' ? unit.received.comp : unit.hold.comp) } : {}),
+                ...(unit.heat.sent.m3 > 1e-9 && fractions(unit.heat.sent.comp) ? { averageOutletComposition: fractions(unit.heat.sent.comp) } : {}),
+                ...(unit.heat.sent.m3 > 1e-9 ? { averageOutletTemperatureC: round1(unit.heat.sent.tempC) } : {}),
+                ...(unit.lost.m3 > 1e-9 ? { lostGallons: round1(gallonsOf(unit.lost)), lostKg: round1(unit.lost.kg) } : {})
               },
-              ...heatReport(fluidUnit)
+              ...this.heatReport(unit)
             }
           : {}),
-        ...(fluidUnit?.contractRun && fluidUnit.contract?.behavior.mode !== 'DISCRETE_CYCLE'
-          ? { designedUnit: designedUnitReport(fluidUnit) }
-          : {})
+        ...(unit?.run && r.ev?.behavior.mode !== 'DISCRETE_CYCLE' ? { designedUnit: this.contractReport(unit) } : {})
       };
-      const role = terminalRole(r.node);
-      if (role) {
+
+      if (r.terminal) {
         // A feed or outlet: its totals, and (for a product) the line's output.
+        const moved = unit ? (r.terminal === 'feed' ? unit.delivered : unit.received) : undefined;
         const report: TerminalReport = {
           nodeId,
           name: r.node.name,
-          role,
+          role: r.terminal,
           material: terminalMaterial(r.node),
           carries: terminalCarries(r.node),
           units: r.unitsProduced,
-          gallons: fluidUnit ? Math.round((role === 'feed' ? fluidUnit.deliveredGallons : fluidUnit.receivedGallons) * 10) / 10 : 0,
-          ...(fluidUnit && (role === 'feed' ? fluidUnit.deliveredGallons : fluidUnit.receivedGallons) > 1e-6
-            ? { temperatureC: round1(fluidUnit.tempC) }
-            : {}),
-          ...(() => {
-            if (!fluidUnit) return {};
-            const gallons = role === 'feed' ? fluidUnit.deliveredGallons : fluidUnit.receivedGallons;
-            const kg = componentKg(fluidUnit.comp, gallons, this.fluid.densityOf(fluidUnit));
-            return kg ? { componentsKg: kg } : {};
-          })()
+          gallons: moved ? round1(gallonsOf(moved)) : 0,
+          kg: moved ? round1(moved.kg) : 0,
+          ...(moved && moved.m3 > 1e-9 ? { temperatureC: round1(moved.tempC) } : {}),
+          ...(moved && componentKg(moved) ? { componentsKg: componentKg(moved) } : {})
         };
         terminals.push(report);
         nodeReports[nodeId]!.terminal = report;
-        if (role === 'product') {
+        if (r.terminal === 'product') {
           totalPackaged += report.units;
-          totalFluidDelivered += fluidUnit?.receivedGallons ?? 0;
+          fluidOutM3 += unit?.received.m3 ?? 0;
+          fluidOutKg += unit?.received.kg ?? 0;
         }
         continue;
       }
 
-      if (fluidUnit) totalFluidDelivered += fluidUnit.leftLineGallons;
-
-      // Output is what leaves the line: product outlets, and every unit at
-      // the end of a line that makes units. Liquid leaving the line is
-      // reported in gallons instead.
-      if (!this.hasDownstream(nodeId) && !isLiquid) {
-        totalPackaged += r.unitsProduced;
+      if (unit) {
+        fluidOutM3 += unit.leftLine.m3;
+        fluidOutKg += unit.leftLine.kg;
       }
+      // Output is what leaves the line: product outlets, and every unit at the
+      // end of a line that makes items. Liquid leaving the line is reported in
+      // gallons and kg instead.
+      if (!this.hasDownstream(nodeId) && !isLiquid) totalPackaged += r.unitsProduced;
       totalScrapped += r.unitsScrapped;
     }
 
     return {
       seed: this.rng.seed,
       durationMinutes,
-      simulatedTimeSeconds: totalSimTime,
+      simulatedTimeSeconds: totalTime,
       wallClockExecutionTimeMs: Math.round(wallClockExecutionTimeMs * 100) / 100,
       totalUnitsPackaged: totalPackaged,
       totalUnitsScrapped: totalScrapped,
-      averageLineThroughputUnitsPerMin:
-        durationMinutes > 0 ? Math.round((totalPackaged / durationMinutes) * 10) / 10 : 0,
-      totalFluidDeliveredGallons: Math.round(totalFluidDelivered * 10) / 10,
+      averageLineThroughputUnitsPerMin: durationMinutes > 0 ? Math.round((totalPackaged / durationMinutes) * 10) / 10 : 0,
+      totalFluidDeliveredGallons: round1(fluidOutM3 / M3_PER_GALLON),
+      totalFluidDeliveredKg: round1(fluidOutKg),
       terminals,
       nodeReports,
       telemetryLog: this.telemetry
@@ -1251,14 +820,7 @@ export class SimulationEngine {
   }
 }
 
-/**
- * High-level runner to execute a simulation scenario.
- */
-export function simulateProcess(
-  graph: ProcessGraph,
-  durationMinutes: number,
-  options: { seed?: number } = {}
-): SimulationResult {
-  const engine = new SimulationEngine(graph, options);
-  return engine.run(durationMinutes);
+/** Runs a flowsheet for `durationMinutes` and reports what happened. */
+export function simulateProcess(graph: ProcessGraph, durationMinutes: number, options: { seed?: number } = {}): SimulationResult {
+  return new SimulationEngine(graph, options).run(durationMinutes);
 }
