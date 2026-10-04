@@ -102,26 +102,14 @@ export interface MasterOrchestratorContext {
   maxThroughput?: number;
 }
 
+/** The loaded key itself, not just the keychain's record of one. */
 function hasValidCredentials(creds: LlmCredentials): boolean {
-  switch (creds.provider) {
-    case 'gemini':
-      return Boolean(creds.geminiApiKey?.trim());
-    case 'claude':
-      return Boolean(creds.claudeApiKey?.trim());
-    case 'openai':
-      return Boolean(creds.openaiApiKey?.trim());
-    case 'openrouter':
-      return Boolean(creds.openrouterApiKey?.trim());
-    case 'ollama':
-      return Boolean(creds.ollamaEndpoint?.trim() || true);
-    default:
-      return false;
-  }
+  return creds.provider === 'openrouter' && Boolean(creds.openrouterApiKey?.trim());
 }
 
 /**
- * Dispatch message for a specific Unit Operation Sub-Agent
- * Supports real Gemini, Claude, OpenAI, Ollama, MCP tool calls, and enterprise OAuth.
+ * Dispatch message for a specific Unit Operation Sub-Agent, on OpenRouter
+ * when signed in, and offline otherwise.
  */
 export async function dispatchUnitOpMessage(
   message: string,
@@ -191,7 +179,7 @@ export async function dispatchUnitOpMessage(
     };
   }
 
-  // 3. An AI provider in the app (Gemini, Claude, OpenAI, OpenRouter, Ollama)
+  // 3. OpenRouter in the app
   if (!hasValidCredentials(creds)) {
     if (cadDrawing) {
       return {
@@ -279,13 +267,13 @@ export async function dispatchMasterOrchestratorMessage(
       };
     }
     return {
-      text: `Working offline on "${ctx.graphName}". Standard equipment can be added from a plain request ("add a surge tank"), and custom unit operations from New Unit Op. Connecting a model via MCP or an API key adds free-form engineering advice.`,
+      text: `Working offline on "${ctx.graphName}". Standard equipment can be added from a plain request ("add a surge tank"), and custom unit operations from New Unit Op. Signing in with OpenRouter, or using an MCP client, adds free-form engineering advice.`,
       senderBadge: 'Offline (Local Only)',
       isOfflineSolver: true
     };
   }
 
-  // 2. An AI provider in the app, or the offline solver without one
+  // 2. OpenRouter in the app, or the offline solver without it
   if (!hasValidCredentials(creds)) {
     const { createdNode, clarification } = await parseUnitOpToolCall('', message);
 
@@ -327,7 +315,7 @@ export async function dispatchMasterOrchestratorMessage(
     }
 
     return {
-      text: `Process Copilot offline solver active for "${ctx.graphName}". You can query plant bottlenecks, throughput, or type "add pump" / "add tank". Connect an API key in AI Tools to unlock full autonomous reasoning.`,
+      text: `Process Copilot offline solver active for "${ctx.graphName}". You can query plant bottlenecks, throughput, or type "add pump" / "add tank". Sign in with OpenRouter in AI model settings for free-form answers.`,
       senderBadge: 'Offline Solver',
       isOfflineSolver: true
     };

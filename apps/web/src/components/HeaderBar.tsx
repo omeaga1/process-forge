@@ -491,7 +491,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             whiteSpace: 'nowrap',
             boxSizing: 'border-box'
           }}
-          title="AI model: Claude Desktop over MCP, or OpenRouter in the app (other options inside)"
+          title="AI model: an MCP client such as Claude Desktop, or OpenRouter in the app"
         >
           <Cpu size={14} color={OsakaJadePalette.jade.glow} />
           {!compact && <span>AI Tools</span>}

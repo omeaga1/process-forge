@@ -1,9 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { migratePlaintextCredentialsToVault } from '@process-forge/canvas-ui';
+import { migratePlaintextCredentialsToVault, migrateRemovedProviders } from '@process-forge/canvas-ui';
 import { App } from './App.js';
 import { routeExternalLinksToBrowser } from './runtime/externalLinks.js';
 import './index.css';
+
+// Settings for a provider the app no longer calls (a Claude, OpenAI or Gemini
+// key, or Ollama) are deleted, and the AI model dialog says so once. Runs
+// first: its localStorage part is synchronous, so the move below sees only
+// what is left.
+void migrateRemovedProviders().catch((e) => console.warn('Removed-provider cleanup failed:', e));
 
 // Desktop: move any API key an earlier version left in localStorage into the
 // OS keychain, and scrub the plaintext. A no-op in the browser (no keychain)

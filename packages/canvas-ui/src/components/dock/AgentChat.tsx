@@ -4,11 +4,10 @@ import { useTheme } from '../../hooks/useTheme.js';
 import { loadLlmCredentials } from '../../ai/aiModelManager.js';
 import { runAgent, type AgentMessage, type ApprovalRequest } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
-import { JevOpenRouterProvider, isJevEnabled, offlineDecider, setJevEnabled } from '../../ai/agent/jevProvider.js';
-import { DESIGN_QUESTIONS } from '@process-forge/protocol';
+import { JevOpenRouterProvider, isJevEnabled, offlineDecider, setJevEnabled, testJev } from '../../ai/agent/jevProvider.js';
 
 /**
- * The in-app assistant: chat with a model (OpenRouter or OpenAI) that works on
+ * The in-app assistant: chat with a model on OpenRouter that works on
  * the open flowsheet with ProcessForge's tools. What it reads, simulates and
  * checks runs straight away and is listed as it happens; every change to the
  * flowsheet is shown as a card and waits for Approve.
@@ -41,25 +40,10 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
   const [jevTest, setJevTest] = useState<{ busy: boolean; text?: string; ok?: boolean }>({ busy: false });
 
   // Asks Jev about a sample unit on the engineer's OpenRouter sign-in, and says what came back.
-  const testJev = async () => {
+  const runJevTest = async () => {
     setJevTest({ busy: true });
     const creds = await loadLlmCredentials();
-    const key = creds.provider === 'openrouter' ? creds.openrouterApiKey?.trim() : undefined;
-    if (!key) {
-      setJevTest({ busy: false, ok: false, text: 'Jev runs on OpenRouter: sign in with OpenRouter in the AI model settings first.' });
-      return;
-    }
-    const probe = new JevOpenRouterProvider(key, { timeoutMs: 30000 });
-    const a = await probe.ask({ message: 'Spray dryer: dries milk concentrate to powder with hot air; the moist air leaves as exhaust.' }, DESIGN_QUESTIONS);
-    setJevTest(
-      probe.lastSource.by === 'jev'
-        ? {
-            busy: false,
-            ok: true,
-            text: `Jev answered. For a spray dryer: energy balance ${Math.round(a.energyBalance.value * 100)}%, vapour leaves ${Math.round(a.gasLeaves.value * 100)}%, solids leave ${Math.round(a.solidLeaves.value * 100)}%, discrete items ${Math.round(a.handlesItems.value * 100)}%; runs ${a.mode.value} (${Math.round(a.mode.confidence * 100)}%).`
-          }
-        : { busy: false, ok: false, text: `Jev did not answer: ${probe.lastSource.reason}. Design checks use the offline rules until this works.` }
-    );
+    setJevTest({ busy: false, ...(await testJev(creds.openrouterApiKey)) });
   };
   const jev = useRef<JevOpenRouterProvider | null>(null);
   const history = useRef<AgentMessage[]>([]);
@@ -228,7 +212,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
           type="button"
           onClick={(e) => {
             e.preventDefault();
-            void testJev();
+            void runJevTest();
           }}
           disabled={jevTest.busy}
           style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, color: palette.jade.glow, fontSize: 11, cursor: 'pointer' }}

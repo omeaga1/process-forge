@@ -3,20 +3,21 @@ import type { ProcessGraph } from '@process-forge/protocol';
 import { getLlmCredentials, hasValidCredentials } from './aiModelManager.js';
 
 /**
- * How this engineer uses Claude with ProcessForge. The three are different
+ * How this engineer uses AI with ProcessForge. The three are different
  * products, and the UI says which one is in use rather than pretending they
  * are the same thing:
  *
- *   api-key         Claude runs INSIDE the app on the engineer's own API key.
- *                   In-app chat, and "Ask Claude to design it" in the Unit Op
- *                   Creator.
- *   claude-desktop  The engineer chats in Claude Desktop, which has
- *                   ProcessForge's tools over MCP and bills their Claude
- *                   subscription. The app cannot talk to that session -- MCP's
- *                   stdio server runs inside Claude Desktop -- so the in-app
- *                   surfaces become hand-offs: copy the flowsheet or a design
- *                   brief out, paste Claude's result back in.
- *   none            No Claude. Standard equipment from plain requests, and
+ *   api-key         A model runs INSIDE the app on the engineer's OpenRouter
+ *                   sign-in. In-app chat, and "Ask AI to design it" in the
+ *                   Unit Op Creator. (The id predates OpenRouter being the
+ *                   only provider; it is stored, so it stays.)
+ *   claude-desktop  The engineer chats in an MCP client (Claude Desktop,
+ *                   Cursor, ...), which has ProcessForge's tools over MCP and
+ *                   bills their own subscription. The app cannot talk to that
+ *                   session -- MCP's stdio server runs inside the client -- so
+ *                   the in-app surfaces become hand-offs: copy the flowsheet or
+ *                   a design brief out, paste the result back in.
+ *   none            No AI. Standard equipment from plain requests, and
  *                   paste-in contracts.
  */
 export type AssistantRoute = 'api-key' | 'claude-desktop' | 'none';
@@ -33,7 +34,7 @@ export function getAssistantRoute(): AssistantRoute {
   }
   if (stored === 'claude-desktop') return 'claude-desktop';
   if (stored === 'none') return 'none';
-  // 'api-key', or never chosen: it is the route only while a usable key exists.
+  // 'api-key', or never chosen: it is the route only while an OpenRouter sign-in exists.
   return hasValidCredentials(getLlmCredentials()) ? 'api-key' : 'none';
 }
 

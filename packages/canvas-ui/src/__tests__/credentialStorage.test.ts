@@ -1,6 +1,6 @@
 /**
- * With an OS keychain available (the desktop app), API keys are stored there
- * and never in localStorage, for every provider, and read back from it.
+ * With an OS keychain available (the desktop app), the OpenRouter key is
+ * stored there and never in localStorage, and read back from it.
  */
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import * as assert from 'node:assert/strict';
@@ -93,72 +93,45 @@ describe('Secure vault detection', () => {
 
 describe('Desktop: secrets go to the keychain, never to localStorage', () => {
   it('writes no API key into localStorage', async () => {
-    asDesktop();
-    saveLlmCredentials({
-      provider: 'claude',
-      modelId: 'claude-sonnet-5',
-      claudeApiKey: 'sk-ant-SECRET-VALUE',
-      geminiApiKey: 'AIza-SECRET-VALUE',
-      openaiApiKey: 'sk-openai-SECRET-VALUE'
-    });
+    const vault = asDesktop();
+    saveLlmCredentials({ provider: 'openrouter', modelId: 'anthropic/claude-sonnet-5', openrouterApiKey: 'sk-or-SECRET-VALUE' });
     await new Promise((r) => setTimeout(r, 0)); // let the fire-and-forget writes settle
 
     const raw = rawStored();
-    for (const secret of ['sk-ant-SECRET-VALUE', 'AIza-SECRET-VALUE', 'sk-openai-SECRET-VALUE']) {
-      assert.ok(!raw.includes(secret), `"${secret}" leaked into localStorage: ${raw}`);
-    }
+    assert.ok(!raw.includes('sk-or-SECRET-VALUE'), `the key leaked into localStorage: ${raw}`);
+    assert.equal(vault.store.get('openrouter:api_key'), 'sk-or-SECRET-VALUE');
     // Non-secret settings are still persisted.
-    assert.ok(raw.includes('claude-sonnet-5'));
-  });
-
-  it('stores all three providers in the vault, claude included', async () => {
-    const vault = asDesktop();
-    saveLlmCredentials({
-      provider: 'claude',
-      modelId: 'claude-sonnet-5',
-      claudeApiKey: 'c-key',
-      geminiApiKey: 'g-key',
-      openaiApiKey: 'o-key'
-    });
-    await new Promise((r) => setTimeout(r, 0));
-
-    assert.equal(vault.store.get('gemini:api_key'), 'g-key');
-    assert.equal(vault.store.get('openai:api_key'), 'o-key');
-    assert.equal(
-      vault.store.get('claude:api_key'),
-      'c-key',
-      'claude is stored in the vault too'
-    );
+    assert.ok(raw.includes('anthropic/claude-sonnet-5'));
   });
 
   it('reads secrets back out of the vault', async () => {
     asDesktop();
-    saveLlmCredentials({ provider: 'claude', modelId: 'claude-sonnet-5', claudeApiKey: 'round-trip' });
+    saveLlmCredentials({ provider: 'openrouter', modelId: 'anthropic/claude-sonnet-5', openrouterApiKey: 'round-trip' });
     await new Promise((r) => setTimeout(r, 0));
 
     // The synchronous read deliberately has no secret in it...
-    assert.equal(getLlmCredentials().claudeApiKey, undefined);
+    assert.equal(getLlmCredentials().openrouterApiKey, undefined);
     // ...and the async read resolves it from the vault.
     const loaded = await loadLlmCredentials();
-    assert.equal(loaded.claudeApiKey, 'round-trip');
-    assert.equal(loaded.modelId, 'claude-sonnet-5');
+    assert.equal(loaded.openrouterApiKey, 'round-trip');
+    assert.equal(loaded.modelId, 'anthropic/claude-sonnet-5');
   });
 
   it('returns nothing rather than a stale value when the vault has no entry', async () => {
     asDesktop();
-    saveLlmCredentials({ provider: 'gemini', modelId: 'gemini-2.5-flash' });
+    saveLlmCredentials({ provider: 'openrouter', modelId: 'openrouter/free' });
     const loaded = await loadLlmCredentials();
-    assert.equal(loaded.geminiApiKey, undefined);
+    assert.equal(loaded.openrouterApiKey, undefined);
   });
 });
 
 describe('Browser: no vault available', () => {
   it('still persists the key, because a tab has nowhere better', async () => {
     asBrowser();
-    saveLlmCredentials({ provider: 'gemini', modelId: 'gemini-2.5-flash', geminiApiKey: 'web-key' });
+    saveLlmCredentials({ provider: 'openrouter', modelId: 'openrouter/free', openrouterApiKey: 'web-key' });
     // This is a real limitation of running in a browser, not an oversight.
     assert.ok(rawStored().includes('web-key'));
-    assert.equal((await loadLlmCredentials()).geminiApiKey, 'web-key');
+    assert.equal((await loadLlmCredentials()).openrouterApiKey, 'web-key');
   });
 });
 
@@ -169,9 +142,9 @@ describe('Migration off plaintext', () => {
     (g.window!.localStorage as ReturnType<typeof makeStorage>).setItem(
       STORAGE_KEY_LLM_CREDS,
       JSON.stringify({
-        provider: 'openai',
-        modelId: 'gpt-4o',
-        openaiApiKey: 'legacy-plaintext-key'
+        provider: 'openrouter',
+        modelId: 'openrouter/free',
+        openrouterApiKey: 'legacy-plaintext-key'
       })
     );
     assert.ok(rawStored().includes('legacy-plaintext-key'), 'precondition');
@@ -179,12 +152,12 @@ describe('Migration off plaintext', () => {
     const migrated = await migratePlaintextCredentialsToVault();
 
     assert.equal(migrated, true);
-    assert.equal(vault.store.get('openai:api_key'), 'legacy-plaintext-key');
+    assert.equal(vault.store.get('openrouter:api_key'), 'legacy-plaintext-key');
     assert.ok(
       !rawStored().includes('legacy-plaintext-key'),
       `plaintext survived migration: ${rawStored()}`
     );
-    assert.equal((await loadLlmCredentials()).openaiApiKey, 'legacy-plaintext-key');
+    assert.equal((await loadLlmCredentials()).openrouterApiKey, 'legacy-plaintext-key');
   });
 
   it('is a no-op when there is nothing to migrate', async () => {
@@ -194,7 +167,7 @@ describe('Migration off plaintext', () => {
 
   it('does nothing in a browser, where there is no vault to migrate into', async () => {
     asBrowser();
-    saveLlmCredentials({ provider: 'gemini', modelId: 'gemini-2.5-flash', geminiApiKey: 'k' });
+    saveLlmCredentials({ provider: 'openrouter', modelId: 'openrouter/free', openrouterApiKey: 'k' });
     assert.equal(await migratePlaintextCredentialsToVault(), false);
   });
 });
@@ -202,35 +175,35 @@ describe('Migration off plaintext', () => {
 describe('Desktop: knowing a key exists without holding it', () => {
   it('keeps chat unlocked after a save, though localStorage has no key', async () => {
     asDesktop();
-    saveLlmCredentials({ provider: 'claude', modelId: 'claude-opus-5', claudeApiKey: 'sk-ant-secret' });
-    assert.ok(!rawStored().includes('sk-ant-secret'));
+    saveLlmCredentials({ provider: 'openrouter', modelId: 'anthropic/claude-opus-5.5', openrouterApiKey: 'sk-or-secret' });
+    assert.ok(!rawStored().includes('sk-or-secret'));
 
     const sync = getLlmCredentials();
-    assert.equal(sync.claudeApiKey, undefined);
-    assert.deepEqual(sync.vaulted, ['claudeApiKey']);
+    assert.equal(sync.openrouterApiKey, undefined);
+    assert.deepEqual(sync.vaulted, ['openrouterApiKey']);
     // Without the marker these read the key as missing and locked the chat on
     // desktop the moment keys moved to the keychain.
     assert.equal(hasValidCredentials(sync), true);
     assert.equal(isAgentChatUnlocked(undefined, sync).unlocked, true);
   });
 
-  it('does not forget one provider\'s key when another is saved', async () => {
+  it('does not forget the key when only the model changes', async () => {
     const vault = asDesktop();
-    saveLlmCredentials({ provider: 'gemini', geminiApiKey: 'g-key' });
-    saveLlmCredentials({ provider: 'claude', claudeApiKey: 'c-key' });
+    saveLlmCredentials({ provider: 'openrouter', openrouterApiKey: 'or-key' });
+    saveLlmCredentials({ modelId: 'openrouter/free' });
     await new Promise((r) => setTimeout(r, 0));
-    assert.deepEqual([...(getLlmCredentials().vaulted ?? [])].sort(), ['claudeApiKey', 'geminiApiKey']);
-    assert.equal(vault.store.get('com.processforge.studio:gemini:api_key') ?? vault.store.get('gemini:api_key'), 'g-key');
+    assert.deepEqual(getLlmCredentials().vaulted, ['openrouterApiKey']);
+    assert.equal(vault.store.get('openrouter:api_key'), 'or-key');
   });
 
-  it('forgets a key cleared with an empty string, in both places', async () => {
+  it('forgets a key cleared with an empty string (sign out), in both places', async () => {
     const vault = asDesktop();
-    saveLlmCredentials({ provider: 'openai', openaiApiKey: 'o-key' });
+    saveLlmCredentials({ provider: 'openrouter', openrouterApiKey: 'or-key' });
     await new Promise((r) => setTimeout(r, 0));
-    saveLlmCredentials({ openaiApiKey: '' });
+    saveLlmCredentials({ openrouterApiKey: '' });
     await new Promise((r) => setTimeout(r, 0));
     assert.equal(getLlmCredentials().vaulted, undefined);
-    assert.equal([...vault.store.keys()].some((k) => k.includes('openai')), false);
+    assert.equal([...vault.store.keys()].some((k) => k.includes('openrouter')), false);
   });
 
   it('detects the vault from __TAURI_INTERNALS__ alone', () => {
@@ -248,7 +221,7 @@ describe('Migration never loses a key', () => {
     };
     (g.window!.localStorage as ReturnType<typeof makeStorage>).setItem(
       STORAGE_KEY_LLM_CREDS,
-      JSON.stringify({ provider: 'openai', modelId: 'gpt', openaiApiKey: 'only-copy' })
+      JSON.stringify({ provider: 'openrouter', modelId: 'openrouter/free', openrouterApiKey: 'only-copy' })
     );
     assert.equal(await migratePlaintextCredentialsToVault(), false);
     assert.ok(rawStored().includes('only-copy'), 'the only copy of the key must survive');

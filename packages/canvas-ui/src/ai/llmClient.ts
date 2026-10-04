@@ -1,28 +1,25 @@
 /**
- * ProcessForge multi-provider LLM client, on the user's own key.
- * Calls Google Gemini, Anthropic Claude, OpenAI, OpenRouter or a local Ollama
- * straight from the user's device. No ProcessForge server is in the path; the
- * key and prompts go only to the provider chosen (OpenRouter then routes to
- * the model's own provider, under OpenRouter's terms).
+ * ProcessForge's in-app LLM client: OpenRouter, on the engineer's own
+ * OpenRouter sign-in. Calls go straight from the user's device to OpenRouter,
+ * which routes them to the model's own provider under OpenRouter's terms. No
+ * ProcessForge server is in the path.
+ *
+ * OpenRouter is the only model provider inside the app; the other route is an
+ * MCP client (ADR-0009). Direct provider keys were removed.
  */
 
-export type LlmProvider = 'gemini' | 'claude' | 'openai' | 'ollama' | 'openrouter';
-
 export interface LlmCredentials {
-  provider: LlmProvider;
+  /** Always 'openrouter'. Kept as a field because stored settings carry it. */
+  provider: 'openrouter';
   modelId: string;
-  geminiApiKey?: string;
-  claudeApiKey?: string;
-  openaiApiKey?: string;
   /** Issued by "Sign in with OpenRouter" (OAuth PKCE), or pasted. */
   openrouterApiKey?: string;
-  ollamaEndpoint?: string;
   /**
-   * Desktop only: which key fields are held in the OS keychain. Lets
-   * synchronous code know a key EXISTS without the key itself being in
-   * localStorage. The value is loaded with loadLlmCredentials().
+   * Desktop only: the key is held in the OS keychain. Lets synchronous code
+   * know a key EXISTS without the key itself being in localStorage. The value
+   * is loaded with loadLlmCredentials().
    */
-  vaulted?: ('geminiApiKey' | 'claudeApiKey' | 'openaiApiKey' | 'openrouterApiKey')[];
+  vaulted?: 'openrouterApiKey'[];
 }
 
 export interface LlmChatMessage {
@@ -43,65 +40,31 @@ export interface ConnectionTestResult {
   error?: string;
 }
 
-export const DEFAULT_PROVIDER_MODELS: Record<LlmProvider, { defaultModel: string; models: { id: string; name: string }[] }> = {
-  // Model lists checked against OpenRouter's live catalogue (2026-09-23).
-  gemini: {
-    defaultModel: 'gemini-3.8-flash',
-    models: [
-      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
-      { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
-      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' }
-    ]
-  },
-  claude: {
-    defaultModel: 'claude-opus-5-5',
-    models: [
-      { id: 'claude-opus-5-5', name: 'Claude Opus 5.5' },
-      { id: 'claude-opus-5', name: 'Claude Opus 5' },
-      { id: 'claude-sonnet-5', name: 'Claude Sonnet 5' },
-      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' }
-    ]
-  },
-  openai: {
-    defaultModel: 'gpt-6-sol',
-    models: [
-      { id: 'gpt-6-sol', name: 'GPT-6 Sol' },
-      { id: 'gpt-6-luna', name: 'GPT-6 Luna' },
-      { id: 'gpt-4o', name: 'GPT-4o' }
-    ]
-  },
-  openrouter: {
-    defaultModel: 'anthropic/claude-opus-5.5',
-    models: [
-      { id: 'anthropic/claude-opus-5.5', name: 'Claude Opus 5.5' },
-      { id: 'anthropic/claude-sonnet-5', name: 'Claude Sonnet 5' },
-      { id: 'openai/gpt-6-sol', name: 'GPT-6 Sol' },
-      { id: 'google/gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
-      { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
-      { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick' },
-      { id: 'openrouter/auto', name: 'Auto (OpenRouter picks)' },
-      // Free, and support tool calling, so the in-app assistant works on them
-      // (checked against OpenRouter's catalogue 2026-09-27; rate-limited, and
-      // some free providers log prompts). Largest first: designing a unit
-      // needs a capable model.
-      { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra (free, assistant)' },
-      { id: 'thinkingmachines/inkling:free', name: 'Inkling (free, assistant)' },
-      { id: 'qwen/qwen3.8-27b:free', name: 'Qwen 3.8 27B (free, assistant)' },
-      { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (free, assistant)' },
-      { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super (free, assistant)' },
-      // Needs no credit, so a brand-new account can test the connection. It
-      // picks a different free model per request, so the assistant is uneven on it.
-      { id: 'openrouter/free', name: 'Any free model (rate-limited)' }
-    ]
-  },
-  ollama: {
-    defaultModel: 'llama3:latest',
-    models: [
-      { id: 'llama3:latest', name: 'Llama 3 (8B / 70B Local)' },
-      { id: 'deepseek-r1:latest', name: 'DeepSeek R1 (Local Reasoning)' },
-      { id: 'mistral:latest', name: 'Mistral 7B Local' }
-    ]
-  }
+/** Models offered in the AI model dialog. Any other OpenRouter model id can be typed in. */
+export const OPENROUTER_MODELS: { defaultModel: string; models: { id: string; name: string }[] } = {
+  // Checked against OpenRouter's live catalogue (2026-09-23).
+  defaultModel: 'anthropic/claude-opus-5.5',
+  models: [
+    { id: 'anthropic/claude-opus-5.5', name: 'Claude Opus 5.5' },
+    { id: 'anthropic/claude-sonnet-5', name: 'Claude Sonnet 5' },
+    { id: 'openai/gpt-6-sol', name: 'GPT-6 Sol' },
+    { id: 'google/gemini-3.8-flash', name: 'Gemini 3.8 Flash' },
+    { id: 'deepseek/deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
+    { id: 'meta-llama/llama-4-maverick', name: 'Llama 4 Maverick' },
+    { id: 'openrouter/auto', name: 'Auto (OpenRouter picks)' },
+    // Free, and support tool calling, so the in-app assistant works on them
+    // (checked against OpenRouter's catalogue 2026-09-27; rate-limited, and
+    // some free providers log prompts). Largest first: designing a unit
+    // needs a capable model.
+    { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra (free, assistant)' },
+    { id: 'thinkingmachines/inkling:free', name: 'Inkling (free, assistant)' },
+    { id: 'qwen/qwen3.8-27b:free', name: 'Qwen 3.8 27B (free, assistant)' },
+    { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B (free, assistant)' },
+    { id: 'nvidia/nemotron-3-super-120b-a12b:free', name: 'Nemotron 3 Super (free, assistant)' },
+    // Needs no credit, so a brand-new account can test the connection. It
+    // picks a different free model per request, so the assistant is uneven on it.
+    { id: 'openrouter/free', name: 'Any free model (rate-limited)' }
+  ]
 };
 
 /**
@@ -152,138 +115,30 @@ export function maskApiKey(key?: string | null): string {
   return `${prefix}...${suffix}`;
 }
 
-/**
- * Test connectivity and latency with the chosen provider
- */
+/** Checks the sign-in and the chosen model with a one-word request. */
 export async function testLlmConnection(creds: LlmCredentials): Promise<ConnectionTestResult> {
   const start = performance.now();
   try {
-    switch (creds.provider) {
-      case 'gemini': {
-        if (!creds.geminiApiKey?.trim()) {
-          return { ok: false, error: 'Google Gemini API key is missing' };
-        }
-        const rawModel = creds.modelId || 'gemini-2.5-flash';
-        const model = rawModel === 'gemini-2.0-flash' || rawModel === 'gemini-1.5-flash' || rawModel === 'gemini-1.5-pro'
-          ? 'gemini-2.5-flash'
-          : rawModel;
-        // Direct Client-to-Google TLS: Header-based authentication prevents key exposure in proxy/access logs
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': creds.geminiApiKey.trim()
-          },
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: 'Respond with exactly: OK' }] }]
-          })
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `HTTP ${res.status}: ${res.statusText}`);
-        }
-        const latencyMs = Math.round(performance.now() - start);
-        return { ok: true, latencyMs, modelName: model };
-      }
-
-      case 'claude': {
-        if (!creds.claudeApiKey?.trim()) {
-          return { ok: false, error: 'Anthropic Claude API key is missing' };
-        }
-        const model = creds.modelId || 'claude-haiku-4-5-20251001';
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'x-api-key': creds.claudeApiKey.trim(),
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-            'dangerously-allow-browser': 'true',
-            'anthropic-dangerous-direct-browser-access': 'true'
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 10,
-            messages: [{ role: 'user', content: 'Respond with exactly: OK' }]
-          })
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `HTTP ${res.status}: ${res.statusText}`);
-        }
-        const latencyMs = Math.round(performance.now() - start);
-        return { ok: true, latencyMs, modelName: model };
-      }
-
-      case 'openai': {
-        if (!creds.openaiApiKey?.trim()) {
-          return { ok: false, error: 'OpenAI API key is missing' };
-        }
-        const model = creds.modelId || 'gpt-4o-mini';
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${creds.openaiApiKey.trim()}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 10,
-            messages: [{ role: 'user', content: 'Respond with exactly: OK' }]
-          })
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error?.message || `HTTP ${res.status}: ${res.statusText}`);
-        }
-        const latencyMs = Math.round(performance.now() - start);
-        return { ok: true, latencyMs, modelName: model };
-      }
-
-      case 'openrouter': {
-        if (!creds.openrouterApiKey?.trim()) {
-          return { ok: false, error: 'OpenRouter is not connected' };
-        }
-        const model = creds.modelId || 'anthropic/claude-opus-5.5';
-        const res = await fetch(OPENROUTER_CHAT_URL, {
-          method: 'POST',
-          headers: openRouterHeaders(creds.openrouterApiKey),
-          body: JSON.stringify({ model, max_tokens: 10, messages: [{ role: 'user', content: 'Respond with exactly: OK' }] })
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(openRouterErrorMessage(res.status, errData.error?.message));
-        }
-        return { ok: true, latencyMs: Math.round(performance.now() - start), modelName: model };
-      }
-
-      case 'ollama': {
-        const endpoint = creds.ollamaEndpoint?.trim() || 'http://localhost:11434';
-        const model = creds.modelId || 'llama3:latest';
-        const res = await fetch(`${endpoint}/v1/chat/completions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            max_tokens: 10,
-            messages: [{ role: 'user', content: 'Respond with exactly: OK' }]
-          })
-        });
-        if (!res.ok) {
-          throw new Error(`Ollama returned status ${res.status}. Is Ollama running on ${endpoint}?`);
-        }
-        const latencyMs = Math.round(performance.now() - start);
-        return { ok: true, latencyMs, modelName: model };
-      }
+    if (!creds.openrouterApiKey?.trim()) {
+      return { ok: false, error: 'OpenRouter is not connected' };
     }
+    const model = creds.modelId || OPENROUTER_MODELS.defaultModel;
+    const res = await fetch(OPENROUTER_CHAT_URL, {
+      method: 'POST',
+      headers: openRouterHeaders(creds.openrouterApiKey),
+      body: JSON.stringify({ model, max_tokens: 10, messages: [{ role: 'user', content: 'Respond with exactly: OK' }] })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(openRouterErrorMessage(res.status, errData.error?.message));
+    }
+    return { ok: true, latencyMs: Math.round(performance.now() - start), modelName: model };
   } catch (err: any) {
     return { ok: false, error: err.message || 'Connection test failed' };
   }
 }
 
-/**
- * Execute an LLM query across any configured provider
- */
+/** One chat completion on OpenRouter. */
 export async function callLlmModel(
   creds: LlmCredentials,
   messages: LlmChatMessage[],
@@ -292,192 +147,31 @@ export async function callLlmModel(
   options: { maxTokens?: number } = {}
 ): Promise<LlmCallResult> {
   const start = performance.now();
-  switch (creds.provider) {
-    case 'gemini': {
-      if (!creds.geminiApiKey?.trim()) {
-        throw new Error('Google Gemini API key not configured. Open AI settings to connect your key.');
-      }
-      const rawModel = creds.modelId || 'gemini-2.5-flash';
-      const model = rawModel === 'gemini-2.0-flash' || rawModel === 'gemini-1.5-flash' || rawModel === 'gemini-1.5-pro'
-        ? 'gemini-2.5-flash'
-        : rawModel;
-      // Direct Client-to-Google TLS: Header-based authentication prevents key exposure in proxy/access logs
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
-      // Convert messages to Gemini format with systemInstruction
-      const contents = messages
-        .filter((m) => m.role !== 'system')
-        .map((m) => ({
-          role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content }]
-        }));
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': creds.geminiApiKey.trim()
-        },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents,
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: options.maxTokens ?? 2048
-          }
-        })
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `Gemini API error (${res.status})`);
-      }
-
-      const data = await res.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      return {
-        text,
-        model,
-        latencyMs: Math.round(performance.now() - start)
-      };
-    }
-
-    case 'claude': {
-      if (!creds.claudeApiKey?.trim()) {
-        throw new Error('Anthropic Claude API key not configured. Open AI settings to connect your key.');
-      }
-      const model = creds.modelId || 'claude-opus-5-5';
-      const formattedMessages = messages
-        .filter((m) => m.role !== 'system')
-        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
-
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'x-api-key': creds.claudeApiKey.trim(),
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-          'dangerously-allow-browser': 'true',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: options.maxTokens ?? 2048,
-          system: systemPrompt,
-          messages: formattedMessages
-        })
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `Claude API error (${res.status})`);
-      }
-
-      const data = await res.json();
-      const text = data.content?.[0]?.text || '';
-      return {
-        text,
-        model,
-        latencyMs: Math.round(performance.now() - start)
-      };
-    }
-
-    case 'openai': {
-      if (!creds.openaiApiKey?.trim()) {
-        throw new Error('OpenAI API key not configured. Open AI settings to connect your key.');
-      }
-      const model = creds.modelId || 'gpt-4o';
-      const promptMessages = [
-        { role: 'system', content: systemPrompt },
-        ...messages.filter((m) => m.role !== 'system').map((m) => ({ role: m.role, content: m.content }))
-      ];
-
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${creds.openaiApiKey.trim()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model,
-          messages: promptMessages,
-          temperature: 0.2
-        })
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `OpenAI API error (${res.status})`);
-      }
-
-      const data = await res.json();
-      const text = data.choices?.[0]?.message?.content || '';
-      return {
-        text,
-        model,
-        latencyMs: Math.round(performance.now() - start)
-      };
-    }
-
-    case 'openrouter': {
-      if (!creds.openrouterApiKey?.trim()) {
-        throw new Error('OpenRouter is not connected. Open AI settings and sign in with OpenRouter.');
-      }
-      const model = creds.modelId || 'anthropic/claude-opus-5.5';
-      const res = await fetch(OPENROUTER_CHAT_URL, {
-        method: 'POST',
-        headers: openRouterHeaders(creds.openrouterApiKey),
-        body: JSON.stringify({
-          model,
-          max_tokens: options.maxTokens ?? 2048,
-          temperature: 0.2,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...messages.filter((m) => m.role !== 'system').map((m) => ({ role: m.role, content: m.content }))
-          ]
-        })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(openRouterErrorMessage(res.status, err.error?.message));
-      }
-      const data = await res.json();
-      return {
-        text: data.choices?.[0]?.message?.content || '',
-        model: data.model || model,
-        latencyMs: Math.round(performance.now() - start)
-      };
-    }
-
-    case 'ollama': {
-      const endpoint = creds.ollamaEndpoint?.trim() || 'http://localhost:11434';
-      const model = creds.modelId || 'llama3:latest';
-      const promptMessages = [
-        { role: 'system', content: systemPrompt },
-        ...messages.filter((m) => m.role !== 'system').map((m) => ({ role: m.role, content: m.content }))
-      ];
-
-      const res = await fetch(`${endpoint}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          messages: promptMessages,
-          temperature: 0.2
-        })
-      });
-
-      if (!res.ok) {
-        throw new Error(`Ollama error (${res.status}) connecting to ${endpoint}`);
-      }
-
-      const data = await res.json();
-      const text = data.choices?.[0]?.message?.content || '';
-      return {
-        text,
-        model,
-        latencyMs: Math.round(performance.now() - start)
-      };
-    }
+  if (!creds.openrouterApiKey?.trim()) {
+    throw new Error('OpenRouter is not connected. Open AI settings and sign in with OpenRouter.');
   }
+  const model = creds.modelId || OPENROUTER_MODELS.defaultModel;
+  const res = await fetch(OPENROUTER_CHAT_URL, {
+    method: 'POST',
+    headers: openRouterHeaders(creds.openrouterApiKey),
+    body: JSON.stringify({
+      model,
+      max_tokens: options.maxTokens ?? 2048,
+      temperature: 0.2,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages.filter((m) => m.role !== 'system').map((m) => ({ role: m.role, content: m.content }))
+      ]
+    })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(openRouterErrorMessage(res.status, err.error?.message));
+  }
+  const data = await res.json();
+  return {
+    text: data.choices?.[0]?.message?.content || '',
+    model: data.model || model,
+    latencyMs: Math.round(performance.now() - start)
+  };
 }

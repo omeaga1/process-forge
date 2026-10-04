@@ -11,7 +11,7 @@ the simulation.
 | :--- | :--- |
 | `@process-forge/protocol` | Zod schemas for nodes, ports, streams, graphs and projects; unit conversions; graph validation and capacity-based bottleneck analysis; the unit-op contract format, its expression evaluator and its review gates; the CAD drawing template library; the decision layer (`src/decisions`, see [Plan 0001](../plans/0001-jev-decision-layer.md)). |
 | `@process-forge/simulation-core` | The discrete-event engine: a priority queue of events, per-unit state tracking, OEE reports, and a seeded RNG. |
-| `@process-forge/canvas-ui` | The React Flow canvas, equipment drawings and nozzle placement, the unit-op creator, the Engineer Studio dock, the community library modal, and the model clients (Claude, OpenAI, Gemini, OpenRouter, Ollama). |
+| `@process-forge/canvas-ui` | The React Flow canvas, equipment drawings and nozzle placement, the unit-op creator, the Engineer Studio dock, the community library modal, and the OpenRouter model client (ADR-0009). |
 | `@process-forge/theme` | Osaka Jade colour tokens, CSS variables, a Tailwind preset. |
 | `@process-forge/mcp-server` | The MCP server. It exposes the protocol and engine as tools to an MCP client. |
 | `@process-forge/community-library-api` | A Cloudflare Worker with a D1 database: Google sign-in, cloud project storage, the community unit-op library. |

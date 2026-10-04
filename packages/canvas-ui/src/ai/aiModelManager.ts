@@ -1,24 +1,23 @@
 /**
- * ProcessForge AI connection manager: which assistant route is in use (an AI
- * provider inside the app, an MCP client, or none) and the provider
- * credentials.
+ * ProcessForge AI connection manager: whether OpenRouter is signed in inside
+ * the app, and its key. (An MCP client is the other route: see
+ * assistantRoute.ts.)
  *
- * Keys are the user's own. On desktop they are stored in the OS keychain and
+ * The key is the user's own. On desktop it is stored in the OS keychain and
  * never in localStorage; in a browser there is no keychain, so localStorage is
  * the only store (stated in the UI, not hidden). Without any AI, users keep
  * full access to their created and installed unit ops.
  */
 
-/** The AI provider in use inside the app, or none. (An MCP client is a separate route: see assistantRoute.ts.) */
-export type AiConnectionMode = 'gemini' | 'claude' | 'openai' | 'ollama' | 'openrouter' | 'offline';
+/** OpenRouter signed in inside the app, or no model. */
+export type AiConnectionMode = 'openrouter' | 'offline';
 // Backwards compatibility alias for components expecting AiProvider
 export type AiProvider = AiConnectionMode;
 
 export {
-  type LlmProvider,
   type LlmCredentials,
   type ConnectionTestResult,
-  DEFAULT_PROVIDER_MODELS,
+  OPENROUTER_MODELS,
   testLlmConnection,
   callLlmModel,
   maskApiKey
@@ -60,43 +59,18 @@ export const CONNECTION_METADATA: Record<
     isOnline: boolean;
   }
 > = {
-  gemini: {
-    name: 'Google Gemini',
-    badgeName: 'Gemini',
-    description: 'Your own Google AI Studio API key, called directly from this device.',
-    isOnline: true
-  },
-  claude: {
-    name: 'Anthropic Claude',
-    badgeName: 'Claude',
-    description: 'Your own Anthropic Console API key, called directly from this device.',
-    isOnline: true
-  },
-  openai: {
-    name: 'OpenAI',
-    badgeName: 'GPT',
-    description: 'Your own OpenAI Platform API key, called directly from this device.',
-    isOnline: true
-  },
   openrouter: {
     name: 'OpenRouter',
     badgeName: 'OpenRouter',
     description: 'One sign-in, many models (Claude, GPT, Gemini, open-weight), billed to your OpenRouter account.',
     isOnline: true
   },
-  ollama: {
-    name: 'Local Ollama',
-    badgeName: 'Ollama',
-    description: 'A model running in Ollama on this computer. Nothing leaves it.',
-    isOnline: true
-  },
   offline: {
     name: 'No Model Connected',
     badgeName: 'No Model',
-    description:
-      'Sign in with OpenRouter, add a Claude, GPT or Gemini key, or use a local Ollama model, in AI model settings.',
+    description: 'Sign in with OpenRouter in AI model settings, or use an MCP client.',
     isOnline: false
-  },
+  }
 };
 
 // Legacy compatibility lookup
@@ -104,20 +78,34 @@ export const PROVIDER_METADATA = CONNECTION_METADATA;
 
 const STORAGE_KEY = 'pf_ai_connection_state';
 const STORAGE_KEY_LLM_CREDS = 'pf_ai_credentials';
+/** Set when a removed provider was cleared; read once by the AI model dialog. */
+const STORAGE_KEY_REMOVED_NOTICE = 'pf_ai_removed_provider_notice';
 
 import type { LlmCredentials } from './llmClient.js';
-import { DEFAULT_PROVIDER_MODELS } from './llmClient.js';
+import { OPENROUTER_MODELS } from './llmClient.js';
 
 /** Credential fields that are secrets and must never reach localStorage on desktop. */
-const SECRET_FIELDS = ['geminiApiKey', 'claudeApiKey', 'openaiApiKey', 'openrouterApiKey'] as const;
+const SECRET_FIELDS = ['openrouterApiKey'] as const;
 
-/** Keychain service name per provider secret. */
+/** Keychain service name per secret. */
 const SECRET_SERVICE: Record<(typeof SECRET_FIELDS)[number], string> = {
-  geminiApiKey: 'gemini',
-  claudeApiKey: 'claude',
-  openaiApiKey: 'openai',
   openrouterApiKey: 'openrouter'
 };
+
+/**
+ * Providers earlier versions could call directly, with the localStorage field
+ * and keychain service each kept its key under. Only the migration reads this.
+ */
+const REMOVED_PROVIDERS = {
+  gemini: { field: 'geminiApiKey', service: 'gemini', name: 'Google Gemini' },
+  claude: { field: 'claudeApiKey', service: 'claude', name: 'Anthropic Claude' },
+  openai: { field: 'openaiApiKey', service: 'openai', name: 'OpenAI' },
+  ollama: { field: undefined, service: undefined, name: 'Ollama' }
+} as const;
+export type RemovedProvider = keyof typeof REMOVED_PROVIDERS;
+const LEGACY_FIELDS = ['geminiApiKey', 'claudeApiKey', 'openaiApiKey', 'ollamaEndpoint'] as const;
+
+const defaultCredentials = (): LlmCredentials => ({ provider: 'openrouter', modelId: OPENROUTER_MODELS.defaultModel });
 
 /**
  * True when the OS keychain is reachable, i.e. we are inside the Tauri shell.
@@ -165,36 +153,26 @@ function withoutSecrets(creds: LlmCredentials, vaulted: SecretField[]): LlmCrede
   return copy;
 }
 
+/**
+ * Stored settings as OpenRouter settings. Anything an earlier version saved
+ * for a removed provider (its key, its model id) is dropped here, so it reads
+ * as not configured even before migrateRemovedProviders() has cleaned it up.
+ */
+function normalize(stored: Record<string, unknown>): LlmCredentials {
+  const creds = defaultCredentials();
+  if (stored.provider === 'openrouter' && typeof stored.modelId === 'string' && stored.modelId) creds.modelId = stored.modelId;
+  if (typeof stored.openrouterApiKey === 'string' && stored.openrouterApiKey) creds.openrouterApiKey = stored.openrouterApiKey;
+  if (Array.isArray(stored.vaulted) && stored.vaulted.includes('openrouterApiKey')) creds.vaulted = ['openrouterApiKey'];
+  return creds;
+}
+
 export function getLlmCredentials(): LlmCredentials {
-  if (typeof window === 'undefined' || !window.localStorage) {
-    return { provider: 'gemini', modelId: 'gemini-2.5-flash' };
-  }
+  if (typeof window === 'undefined' || !window.localStorage) return defaultCredentials();
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY_LLM_CREDS);
-    if (raw) {
-      const parsed = JSON.parse(raw) as LlmCredentials;
-      // Stored model ids the provider has retired move to its current
-      // default. List only ids that are actually retired.
-      const RETIRED_GEMINI = new Set([
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro'
-      ]);
-      const RETIRED_CLAUDE = new Set([
-        'claude-3-7-sonnet-latest',
-        'claude-3-5-haiku-latest',
-        'claude-3-opus-latest'
-      ]);
-      if (parsed.provider === 'gemini' && (!parsed.modelId || RETIRED_GEMINI.has(parsed.modelId))) {
-        parsed.modelId = DEFAULT_PROVIDER_MODELS.gemini.defaultModel;
-      }
-      if (parsed.provider === 'claude' && (!parsed.modelId || RETIRED_CLAUDE.has(parsed.modelId))) {
-        parsed.modelId = 'claude-opus-5-5';
-      }
-      return parsed;
-    }
+    if (raw) return normalize(JSON.parse(raw) as Record<string, unknown>);
   } catch (e) {}
-  return { provider: 'gemini', modelId: 'gemini-2.5-flash' };
+  return defaultCredentials();
 }
 
 export function saveLlmCredentials(creds: Partial<LlmCredentials>): LlmCredentials {
@@ -247,21 +225,8 @@ export function saveLlmCredentials(creds: Partial<LlmCredentials>): LlmCredentia
 
 export function hasValidCredentials(creds?: LlmCredentials | null): boolean {
   if (!creds) return false;
-  const has = (f: SecretField) => Boolean(creds[f]?.trim()) || Boolean(creds.vaulted?.includes(f));
-  switch (creds.provider) {
-    case 'gemini':
-      return has('geminiApiKey');
-    case 'claude':
-      return has('claudeApiKey');
-    case 'openai':
-      return has('openaiApiKey');
-    case 'openrouter':
-      return has('openrouterApiKey');
-    case 'ollama':
-      return Boolean(creds.ollamaEndpoint?.trim() || true);
-    default:
-      return false;
-  }
+  if (creds.provider !== 'openrouter') return false;
+  return Boolean(creds.openrouterApiKey?.trim()) || Boolean(creds.vaulted?.includes('openrouterApiKey'));
 }
 
 export interface AgentChatLockStatus {
@@ -271,8 +236,8 @@ export interface AgentChatLockStatus {
 }
 
 /**
- * In-app chat needs an AI model: a provider key, OpenRouter sign-in, or Ollama.
- * (`_state` is kept for callers; the provider choice lives in the credentials.)
+ * In-app chat needs an OpenRouter sign-in.
+ * (`_state` is kept for callers; the sign-in lives in the credentials.)
  */
 export function isAgentChatUnlocked(
   _state?: AiConnectionState,
@@ -280,7 +245,6 @@ export function isAgentChatUnlocked(
 ): AgentChatLockStatus {
   const activeCreds = creds || getLlmCredentials();
 
-  // An AI provider in the app with a key (or Ollama).
   if (hasValidCredentials(activeCreds)) {
     return {
       unlocked: true,
@@ -291,7 +255,7 @@ export function isAgentChatUnlocked(
   return {
     unlocked: false,
     activeProvider: 'none',
-    reason: 'No AI model is connected. Add a key or sign in with OpenRouter in AI model settings to chat here.'
+    reason: 'No AI model is connected. Sign in with OpenRouter in AI model settings to chat here.'
   };
 }
 
@@ -305,8 +269,10 @@ export async function purgeAllCredentials(): Promise<void> {
       window.localStorage.removeItem(STORAGE_KEY);
     } catch (e) {}
   }
-  // Every provider secret, from the one list, so a new provider is purged too.
+  // Every secret, from the one list, so a new one is purged too, and any a
+  // removed provider left behind.
   for (const field of SECRET_FIELDS) await deleteTauriSecureToken(SECRET_SERVICE[field], 'api_key');
+  for (const p of Object.values(REMOVED_PROVIDERS)) if (p.service) await deleteTauriSecureToken(p.service, 'api_key');
   resetToOfflineConfig();
 }
 
@@ -371,6 +337,68 @@ export async function migratePlaintextCredentialsToVault(): Promise<boolean> {
   return true;
 }
 
+/**
+ * One-time cleanup for settings saved by a version that could call Gemini,
+ * Claude, OpenAI or Ollama directly. Those settings now read as "not
+ * configured"; this deletes the stale keys (from localStorage, and from the OS
+ * keychain on desktop, best-effort) and leaves a notice for the AI model
+ * dialog to show once. An OpenRouter key saved alongside them is kept.
+ *
+ * The localStorage part runs synchronously, before the returned promise's first
+ * await, so a caller can read takeRemovedProviderNotice() right after calling
+ * it. Resolves to the removed provider that was in use, if any. Safe to call
+ * repeatedly.
+ */
+export async function migrateRemovedProviders(): Promise<RemovedProvider | null> {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  let stored: Record<string, unknown>;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY_LLM_CREDS);
+    stored = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return null;
+  }
+
+  const wasInUse = (Object.keys(REMOVED_PROVIDERS) as RemovedProvider[]).find((p) => p === stored.provider) ?? null;
+  const vaulted = Array.isArray(stored.vaulted) ? (stored.vaulted as string[]) : [];
+  const staleInVault = Object.values(REMOVED_PROVIDERS).filter((p) => p.field && vaulted.includes(p.field));
+  const staleInStorage = LEGACY_FIELDS.some((f) => f in stored);
+  if (!wasInUse && staleInVault.length === 0 && !staleInStorage) return null;
+
+  try {
+    window.localStorage.setItem(STORAGE_KEY_LLM_CREDS, JSON.stringify(normalize(stored)));
+    if (wasInUse) window.localStorage.setItem(STORAGE_KEY_REMOVED_NOTICE, wasInUse);
+  } catch {}
+  // The connection mode named the same provider; it now reads as offline, so store that.
+  const conn = getAiConnection();
+  saveAiConnection(conn);
+
+  // Best-effort: a keychain entry that is already gone is not an error worth showing.
+  for (const p of staleInVault) if (p.service) await deleteTauriSecureToken(p.service, 'api_key');
+  return wasInUse;
+}
+
+/**
+ * The notice left by migrateRemovedProviders(), cleared as it is read so it is
+ * shown once. Null when there is nothing to say.
+ */
+export function takeRemovedProviderNotice(): string | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  let provider: string | null = null;
+  try {
+    provider = window.localStorage.getItem(STORAGE_KEY_REMOVED_NOTICE);
+    window.localStorage.removeItem(STORAGE_KEY_REMOVED_NOTICE);
+  } catch {
+    return null;
+  }
+  if (!provider || !(provider in REMOVED_PROVIDERS)) return null;
+  if (provider === 'ollama') {
+    return 'Local Ollama models are no longer supported, so that setting was removed. Sign in with OpenRouter below for AI in the app (it includes open-weight models), or use an MCP client.';
+  }
+  const name = REMOVED_PROVIDERS[provider as RemovedProvider].name;
+  return `Your ${name} API key was removed: direct API keys are no longer supported. Sign in with OpenRouter below (it reaches the same models), or use an MCP client.`;
+}
+
 /** Resolves true only when the keychain accepted the secret. */
 async function saveTauriSecureToken(service: string, account: string, secret: string): Promise<boolean> {
   const invoke = tauriInvoke();
@@ -403,8 +431,8 @@ export function getAiConnection(): AiConnectionState {
     if (!raw) return DEFAULT_CONNECTION_STATE;
     const mode = (JSON.parse(raw) as { mode?: string }).mode;
     // Older versions stored 'mcp' and 'oauth' modes that did nothing; they read as offline.
-    const known: AiConnectionMode[] = ['gemini', 'claude', 'openai', 'ollama', 'openrouter'];
-    const m = known.includes(mode as AiConnectionMode) ? (mode as AiConnectionMode) : 'offline';
+    // Providers since removed (gemini, claude, openai, ollama) read as offline too.
+    const m: AiConnectionMode = mode === 'openrouter' ? 'openrouter' : 'offline';
     return { mode: m, provider: m };
   } catch {
     return DEFAULT_CONNECTION_STATE;

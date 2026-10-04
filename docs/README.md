@@ -29,6 +29,8 @@ each says so at the top.
   project file format and guest mode.
 - [ADR-0008](adr/0008-desktop-auto-update-and-landing-distribution.md):
   desktop auto-update and web hosting.
+- [ADR-0009](adr/0009-mcp-and-openrouter-only.md): MCP clients and OpenRouter
+  sign-in are the only AI paths.
 
 ADR-0004 was removed along with the tooling it described.
 

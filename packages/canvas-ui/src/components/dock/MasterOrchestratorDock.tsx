@@ -305,7 +305,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                   {route === 'claude-desktop'
                     ? 'MCP client'
                     : lockStatus.unlocked
-                      ? `${PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant'} · your key`
+                      ? `${PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant'} · your account`
                       : 'Local Solver'}
                 </span>
                 <span style={{ fontSize: size['2xs'], color: OsakaJadePalette.text.muted }}>• Tools</span>

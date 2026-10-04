@@ -34,7 +34,7 @@ describe('Assistant route', () => {
   });
 
   it('is "api-key" once a usable key exists, without being chosen', () => {
-    saveLlmCredentials({ provider: 'claude', modelId: 'claude-opus-5-5', claudeApiKey: 'sk-test' });
+    saveLlmCredentials({ provider: 'openrouter', modelId: 'anthropic/claude-opus-5.5', openrouterApiKey: 'sk-or-test' });
     assert.equal(getAssistantRoute(), 'api-key');
   });
 
@@ -44,7 +44,7 @@ describe('Assistant route', () => {
   });
 
   it('keeps Claude Desktop when chosen, key or not', () => {
-    saveLlmCredentials({ provider: 'claude', modelId: 'claude-opus-5-5', claudeApiKey: 'sk-test' });
+    saveLlmCredentials({ provider: 'openrouter', modelId: 'anthropic/claude-opus-5.5', openrouterApiKey: 'sk-or-test' });
     setAssistantRoute('claude-desktop');
     assert.equal(getAssistantRoute(), 'claude-desktop');
   });

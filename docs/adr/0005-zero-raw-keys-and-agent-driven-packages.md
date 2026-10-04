@@ -1,7 +1,8 @@
 # ADR-0005: No raw API keys; shareable unit-op packages
 
-* **Status:** Superseded — the app now accepts the user's own API keys and
-  OpenRouter sign-in; keys are stored in the OS keychain on desktop.
+* **Status:** Superseded. Item 1 is superseded by
+  [ADR-0009](0009-mcp-and-openrouter-only.md): in-app AI is OpenRouter sign-in
+  only, and MCP clients are the other route.
 * **Date:** 2026-09-12
 * **Deciders:** maintainer
 
@@ -19,10 +20,13 @@
 
 ## What happened
 
-- Item 1 was not built. No hosted model gateway exists. The app instead takes
+- Item 1 was not built. No hosted model gateway exists. The app instead took
   the user's own key for Claude, OpenAI or Gemini, OpenRouter sign-in, or a
-  local Ollama server. On desktop, keys are stored in the OS keychain; in the
-  browser, in local storage. See
+  local Ollama server. **Superseded by
+  [ADR-0009](0009-mcp-and-openrouter-only.md):** the own-key and Ollama
+  options were removed, leaving OpenRouter sign-in in the app and MCP clients
+  outside it. On desktop, the OpenRouter key is stored in the OS keychain; in
+  the browser, in local storage. See
   [architecture/02-trust-and-security.md](../architecture/02-trust-and-security.md).
 - Item 2 holds: the simulation engine is TypeScript that runs inside the app.
 - Item 3 became the community library: signed-in users publish unit ops to the

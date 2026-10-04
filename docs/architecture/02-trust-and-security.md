@@ -1,29 +1,33 @@
 # Trust and security
 
-This page describes how ProcessForge handles model API keys, flowsheet data
-and cloud accounts.
+This page describes how ProcessForge handles the OpenRouter key, flowsheet
+data and cloud accounts.
 
-## Model API keys
+## Model access
 
-The user brings their own model access: an API key for Claude, OpenAI or
-Gemini, an OpenRouter sign-in, or a local Ollama server.
+AI reaches ProcessForge in two ways only ([ADR-0009](../adr/0009-mcp-and-openrouter-only.md)):
+an MCP client the user runs (it holds its own credentials; ProcessForge never
+sees them), or an OpenRouter sign-in inside the app. The app holds one secret,
+the OpenRouter key.
 
 - **Desktop:** secrets are stored in the OS keychain (Windows Credential
   Manager, macOS Keychain, Linux Secret Service) through the Rust `keyring`
   crate, under the service prefix `com.processforge.studio:`. The Rust
   commands are `save_secure_token`, `get_secure_token` and
   `delete_secure_token`. Secrets are not written to local storage on desktop.
-- **Browser:** there is no keychain, so keys are stored in the browser's local
-  storage for the site. Anything that can run script on the page could read
-  them; the Content-Security-Policy below limits where they could be sent.
+- **Browser:** there is no keychain, so the key is stored in the browser's
+  local storage for the site. Anything that can run script on the page could
+  read it; the Content-Security-Policy below limits where it could be sent.
 - **OpenRouter sign-in** uses OpenRouter's OAuth PKCE flow and ends with an
   API key issued to ProcessForge for that user. The user can see, limit and
   revoke it in their OpenRouter settings. On desktop the flow returns to a
   loopback port (`openrouter_loopback_sign_in`); on the web it uses a popup.
-- The app offers a single action that deletes all stored keys.
+- **Sign out** in the AI model dialog deletes the key from this device. Keys
+  left by an earlier version for a removed provider (Claude, OpenAI, Gemini)
+  are deleted at startup by `migrateRemovedProviders()`.
 
-Model requests go directly from the app to the chosen provider. ProcessForge
-has no server that proxies model traffic.
+Model requests go directly from the app to OpenRouter, which forwards them to
+the model's provider. ProcessForge has no server that proxies model traffic.
 
 ## Content-Security-Policy
 
@@ -32,10 +36,8 @@ The web build's policy is in `apps/web/public/_headers`; the desktop policy is
 `connect-src` to an allow-list, so the browser refuses requests to any other
 host:
 
-- the model providers: `api.anthropic.com`, `api.openai.com`,
-  `generativelanguage.googleapis.com`, `openrouter.ai`;
-- local Ollama (`localhost:11434` on the web; any localhost port on desktop,
-  which also covers the OAuth loopback);
+- `openrouter.ai`, the only model host;
+- on desktop, any localhost port (the OAuth loopback and the dev server);
 - the cloud API worker and `api.github.com` (release lookup);
 - Google Identity Services, on the web only.
 
@@ -47,8 +49,9 @@ must be added to both policies.
 
 - Without an account, projects stay on the user's machine: browser storage or
   a `.pfg.json` file.
-- When a model is used, the prompt (including the relevant flowsheet context)
-  goes to that model's provider under the user's own account.
+- When a model is used in the app, the prompt (including the relevant
+  flowsheet context) goes to OpenRouter, and from there to that model's
+  provider, under the user's own OpenRouter account.
 - The MCP server runs as a local process started by the MCP client. It sends
   nothing to ProcessForge.
 
