@@ -1,6 +1,20 @@
 import { z } from 'zod';
 import { UnitOpDrawingSchema } from './drawing.js';
 import { parseExpression, referencedNames, ExpressionError } from './expression.js';
+import {
+  checkDimension,
+  DIMENSIONLESS,
+  ENGINE_NAME_DIMENSIONS,
+  parseUnit,
+  POWER,
+  TEMPERATURE,
+  TIME,
+  VOLUME,
+  VOLUME_FLOW,
+  type Dimension,
+  type DimensionEnv,
+  type Inferred
+} from './dimensions.js';
 
 /**
  * A UnitOpContract is the execution target for a generated unit operation.
@@ -306,6 +320,8 @@ export type UnitOpContract = z.infer<typeof UnitOpContractSchema>;
 export interface ContractValidationIssue {
   path: string;
   message: string;
+  /** A units (dimension) problem, rather than a structural one. */
+  unit?: true;
 }
 
 /**
@@ -561,5 +577,93 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     }
   }
 
+  issues.push(...dimensionIssues(contract));
   return issues;
+}
+
+/**
+ * Units on everything an expression reads: what each one's declared unit
+ * reduces to, so the checker can follow an expression's dimension.
+ */
+function dimensionEnv(contract: UnitOpContract): DimensionEnv {
+  const declared = new Map<string, Inferred>();
+  for (const v of [...contract.parameters, ...contract.derived]) {
+    const dim = parseUnit(v.unit);
+    declared.set(v.name, dim ? { kind: 'dim', dim } : { kind: 'unknown' });
+  }
+  return (name) => {
+    const engine = ENGINE_NAME_DIMENSIONS[name];
+    if (engine) return { kind: 'dim', dim: engine };
+    if (/^(inlet|utility|batch)\.x\./.test(name)) return { kind: 'dim', dim: DIMENSIONLESS };
+    return declared.get(name) ?? { kind: 'unknown' };
+  };
+}
+
+/**
+ * Dimensional checks: every expression adds and compares like with like, and
+ * gives what its field needs (a time for cycleSeconds, a power for dutyKw, the
+ * declared unit for a derived value). See dimensions.ts.
+ */
+export function dimensionIssues(contract: UnitOpContract): ContractValidationIssue[] {
+  const env = dimensionEnv(contract);
+  const issues: ContractValidationIssue[] = [];
+  const check = (expr: string | undefined, expected: Dimension | null, path: string, what: string) => {
+    if (!expr) return;
+    for (const message of checkDimension(expr, expected, env, what)) issues.push({ path, message, unit: true });
+  };
+
+  for (const d of contract.derived) {
+    const dim = parseUnit(d.unit);
+    check(d.expr, dim, `derived.${d.name}`, `"${d.name}" is declared in ${d.unit}, so it`);
+  }
+  for (const c of contract.constraints) check(c.expr, null, `constraints.${c.id}`, 'a constraint');
+
+  const b = contract.behavior;
+  if (b.mode === 'DISCRETE_CYCLE') {
+    check(b.cycleSeconds, TIME, 'behavior.cycleSeconds', 'cycleSeconds');
+    check(b.unitsPerCycle, DIMENSIONLESS, 'behavior.unitsPerCycle', 'unitsPerCycle (a count)');
+    check(b.scrapFraction, DIMENSIONLESS, 'behavior.scrapFraction', 'scrapFraction');
+    check(b.liquidPerCycleGallons, VOLUME, 'behavior.liquidPerCycleGallons', 'liquidPerCycleGallons');
+    (b.inputs ?? []).forEach((x, i) => check(x.perCycle, DIMENSIONLESS, `behavior.inputs[${i}].perCycle`, 'perCycle (a count)'));
+    (b.outputs ?? []).forEach((x, i) => check(x.perCycle, DIMENSIONLESS, `behavior.outputs[${i}].perCycle`, 'perCycle (a count)'));
+  } else if (b.mode === 'BATCH') {
+    check(b.batchGallons, VOLUME, 'behavior.batchGallons', 'batchGallons');
+    b.phases.forEach((ph, i) => {
+      const path = `behavior.phases[${i}]`;
+      check(ph.gallons, VOLUME, `${path}.gallons`, 'gallons');
+      check(ph.rateGpm, VOLUME_FLOW, `${path}.rateGpm`, 'rateGpm');
+      check(ph.seconds, TIME, `${path}.seconds`, 'seconds');
+      check(ph.temperatureC, TEMPERATURE, `${path}.temperatureC`, 'temperatureC');
+      check(ph.dutyKw, POWER, `${path}.dutyKw`, 'dutyKw');
+    });
+  } else {
+    check(b.throughputPerMinute, null, 'behavior.throughputPerMinute', 'throughputPerMinute');
+    check(b.capacityGpm, VOLUME_FLOW, 'behavior.capacityGpm', 'capacityGpm');
+    check(b.dutyKw, POWER, 'behavior.dutyKw', 'dutyKw');
+    check(b.residenceTimeSeconds, TIME, 'behavior.residenceTimeSeconds', 'residenceTimeSeconds');
+  }
+  (contract.outlets ?? []).forEach((o, i) => {
+    check(o.share, DIMENSIONLESS, `outlets[${i}].share`, 'a share');
+    check(o.temperatureC, TEMPERATURE, `outlets[${i}].temperatureC`, 'an outlet temperature');
+    for (const [c, expr] of Object.entries(o.recovery ?? {})) check(expr, DIMENSIONLESS, `outlets[${i}].recovery.${c}`, 'a recovery');
+  });
+  (contract.reactions ?? []).forEach((r, i) => check(r.conversion, DIMENSIONLESS, `reactions[${i}].conversion`, 'a conversion'));
+  return issues;
+}
+
+/**
+ * Units the checker does not recognise. Not errors -- the value is simply not
+ * checked -- but worth fixing, because an unchecked unit is where a units
+ * mistake hides.
+ */
+export function unitWarnings(contract: UnitOpContract): ContractValidationIssue[] {
+  return [
+    ...contract.parameters.map((p) => ({ v: p, path: `parameters.${p.name}` })),
+    ...contract.derived.map((d) => ({ v: d, path: `derived.${d.name}` }))
+  ]
+    .filter(({ v }) => parseUnit(v.unit) === null)
+    .map(({ v, path }) => ({
+      path,
+      message: `unit "${v.unit}" is not one the checker knows, so "${v.name}" is not unit-checked. Use a standard symbol (kg, m, s, min, gal, L, °C, K, kW, kJ, psi, bar, %, -, items...) combined with / and -, e.g. kJ/kg-K or gal/min.`
+    }));
 }

@@ -47,6 +47,7 @@ export const WAX_COOLING_BELT_CONTRACT: UnitOpContract = {
     { name: 'waxMeltingPointC', label: 'Wax congealing point', unit: 'degC', value: 58, min: -50, max: 400 },
     { name: 'waxCpLiquidKjPerKgK', label: 'Wax cp (liquid)', unit: 'kJ/kg-K', value: 2.3, min: 0.1, max: 10 },
     { name: 'waxCpSolidKjPerKgK', label: 'Wax cp (solid)', unit: 'kJ/kg-K', value: 2.1, min: 0.1, max: 10 },
+    { name: 'waxDensityKgPerM3', label: 'Wax density (solid)', unit: 'kg/m3', value: 900, min: 600, max: 1200 },
     { name: 'waxLatentHeatKjPerKg', label: 'Heat of fusion', unit: 'kJ/kg', value: 190, min: 0, max: 600 },
     { name: 'coolingWaterFlowKgPerS', label: 'Cooling water flow', unit: 'kg/s', value: 9, min: 0.01, max: 200 },
     { name: 'coolingWaterInletTempC', label: 'Cooling water supply temp', unit: 'degC', value: 18, min: -20, max: 100 },
@@ -95,11 +96,11 @@ export const WAX_COOLING_BELT_CONTRACT: UnitOpContract = {
       expr: 'availableDutyKw / totalDutyKw' },
 
     { name: 'waxLayerThicknessMm', label: 'Deposited layer thickness', unit: 'mm',
-      expr: '(waxMassFlowKgPerS / (900 * beltWidthM * (beltSpeedMPerMin / 60))) * 1000',
-      description: 'Assumes ~900 kg/m3 wax density. Thin layers cool fast; thick ones do not.' },
+      expr: '(waxMassFlowKgPerS / (waxDensityKgPerM3 * beltWidthM * (beltSpeedMPerMin / 60))) * 1000',
+      description: 'Thin layers cool fast; thick ones do not.' },
 
     { name: 'waxThermalDiffusivityM2PerS', label: 'Wax thermal diffusivity', unit: 'm2/s',
-      expr: 'waxThermalConductivityWPerMK / (900 * waxCpSolidKjPerKgK * 1000)' },
+      expr: 'waxThermalConductivityWPerMK / (waxDensityKgPerM3 * waxCpSolidKjPerKgK * 1000)' },
 
     { name: 'conductionTimeS', label: 'Time for heat to cross the layer', unit: 's',
       expr: '(waxLayerThicknessMm / 1000) ^ 2 / (2 * waxThermalDiffusivityM2PerS)',

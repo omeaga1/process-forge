@@ -1,4 +1,4 @@
-import { UnitOpContractSchema, validateUnitOpContract, type UnitOpContract } from './contract.js';
+import { UnitOpContractSchema, unitWarnings, validateUnitOpContract, type UnitOpContract } from './contract.js';
 import { evaluateUnitOp, blockingViolations } from './evaluate.js';
 import { checkUnitOpDrawing } from './drawing.js';
 
@@ -27,8 +27,8 @@ export interface ValidateUnitOpResult {
   gates: {
     /** Does it match the contract schema at all? */
     schema: { passed: boolean; errors: string[] };
-    /** Do all expressions parse and all references resolve? */
-    staticAnalysis: { passed: boolean; errors: string[] };
+    /** Do all expressions parse, all references resolve, and the units agree? */
+    staticAnalysis: { passed: boolean; errors: string[]; warnings?: string[] };
     /** Do the physics hold when evaluated? */
     physical: { passed: boolean; errors: string[]; warnings: string[] };
     /** Can it be drawn and piped: every port a nozzle on the drawing, every shape inside it? */
@@ -88,11 +88,21 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
         '',
         'Remember: derived values resolve in declaration order, so a value may only',
         'reference parameters, engine-supplied names, or derived values declared',
-        'BEFORE it. Reorder your derived list as a calculation sequence.'
+        'BEFORE it. Reorder your derived list as a calculation sequence.',
+        ...(issues.some((i) => i.unit)
+          ? [
+              '',
+              'Units are checked by dimension (mass, length, time, temperature). A bare',
+              'number that carries a unit (a density of 900, a cp of 4.18) hides that',
+              'unit: make it a parameter with its unit instead.'
+            ]
+          : [])
       ].join('\n')
     );
   }
   gates.staticAnalysis.passed = true;
+  const unchecked = unitWarnings(contract).map((w) => `${w.path}: ${w.message}`);
+  if (unchecked.length) gates.staticAnalysis.warnings = unchecked;
 
   // Gate 4 -- the drawing. Checked here so its problems come back in the same
   // round as any physics problems; it decides the verdict after physics.
@@ -174,6 +184,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
         warnings.map((w) => `  - ${w.message}${w.hint ? ` (${w.hint})` : ''}`).join('\n')
       : '',
     gates.drawing.warnings.length > 0 ? `\nDrawing:\n` + gates.drawing.warnings.map((w) => `  - ${w}`).join('\n') : '',
+    unchecked.length > 0 ? `\nUnits not checked:\n` + unchecked.map((w) => `  - ${w}`).join('\n') : '',
     '',
     'Attach it to a node as config.contract (or send it to the desktop app with',
     'add_unit_op_to_flowsheet). The engine re-evaluates it when the simulation',
@@ -202,6 +213,7 @@ export const UNIT_OP_AUTHORING_RULES: readonly string[] = [
   'Every name an expression references must be a parameter you declared, a derived value declared EARLIER in the list, or one of the engine-supplied names. Unknown names are a validation error, not a zero.',
   'Derived values resolve in declaration order. Forward references are rejected, so order your derived list as a calculation sequence.',
   'Declare min/max on every parameter as the PHYSICALLY meaningful domain, not a UI range. A value outside its own bounds is a validation error.',
+  'Units are checked. Give every parameter and derived value a standard unit symbol (kg, g, m, mm, s, min, h, gal, L, m3, °C, K, kW, kJ, kWh, psi, bar, kPa, %, -, items), combined with / and - such as kJ/kg-K, W/m2-K or gal/min. The engine reduces each to mass, length, time and temperature and rejects an expression that adds or compares unlike quantities, or whose result does not fit its field (cycleSeconds a time, dutyKw a power, capacityGpm a volumetric flow, a derived value its own unit). Conversion factors stay bare numbers (x / 60, kw * 1000); but a bare number that carries a unit of its own (a density of 900, a cp of 4.18) is a units error waiting to happen: declare it as a parameter with its unit.',
   'Put the physics that must hold in `constraints`, not in prose. severity ERROR means the unit op cannot operate as specified and the engine will refuse to simulate it; WARNING means operable but outside good practice.',
   'Write each constraint `message` so an engineer can act on it, and add a `hint` naming the knob to turn. These strings are fed back to you verbatim when a design is rejected.',
   'Prefer a constraint that is INDEPENDENT of the quantity it guards. A check that reduces algebraically to another check adds no information.',
