@@ -10,18 +10,18 @@ import {
 import { callLlmModel, type LlmChatMessage, type LlmCredentials } from './llmClient.js';
 
 /**
- * The in-app unit-op author: Claude writes a contract, the ENGINE judges it,
- * and the engine's reasons go back to Claude until it passes or runs out of
+ * The in-app unit-op author: the model writes a contract, the ENGINE judges it,
+ * and the engine's reasons go back to the model until it passes or runs out of
  * rounds.
  *
- * This is the same loop the MCP tools run from Claude Desktop (design_unit_op
+ * This is the same loop the MCP tools run from an MCP client (design_unit_op
  * then validate_unit_op), with the same rules and the same verdicts -- both
- * come from @process-forge/protocol -- but driven from inside the app with the
- * engineer's own API key. It exists because Anthropic does not allow a
- * third-party app to use someone's Claude subscription; an API key is the
- * permitted way to call Claude from here.
+ * come from @process-forge/protocol -- but driven from inside the app on the
+ * engineer's OpenRouter sign-in. It exists because a Claude or ChatGPT
+ * subscription cannot be used by a third-party app; OpenRouter, billed per
+ * use, is how the app calls a model itself.
  *
- * The model proposes; the engine decides. Nothing Claude says about its own
+ * The model proposes; the engine decides. Nothing the model says about its own
  * design is taken on trust: the only "accepted" is executeValidateUnitOp's.
  */
 

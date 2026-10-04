@@ -8,7 +8,7 @@ import { JevOpenRouterProvider, isJevEnabled, offlineDecider, setJevEnabled } fr
 import { DESIGN_QUESTIONS } from '@process-forge/protocol';
 
 /**
- * The in-app assistant: chat with a model (OpenRouter or OpenAI) that works on
+ * The in-app assistant: chat with a model on OpenRouter that works on
  * the open flowsheet with ProcessForge's tools. What it reads, simulates and
  * checks runs straight away and is listed as it happens; every change to the
  * flowsheet is shown as a card and waits for Approve.
