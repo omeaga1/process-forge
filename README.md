@@ -99,7 +99,8 @@ apps/
   web/                     The studio (Vite + React); also bundled into the desktop app
 packages/
   protocol/                Schemas, graph validation, unit-op contracts and their checks
-  simulation-core/         Discrete-event simulation engine
+  simulation-core/         Simulation engine: items and liquid (mass basis), every unit a contract
+  tools/                   The tools a model can call, defined once for MCP and the in-app assistant
   canvas-ui/               Flowsheet canvas (React Flow), unit-op creator, AI clients
   mcp-server/              MCP server published as @process-forge/mcp-server
   community-library-api/   Cloudflare Worker + D1: sign-in, cloud projects, community library

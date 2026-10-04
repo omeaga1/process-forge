@@ -6,7 +6,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createProcessForgeMcpServer, SERVER_INSTRUCTIONS, TOOLS, SERVER_VERSION } from '../server.js';
 import { resolveGraph } from '../tools/graphSource.js';
 import { executeCompareScenarios, applyScenario } from '../tools/compareScenarios.js';
-import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates.js';
+import { PAINT_CANNING_LINE as PAINT_LINE } from '@process-forge/protocol';
 import pkg from '../../package.json' with { type: 'json' };
 
 async function connected() {
@@ -51,7 +51,7 @@ describe('What any MCP client sees', () => {
 
   it('returns structured content alongside the text', async () => {
     const client = await connected();
-    const r = await client.callTool({ name: 'diagnose_bottlenecks', arguments: { templateName: 'sherwin-williams-paint-line' } });
+    const r = await client.callTool({ name: 'diagnose_bottlenecks', arguments: { templateName: 'paint-canning-line' } });
     const s = r.structuredContent as Record<string, unknown>;
     assert.equal(s.bottleneckNodeId, 'reactor-101');
     assert.equal(s.source, 'template');
@@ -74,9 +74,12 @@ describe('What any MCP client sees', () => {
     const { resources } = await client.listResources();
     const uris = resources.map((r) => r.uri);
     assert.ok(uris.includes('processforge://catalog/standard'));
-    assert.ok(uris.includes('processforge://templates/sherwin-williams-paint-line'));
-    const t = await client.readResource({ uri: 'processforge://templates/sherwin-williams-paint-line' });
-    assert.equal(JSON.parse((t.contents[0] as { text: string }).text).id, SHERWIN_WILLIAMS_PAINT_LINE.id);
+    assert.ok(uris.includes('processforge://templates/paint-canning-line'));
+    const t = await client.readResource({ uri: 'processforge://templates/paint-canning-line' });
+    assert.equal(JSON.parse((t.contents[0] as { text: string }).text).id, PAINT_LINE.id);
+    // The key earlier versions used still works.
+    const old = await client.readResource({ uri: 'processforge://templates/sherwin-williams-paint-line' });
+    assert.equal(JSON.parse((old.contents[0] as { text: string }).text).id, PAINT_LINE.id);
     const guide = await client.readResource({ uri: 'processforge://guide/workflow' });
     assert.equal((guide.contents[0] as { text: string }).text, SERVER_INSTRUCTIONS);
   });
@@ -93,12 +96,12 @@ describe('Which flowsheet a tool uses', () => {
   const down = async () => ({ success: false, error: 'not running' });
 
   it('the graph it was given, then a template', async () => {
-    assert.equal((await resolveGraph({ graph: SHERWIN_WILLIAMS_PAINT_LINE }, down)).source, 'graph');
+    assert.equal((await resolveGraph({ graph: PAINT_LINE }, down)).source, 'graph');
     assert.equal((await resolveGraph({ templateName: 'beverage-bottling-line' }, down)).source, 'template');
   });
 
   it('the open flowsheet when the app is running', async () => {
-    const open = async () => ({ success: true, flowsheet: { projectName: 'Plant 2', graph: SHERWIN_WILLIAMS_PAINT_LINE } });
+    const open = async () => ({ success: true, flowsheet: { projectName: 'Plant 2', graph: PAINT_LINE } });
     const r = await resolveGraph({}, open);
     assert.equal(r.source, 'open-flowsheet');
     assert.match(r.note!, /Plant 2/);
@@ -113,8 +116,8 @@ describe('Which flowsheet a tool uses', () => {
 
 describe('compare_scenarios', () => {
   it('a shorter reaction lifts a reactor-limited line; nothing else changes', () => {
-    const before = JSON.stringify(SHERWIN_WILLIAMS_PAINT_LINE);
-    const r = executeCompareScenarios(SHERWIN_WILLIAMS_PAINT_LINE, {
+    const before = JSON.stringify(PAINT_LINE);
+    const r = executeCompareScenarios(PAINT_LINE, {
       durationMinutes: 180,
       scenarios: [
         { name: 'Faster reaction', changes: [{ unit: 'reactor-101', parameters: { reactionDurationMinutes: 20 } }] },
@@ -129,12 +132,12 @@ describe('compare_scenarios', () => {
     assert.equal(labeler!.warnings, undefined);
     // Speeding up a unit that is not the limit buys little.
     assert.ok(Math.abs(labeler!.unitsPerMinuteChangePercent ?? 0) < 3, `labeler ${labeler!.unitsPerMinuteChangePercent}`);
-    assert.equal(JSON.stringify(SHERWIN_WILLIAMS_PAINT_LINE), before, 'the input graph is untouched');
+    assert.equal(JSON.stringify(PAINT_LINE), before, 'the input graph is untouched');
     assert.match(r.summary, /Best: Faster reaction/);
   });
 
   it('finds units by tag or name, reaches nested settings, and warns about what it cannot find', () => {
-    const { graph, applied, warnings } = applyScenario(SHERWIN_WILLIAMS_PAINT_LINE, {
+    const { graph, applied, warnings } = applyScenario(PAINT_LINE, {
       changes: [
         { unit: 'B-101', parameters: { 'fluid.temperatureCelsius': 80 } },
         { unit: 'Nonexistent Mixer', parameters: { x: 1 } }
@@ -144,7 +147,7 @@ describe('compare_scenarios', () => {
     assert.equal((reactor.config as { fluid: { temperatureCelsius: number } }).fluid.temperatureCelsius, 80);
     assert.equal(applied.length, 1);
     assert.match(warnings[0]!, /No unit "Nonexistent Mixer"/);
-    const original = SHERWIN_WILLIAMS_PAINT_LINE.nodes.find((n) => n.id === 'reactor-101')!;
+    const original = PAINT_LINE.nodes.find((n) => n.id === 'reactor-101')!;
     assert.notEqual((original.config as { fluid: { temperatureCelsius: number } }).fluid.temperatureCelsius, 80);
   });
 });

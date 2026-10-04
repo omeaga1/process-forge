@@ -6,10 +6,10 @@ import {
   type ProcessGraph
 } from '@process-forge/protocol';
 import {
-  SHERWIN_WILLIAMS_PAINT_LINE,
+  PAINT_CANNING_LINE,
   BEVERAGE_BOTTLING_LINE,
   BLANK_LINE
-} from '@process-forge/canvas-ui/dist/templates/sherwinWilliamsPaintLine.js';
+} from '@process-forge/protocol';
 
 // Mirror templateKey inference contract
 function inferTemplateKeyFromProject(proj: SimulationProject): string {
@@ -22,8 +22,8 @@ function inferTemplateKeyFromProject(proj: SimulationProject): string {
   if (graphId === 'blank' || proj.graph.nodes.length === 0 || name.includes('custom')) {
     return 'blank';
   }
-  if (graphId === 'sherwin-williams-paint-line' || name.includes('paint') || name.includes('sherwin')) {
-    return 'sherwin-williams-paint-line';
+  if (graphId === 'paint-canning-line' || name.includes('paint')) {
+    return 'paint-canning-line';
   }
   return 'blank';
 }
@@ -50,8 +50,8 @@ describe('ProcessForge Studio Navigation & State Synchronization', () => {
 
   it('accurately infers templateKey from diverse project graphs to prevent header desync', () => {
     // 1. Sherwin-Williams Line
-    const paintProj = createSimulationProject('Sherwin-Williams Paint Canning Line', SHERWIN_WILLIAMS_PAINT_LINE);
-    assert.strictEqual(inferTemplateKeyFromProject(paintProj), 'sherwin-williams-paint-line');
+    const paintProj = createSimulationProject('Paint Canning Line', PAINT_CANNING_LINE);
+    assert.strictEqual(inferTemplateKeyFromProject(paintProj), 'paint-canning-line');
 
     // 2. Beverage Bottling Line
     const beverageProj = createSimulationProject('High-Speed Beverage Bottling Line', BEVERAGE_BOTTLING_LINE);
@@ -74,13 +74,13 @@ describe('ProcessForge Studio Navigation & State Synchronization', () => {
   });
 
   it('handleOpenStudio launches a blank canvas rather than the worked example', () => {
-    let currentProject = createSimulationProject('Sherwin-Williams Paint Canning Line', SHERWIN_WILLIAMS_PAINT_LINE);
+    let currentProject = createSimulationProject('Paint Canning Line', PAINT_CANNING_LINE);
     let viewMode: 'landing' | 'studio' = 'landing';
     let templateKey = inferTemplateKeyFromProject(currentProject);
 
     // Initial state before clicking Open Studio
     assert.strictEqual(viewMode, 'landing');
-    assert.strictEqual(templateKey, 'sherwin-williams-paint-line');
+    assert.strictEqual(templateKey, 'paint-canning-line');
     assert.strictEqual(currentProject.graph.nodes.length, 6);
 
     // Simulate "Open Studio" click (must initialize a blank canvas)
@@ -106,14 +106,14 @@ describe('ProcessForge Studio Navigation & State Synchronization', () => {
   });
 
   it('switching templates updates both active graph and templateKey simultaneously', () => {
-    let currentProject = createSimulationProject('Sherwin-Williams Paint Canning Line', SHERWIN_WILLIAMS_PAINT_LINE);
-    let templateKey = 'sherwin-williams-paint-line';
+    let currentProject = createSimulationProject('Paint Canning Line', PAINT_CANNING_LINE);
+    let templateKey = 'paint-canning-line';
     let viewMode: 'landing' | 'studio' = 'landing';
 
     const handleSelectTemplateAndLaunch = (key: string) => {
       templateKey = key;
-      let targetGraph: ProcessGraph = SHERWIN_WILLIAMS_PAINT_LINE;
-      let targetName = 'Sherwin-Williams Paint Canning Line';
+      let targetGraph: ProcessGraph = PAINT_CANNING_LINE;
+      let targetName = 'Paint Canning Line';
       if (key === 'beverage-bottling-line') {
         targetGraph = BEVERAGE_BOTTLING_LINE;
         targetName = 'High-Speed Beverage Bottling Line';
@@ -140,7 +140,7 @@ describe('ProcessForge Studio Navigation & State Synchronization', () => {
   });
 
   it('returning from Studio to Hub smoothly saves changes to localStorage without losing canvas nodes', () => {
-    let currentProject = createSimulationProject('Sherwin-Williams Paint Canning Line', SHERWIN_WILLIAMS_PAINT_LINE);
+    let currentProject = createSimulationProject('Paint Canning Line', PAINT_CANNING_LINE);
     let viewMode: 'landing' | 'studio' = 'studio';
 
     // Simulate adding an extra machine on the canvas

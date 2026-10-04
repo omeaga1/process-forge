@@ -118,7 +118,7 @@ describe('Process Graph Validation & Bottleneck Engine', () => {
     // Palletizer: 20 containers per layer, 30 sec per layer -> 40 cans/min
     const lineGraph: ProcessGraph = {
       id: 'paint-line-1',
-      name: 'Sherwin-Williams Packaging Line Mock',
+      name: 'Paint Packaging Line Mock',
       version: '1.0.0',
       metadata: {},
       nodes: [

@@ -12,23 +12,16 @@ import {
   McpError
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { STANDARD_EQUIPMENT_CATALOG } from '@process-forge/protocol';
-import { executeSimulateLine } from './tools/simulateLine.js';
-import { executeDiagnoseBottlenecks } from './tools/diagnoseBottlenecks.js';
+import { EXAMPLE_LINES, findExampleLine } from '@process-forge/protocol';
+import { FORGE_TOOLS, inputSchemaFor, listStandardUnitOps, type ForgeTool } from '@process-forge/tools';
 import { executeQueryUnitSubAgent } from './tools/queryUnitSubAgent.js';
 import { executePackageUnitOp } from './tools/packageUnitOp.js';
 import { executeForgeEquipmentDrawing } from './tools/forgeEquipmentDrawing.js';
 import { executeDesignUnitOp } from './tools/designUnitOp.js';
-import { executeValidateUnitOp } from './tools/validateUnitOp.js';
-import { executeAddUnitOpToFlowsheet, executeGetOpenFlowsheet, executeAddStream, executeFlowsheetEdit, executeRequestPublish } from './tools/desktopBridge.js';
-import { executeListStandardUnitOps, executeAddStandardUnitOp } from './tools/standardUnitOps.js';
-import { executeSearchCommunityUnitOps, executeAddCommunityUnitOp } from './tools/communityLibrary.js';
-import { executeCompareScenarios } from './tools/compareScenarios.js';
-import { resolveGraph, type ResolvedGraph } from './tools/graphSource.js';
-import { AVAILABLE_TEMPLATES } from './templates.js';
+import { bridgeHost, executeGetOpenFlowsheet } from './tools/desktopBridge.js';
 import { PROMPTS, renderPrompt } from './prompts.js';
 
-export const SERVER_VERSION = '0.6.0';
+export const SERVER_VERSION = '0.7.0';
 
 /**
  * Sent to every client at connect time (the MCP `instructions` field), so a
@@ -43,7 +36,7 @@ Typical workflow:
 4. Build. Prefer standard equipment: list_standard_unit_ops, then add_standard_unit_op. Next, search_community_unit_ops / add_community_unit_op (community listings are unreviewed; say so). Only for equipment neither has, design one: design_unit_op gives the brief, you write a UnitOpContract, validate_unit_op checks it, add_unit_op_to_flowsheet places it. Connect units with add_stream (by id, name or tag like P-101). Change an existing unit with update_unit; remove_unit and remove_stream delete, so confirm with the engineer first. To share a unit with others, publish_unit_op opens the publish dialog in the app for the engineer to confirm.
 5. Re-simulate after changes and report what moved.
 
-Units: liquid in gal/min and gallons, items per minute, temperatures in °C, duty in kW. Tools that change the flowsheet need ProcessForge Desktop running on this computer; every other tool works without it.`;
+Units: liquid in gal/min and gallons (with kg alongside), items per minute, temperatures in °C, duty in kW. Every unit, standard or designed, runs on a contract the engine checks, units included. Tools that change the flowsheet need ProcessForge Desktop running on this computer; every other tool works without it.`;
 
 type Json = Record<string, unknown>;
 
@@ -56,330 +49,37 @@ interface ToolDef {
   run: (args: Json) => Promise<unknown> | unknown;
 }
 
-const templateNames = Object.keys(AVAILABLE_TEMPLATES);
+/**
+ * How a shared tool reads to an MCP client: where the flowsheet comes from,
+ * and that changing it needs the desktop app.
+ */
+function describeForMcp(t: ForgeTool): string {
+  if (t.graphSource && t.name !== 'design_unit_op') {
+    return `${t.description} Uses the flowsheet open in ProcessForge Desktop unless you pass graph or templateName ("source" in the result says which).`;
+  }
+  if (t.access === 'write' || t.name === 'publish_unit_op' || t.name === 'get_open_flowsheet') return `${t.description} Requires ProcessForge Desktop to be running.`;
+  return t.description;
+}
 
-const graphSourceProps = {
-  graph: { type: 'object', description: 'A ProcessGraph to use. Omit to use the flowsheet open in ProcessForge Desktop.' },
-  templateName: { type: 'string', enum: templateNames, description: 'A built-in line to use instead (see list_digital_twin_templates).' }
-};
-
-const position = {
-  type: 'object',
-  description: 'Optional canvas position { x, y }. By default it goes to the right of the flowsheet.',
-  properties: { x: { type: 'number' }, y: { type: 'number' } }
-};
+/** The tools every surface shares (@process-forge/tools), on the desktop app over the bridge. */
+const SHARED: ToolDef[] = FORGE_TOOLS.map((t) => ({
+  name: t.name,
+  title: t.title,
+  description: describeForMcp(t),
+  inputSchema: inputSchemaFor(t, 'mcp'),
+  annotations: {
+    readOnlyHint: t.readOnly ?? t.access === 'read',
+    destructiveHint: Boolean(t.destructive),
+    idempotentHint: Boolean(t.idempotent),
+    openWorldHint: Boolean(t.openWorld)
+  },
+  run: (args) => t.run(args, bridgeHost)
+}));
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
-const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 
-/** Where the graph came from, on the front of a result. */
-const withSource = (r: ResolvedGraph, result: object) => ({
-  source: r.source,
-  ...(r.note ? { sourceNote: r.note } : {}),
-  ...result
-});
-
-export const TOOLS: ToolDef[] = [
-  {
-    name: 'simulate_process_line',
-    title: 'Simulate the line',
-    description:
-      'Runs the deterministic simulation of a line over time and returns throughput, units finished and scrapped, per-unit starved and blocked time, liquid gallons and levels, temperatures and heat duty, and the bottleneck with advice. Uses the flowsheet open in ProcessForge Desktop unless you pass graph or templateName ("source" in the result says which). Liquid carries a temperature: a heat exchanger with targetTemperatureCelsius moves the flow toward it within its dutyKw, and a batch reactor with jacketDutyKw heats each batch to its fluid.temperatureCelsius before reacting, which lengthens the batch.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        ...graphSourceProps,
-        durationMinutes: { type: 'number', description: 'Simulated time in minutes (default 30). Use 120 or more for lines with batch reactors.' }
-      }
-    },
-    annotations: READ,
-    run: async (args) => {
-      const r = await resolveGraph(args as never);
-      return withSource(r, executeSimulateLine({ graph: r.graph, durationMinutes: args.durationMinutes as number | undefined }));
-    }
-  },
-  {
-    name: 'diagnose_bottlenecks',
-    title: 'Find the bottleneck',
-    description:
-      'Instant static check of a line: port mismatches (liquid piped into an items inlet and the like), each unit\'s capacity, the bottleneck and what to change. Uses the flowsheet open in ProcessForge Desktop unless you pass graph or templateName.',
-    inputSchema: { type: 'object', properties: graphSourceProps },
-    annotations: READ,
-    run: async (args) => {
-      const r = await resolveGraph(args as never);
-      return withSource(r, executeDiagnoseBottlenecks({ graph: r.graph }));
-    }
-  },
-  {
-    name: 'compare_scenarios',
-    title: 'Compare what-if scenarios',
-    description:
-      'What-if analysis: simulates the line as it is, then once per scenario with some unit settings changed, all on the same random seed, and reports throughput, liquid output, the bottleneck and whether it moved, against the baseline. Nothing on the flowsheet changes, so use it before recommending or making a change. Name units by id, name or tag; settings by the names get_open_flowsheet or list_standard_unit_ops show (dotted names reach nested settings, e.g. "fluid.temperatureCelsius"); for a designed unit, its contract parameters by name (a change that breaks the design is reported in warnings and not applied). Uses the open flowsheet unless you pass graph or templateName.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        ...graphSourceProps,
-        scenarios: {
-          type: 'array',
-          description: 'Up to 8 scenarios, e.g. [{ "name": "Bigger pump", "changes": [{ "unit": "P-102", "parameters": { "designFlowRateGpm": 80 } }] }].',
-          items: {
-            type: 'object',
-            properties: {
-              name: { type: 'string' },
-              changes: {
-                type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    unit: { type: 'string', description: 'Unit id, name or tag.' },
-                    parameters: { type: 'object', description: 'Settings to set on it.' }
-                  },
-                  required: ['unit', 'parameters']
-                }
-              }
-            },
-            required: ['changes']
-          }
-        },
-        durationMinutes: { type: 'number', description: 'Simulated minutes per run (default 60).' }
-      },
-      required: ['scenarios']
-    },
-    annotations: READ,
-    run: async (args) => {
-      const r = await resolveGraph(args as never);
-      return withSource(r, executeCompareScenarios(r.graph, args as never));
-    }
-  },
-  {
-    name: 'get_open_flowsheet',
-    title: 'Read the open flowsheet',
-    description:
-      "Reads the flowsheet open in the ProcessForge desktop app on this computer: its units with their settings and ports, and the streams between them. Start here when the engineer talks about \"my line\". Requires ProcessForge Desktop to be running.",
-    inputSchema: { type: 'object', properties: {} },
-    annotations: READ,
-    run: () => executeGetOpenFlowsheet()
-  },
-  {
-    name: 'list_standard_unit_ops',
-    title: 'List standard equipment',
-    description:
-      "Lists the equipment that ships with ProcessForge (the app's Standard palette), by category: Feeds & outlets (the Feed, Product, Byproduct and Waste arrows where material enters and leaves), Transfer & storage (pump, tank, mixer, splitter), Heat transfer (heat exchanger, heater, evaporator), Reaction (batch reactor, CSTR, plug-flow reactor), Separation (flash drum, distillation column, filter, centrifuge, crystalliser, dryer) and Packaging & items (filler, labeler, case packer, palletizer, conveyor). Each comes with its ports (liquid or items), its settings with default values, and how the simulation models it. Some are designed units (contracts): tune them with update_unit or use them as a starting point for design_unit_op. Use these before designing a new unit op.",
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Optional words to filter by, such as "tank" or "waste".' },
-        category: { type: 'string', enum: ['FEEDS_OUTLETS', 'TRANSFER_STORAGE', 'HEAT_TRANSFER', 'REACTION', 'SEPARATION', 'PACKAGING'], description: 'Optional: one category only.' }
-      }
-    },
-    annotations: READ,
-    run: (args) => executeListStandardUnitOps(args as never)
-  },
-  {
-    name: 'add_standard_unit_op',
-    title: 'Add standard equipment',
-    description:
-      "Places a standard unit, or a feed, product, byproduct or waste arrow, on the flowsheet open in the ProcessForge desktop app, with its default settings unless you change them, and optionally pipes it in. Feeds supply what the line takes (or up to supplyRate); only Product outlets count as the line's output; Byproduct and Waste are totalled apart. A feed or outlet takes on the kind (liquid or items) of the unit it is piped to. Requires ProcessForge Desktop 0.1.30 or later to be running.",
-    inputSchema: {
-      type: 'object',
-      properties: {
-        unit: { type: 'string', description: `Catalog id from list_standard_unit_ops: ${STANDARD_EQUIPMENT_CATALOG.map((i) => i.id).join(', ')}.` },
-        name: { type: 'string', description: 'Optional name, e.g. "Transfer Pump P-102". A tag like P-102 lets add_stream find it.' },
-        parameters: { type: 'object', description: 'Optional settings to change, by the names list_standard_unit_ops gives, e.g. { "designFlowRateGpm": 80 }; for a designed unit, its parameters within their ranges, e.g. { "volumeGallons": 2000 }.' },
-        material: { type: 'string', description: 'Feeds and outlets: what the stream is, e.g. "Latex base" or "Rejected cans".' },
-        supplyRate: { type: 'number', description: 'Feeds: the most it supplies, gal/min for liquid or items/min. Omit or 0 to supply whatever the line takes.' },
-        composition: {
-          type: 'object',
-          description: 'Liquid feeds, tanks and reactors: what the liquid is made of, as mass fractions by component, e.g. { "water": 0.88, "sugar": 0.12 }. Designed units read them as inlet.x.<name>, react them and separate them.'
-        },
-        carries: { type: 'string', enum: ['liquid', 'items'], description: 'Feeds and outlets: optional; by default it matches the first unit it is piped to.' },
-        connectFrom: { type: 'string', description: 'Optional: a unit (id, name or tag) to pipe into the new one, as add_stream would.' },
-        connectTo: { type: 'string', description: 'Optional: a unit to pipe the new one into.' },
-        position
-      },
-      required: ['unit']
-    },
-    annotations: WRITE,
-    run: (args) => executeAddStandardUnitOp(args as never)
-  },
-  {
-    name: 'add_stream',
-    title: 'Pipe two units together',
-    description:
-      'Pipes one unit into another on the flowsheet open in the ProcessForge desktop app: a stream from an outlet of "from" to an inlet of "to". Name units by id, name or tag (from get_open_flowsheet). Ports are optional: by default the first free outlet and inlet that fit are used. A stream carries liquid or whole items, and the app refuses one that joins the two, a unit to itself, or a duplicate, and says why. The line simulation follows the pipes, so this is how a new unit joins the line. Requires ProcessForge Desktop to be running.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        from: { type: 'string', description: 'The unit the stream leaves: id, name, or tag (e.g. ST-200).' },
-        to: { type: 'string', description: 'The unit the stream enters.' },
-        fromPort: { type: 'string', description: 'Optional outlet on "from", by port id or name.' },
-        toPort: { type: 'string', description: 'Optional inlet on "to", by port id or name.' }
-      },
-      required: ['from', 'to']
-    },
-    annotations: WRITE,
-    run: (args) => executeAddStream(args as never)
-  },
-  {
-    name: 'update_unit',
-    title: 'Change a unit\'s settings',
-    description:
-      'Changes settings of one unit on the flowsheet open in ProcessForge Desktop, or renames it. Name the unit by id, name or tag; settings by the names get_open_flowsheet shows (dotted names reach nested ones, e.g. "fluid.temperatureCelsius"). For a designed unit, a name that matches one of its contract parameters sets that parameter: it must lie in the parameter\'s declared range, and the change is refused if the design would then fail validate_unit_op. A number stays a number. Returns each change with its old and new value. Test a change with compare_scenarios first when its effect matters. Requires ProcessForge Desktop 0.1.33 or later.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        unit: { type: 'string', description: 'The unit: id, name or tag (e.g. P-102).' },
-        parameters: { type: 'object', description: 'Settings to set, e.g. { "designFlowRateGpm": 80 }.' },
-        name: { type: 'string', description: 'Optional new name. Keep a tag like P-102 in it so add_stream can find it.' }
-      },
-      required: ['unit']
-    },
-    annotations: { ...WRITE, idempotentHint: true },
-    run: (args) => executeFlowsheetEdit({ op: 'update-unit', ...(args as { unit: string }) })
-  },
-  {
-    name: 'remove_unit',
-    title: 'Remove a unit',
-    description:
-      'Removes one unit, and every stream to or from it, from the flowsheet open in ProcessForge Desktop. The engineer can undo it in the app, but confirm with them before removing anything they did not ask to remove. Requires ProcessForge Desktop 0.1.33 or later.',
-    inputSchema: {
-      type: 'object',
-      properties: { unit: { type: 'string', description: 'The unit: id, name or tag.' } },
-      required: ['unit']
-    },
-    annotations: { ...WRITE, destructiveHint: true },
-    run: (args) => executeFlowsheetEdit({ op: 'remove-unit', unit: String(args.unit ?? '') })
-  },
-  {
-    name: 'remove_stream',
-    title: 'Remove a stream',
-    description:
-      'Removes one stream (pipe or conveyor link) from the flowsheet open in ProcessForge Desktop: by its id, or by the units at its ends. The units stay. Requires ProcessForge Desktop 0.1.33 or later.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        stream: { type: 'string', description: 'The stream id, from get_open_flowsheet.' },
-        from: { type: 'string', description: 'Or: the unit it leaves (id, name or tag)...' },
-        to: { type: 'string', description: '...and the unit it enters.' }
-      }
-    },
-    annotations: { ...WRITE, destructiveHint: true },
-    run: (args) => executeFlowsheetEdit({ op: 'remove-stream', ...(args as object) })
-  },
-  {
-    name: 'search_community_unit_ops',
-    title: 'Search the community library',
-    description:
-      'Searches the ProcessForge community library: unit ops other engineers have published from the app, such as OEM fillers, case packers and mixers. Public and read-only. Listings are what their authors wrote; ProcessForge does not review or certify them, so say so when you suggest one.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Words to search names, descriptions and tags for. Omit to list everything.' },
-        category: { type: 'string', enum: ['PACKAGING', 'FLUID_PROCESSING', 'MATERIAL_HANDLING', 'QUALITY'] }
-      }
-    },
-    annotations: { ...READ, openWorldHint: true },
-    run: (args) => executeSearchCommunityUnitOps(args as never)
-  },
-  {
-    name: 'add_community_unit_op',
-    title: 'Add a community unit',
-    description:
-      'Places a unit from the community library (by its id from search_community_unit_ops) on the flowsheet open in the ProcessForge desktop app, as its author published it, and optionally pipes it in. Requires ProcessForge Desktop 0.1.30 or later to be running.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'The listing id, e.g. plugin-serac-10-filler.' },
-        name: { type: 'string', description: 'Optional name for it on this flowsheet.' },
-        connectFrom: { type: 'string', description: 'Optional: a unit (id, name or tag) to pipe into the new one, as add_stream would.' },
-        connectTo: { type: 'string', description: 'Optional: a unit to pipe the new one into.' },
-        position
-      },
-      required: ['id']
-    },
-    annotations: { ...WRITE, openWorldHint: true },
-    run: (args) => executeAddCommunityUnitOp(args as never)
-  },
-  {
-    name: 'publish_unit_op',
-    title: 'Ask to publish a unit',
-    description:
-      'Asks the engineer to publish a unit from the open flowsheet to the ProcessForge community library, where anyone can find and use it. It opens the publish dialog in ProcessForge Desktop, filled in with the description, category and tags you suggest; nothing is published unless the engineer reviews it and clicks Publish there (signed in with Google). If they published one by that name before, the dialog offers a new version. A designed unit is checked by the engine before it is published. Only suggest this when the engineer wants to share the unit. Requires ProcessForge Desktop 0.1.39 or later.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        unit: { type: 'string', description: 'The unit on the open flowsheet: id, name or tag.' },
-        description: { type: 'string', description: 'What it is, what it models and what it assumes, for other engineers.' },
-        category: { type: 'string', enum: ['PACKAGING', 'FLUID_PROCESSING', 'MATERIAL_HANDLING', 'QUALITY'] },
-        tags: { type: 'array', items: { type: 'string' } },
-        releaseNotes: { type: 'string', description: 'For a new version: what changed.' }
-      },
-      required: ['unit']
-    },
-    annotations: { ...WRITE, openWorldHint: true },
-    run: (args) => executeRequestPublish(args as never)
-  },
-  {
-    name: 'design_unit_op',
-    title: 'Brief for designing a unit op',
-    description:
-      'Returns everything needed to author a UnitOpContract for a unit operation described in natural language: the target schema, the restricted expression grammar and its complete function list, the names the engine supplies at evaluation time, a complete worked example, and the upstream and downstream stream conditions that constrain the design (from the graph you pass, or else the flowsheet open in ProcessForge Desktop). This tool performs no model inference of its own; you are the model. Author the contract from this brief, then submit it to validate_unit_op.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        description: {
-          type: 'string',
-          description: 'The description of the unit operation in the engineer\'s own words (e.g. "a water-cooled belt where molten wax is poured on, solidifies, and is scraped off at the end").'
-        },
-        graph: { type: 'object', description: 'Optional ProcessGraph this unit op will join. Omit to use the open flowsheet, if any.' },
-        targetNodeId: { type: 'string', description: 'Optional id of the node being designed or replaced within the graph.' },
-        preferredMode: { type: 'string', enum: ['DISCRETE_CYCLE', 'CONTINUOUS_RATE', 'BATCH'], description: 'Optional expected behavior mode.' }
-      },
-      required: ['description']
-    },
-    annotations: READ,
-    run: async (args) => {
-      if (args.graph) return executeDesignUnitOp(args as never);
-      // Context from the open flowsheet when there is one; never the demo line.
-      const r = await resolveGraph({});
-      return executeDesignUnitOp({ ...(args as Json), ...(r.source === 'open-flowsheet' ? { graph: r.graph } : {}) } as never);
-    }
-  },
-  {
-    name: 'validate_unit_op',
-    title: 'Check a unit op design',
-    description:
-      "Checks a proposed UnitOpContract and returns the engine's verdict: schema conformance; every expression parses and every name resolves; every ERROR constraint holds at the contract's own parameter values; and the drawing works (every port has one nozzle on the drawing, every shape lies inside the viewBox). Returns ACCEPTED or REJECTED with the specific failures and what to change.",
-    inputSchema: {
-      type: 'object',
-      properties: {
-        contract: { type: 'object', description: 'The candidate UnitOpContract to check.' },
-        parameterOverrides: {
-          type: 'object',
-          description: 'Optional parameter overrides, for asking whether the design holds at a different operating point (e.g. { "beltSpeedMPerMin": 20 }).'
-        }
-      },
-      required: ['contract']
-    },
-    annotations: READ,
-    run: (args) => executeValidateUnitOp(args as never)
-  },
-  {
-    name: 'add_unit_op_to_flowsheet',
-    title: 'Add a designed unit op',
-    description:
-      'Adds a unit operation you designed to the flowsheet open in the ProcessForge desktop app on this computer. The contract is validated here first (same gates as validate_unit_op) and again by the app; a rejected contract is not sent. The unit appears on the canvas with its own drawing and its pipes attached at the nozzles you drew. Requires ProcessForge Desktop to be running.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        contract: { type: 'object', description: 'An accepted UnitOpContract, including its drawing.' },
-        position
-      },
-      required: ['contract']
-    },
-    annotations: WRITE,
-    run: (args) => executeAddUnitOpToFlowsheet(args as never)
-  },
+/** Tools only an MCP client gets: drawing templates, presets, packaging and the example lines. */
+const MCP_ONLY: ToolDef[] = [
   {
     name: 'forge_equipment_drawing',
     title: 'Template equipment drawing',
@@ -465,7 +165,7 @@ export const TOOLS: ToolDef[] = [
     inputSchema: { type: 'object', properties: {} },
     annotations: READ,
     run: () => ({
-      templates: Object.entries(AVAILABLE_TEMPLATES).map(([key, graph]) => ({
+      templates: Object.entries(EXAMPLE_LINES).map(([key, graph]) => ({
         templateKey: key,
         name: graph.name,
         facility: graph.metadata?.facility,
@@ -477,6 +177,10 @@ export const TOOLS: ToolDef[] = [
   }
 ];
 
+export const TOOLS: ToolDef[] = [...SHARED, ...MCP_ONLY];
+
+const templateNames = Object.keys(EXAMPLE_LINES);
+
 /** Resources: reference material a client can attach without a tool call. */
 const RESOURCES = [
   { uri: 'processforge://guide/workflow', name: 'workflow', title: 'How to use ProcessForge', mimeType: 'text/markdown', description: 'Which tool to use when.' },
@@ -486,7 +190,7 @@ const RESOURCES = [
   ...templateNames.map((key) => ({
     uri: `processforge://templates/${key}`,
     name: key,
-    title: AVAILABLE_TEMPLATES[key]!.name,
+    title: EXAMPLE_LINES[key]!.name,
     mimeType: 'application/json',
     description: 'A built-in example line, as a ProcessGraph.'
   }))
@@ -495,11 +199,12 @@ const RESOURCES = [
 async function readResource(uri: string): Promise<{ mimeType: string; text: string }> {
   const json = (v: unknown) => ({ mimeType: 'application/json', text: JSON.stringify(v, null, 2) });
   if (uri === 'processforge://guide/workflow') return { mimeType: 'text/markdown', text: SERVER_INSTRUCTIONS };
-  if (uri === 'processforge://catalog/standard') return json(executeListStandardUnitOps({}));
+  if (uri === 'processforge://catalog/standard') return json(listStandardUnitOps({}));
   if (uri === 'processforge://guide/unit-op-contract') return json(executeDesignUnitOp({ description: 'Any unit operation' } as never));
   if (uri === 'processforge://flowsheet/open') return json(await executeGetOpenFlowsheet());
   const t = uri.match(/^processforge:\/\/templates\/(.+)$/);
-  if (t && AVAILABLE_TEMPLATES[t[1]!]) return json(AVAILABLE_TEMPLATES[t[1]!]);
+  const line = t ? findExampleLine(t[1]!) : undefined;
+  if (line) return json(line);
   throw new McpError(ErrorCode.InvalidParams, `Unknown resource: ${uri}`);
 }
 

@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   ProcessCanvas,
-  BLANK_LINE,
   AiModelModal,
   CommunityUnitOpLibraryModal,
   UnitOpCreator,
@@ -16,6 +15,7 @@ import {
 import {
   createSimulationProject,
   addStreamToGraph,
+  BLANK_LINE,
   type SimulationProject,
   type ProcessGraph,
   type ProcessNode,

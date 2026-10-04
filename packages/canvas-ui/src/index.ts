@@ -1,5 +1,4 @@
 export * from './types.js';
-export * from './templates/sherwinWilliamsPaintLine.js';
 export * from './components/nodes/IndustrialNode.js';
 export * from './components/nodes/TerminalNode.js';
 export * from './components/edges/AnimatedStreamEdge.js';

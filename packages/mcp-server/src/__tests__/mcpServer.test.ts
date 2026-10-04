@@ -7,12 +7,12 @@ import { executeQueryUnitSubAgent } from '../tools/queryUnitSubAgent.js';
 import { executePackageUnitOp } from '../tools/packageUnitOp.js';
 import { executeForgeEquipmentDrawing } from '../tools/forgeEquipmentDrawing.js';
 import { createProcessForgeMcpServer } from '../server.js';
-import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates.js';
+import { PAINT_CANNING_LINE as PAINT_LINE } from '@process-forge/protocol';
 
 describe('ProcessForge MCP Server Tools', () => {
   it('executes simulate_process_line on the paint line and finds the reactor limits it', () => {
     const res = executeSimulateLine({
-      templateName: 'sherwin-williams-paint-line',
+      templateName: 'paint-canning-line',
       durationMinutes: 15
     });
 
@@ -23,13 +23,13 @@ describe('ProcessForge MCP Server Tools', () => {
     // labeler (35/min), limits the paint line once liquid is simulated.
     assert.strictEqual(res.identifiedBottleneckNodeId, 'reactor-101');
     assert.ok(res.machineMetrics.length === 6, 'Should report metrics for all 6 machines');
-    assert.match(res.engineeringDiagnosis, /second reactor/);
+    assert.match(res.engineeringDiagnosis, /batch unit .* second one in parallel/);
     assert.ok(res.machineMetrics.find((m) => m.nodeId === 'surge-tank-200')?.liquid, 'reports the tank\'s liquid');
   });
 
   it('diagnoses bottlenecks and validates topology', () => {
     const res = executeDiagnoseBottlenecks({
-      templateName: 'sherwin-williams-paint-line'
+      templateName: 'paint-canning-line'
     });
 
     assert.strictEqual(res.success, true);
@@ -67,7 +67,7 @@ describe('ProcessForge MCP Server Tools', () => {
   });
 
   it('packages a machine into an Obsidian-style .pfu bundle for ForgeHub', () => {
-    const node = SHERWIN_WILLIAMS_PAINT_LINE.nodes[2]!; // Rotary filler
+    const node = PAINT_LINE.nodes[2]!; // Rotary filler
     const bundle = executePackageUnitOp({
       node,
       author: 'Industrial Automation Lead',
