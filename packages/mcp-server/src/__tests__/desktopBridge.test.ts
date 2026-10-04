@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { WAX_COOLING_BELT_CONTRACT } from '@process-forge/protocol';
-import { bridgeFilePath, executeAddUnitOpToFlowsheet, executeFlowsheetEdit, executeGetOpenFlowsheet, executeRequestPublish } from '../tools/desktopBridge.js';
+import { bridgeFilePath, executeAddUnitOpToFlowsheet, executeFlowsheetEdit, executeGetOpenFlowsheet, executeProjectRequest, executeRequestPublish } from '../tools/desktopBridge.js';
 
 describe('Where the desktop app writes its bridge file', () => {
   it('is Tauri’s app data directory for com.processforge.studio', () => {
@@ -60,6 +60,12 @@ describe('Talking to the desktop app', () => {
         }
         if (req.method === 'POST' && req.url === '/v1/publish' && editsSupported) {
           res.writeHead(200).end(JSON.stringify({ requested: true, published: false, message: 'The publish dialog is open.' }));
+          return;
+        }
+        if (req.method === 'POST' && req.url === '/v1/projects' && editsSupported) {
+          const p = JSON.parse(body);
+          const reply = p.name === 'Taken' ? { saved: false, error: 'Another flowsheet is already called "Taken".' } : { created: p.op === 'new', message: `Did ${p.op}.` };
+          res.writeHead(200).end(JSON.stringify(reply));
           return;
         }
         if (req.method === 'POST' && req.url === '/v1/edits' && editsSupported) {
@@ -156,6 +162,23 @@ describe('Talking to the desktop app', () => {
     editsSupported = true;
     assert.match(String(old.error), /0\.1\.39 or later/);
     assert.equal((await executeRequestPublish({ unit: '' })).success, false);
+  });
+
+  it('starts, names and saves flowsheets in the app, and says when the app is too old', async () => {
+    point();
+    writeBridge('t0ken');
+    editsSupported = true;
+    const made = await executeProjectRequest({ op: 'new', name: 'Resin batch line', template: 'blank' });
+    assert.equal(made.success, true);
+    assert.equal(made.created, true);
+    assert.deepEqual(received.at(-1)!.body, { op: 'new', name: 'Resin batch line', template: 'blank' });
+    const refused = await executeProjectRequest({ op: 'save', name: 'Taken' });
+    assert.equal(refused.success, false, 'an error from the app is a failure');
+    assert.match(String(refused.error), /already called/);
+    editsSupported = false;
+    const old = await executeProjectRequest({ op: 'list' });
+    editsSupported = true;
+    assert.match(String(old.error), /0.1.47 or later/);
   });
 
   it('reports a wrong token from a stale file instead of pretending it worked', async () => {

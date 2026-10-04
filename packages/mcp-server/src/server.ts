@@ -21,7 +21,7 @@ import { executeDesignUnitOp } from './tools/designUnitOp.js';
 import { bridgeHost, executeGetOpenFlowsheet } from './tools/desktopBridge.js';
 import { PROMPTS, renderPrompt } from './prompts.js';
 
-export const SERVER_VERSION = '0.7.0';
+export const SERVER_VERSION = '0.8.0';
 
 /**
  * Sent to every client at connect time (the MCP `instructions` field), so a
@@ -57,7 +57,7 @@ function describeForMcp(t: ForgeTool): string {
   if (t.graphSource && t.name !== 'design_unit_op') {
     return `${t.description} Uses the flowsheet open in ProcessForge Desktop unless you pass graph or templateName ("source" in the result says which).`;
   }
-  if (t.access === 'write' || t.name === 'publish_unit_op' || t.name === 'get_open_flowsheet') return `${t.description} Requires ProcessForge Desktop to be running.`;
+  if (t.access === 'write' || t.name === 'publish_unit_op' || t.name === 'get_open_flowsheet' || t.name === 'list_flowsheets') return `${t.description} Requires ProcessForge Desktop to be running.`;
   return t.description;
 }
 

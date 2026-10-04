@@ -15,7 +15,7 @@ import {
 } from '@process-forge/protocol';
 import { addCommunityUnitOp, addStandardUnitOp, COMMUNITY_CATEGORIES, listStandardUnitOps, portsOf, searchCommunityUnitOps } from './catalog.js';
 import { resolveGraph, type ResolvedGraph } from './graphSource.js';
-import type { DecisionSource, Surface, ToolHost } from './host.js';
+import type { DecisionSource, ProjectRequest, Surface, ToolHost } from './host.js';
 import { compareScenarios, diagnoseBottlenecks, simulateLine } from './line.js';
 
 /**
@@ -456,8 +456,93 @@ export const FORGE_TOOLS: ForgeTool[] = [
       if (typeof a?.unit !== 'string' || !a.unit.trim()) return { success: false, requested: false, error: 'Give "unit": the id, name or tag of a unit on the open flowsheet.' };
       return host.requestPublish(a as never);
     }
+  },
+
+  // ── Flowsheets: start, name, open, save
+  {
+    name: 'list_flowsheets',
+    title: 'List the flowsheets',
+    access: 'read',
+    idempotent: true,
+    description:
+      'Lists the flowsheets saved in ProcessForge on this computer: name, description, how many units and streams, when each was last changed, and which one is open. Every flowsheet saves itself on this computer as it changes. The templates a new flowsheet can start from are listed too.',
+    inputSchema: { type: 'object', properties: {} },
+    summarize: () => 'List the flowsheets',
+    run: (_a, host) => projectCall(host, { op: 'list' })
+  },
+  {
+    name: 'new_flowsheet',
+    title: 'Start a new flowsheet',
+    access: 'write',
+    description:
+      'Starts a new flowsheet and opens it on the canvas, blank or from a template, with the name you give (made unique if it is taken). The flowsheet that was open stays saved on this computer and can be reopened with open_flowsheet. Build on the new one with add_standard_unit_op, add_unit_op_to_flowsheet and add_stream.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'What to call it, e.g. "Resin batch line". Default "Untitled flowsheet".' },
+        description: { type: 'string', description: 'Optional: what the flowsheet is for.' },
+        template: { type: 'string', description: 'Optional: "blank" (default) or a template key from list_flowsheets, e.g. "paint-canning-line".' }
+      }
+    },
+    summarize: (a) => `Start a new flowsheet${a.name ? ` "${a.name}"` : ''}`,
+    run: (a, host) =>
+      projectCall(host, {
+        op: 'new',
+        ...(typeof a.name === 'string' && a.name.trim() ? { name: a.name.trim() } : {}),
+        ...(typeof a.description === 'string' ? { description: a.description } : {}),
+        ...(typeof a.template === 'string' ? { template: a.template } : {})
+      })
+  },
+  {
+    name: 'open_flowsheet',
+    title: 'Open a flowsheet',
+    access: 'write',
+    description:
+      'Opens a saved flowsheet on the canvas, by its name or id from list_flowsheets. The one that was open stays saved on this computer.',
+    inputSchema: {
+      type: 'object',
+      properties: { flowsheet: { type: 'string', description: 'Its name or id, from list_flowsheets.' } },
+      required: ['flowsheet']
+    },
+    summarize: (a) => `Open the flowsheet "${a.flowsheet ?? '?'}"`,
+    run: async (a, host) => {
+      if (typeof a?.flowsheet !== 'string' || !a.flowsheet.trim()) return { success: false, error: 'Give "flowsheet": a name or id from list_flowsheets.' };
+      return projectCall(host, { op: 'open', flowsheet: a.flowsheet.trim() });
+    }
+  },
+  {
+    name: 'save_flowsheet',
+    title: 'Name and save the flowsheet',
+    access: 'write',
+    openWorld: true,
+    description:
+      'Saves the open flowsheet, and names it or describes it if you give a name or description (this is how to rename it). It is saved on this computer; with cloud: true it is also uploaded to the engineer\'s ProcessForge account, which needs them signed in with Google in the app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Optional: a new name for it.' },
+        description: { type: 'string', description: 'Optional: what the flowsheet is for.' },
+        cloud: { type: 'boolean', description: 'Also save it to the engineer\'s account in the cloud (default false).' }
+      }
+    },
+    summarize: (a) => `Save the flowsheet${a.name ? ` as "${a.name}"` : ''}${a.cloud ? ' to the cloud' : ''}`,
+    run: (a, host) =>
+      projectCall(host, {
+        op: 'save',
+        ...(typeof a.name === 'string' && a.name.trim() ? { name: a.name.trim() } : {}),
+        ...(typeof a.description === 'string' ? { description: a.description } : {}),
+        ...(a.cloud === true ? { cloud: true } : {})
+      })
   }
 ];
+
+/** A flowsheet request, where the host can manage flowsheets. */
+function projectCall(host: ToolHost, request: ProjectRequest) {
+  if (!host.project) {
+    return Promise.resolve({ success: false, error: 'Flowsheets are managed from the project menu here: Studio Hub, or the flowsheet name in the header.' });
+  }
+  return host.project(request);
+}
 
 export const findForgeTool = (name: string): ForgeTool | undefined => FORGE_TOOLS.find((t) => t.name === name);
 

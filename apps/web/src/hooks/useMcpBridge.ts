@@ -43,7 +43,23 @@ type PendingRequest =
   /** A change to what is on the flowsheet: settings, a rename, a removal. */
   | { id: string; kind: 'edit'; request: FlowsheetEdit }
   /** Ask the engineer to publish a unit: opens the publish dialog, publishes nothing. */
-  | { id: string; kind: 'publish'; request: PublishRequest };
+  | { id: string; kind: 'publish'; request: PublishRequest }
+  /** Flowsheets: list, start, open, name and save. */
+  | { id: string; kind: 'project'; request: ProjectRequest };
+
+/** A flowsheet request from an MCP client (@process-forge/tools ProjectRequest). */
+export type ProjectRequest =
+  | { op: 'list' }
+  | { op: 'new'; name?: string; description?: string; template?: string }
+  | { op: 'open'; flowsheet: string }
+  | { op: 'save'; name?: string; description?: string; cloud?: boolean };
+
+/**
+ * What the app does with a flowsheet request. When it opens another flowsheet
+ * it returns that flowsheet's graph, so a request later in the same poll
+ * builds on the right one.
+ */
+export type ProjectHandler = (request: ProjectRequest) => Promise<{ result: Record<string, unknown>; opened?: { name: string; graph: ProcessGraph } }>;
 
 export interface PublishRequest {
   unit: string;
@@ -74,7 +90,8 @@ export function useMcpBridge(
   graph: ProcessGraph,
   insertNode: (node: ProcessNode) => void,
   insertEdge: (edge: ProcessEdge) => void,
-  replaceGraph: (graph: ProcessGraph) => void
+  replaceGraph: (graph: ProcessGraph) => void,
+  onProject?: ProjectHandler
 ): { lastArrival: BridgeArrival | null; dismiss: () => void } {
   const [lastArrival, setLastArrival] = useState<BridgeArrival | null>(null);
   const graphRef = useRef(graph);
@@ -85,6 +102,11 @@ export function useMcpBridge(
   insertEdgeRef.current = insertEdge;
   const replaceRef = useRef(replaceGraph);
   replaceRef.current = replaceGraph;
+  const projectRef = useRef(onProject);
+  projectRef.current = onProject;
+  // The open flowsheet's name, for messages: it changes when a client renames or opens one.
+  const nameRef = useRef(projectName);
+  nameRef.current = projectName;
 
   // Share the open flowsheet, a moment after it stops changing.
   useEffect(() => {
@@ -155,7 +177,7 @@ export function useMcpBridge(
         kind: node.kind,
         inlets: node.inputs.map((p) => ({ id: p.id, name: p.name, carries: p.flowDimension === 'DISCRETE_CONTAINER' ? 'items' : 'liquid' })),
         outlets: node.outputs.map((p) => ({ id: p.id, name: p.name, carries: p.flowDimension === 'DISCRETE_CONTAINER' ? 'items' : 'liquid' })),
-        message: `Added "${node.name}" to the flowsheet "${projectName}". Pipe it in with add_stream (its id is ${node.id}).`
+        message: `Added "${node.name}" to the flowsheet "${nameRef.current}". Pipe it in with add_stream (its id is ${node.id}).`
       };
     };
 
@@ -197,7 +219,21 @@ export function useMcpBridge(
       };
     };
 
+    const handleProject = async (request: ProjectRequest) => {
+      if (!projectRef.current) return { error: 'This window cannot manage flowsheets.' };
+      const { result, opened } = await projectRef.current(request);
+      if (opened) {
+        graphRef.current = opened.graph;
+        nameRef.current = opened.name;
+      }
+      if (request.op !== 'list' && result.error === undefined) {
+        window.dispatchEvent(new CustomEvent(MCP_ACTIVITY_EVENT, { detail: { name: String(result.message ?? 'Flowsheet').replace(/.$/, ''), at: Date.now() } }));
+      }
+      return result;
+    };
+
     const handle = async (item: PendingRequest) => {
+      if (item.kind === 'project') return handleProject(item.request);
       if (item.kind === 'publish') return handlePublish(item.request);
       if (item.kind === 'stream') return handleStream(item.request);
       if (item.kind === 'edit') return handleEdit(item.request);
@@ -224,7 +260,7 @@ export function useMcpBridge(
         nodeId: node.id,
         name: contract.name,
         ports: [...node.inputs, ...node.outputs].map((p) => p.id),
-        message: `Added "${contract.name}" to the flowsheet "${projectName}". Pipe it in with add_stream (its id is ${node.id}), or on the canvas; its nozzles are where the drawing put them.`
+        message: `Added "${contract.name}" to the flowsheet "${nameRef.current}". Pipe it in with add_stream (its id is ${node.id}), or on the canvas; its nozzles are where the drawing put them.`
       };
     };
 

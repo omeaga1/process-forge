@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ProcessCanvas,
   AiModelModal,
@@ -33,7 +33,7 @@ import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
 import { AccountModal } from './components/AccountModal.js';
 import { ProjectBrowser, useProjectBrowserShortcut } from './components/ProjectBrowser.js';
-import { findTemplate, uniqueName } from './projects/templates.js';
+import { findTemplate, uniqueName, PROJECT_TEMPLATES } from './projects/templates.js';
 import { StudioErrorBoundary } from './components/StudioErrorBoundary.js';
 import { LandingPageHub } from './components/LandingPageHub.js';
 import { ProductLandingPage } from './components/ProductLandingPage.js';
@@ -42,14 +42,15 @@ import { saveProjectToCloud } from './storage/cloudStorageAdapter.js';
 import { hasCloudSession } from './auth/accountManager.js';
 import type { CloudSaveStatus } from './components/HeaderBar.js';
 import { useAppUpdater } from './hooks/useAppUpdater.js';
-import { useMcpBridge } from './hooks/useMcpBridge.js';
+import { useMcpBridge, type ProjectHandler } from './hooks/useMcpBridge.js';
 import { McpArrivalNotice } from './components/McpArrivalNotice.js';
 import {
   saveLocalProject,
   loadCurrentLocalProject,
   downloadProjectFile,
   readProjectFromFile,
-  listLocalProjects
+  listLocalProjects,
+  loadLocalProject
 } from './storage/localStorageAdapter.js';
 
 const AppInner: React.FC = () => {
@@ -294,7 +295,141 @@ const AppInner: React.FC = () => {
       updatedAt: new Date().toISOString()
     }));
   }, []);
-  const mcpBridge = useMcpBridge(project.name, project.graph, handleInsertCommunityNode, handleInsertEdge, handleGraphChange);
+  // Desktop: an MCP client lists, starts, opens, names and saves flowsheets
+  // (list_flowsheets, new_flowsheet, open_flowsheet, save_flowsheet), the same
+  // way the project menu and Save do.
+  const projectRef = useRef(project);
+  projectRef.current = project;
+  const handleMcpProject = useCallback<ProjectHandler>(
+    async (request) => {
+      const current = projectRef.current;
+      const saved = () =>
+        listLocalProjects().map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          units: p.nodeCount,
+          streams: p.streamCount ?? 0,
+          updatedAt: p.updatedAt,
+          ...(p.id === current.id ? { open: true } : {})
+        }));
+
+      if (request.op === 'list') {
+        const flowsheets = saved();
+        return {
+          result: {
+            open: { id: current.id, name: current.name },
+            flowsheets,
+            templates: PROJECT_TEMPLATES.map((t) => ({ key: t.key, name: t.name, description: t.description })),
+            message: `${flowsheets.length} flowsheet${flowsheets.length === 1 ? '' : 's'} on this computer; "${current.name}" is open.`
+          }
+        };
+      }
+
+      if (request.op === 'new') {
+        const template = request.template ? PROJECT_TEMPLATES.find((t) => t.key === request.template) : findTemplate('blank');
+        if (!template) {
+          return { result: { created: false, error: `No template "${request.template}". Templates: ${PROJECT_TEMPLATES.map((t) => t.key).join(', ')}.` } };
+        }
+        const blank = template.key === 'blank';
+        const name = uniqueName(request.name ?? (blank ? 'Untitled flowsheet' : template.name), listLocalProjects().map((p) => p.name));
+        const created = createSimulationProject(name, structuredClone(template.graph), {
+          description: request.description ?? (blank ? '' : template.description),
+          isGuest: !isAuthenticated
+        });
+        handleOpenProject(created);
+        return {
+          result: {
+            created: true,
+            flowsheet: { id: created.id, name },
+            ...(request.name && name !== request.name ? { note: `"${request.name}" is taken, so it is called "${name}".` } : {}),
+            message: `Started the flowsheet "${name}"${blank ? '' : ` from the ${template.name} template`} and opened it. "${current.name}" stays saved on this computer.`
+          },
+          opened: { name, graph: created.graph }
+        };
+      }
+
+      if (request.op === 'open') {
+        const want = request.flowsheet.trim();
+        const list = listLocalProjects();
+        const lower = want.toLowerCase();
+        const exact = list.filter((p) => p.id === want || p.name.toLowerCase() === lower);
+        const matches = exact.length ? exact : list.filter((p) => p.name.toLowerCase().includes(lower));
+        if (matches.length !== 1) {
+          return {
+            result: {
+              opened: false,
+              error: matches.length
+                ? `"${want}" matches ${matches.length} flowsheets: ${matches.map((p) => `"${p.name}" (${p.id})`).join(', ')}. Give the id.`
+                : `No flowsheet called "${want}". list_flowsheets lists them.`
+            }
+          };
+        }
+        const header = matches[0]!;
+        if (header.id === current.id) return { result: { opened: true, flowsheet: { id: current.id, name: current.name }, message: `"${current.name}" is already open.` } };
+        const loaded = loadLocalProject(header.id);
+        if (!loaded) return { result: { opened: false, error: `"${header.name}" could not be read from this computer.` } };
+        handleOpenProject(loaded);
+        return {
+          result: {
+            opened: true,
+            flowsheet: { id: loaded.id, name: loaded.name, units: loaded.graph.nodes.length, streams: loaded.graph.edges.length },
+            message: `Opened "${loaded.name}". "${current.name}" stays saved on this computer.`
+          },
+          opened: { name: loaded.name, graph: loaded.graph }
+        };
+      }
+
+      // save: name, describe, keep on this computer, and upload when asked.
+      const name = request.name ?? current.name;
+      if (request.name && listLocalProjects().some((p) => p.id !== current.id && p.name === request.name)) {
+        return { result: { saved: false, error: `Another flowsheet is already called "${request.name}". Choose another name.` } };
+      }
+      const updated: SimulationProject = {
+        ...current,
+        name,
+        description: request.description ?? current.description,
+        updatedAt: new Date().toISOString()
+      };
+      setProject(updated);
+      saveLocalProject(updated);
+      const renamed = name !== current.name ? ` (renamed from "${current.name}")` : '';
+      if (!request.cloud) {
+        return { result: { saved: true, cloud: false, flowsheet: { id: updated.id, name }, message: `Saved "${name}"${renamed} on this computer.` } };
+      }
+      if (!hasCloudSession(user)) {
+        return {
+          result: {
+            saved: true,
+            cloud: false,
+            flowsheet: { id: updated.id, name },
+            message: `Saved "${name}"${renamed} on this computer. It is not in the cloud: the engineer needs to sign in with Google in ProcessForge first.`
+          }
+        };
+      }
+      const snapshot: SimulationProject = { ...updated, isGuestProject: false };
+      setCloudSaveState({ saving: true });
+      const uploaded = await saveProjectToCloud(snapshot);
+      if (uploaded.synced) {
+        setCloudSaved({ projectId: snapshot.id, graph: snapshot.graph, at: Date.now() });
+        setCloudSaveState({ saving: false });
+      } else {
+        setCloudSaveState({ saving: false, error: uploaded.message });
+      }
+      return {
+        result: {
+          saved: true,
+          cloud: uploaded.synced,
+          flowsheet: { id: updated.id, name },
+          message: uploaded.synced
+            ? `Saved "${name}"${renamed} on this computer and to the cloud.`
+            : `Saved "${name}"${renamed} on this computer, but the cloud save failed: ${uploaded.message}`
+        }
+      };
+    },
+    [isAuthenticated, handleOpenProject, user]
+  );
+  const mcpBridge = useMcpBridge(project.name, project.graph, handleInsertCommunityNode, handleInsertEdge, handleGraphChange, handleMcpProject);
 
   /**
    * A contract that passed every gate becomes a node on the flowsheet. The

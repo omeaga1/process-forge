@@ -41,6 +41,18 @@ export interface PublishRequest {
   releaseNotes?: string;
 }
 
+/**
+ * Managing the engineer's flowsheets (projects): listing them, starting one,
+ * opening one, and naming and saving the open one. Every flowsheet is kept on
+ * this computer as it changes; `cloud` also uploads it to the engineer's
+ * account.
+ */
+export type ProjectRequest =
+  | { op: 'list' }
+  | { op: 'new'; name?: string; description?: string; template?: string }
+  | { op: 'open'; flowsheet: string }
+  | { op: 'save'; name?: string; description?: string; cloud?: boolean };
+
 /** A decision model, and who answered the last question (Jev, or the offline rules). */
 export interface DecisionSource extends DecisionProvider {
   lastSource: { by: 'jev' | 'offline'; reason?: string };
@@ -62,6 +74,8 @@ export interface ToolHost {
   edit(edit: FlowsheetEdit): Promise<HostResult>;
   /** Opens the publish dialog for the engineer; nothing is published from a tool. */
   requestPublish(request: PublishRequest): Promise<HostResult>;
+  /** Lists, starts, opens, names and saves flowsheets. Absent where the host cannot (the result says so). */
+  project?(request: ProjectRequest): Promise<HostResult>;
   /** Who decides what a complete design of a unit carries. */
   decider: DecisionSource;
   /** The community library's API, e.g. https://.../api. */
