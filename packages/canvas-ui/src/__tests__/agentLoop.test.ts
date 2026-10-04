@@ -62,7 +62,7 @@ describe('In-app assistant', () => {
       ])
     });
     assert.strictEqual(answer, 'Piped the feed into P-101.');
-    assert.deepStrictEqual(sawFlowsheet.units.map((u: any) => u.name), ['Feed', 'P-101']);
+    assert.deepStrictEqual(sawFlowsheet.flowsheet.units.map((u: any) => u.name), ['Feed', 'P-101']);
     assert.deepStrictEqual(asked, ['Pipe Feed into P-101'], 'only the change asked for approval');
     assert.strictEqual(host.graph.edges.length, 1);
     assert.strictEqual(host.commits, 1);

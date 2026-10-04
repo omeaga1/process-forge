@@ -17,7 +17,8 @@ describe('list_standard_unit_ops: the equipment that ships with ProcessForge', (
       assert.ok(ids.includes(id), `lists ${id}`);
     }
     const pump = r.units.find((u) => u.unit === 'pump');
-    assert.equal(pump.parameters.designFlowRateGpm, 100);
+    assert.deepEqual(pump.parameters.designFlowRateGpm, { value: 100, unit: 'gal/min', label: 'Design flow', min: 0 });
+    assert.equal(pump.contractMode, 'CONTINUOUS_RATE', 'a built-in pump runs on a contract too');
     assert.deepEqual(pump.inlets.map((p: any) => p.carries), ['liquid']);
     const feed = r.units.find((u) => u.unit === 'feed');
     assert.equal(feed.inlets.length, 0);
@@ -35,7 +36,7 @@ describe('list_standard_unit_ops: the equipment that ships with ProcessForge', (
     assert.deepEqual(r.units.map((u) => u.unit), ['batch-reactor', 'cstr', 'pfr']);
     assert.equal(r.categories.length, 6);
     const cstr = r.units.find((u) => u.unit === 'cstr');
-    assert.equal(cstr.designed, true);
+    assert.equal(cstr.contractMode, 'CONTINUOUS_RATE');
     assert.deepEqual(cstr.parameters.volumeGallons, { value: 1000, unit: 'gal', label: 'Liquid volume', min: 1, max: 100000 });
     assert.match(cstr.howItIsSimulated, /residence time/);
     assert.equal((executeListStandardUnitOps({ category: 'rockets' }) as { success: boolean }).success, false);

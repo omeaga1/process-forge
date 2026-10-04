@@ -23,6 +23,7 @@ import {
   addStreamToGraph,
   effectivePortKind,
   portsFit,
+  PAINT_CANNING_LINE,
   type ProcessGraph,
   type ProcessNode,
   type ProcessEdge
@@ -42,7 +43,6 @@ import { MobileFieldView } from './mobile/MobileFieldView.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
 import { useTheme } from '../hooks/useTheme.js';
 import { useAssistantRoute } from '../ai/assistantRoute.js';
-import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates/sherwinWilliamsPaintLine.js';
 import type { CanvasNodeData, CanvasEdgeData, PlantTelemetryState } from '../types.js';
 import { draftingRadius } from '@process-forge/theme';
 
@@ -171,7 +171,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     onViewModeChange?.(activeMode);
   }, [activeMode, onViewModeChange]);
 
-  const [graph, setGraph] = useState<ProcessGraph>(externalGraph || SHERWIN_WILLIAMS_PAINT_LINE);
+  const [graph, setGraph] = useState<ProcessGraph>(externalGraph || PAINT_CANNING_LINE);
   // Every edit goes through updateGraph, which calls onGraphChange outside
   // setGraph's updater (a parent setState inside it would run during a child's
   // render, and twice under StrictMode).

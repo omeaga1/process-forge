@@ -1,12 +1,12 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates/sherwinWilliamsPaintLine.js';
+import { PAINT_CANNING_LINE } from '@process-forge/protocol';
 import { validateProcessGraph } from '@process-forge/protocol';
 import { getAiConfig, saveAiConfig } from '../ai/aiModelManager.js';
 
 describe('Canvas UI - Mobile Pocket Twin & Field View', () => {
   it('validates mobile equipment feed contains all 6 industrial machines', () => {
-    const nodes = SHERWIN_WILLIAMS_PAINT_LINE.nodes;
+    const nodes = PAINT_CANNING_LINE.nodes;
     assert.strictEqual(nodes.length, 6);
 
     const names = nodes.map((n) => n.name);
@@ -19,12 +19,12 @@ describe('Canvas UI - Mobile Pocket Twin & Field View', () => {
   });
 
   it('correctly reports bottleneck warning for mobile feed banner', () => {
-    const validation = validateProcessGraph(SHERWIN_WILLIAMS_PAINT_LINE);
+    const validation = validateProcessGraph(PAINT_CANNING_LINE);
     // 1000 gal every 20 + 45 + 20 min is about 11.8 gal/min: the reactor, not the
     // labeler (35/min), limits the paint line once liquid is simulated.
     assert.strictEqual(validation.bottlenecks.bottleneckNodeId, 'reactor-101');
 
-    const bottleneckNode = SHERWIN_WILLIAMS_PAINT_LINE.nodes.find(
+    const bottleneckNode = PAINT_CANNING_LINE.nodes.find(
       (n) => n.id === validation.bottlenecks.bottleneckNodeId
     );
     assert.ok(bottleneckNode);
@@ -32,7 +32,7 @@ describe('Canvas UI - Mobile Pocket Twin & Field View', () => {
   });
 
   it('verifies ASME nozzle dressing data is accessible for mobile bottom sheet', () => {
-    const reactor = SHERWIN_WILLIAMS_PAINT_LINE.nodes.find((n) => n.id === 'reactor-101');
+    const reactor = PAINT_CANNING_LINE.nodes.find((n) => n.id === 'reactor-101');
     assert.ok(reactor?.dressing);
     assert.strictEqual(reactor.dressing.nozzles.length, 5);
 

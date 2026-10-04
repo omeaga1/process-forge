@@ -1,5 +1,4 @@
-import { SHERWIN_WILLIAMS_PAINT_LINE, BEVERAGE_BOTTLING_LINE, BLANK_LINE } from '@process-forge/canvas-ui';
-import type { ProcessGraph } from '@process-forge/protocol';
+import { PAINT_CANNING_LINE, BEVERAGE_BOTTLING_LINE, BLANK_LINE, type ProcessGraph } from '@process-forge/protocol';
 
 /** What a new project can start from. */
 export interface ProjectTemplate {
@@ -17,10 +16,10 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     graph: BLANK_LINE
   },
   {
-    key: 'sherwin-williams-paint-line',
+    key: 'paint-canning-line',
     name: 'Paint canning line',
     description: 'Blending, filling, labelling and palletising architectural paint.',
-    graph: SHERWIN_WILLIAMS_PAINT_LINE
+    graph: PAINT_CANNING_LINE
   },
   {
     key: 'beverage-bottling-line',

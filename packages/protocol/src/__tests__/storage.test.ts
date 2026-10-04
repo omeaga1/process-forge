@@ -50,7 +50,7 @@ describe('Simulation Project Storage & Serialization', () => {
   });
 
   it('exports and imports a complete simulation project without data loss', () => {
-    const project = createSimulationProject('Sherwin Williams Digital Twin', sampleGraph, {
+    const project = createSimulationProject('Paint Line Digital Twin', sampleGraph, {
       description: 'Cleveland Coatings Plant Line Twin',
       isGuest: true
     });

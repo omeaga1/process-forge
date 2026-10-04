@@ -245,7 +245,7 @@ describe('ProcessForge Cloud Storage Persistence Layer', () => {
       'Industrial Latex Paint Line Twin',
       sampleGraph,
       {
-        description: 'Sherwin-Williams high shear dispersion to packaging',
+        description: 'High-shear dispersion to packaging',
         isGuest: false
       }
     );

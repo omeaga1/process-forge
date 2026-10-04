@@ -33,3 +33,4 @@ export * from './thermal.js';
 export * from './equipment/nozzleLayout.js';
 export * from './equipment/nodeFactory.js';
 export * from './equipment/catalog.js';
+export * from './templates/exampleLines.js';

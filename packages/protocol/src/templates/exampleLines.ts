@@ -1,11 +1,16 @@
-import type { ProcessGraph } from '@process-forge/protocol';
+/**
+ * The example lines that ship with ProcessForge: what a new project starts
+ * from in the studio, and what an MCP client can run by templateName. One
+ * copy, used by every surface.
+ */
+import type { ProcessGraph } from '../graph.js';
 
-export const SHERWIN_WILLIAMS_PAINT_LINE: ProcessGraph = {
-  id: 'sherwin-williams-twin-01',
+export const PAINT_CANNING_LINE: ProcessGraph = {
+  id: 'paint-canning-line-01',
   name: 'Architectural Paint Canning & Packaging Line',
   version: '1.0.0',
   metadata: {
-    facility: 'Cleveland Coatings Plant',
+    facility: 'Example coatings plant',
     productLine: 'Interior Latex Semi-Gloss',
     containerType: '1-Gallon Steel Can'
   },
@@ -307,7 +312,7 @@ export const BEVERAGE_BOTTLING_LINE: ProcessGraph = {
   name: 'High-Speed Beverage Bottling & Carbonation Line',
   version: '1.0.0',
   metadata: {
-    facility: 'Apex Beverage Bottling Facility',
+    facility: 'Example bottling plant',
     productLine: 'Sparkling Mineral Water 500ml',
     containerType: '500ml PET Bottle'
   },
@@ -563,3 +568,19 @@ export const BLANK_LINE: ProcessGraph = {
   edges: []
 };
 
+
+/** The example lines by the key an MCP client names them with. */
+export const EXAMPLE_LINES: Record<string, ProcessGraph> = {
+  'paint-canning-line': PAINT_CANNING_LINE,
+  'beverage-bottling-line': BEVERAGE_BOTTLING_LINE
+};
+
+/** Keys earlier versions used, still accepted. */
+export const EXAMPLE_LINE_ALIASES: Record<string, string> = {
+  'sherwin-williams-paint-line': 'paint-canning-line'
+};
+
+/** An example line by key or old key. */
+export function findExampleLine(key: string): ProcessGraph | undefined {
+  return EXAMPLE_LINES[key] ?? EXAMPLE_LINES[EXAMPLE_LINE_ALIASES[key] ?? ''];
+}

@@ -1,19 +1,19 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { validateProcessGraph } from '@process-forge/protocol';
-import { SHERWIN_WILLIAMS_PAINT_LINE } from '../templates/sherwinWilliamsPaintLine.js';
+import { PAINT_CANNING_LINE } from '@process-forge/protocol';
 import { synthesizeEquipmentDrawing } from '@process-forge/protocol';
 
 describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
   it('passes strict graph topology and mass conservation validation', () => {
-    const result = validateProcessGraph(SHERWIN_WILLIAMS_PAINT_LINE);
+    const result = validateProcessGraph(PAINT_CANNING_LINE);
     assert.equal(result.valid, true);
     assert.equal(result.diagnostics.length, 0);
   });
 
   it('contains all 6 machines in the industrial canning line', () => {
-    assert.equal(SHERWIN_WILLIAMS_PAINT_LINE.nodes.length, 6);
-    const nodeKinds = SHERWIN_WILLIAMS_PAINT_LINE.nodes.map((n) => n.kind);
+    assert.equal(PAINT_CANNING_LINE.nodes.length, 6);
+    const nodeKinds = PAINT_CANNING_LINE.nodes.map((n) => n.kind);
     assert.ok(nodeKinds.includes('BATCH_REACTOR'));
     assert.ok(nodeKinds.includes('SURGE_TANK'));
     assert.ok(nodeKinds.includes('ROTARY_FILLER'));
@@ -25,13 +25,13 @@ describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
   it('identifies the batch reactor as what limits the paint line', () => {
     // 1000 gal every 20 + 45 + 20 min is about 11.8 gal/min: the reactor, not the
     // labeler (35/min), limits the paint line once liquid is simulated.
-    const result = validateProcessGraph(SHERWIN_WILLIAMS_PAINT_LINE);
+    const result = validateProcessGraph(PAINT_CANNING_LINE);
     assert.equal(result.bottlenecks.bottleneckNodeId, 'reactor-101');
     assert.ok(Math.abs(result.bottlenecks.maximumSystemThroughputUnitsPerMin - 1000 / 85) < 0.01);
   });
 
   it('verifies all nodes have assigned Sub-Agent identifiers', () => {
-    for (const node of SHERWIN_WILLIAMS_PAINT_LINE.nodes) {
+    for (const node of PAINT_CANNING_LINE.nodes) {
       assert.ok(
         node.assignedSubAgentId,
         `Node ${node.id} is missing an assignedSubAgentId for its dedicated AI software engineer`
@@ -41,7 +41,7 @@ describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
 
   it('verifies visual positions are non-overlapping and ordered horizontally', () => {
     let lastX = -1;
-    for (const node of SHERWIN_WILLIAMS_PAINT_LINE.nodes) {
+    for (const node of PAINT_CANNING_LINE.nodes) {
       assert.ok(node.position.x >= 0, 'Node X position must be non-negative');
       assert.ok(node.position.y >= 0, 'Node Y position must be non-negative');
       assert.ok(node.position.x > lastX, `Node ${node.id} should be ordered downstream from previous node`);
@@ -50,7 +50,7 @@ describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
   });
 
   it('verifies strict phase transition contract at rotary filler (fluid to discrete cans)', () => {
-    const filler = SHERWIN_WILLIAMS_PAINT_LINE.nodes.find((n) => n.kind === 'ROTARY_FILLER');
+    const filler = PAINT_CANNING_LINE.nodes.find((n) => n.kind === 'ROTARY_FILLER');
     assert.ok(filler, 'Rotary filler must be present');
 
     const inputPort = filler.inputs.find((p) => p.flowDimension === 'CONTINUOUS_VOLUME');
@@ -61,7 +61,7 @@ describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
   });
 
   it('validates edge streams preserve container specifications on packaging line', () => {
-    const discreteEdges = SHERWIN_WILLIAMS_PAINT_LINE.edges.filter(
+    const discreteEdges = PAINT_CANNING_LINE.edges.filter(
       (e) => e.stream.type === 'DISCRETE_CONTAINER_STREAM'
     );
     assert.strictEqual(discreteEdges.length, 3); // filler->conveyor, conveyor->labeler, labeler->palletizer
@@ -76,7 +76,7 @@ describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
   });
 
   it('validates custom mechanical dressing on industrial reactors and surge vessels', () => {
-    const reactor = SHERWIN_WILLIAMS_PAINT_LINE.nodes.find((n) => n.id === 'reactor-101');
+    const reactor = PAINT_CANNING_LINE.nodes.find((n) => n.id === 'reactor-101');
     assert.ok(reactor?.dressing, 'Reactor must have dressing configured');
     assert.strictEqual(reactor.dressing.nozzles.length, 5);
     assert.strictEqual(reactor.dressing.internals.agitatorType, 'rushton');
@@ -84,7 +84,7 @@ describe('Canvas UI - Sherwin-Williams Digital Twin Template', () => {
     assert.strictEqual(reactor.dressing.internals.jacketType, 'steam');
     assert.strictEqual(reactor.dressing.internals.baffleCount, 4);
 
-    const surge = SHERWIN_WILLIAMS_PAINT_LINE.nodes.find((n) => n.id === 'surge-tank-200');
+    const surge = PAINT_CANNING_LINE.nodes.find((n) => n.id === 'surge-tank-200');
     assert.ok(surge?.dressing, 'Surge tank must have dressing configured');
     assert.strictEqual(surge.dressing.nozzles.length, 4);
     assert.strictEqual(surge.dressing.internals.hasDemister, true);

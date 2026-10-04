@@ -1,8 +1,8 @@
 {
-  "name": "@process-forge/canvas-ui",
+  "name": "@process-forge/tools",
   "version": "0.1.0",
   "private": true,
-  "description": "React Flow flowsheet canvas and studio components for ProcessForge",
+  "description": "The ProcessForge tools, defined once: what an MCP client and the in-app assistant can ask of a flowsheet",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -14,19 +14,11 @@
   },
   "dependencies": {
     "@process-forge/protocol": "workspace:*",
-    "@process-forge/simulation-core": "workspace:*",
-    "@process-forge/theme": "workspace:*",
-    "@xyflow/react": "^12.4.4",
-    "lucide-react": "^1.16.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "@process-forge/tools": "workspace:*"
+    "@process-forge/simulation-core": "workspace:*"
   },
   "devDependencies": {
     "@process-forge/typescript-config": "workspace:*",
     "@types/node": "^22.13.9",
-    "@types/react": "^19.0.10",
-    "@types/react-dom": "^19.0.4",
     "typescript": "^5.8.2"
   }
 }

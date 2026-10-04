@@ -88,6 +88,9 @@ importers:
       '@process-forge/theme':
         specifier: workspace:*
         version: link:../theme
+      '@process-forge/tools':
+        specifier: workspace:*
+        version: link:../tools
       '@xyflow/react':
         specifier: ^12.4.4
         version: 12.11.6(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -160,6 +163,9 @@ importers:
       '@process-forge/theme':
         specifier: workspace:*
         version: link:../theme
+      '@process-forge/tools':
+        specifier: workspace:*
+        version: link:../tools
       '@process-forge/typescript-config':
         specifier: workspace:*
         version: link:../../tooling/typescript-config
@@ -206,6 +212,25 @@ importers:
         version: 5.9.3
 
   packages/theme:
+    devDependencies:
+      '@process-forge/typescript-config':
+        specifier: workspace:*
+        version: link:../../tooling/typescript-config
+      '@types/node':
+        specifier: ^22.13.9
+        version: 22.20.2
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+
+  packages/tools:
+    dependencies:
+      '@process-forge/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@process-forge/simulation-core':
+        specifier: workspace:*
+        version: link:../simulation-core
     devDependencies:
       '@process-forge/typescript-config':
         specifier: workspace:*

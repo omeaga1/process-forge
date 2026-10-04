@@ -1,7 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { executeValidateUnitOp, type FlowsheetEdit, type ProcessNode, type ValidateUnitOpResult } from '@process-forge/protocol';
+import { executeValidateUnitOp, heuristicProvider, type FlowsheetEdit, type ProcessGraph, type ProcessNode, type ValidateUnitOpResult } from '@process-forge/protocol';
+import type { ToolHost } from '@process-forge/tools';
+import { communityApiBase } from './communityLibrary.js';
 
 /**
  * Talks to the running ProcessForge desktop app, so a unit op designed in the
@@ -218,3 +220,38 @@ export async function executeFlowsheetEdit(edit: FlowsheetEdit): Promise<Record<
   if (r.status !== 200) return { success: false, changed: false, error: r.body?.error ?? `HTTP ${r.status}` };
   return { success: Boolean(r.body?.changed), ...r.body };
 }
+
+/**
+ * The MCP server's host for the shared tools (@process-forge/tools): the
+ * flowsheet is the one open in ProcessForge Desktop, reached over the bridge.
+ * Design checks use the offline rules (the decision model, Jev, runs on the
+ * engineer's OpenRouter sign-in inside the app).
+ */
+export const bridgeHost: ToolHost = {
+  surface: 'mcp',
+  readOpen: async () => {
+    const open = await executeGetOpenFlowsheet();
+    const sheet = (open as { flowsheet?: { graph?: ProcessGraph; projectName?: string } }).flowsheet;
+    if (open.success && sheet?.graph && Array.isArray(sheet.graph.nodes)) {
+      return { graph: sheet.graph, ...(sheet.projectName ? { projectName: sheet.projectName } : {}) };
+    }
+    return { error: String(open.error ?? 'ProcessForge Desktop is not running') };
+  },
+  addUnit: (node, options, source) => executeAddNode(node, options, source),
+  addDesignedUnit: async (contract, options) => {
+    const r = await executeAddUnitOpToFlowsheet({ contract, ...(options.position ? { position: options.position } : {}) });
+    const id = (r as { nodeId?: string }).nodeId;
+    if (!r.success || !id) return r;
+    const streams: Record<string, unknown>[] = [];
+    if (options.connectFrom) streams.push(await executeAddStream({ from: options.connectFrom, to: id }));
+    if (options.connectTo) streams.push(await executeAddStream({ from: id, to: options.connectTo }));
+    return { ...r, ...(streams.length ? { streams } : {}) };
+  },
+  addStream: (stream) => executeAddStream(stream),
+  edit: (edit) => executeFlowsheetEdit(edit),
+  requestPublish: (request) => executeRequestPublish(request as PublishRequestParams),
+  decider: { id: heuristicProvider.id, ask: (state, questions) => heuristicProvider.ask(state, questions), lastSource: { by: 'offline', reason: 'the MCP server uses the offline rules' } },
+  get communityApiBase() {
+    return communityApiBase();
+  }
+};
