@@ -18,9 +18,9 @@ React components for the ProcessForge studio, built on React Flow.
   and a chat with the configured model.
 - **Community library modal:** browse published unit ops and insert them into
   the flowsheet (`src/marketplace/communityLibraryClient.ts`).
-- **Model clients** (`src/ai`): Claude, OpenAI, Gemini, OpenRouter (with
-  OAuth sign-in) and Ollama. Keys are kept in the OS keychain on desktop and
-  in local storage in the browser (`aiModelManager.ts`).
+- **Model client** (`src/ai`): OpenRouter, with OAuth sign-in (ADR-0009). The
+  key is kept in the OS keychain on desktop and in local storage in the
+  browser (`aiModelManager.ts`).
 - A mobile field view for narrow screens.
 
 ## Usage

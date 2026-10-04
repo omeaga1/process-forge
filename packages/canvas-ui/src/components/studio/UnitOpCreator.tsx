@@ -28,8 +28,8 @@ const D = drafting('dark');
  * is a check the engine actually ran; no result is written by hand.
  *
  * Contract authoring is injected via `onPropose`. The desktop and web apps wire
- * it to authorUnitOpContract (ai/unitOpAuthor.ts): Claude, on the engineer's
- * own API key, writes the contract and the engine's verdicts go back to it
+ * it to authorUnitOpContract (ai/unitOpAuthor.ts): a model on the engineer's
+ * OpenRouter sign-in writes the contract and the engine's verdicts go back to it
  * until it passes. Without `onPropose` the panel is paste-in, for a contract
  * authored elsewhere -- e.g. by Claude Desktop through the MCP tools.
  */
