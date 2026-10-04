@@ -16,11 +16,11 @@
   <h2>On your device</h2>
   <ul>
     <li><strong>Projects</strong> (flowsheets, unit operations you design) are saved locally: in the desktop app's storage, or in your browser's local storage on the web.</li>
-    <li><strong>AI keys.</strong> In the desktop app, a key is stored in the operating system's keychain (Windows Credential Manager, macOS Keychain). In a browser there is no keychain, so it is kept in that browser's local storage. Remove keys at any time with <em>AI model → Purge all keys</em>.</li>
+    <li><strong>OpenRouter key.</strong> In the desktop app, the key is stored in the operating system's keychain (Windows Credential Manager, macOS Keychain). In a browser there is no keychain, so it is kept in that browser's local storage. Remove it at any time with <em>AI model → OpenRouter → Sign out</em>.</li>
   </ul>
 
-  <h2>Your AI provider</h2>
-  <p>When you use AI inside the app, your messages and the parts of your flowsheet the request needs are sent <strong>directly from your device</strong> to the provider you chose: OpenRouter, Anthropic, OpenAI or Google, with your own key. They do not pass through ProcessForge servers. That provider's own privacy terms apply. With Ollama, nothing leaves your machine.</p>
+  <h2>AI</h2>
+  <p>When you use AI inside the app, your messages and the parts of your flowsheet the request needs are sent <strong>directly from your device</strong> to OpenRouter, with your own OpenRouter key. They do not pass through ProcessForge servers. OpenRouter forwards each request to the provider of the model you chose; OpenRouter's privacy terms, and that provider's, apply.</p>
   <p>"Sign in with OpenRouter" asks OpenRouter to issue a key for this app. ProcessForge receives only that key; you can revoke it in your OpenRouter settings.</p>
   <p>With an MCP client (such as Claude Desktop or Cursor), the client runs the ProcessForge tools on your machine and its own terms apply.</p>
 
@@ -44,7 +44,7 @@
   <h2>Contact</h2>
   <p><a href="mailto:vprescenzi@gmail.com">vprescenzi@gmail.com</a></p>
 
-  <p class="meta">Source code: <a href="https://github.com/omeaga1/process-forge">github.com/omeaga1/process-forge</a> · First published 2026-09-16 · Updated 2026-09-23</p>
+  <p class="meta">Source code: <a href="https://github.com/omeaga1/process-forge">github.com/omeaga1/process-forge</a> · First published 2026-09-16 · Updated 2026-10-04</p>
 </main>
 </body>
 </html>

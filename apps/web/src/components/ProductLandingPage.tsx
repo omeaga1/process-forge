@@ -278,8 +278,8 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
               <div style={card}>
                 <div style={{ fontSize: 16, fontWeight: 650 }}>In the app, with OpenRouter</div>
                 <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.6, color: D.text.secondary }}>
-                  Sign in once and chat with Claude, GPT, Gemini and others, paying as you go. Your own provider key, or a free local model
-                  in Ollama, also work.
+                  Sign in once and chat with Claude, GPT, Gemini and others, paying as you go, with a spending limit you set at
+                  OpenRouter.
                 </p>
               </div>
             </div>

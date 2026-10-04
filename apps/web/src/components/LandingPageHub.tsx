@@ -64,8 +64,8 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
     route === 'claude-desktop'
       ? { ok: true, label: 'AI: MCP client', detail: 'Your MCP client (Claude Desktop, Cursor, ...) reads the flowsheet and adds units to it.' }
       : inAppModel
-        ? { ok: true, label: `AI: ${creds.provider}`, detail: `In-app AI through ${creds.provider}. Keys stay on this device and go only to their provider.` }
-        : { ok: false, label: 'Choose an AI model', detail: 'Use a key, OpenRouter sign-in or a local Ollama model in the app, or an MCP client such as Claude Desktop.' };
+        ? { ok: true, label: 'AI: OpenRouter', detail: 'In-app AI through OpenRouter. The key stays on this device and goes only to OpenRouter.' }
+        : { ok: false, label: 'Choose an AI model', detail: 'Sign in with OpenRouter in the app, or use an MCP client such as Claude Desktop.' };
 
   const chip: React.CSSProperties = {
     display: 'inline-flex',
