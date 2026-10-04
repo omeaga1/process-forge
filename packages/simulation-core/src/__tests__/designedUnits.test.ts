@@ -56,11 +56,12 @@ const evaporator = (overrides: Partial<UnitOpContract> = {}): UnitOpContract =>
     ],
     parameters: [
       { name: 'steamDutyKw', label: 'Steam duty', unit: 'kW', value: 1500, min: 0 },
-      { name: 'maxFeedGpm', label: 'Tube capacity', unit: 'gal/min', value: 25, min: 1 }
+      { name: 'maxFeedGpm', label: 'Tube capacity', unit: 'gal/min', value: 25, min: 1 },
+      { name: 'latentKjPerKg', label: 'Latent heat of water', unit: 'kJ/kg', value: 2257, min: 1 }
     ],
     derived: [
       { name: 'sensibleKw', label: 'Heat to boiling', unit: 'kW', expr: 'inlet.massFlowKgPerS * inlet.specificHeatKjPerKgK * max(0, 100 - inlet.temperatureC)' },
-      { name: 'vapourShare', label: 'Evaporated', unit: '-', expr: 'if(inlet.massFlowKgPerS > 0, clamp((steamDutyKw - sensibleKw) / (inlet.massFlowKgPerS * 2257), 0, 0.9), 0)' }
+      { name: 'vapourShare', label: 'Evaporated', unit: '-', expr: 'if(inlet.massFlowKgPerS > 0, clamp((steamDutyKw - sensibleKw) / (inlet.massFlowKgPerS * latentKjPerKg), 0, 0.9), 0)' }
     ],
     constraints: [
       { id: 'enough-steam', expr: 'steamDutyKw > sensibleKw', severity: 'ERROR', message: 'The steam cannot even bring the feed to a boil.' },
@@ -143,7 +144,8 @@ describe('Designed units: evaluated live, at what actually reaches them', () => 
     const weak = evaporator({
       parameters: [
         { name: 'steamDutyKw', label: 'Steam duty', unit: 'kW', value: 400, min: 0 },
-        { name: 'maxFeedGpm', label: 'Tube capacity', unit: 'gal/min', value: 25, min: 1 }
+        { name: 'maxFeedGpm', label: 'Tube capacity', unit: 'gal/min', value: 25, min: 1 },
+        { name: 'latentKjPerKg', label: 'Latent heat of water', unit: 'kJ/kg', value: 2257, min: 1 }
       ],
       designInlet: { temperatureC: 95, volumetricFlowGpm: 25, massFlowKgPerS: 1.58, specificHeatKjPerKgK: 4.186, densityGPerCm3: 1 }
     });

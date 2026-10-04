@@ -106,10 +106,17 @@ describe('Designed batch units: each phase follows the batch in hand', () => {
     const heater = batchUnit(
       [
         { name: 'Charge', kind: 'FILL' },
-        { name: 'Heat', kind: 'HOLD', seconds: 'batch.massKg * 4.186 * (80 - batch.temperatureC) / 200', temperatureC: '80', dutyKw: '200' },
+        { name: 'Heat', kind: 'HOLD', seconds: 'batch.massKg * cp * (80 - batch.temperatureC) / heaterKw', temperatureC: '80', dutyKw: 'heaterKw' },
         { name: 'Empty', kind: 'DRAIN' }
       ],
-      { designInlet: { temperatureC: 20, densityGPerCm3: 1 } }
+      {
+        designInlet: { temperatureC: 20, densityGPerCm3: 1 },
+        parameters: [
+          { name: 'volume', label: 'Volume', unit: 'gal', value: 500, min: 1 },
+          { name: 'cp', label: 'Specific heat', unit: 'kJ/kg-K', value: 4.186, min: 0.1 },
+          { name: 'heaterKw', label: 'Heater duty', unit: 'kW', value: 200, min: 1 }
+        ]
+      }
     );
     assert.equal(executeValidateUnitOp({ contract: heater }).verdict, 'ACCEPTED');
     const g = line(

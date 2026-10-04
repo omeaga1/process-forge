@@ -6,6 +6,7 @@ export * from './agents.js';
 export * from './storage.js';
 export * from './cad/equipmentCadEngine.js';
 export * from './unitop/expression.js';
+export * from './unitop/dimensions.js';
 export * from './unitop/contract.js';
 export * from './unitop/drawing.js';
 export * from './unitop/evaluate.js';
