@@ -24,11 +24,17 @@ console.log(`Filler blocked time: ${filler.blockedTimeSeconds}s`);
 
 ## What it simulates
 
-- Built-in handlers for rotary fillers, conveyors, labelers and palletizers.
-- Nodes that carry a unit-op contract with `DISCRETE_CYCLE` behavior.
-- Blocking when downstream buffers are full, starving when nothing arrives.
-- Seeded randomness for rejects, so the same seed gives the same result.
+- Every unit runs on a unit-op contract: its own, or, for a built-in kind
+  (pump, tank, reactor, filler, labeler...), the one built from its config.
+  There is no handler per kind of equipment.
+- Items as discrete events: cycles, queues, kits, blocking when downstream is
+  full, starving when nothing arrives.
+- Liquid on a mass basis, stepped each second in the same event loop: tanks,
+  batches and pass-throughs, with temperature and composition carried by mass.
+- Breakdowns on any unit, cycle-time variation and per-item rejects, from
+  seeded random streams, so the same seed gives the same result.
+- `describeUnit`: what a unit does, generated from the same contract and rules
+  the run uses.
 
-It does not integrate fluid levels over time or simulate breakdowns. See
-[docs/architecture/04-simulation-math.md](../../docs/architecture/04-simulation-math.md)
+See [docs/architecture/04-simulation-math.md](../../docs/architecture/04-simulation-math.md)
 for the formulas and limits.

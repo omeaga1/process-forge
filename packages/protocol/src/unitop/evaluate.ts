@@ -89,6 +89,14 @@ export interface UnitOpEvaluation {
         unitsPerCycle: number;
         scrapFraction: number;
         unitsPerMinute: number;
+        /** scrapFraction is each item's chance of being a reject, drawn at random. */
+        scrapRandom?: boolean;
+        /** Items its inlet queue holds. */
+        queueCapacity?: number;
+        /** A cycle waits for unitsPerCycle queued items. */
+        fullCyclesOnly?: boolean;
+        /** With no item pipe in, it waits rather than starting on its own. */
+        itemsRequired?: boolean;
         liquidPerCycleGallons?: number;
         /** Whole items per cycle, per item inlet port. */
         inputs?: { port: string; perCycle: number }[];
@@ -104,7 +112,12 @@ export interface UnitOpEvaluation {
         cycleSecondsEstimate: number;
         /** batchGallons over the estimated cycle. */
         gallonsPerMinute: number;
-      };
+      }
+    | { mode: 'STORAGE'; capacityGallons: number; initialGallons: number; maxOutflowGpm?: number };
+  /** Breakdowns, from contract.reliability. */
+  reliability?: { mtbfSeconds: number; mttrSeconds: number };
+  /** Cycle-time coefficient of variation, from contract.variability; 0 when absent. */
+  cycleTimeCv?: number;
   /** Per outlet port, from contract.outlets: its share of the outflow, its temperature and its component recoveries, where declared. */
   outlets: Record<string, { share?: number; temperatureC?: number; recovery?: Record<string, number> }>;
   /** The contract's reactions, with conversions evaluated. */
@@ -248,7 +261,9 @@ export function evaluateUnitOp(
         ? { mode: 'DISCRETE_CYCLE', cycleSeconds: 0, unitsPerCycle: 0, scrapFraction: 0, unitsPerMinute: 0 }
         : contract.behavior.mode === 'BATCH'
           ? { mode: 'BATCH', batchGallons, phases: [], cycleSecondsEstimate: 0, gallonsPerMinute: 0 }
-          : { mode: 'CONTINUOUS_RATE', throughputPerMinute: 0 },
+          : contract.behavior.mode === 'STORAGE'
+            ? { mode: 'STORAGE', capacityGallons: 0, initialGallons: 0 }
+            : { mode: 'CONTINUOUS_RATE', throughputPerMinute: 0 },
     outlets: {},
     reactions: [],
     error: { path, message: e instanceof ExpressionError ? e.message : String(e) }
@@ -292,6 +307,9 @@ export function evaluateUnitOp(
       if (cycleSeconds <= 0) {
         return fail('behavior.cycleSeconds', new Error(`cycleSeconds must be positive, got ${cycleSeconds}`));
       }
+      if (scrapFraction < 0 || scrapFraction > 1) {
+        return fail('behavior.scrapFraction', new Error(`scrapFraction must be between 0 and 1, got ${scrapFraction}`));
+      }
       const liquid = contract.behavior.liquidPerCycleGallons
         ? evaluateNumber(contract.behavior.liquidPerCycleGallons, scope)
         : undefined;
@@ -322,6 +340,10 @@ export function evaluateUnitOp(
         unitsPerCycle,
         scrapFraction,
         unitsPerMinute: (unitsPerCycle / cycleSeconds) * 60,
+        ...(contract.behavior.scrapRandom ? { scrapRandom: true } : {}),
+        ...(contract.behavior.queueCapacity ? { queueCapacity: count(contract.behavior.queueCapacity, 'queueCapacity') } : {}),
+        ...(contract.behavior.fullCyclesOnly ? { fullCyclesOnly: true } : {}),
+        ...(contract.behavior.itemsRequired ? { itemsRequired: true } : {}),
         ...(liquid !== undefined ? { liquidPerCycleGallons: liquid } : {}),
         ...(inputs?.length ? { inputs } : {}),
         ...(outputs?.length ? { outputs } : {})
@@ -355,6 +377,16 @@ export function evaluateUnitOp(
         cycleSecondsEstimate: seconds,
         gallonsPerMinute: seconds > 0 ? (batchGallons / seconds) * 60 : Infinity
       };
+    } else if (contract.behavior.mode === 'STORAGE') {
+      const capacityGallons = evaluateNumber(contract.behavior.capacityGallons, scope);
+      if (capacityGallons <= 0) return fail('behavior.capacityGallons', new Error(`capacityGallons must be positive, got ${capacityGallons}`));
+      const initialGallons = contract.behavior.initialGallons ? evaluateNumber(contract.behavior.initialGallons, scope) : 0;
+      if (initialGallons < 0 || initialGallons > capacityGallons) {
+        return fail('behavior.initialGallons', new Error(`initialGallons must be between 0 and capacityGallons (${capacityGallons}), got ${initialGallons}`));
+      }
+      const maxOutflowGpm = contract.behavior.maxOutflowGpm ? evaluateNumber(contract.behavior.maxOutflowGpm, scope) : undefined;
+      if (maxOutflowGpm !== undefined && maxOutflowGpm < 0) return fail('behavior.maxOutflowGpm', new Error(`maxOutflowGpm must not be negative, got ${maxOutflowGpm}`));
+      behavior = { mode: 'STORAGE', capacityGallons, initialGallons, ...(maxOutflowGpm !== undefined ? { maxOutflowGpm } : {}) };
     } else {
       const throughputPerMinute = evaluateNumber(contract.behavior.throughputPerMinute, scope);
       behavior = {
@@ -416,11 +448,35 @@ export function evaluateUnitOp(
     }
   }
 
+  let reliability: UnitOpEvaluation['reliability'];
+  if (contract.reliability) {
+    try {
+      const mtbf = evaluateNumber(contract.reliability.mtbfMinutes, scope);
+      const mttr = evaluateNumber(contract.reliability.mttrMinutes, scope);
+      if (mtbf < 0 || mttr < 0) return fail('reliability', new Error(`mtbfMinutes and mttrMinutes must not be negative, got ${mtbf} and ${mttr}`));
+      // Either at 0 turns breakdowns off.
+      if (mtbf > 0 && mttr > 0) reliability = { mtbfSeconds: mtbf * 60, mttrSeconds: mttr * 60 };
+    } catch (e) {
+      return fail('reliability', e);
+    }
+  }
+  let cycleTimeCv: number | undefined;
+  if (contract.variability?.cycleTimeCv) {
+    try {
+      cycleTimeCv = evaluateNumber(contract.variability.cycleTimeCv, scope);
+      if (cycleTimeCv < 0 || cycleTimeCv > 3) return fail('variability.cycleTimeCv', new Error(`cycleTimeCv must be between 0 and 3, got ${cycleTimeCv}`));
+    } catch (e) {
+      return fail('variability.cycleTimeCv', e);
+    }
+  }
+
   return {
     contractId: contract.id,
     parameters,
     derived,
     constraints,
+    ...(reliability ? { reliability } : {}),
+    ...(cycleTimeCv ? { cycleTimeCv } : {}),
     physicallyValid: constraints.every((c) => c.satisfied || c.severity === 'WARNING'),
     behavior,
     outlets,

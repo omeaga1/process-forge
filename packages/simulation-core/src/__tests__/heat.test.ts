@@ -31,6 +31,10 @@ const line = (id: string, nodes: ProcessNode[], edges: ProcessEdge[]): ProcessGr
 
 const water = (temperatureCelsius: number) => ({ name: 'Water', densityGPerCm3: 1, viscosityCentipoise: 1, temperatureCelsius, specificHeatKjPerKgK: 4.186 });
 
+/** Seconds the exchanger's rated duty was too small to reach its target (its contract's duty-limited check). */
+const dutyLimitedSeconds = (r: ReturnType<typeof simulateProcess>, id: string) =>
+  r.nodeReports[id]!.designedUnit?.brokenConstraints.find((b) => b.id === 'duty-limited')?.seconds ?? 0;
+
 /** 30 gal/min of water, in kg/s. */
 const KG_PER_S = (30 / 60) * 3.785411784;
 
@@ -48,7 +52,7 @@ describe('Heat: exchangers', () => {
     const hx = r.nodeReports['hx']!;
     assert.ok(Math.abs(hx.fluid!.averageOutletTemperatureC! - 30) < 0.2, `outlet ${hx.fluid!.averageOutletTemperatureC}`);
     assert.ok(Math.abs(r.nodeReports['cold']!.fluid!.temperatureC - 30) < 0.2);
-    assert.equal(hx.heat!.dutyLimitedPercentage, 0);
+    assert.equal(dutyLimitedSeconds(r, 'hx'), 0);
     // Q = m cp dT = 1.893 kg/s x 4.186 x 30 K = 237.7 kW.
     const expected = KG_PER_S * 4.186 * 30;
     assert.ok(Math.abs(hx.heat!.averageDutyKw! - expected) < 2, `duty ${hx.heat!.averageDutyKw} vs ${expected}`);
@@ -60,7 +64,7 @@ describe('Heat: exchangers', () => {
     const hx = r.nodeReports['hx']!;
     const outlet = 60 - 100 / (KG_PER_S * 4.186);
     assert.ok(Math.abs(hx.fluid!.averageOutletTemperatureC! - outlet) < 0.2, `outlet ${hx.fluid!.averageOutletTemperatureC} vs ${outlet}`);
-    assert.ok(hx.heat!.dutyLimitedPercentage! > 99);
+    assert.ok(dutyLimitedSeconds(r, 'hx') > 0.99 * 20 * 60, `limited ${dutyLimitedSeconds(r, 'hx')} s`);
     assert.ok(Math.abs(hx.heat!.averageDutyKw! - 100) < 0.5);
     // Temperature is not throughput: the same gallons get through.
     assert.ok(Math.abs(r.nodeReports['cold']!.fluid!.receivedGallons - 600) < 2);
@@ -76,7 +80,7 @@ describe('Heat: exchangers', () => {
       10
     );
     assert.ok(Math.abs(r.nodeReports['hx']!.fluid!.averageOutletTemperatureC! - 50) < 0.2);
-    assert.equal(r.nodeReports['hx']!.heat!.ratedDutyKw, undefined, 'no duty set: unlimited');
+    assert.equal(dutyLimitedSeconds(r, 'hx'), 0, 'no duty set: unlimited');
   });
 
   it('without a target it only passes the liquid through', () => {
@@ -112,7 +116,7 @@ describe('Heat: reactor jackets', () => {
     // A batch: 1 min fill + heat-up + 2 min react + 2 min discharge.
     const cycle = 60 + heatSeconds + 120 + 120;
     assert.equal(rep.fluid!.batches, Math.floor((120 * 60) / cycle), `batches ${rep.fluid!.batches}, cycle ${cycle} s`);
-    assert.equal(rep.heat!.jacketDutyKw, jacket);
+    assert.ok(Math.abs(rep.heat!.heatingTimeSeconds! - rep.fluid!.batches! * heatSeconds) < heatSeconds, `heating ${rep.heat!.heatingTimeSeconds} s`);
     const phases = new Set(r.telemetryLog.filter((t) => t.nodeId === 'r').map((t) => t.phase));
     assert.ok(phases.has('HEATING'), 'telemetry shows the batch heating');
     // Everything it sent left at the reaction temperature.
@@ -126,7 +130,7 @@ describe('Heat: reactor jackets', () => {
     const r = simulateProcess(reactorLine(), 60);
     const rep = r.nodeReports['r']!;
     assert.equal(rep.fluid!.batches, 12, '5 min batches, as before');
-    assert.equal(rep.heat!.jacketDutyKw, undefined);
+    assert.equal(rep.heat!.heatingTimeSeconds, undefined, 'no time spent heating');
     // 12 or 13 batches charged in the hour (the 13th may be under way).
     const perBatchKwh = heatUpKj / 3600;
     assert.ok(rep.heat!.energyKwh >= 12 * perBatchKwh - 0.5 && rep.heat!.energyKwh <= 13 * perBatchKwh + 0.5, `energy ${rep.heat!.energyKwh}`);
@@ -140,7 +144,7 @@ describe('Heat: reactor jackets', () => {
 });
 
 describe('Heat: mixing', () => {
-  it('a tank holds the volume-weighted temperature of what it received', () => {
+  it('a tank holds the mixed temperature of what it received', () => {
     // 100 gal at 20 °C, then one 100 gal batch at 70 °C: 45 °C.
     const g = line('mix', [
       node('r', 'BATCH_REACTOR', { batchVolumeGallons: 100, fillDurationMinutes: 1, reactionDurationMinutes: 1, dischargeRateGpm: 100, fluid: water(70) }, [], L),
@@ -150,5 +154,24 @@ describe('Heat: mixing', () => {
     const t = r.nodeReports['tank']!.fluid!;
     assert.ok(Math.abs(t.levelGallons - 200) < 1, `level ${t.levelGallons}`);
     assert.ok(Math.abs(t.temperatureC - 45) < 0.3, `temperature ${t.temperatureC}`);
+  });
+});
+
+describe('Heat: mixing by heat content', () => {
+  it('mixes temperatures by m·cp, not by volume', () => {
+    // 100 gal of a dense, low-cp brine at 80 °C into 100 gal of water at 20 °C.
+    const brine = { name: 'Brine', densityGPerCm3: 1.2, viscosityCentipoise: 1, temperatureCelsius: 80, specificHeatKjPerKgK: 3.0 };
+    const g = line('mix-mass', [
+      node('r', 'BATCH_REACTOR', { batchVolumeGallons: 100, fillDurationMinutes: 1, reactionDurationMinutes: 1, dischargeRateGpm: 100, fluid: brine }, [], L),
+      node('tank', 'SURGE_TANK', { capacityGallons: 1000, initialLevelGallons: 100, fluid: water(20) }, L, [])
+    ], [pipe('r', 'tank')]);
+    const t = simulateProcess(g, 3.5).nodeReports['tank']!.fluid!;
+    const mBrine = 100 * 3.785411784 * 1.2;
+    const mWater = 100 * 3.785411784;
+    const expected = (mBrine * 3.0 * 80 + mWater * 4.186 * 20) / (mBrine * 3.0 + mWater * 4.186);
+    assert.ok(Math.abs(t.temperatureC - expected) < 0.3, `temperature ${t.temperatureC} vs ${expected}`);
+    // Mass is conserved; the volume is what each parcel's density says.
+    assert.ok(Math.abs(t.levelKg - (mBrine + mWater)) < 2, `mass ${t.levelKg}`);
+    assert.ok(Math.abs(t.levelGallons - 200) < 1, `level ${t.levelGallons}`);
   });
 });

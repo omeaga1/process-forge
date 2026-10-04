@@ -40,7 +40,7 @@ describe('What a unit does, in the engine\'s terms', () => {
     const b = describeUnitBehavior(filler, graphOf([filler]));
     assert.ok(b.simulated);
     assert.strictEqual(b.capacityPerMin, 48);
-    assert.match(b.headline, /Fills 8 containers every 10 s/);
+    assert.match(b.headline, /Makes 8 items every 10 s/);
 
     const run = simulateProcess(graphOf([filler]), 60, { seed: 1 });
     const made = run.nodeReports['f']!.unitsProduced;
@@ -78,11 +78,23 @@ describe('What a unit does, in the engine\'s terms', () => {
     assert.match(b.details.join(' '), /No liquid pipe connects to it/);
   });
 
-  it('warns that a palletizer layer over 100 never starts', () => {
-    const pal = at('PALLETIZER', 'pl', { containersPerLayer: 120 });
-    const b = describeUnitBehavior(pal, graphOf([pal]));
-    assert.strictEqual(b.capacityPerMin, 0);
-    assert.match(b.details[0]!, /never starts/);
+  it('a palletizer waits for whole layers, and a large layer still runs', () => {
+    const f = at('ROTARY_FILLER', 'f', { meanTimeBetweenFailuresMinutes: 0, meanTimeToRepairMinutes: 0, rejectRatePercentage: 0 });
+    const pal = at('PALLETIZER', 'pl', { containersPerLayer: 120, cycleSecondsPerLayer: 30 });
+    const g = graphOf([f, pal], [['f', 'pl']]);
+    const b = describeUnitBehavior(pal, g);
+    assert.match(b.details.join(' '), /Waits until 120 items are queued/);
+    assert.strictEqual(b.capacityPerMin, 240);
+    // The engine sizes its queue to a whole layer, so layers do get built.
+    const run = simulateProcess(g, 30, { seed: 1 });
+    assert.ok(run.nodeReports['pl']!.unitsProduced >= 120, `stacked ${run.nodeReports['pl']!.unitsProduced}`);
+  });
+
+  it('an unpiped labeler waits for items rather than making them', () => {
+    const l = at('LABELER', 'l');
+    const b = describeUnitBehavior(l, graphOf([l]));
+    assert.match(b.details.join(' '), /nothing is piped to it yet, so it waits/);
+    assert.strictEqual(simulateProcess(graphOf([l]), 10).nodeReports['l']!.unitsProduced, 0);
   });
 
   it('knows where a unit sits in the line', () => {
@@ -93,14 +105,15 @@ describe('What a unit does, in the engine\'s terms', () => {
     assert.strictEqual(describeUnitBehavior(l, g).role, 'end');
   });
 
-  it('describes a designed continuous unit from its contract, and says it is evaluated live', () => {
+  it('describes a designed continuous unit from its contract, and says when nothing reaches it', () => {
     const belt = at('CUSTOM_UNIT_OP', 'belt', { contract: WAX_COOLING_BELT_CONTRACT });
     const b = describeUnitBehavior(belt, graphOf([belt]));
-    assert.strictEqual(b.simulated, true);
-    // The belt declares no capacityGpm, so it sets no flow limit of its own.
+    // Unpiped, nothing flows through it: the engine would not step it.
+    assert.strictEqual(b.simulated, false);
     assert.strictEqual(b.capacityPerMin, null);
+    assert.match(b.details.join(' '), /No liquid pipe connects to it/);
     assert.ok(b.keyFigures && b.keyFigures.length > 0, 'shows the engine\'s computed figures');
-    assert.match(b.details.join(' '), /re-evaluated every second/);
+
     assert.deepStrictEqual(engineKeysOf(belt), ['contract']);
   });
 
@@ -117,7 +130,7 @@ describe('What a unit does, in the engine\'s terms', () => {
     });
     const b = describeUnitBehavior(printer, graphOf([printer]));
     assert.ok(b.simulated, b.details.join(' | '));
-    assert.match(b.headline, /Makes 1 unit every 30 min/);
+    assert.match(b.headline, /Makes 1 item every 30 min/);
     assert.deepStrictEqual(formatRate(b.capacityPerMin), { value: '2', per: '/h' });
   });
 
@@ -147,7 +160,7 @@ describe('What a unit does, in the engine\'s terms', () => {
     const reactor = at('BATCH_REACTOR', 'r', { batchVolumeGallons: 1000, fillDurationMinutes: 20, reactionDurationMinutes: 45, dischargeRateGpm: 50 });
     const b = describeUnitBehavior(reactor, graphOf([reactor]));
     assert.ok(b.simulated);
-    assert.match(b.headline, /1,000 gal batches, one every 85 min/);
+    assert.match(b.headline, /1,000 gal batches, about one every 85 min/);
     assert.ok(Math.abs(b.capacityPerMin! - 1000 / 85) < 1e-9);
   });
 
