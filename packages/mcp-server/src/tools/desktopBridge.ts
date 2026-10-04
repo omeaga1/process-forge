@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { executeValidateUnitOp, heuristicProvider, type FlowsheetEdit, type ProcessGraph, type ProcessNode, type ValidateUnitOpResult } from '@process-forge/protocol';
-import type { ToolHost } from '@process-forge/tools';
+import type { ProjectRequest, ToolHost } from '@process-forge/tools';
 import { communityApiBase } from './communityLibrary.js';
 
 /**
@@ -222,6 +222,22 @@ export async function executeFlowsheetEdit(edit: FlowsheetEdit): Promise<Record<
 }
 
 /**
+ * Lists, starts, opens, names and saves flowsheets in the desktop app. The app
+ * keeps every flowsheet on this computer; a cloud save needs the engineer
+ * signed in there.
+ */
+export async function executeProjectRequest(request: ProjectRequest): Promise<Record<string, unknown>> {
+  const r = await call('POST', '/v1/projects', request);
+  if (!r.ok) return { success: false, error: r.reason };
+  if (r.status === 404) {
+    return { success: false, error: 'This ProcessForge Desktop is too old to manage flowsheets from an MCP client. Update it (0.1.47 or later).' };
+  }
+  if (r.status === 202) return { success: false, error: 'ProcessForge did not answer: open the studio and try again.' };
+  if (r.status !== 200) return { success: false, error: r.body?.error ?? `HTTP ${r.status}` };
+  return { success: r.body?.error === undefined, ...r.body };
+}
+
+/**
  * The MCP server's host for the shared tools (@process-forge/tools): the
  * flowsheet is the one open in ProcessForge Desktop, reached over the bridge.
  * Design checks use the offline rules (the decision model, Jev, runs on the
@@ -250,6 +266,7 @@ export const bridgeHost: ToolHost = {
   addStream: (stream) => executeAddStream(stream),
   edit: (edit) => executeFlowsheetEdit(edit),
   requestPublish: (request) => executeRequestPublish(request as PublishRequestParams),
+  project: (request) => executeProjectRequest(request),
   decider: { id: heuristicProvider.id, ask: (state, questions) => heuristicProvider.ask(state, questions), lastSource: { by: 'offline', reason: 'the MCP server uses the offline rules' } },
   get communityApiBase() {
     return communityApiBase();

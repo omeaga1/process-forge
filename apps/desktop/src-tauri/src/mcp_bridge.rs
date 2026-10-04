@@ -254,6 +254,24 @@ fn handle(mut stream: TcpStream, bridge: Bridge) {
             let (code, body) = queue_and_wait(&bridge, "edit", payload);
             respond(&mut stream, code, &body)
         }
+        ("POST", "/v1/projects") => {
+            // Flowsheets: list them, start one, open one, name and save the
+            // open one. The web view keeps the projects, so it does the work.
+            let payload: Value = match serde_json::from_slice(&req.body) {
+                Ok(v) => v,
+                Err(e) => return respond(&mut stream, 400, &json!({ "error": format!("body is not JSON: {e}") })),
+            };
+            let op = payload.get("op").and_then(Value::as_str).unwrap_or("");
+            if !matches!(op, "list" | "new" | "open" | "save") {
+                return respond(
+                    &mut stream,
+                    400,
+                    &json!({ "error": "expected { \"op\": \"list\" | \"new\" | \"open\" | \"save\", ... }" }),
+                );
+            }
+            let (code, body) = queue_and_wait(&bridge, "project", payload);
+            respond(&mut stream, code, &body)
+        }
         _ => respond(&mut stream, 404, &json!({ "error": "unknown endpoint" })),
     }
 }

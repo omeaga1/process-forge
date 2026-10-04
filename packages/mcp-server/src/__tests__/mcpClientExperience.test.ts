@@ -40,9 +40,12 @@ describe('What any MCP client sees', () => {
       'add_standard_unit_op',
       'add_stream',
       'add_unit_op_to_flowsheet',
+      'new_flowsheet',
+      'open_flowsheet',
       'publish_unit_op',
       'remove_stream',
       'remove_unit',
+      'save_flowsheet',
       'update_unit'
     ]);
     const destructive = tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name).sort();
