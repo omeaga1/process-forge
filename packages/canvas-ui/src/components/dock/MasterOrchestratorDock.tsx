@@ -13,7 +13,7 @@ import {
 import { dispatchMasterOrchestratorMessage } from '../../ai/aiDispatch.js';
 import { useAssistantRoute } from '../../ai/assistantRoute.js';
 import { createDefaultProcessNode } from '../../utils/nodeFactory.js';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 import { AiModelModal } from '../modals/AiModelModal.js';
 import { McpAssistantPanel } from './McpAssistantPanel.js';
 import { SplitFlap } from './SplitFlap.js';
@@ -261,7 +261,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                 width: 28,
                 height: 28,
                 borderRadius: 6,
-                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                backgroundColor: tint(palette.jade[500], 0.12),
                 border: `1px solid ${OsakaJadePalette.jade[600]}40`,
                 display: 'flex',
                 alignItems: 'center',
@@ -424,7 +424,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                     borderRadius: 3,
                     fontSize: 8,
                     fontWeight: 700,
-                    backgroundColor: msg.isOffline ? 'rgba(255,255,255,0.06)' : 'rgba(16,185,129,0.15)',
+                    backgroundColor: msg.isOffline ? tint(palette.text.primary, 0.06) : tint(palette.jade[500], 0.15),
                     color: msg.isOffline ? OsakaJadePalette.text.muted : OsakaJadePalette.jade.glow,
                     border: `1px solid ${msg.isOffline ? OsakaJadePalette.border.default : OsakaJadePalette.jade[600]}`
                   }}
@@ -476,7 +476,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                     marginTop: 10,
                     padding: '10px 12px',
                     borderRadius: 8,
-                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                    backgroundColor: tint(palette.jade[500], 0.12),
                     border: `1px solid ${OsakaJadePalette.jade[600]}`,
                     display: 'flex',
                     flexDirection: 'column',
@@ -576,7 +576,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         <div
           style={{
             padding: '6px 14px',
-            backgroundColor: 'rgba(16, 185, 129, 0.05)',
+            backgroundColor: tint(palette.jade[500], 0.05),
             borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
             display: 'flex',
             alignItems: 'center',

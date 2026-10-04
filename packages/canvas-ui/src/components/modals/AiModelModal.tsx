@@ -15,7 +15,7 @@ import {
   type LlmCredentials,
   type ConnectionTestResult
 } from '../../ai/aiModelManager.js';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 import { setAssistantRoute, useAssistantRoute, getAssistantRoute, ROUTE_LABELS } from '../../ai/assistantRoute.js';
 import { signInWithOpenRouter } from '../../ai/openRouterAuth.js';
 import { testJev } from '../../ai/agent/jevProvider.js';
@@ -32,24 +32,20 @@ export interface AiModelModalProps {
 type Choice = 'mcp' | 'openrouter';
 
 /** The two ways ProcessForge uses AI. There are no others (ADR-0009). */
-const CHOICES: { id: Choice; title: string; best: string; detail: string; icon: React.ElementType; accent: string; glow: string }[] = [
+const CHOICES: { id: Choice; title: string; best: string; detail: string; icon: React.ElementType }[] = [
   {
     id: 'mcp',
     title: 'Your AI app (MCP)',
     best: 'Best if you already pay for Claude, Gemini or ChatGPT',
     detail: 'Chat in Claude, Antigravity, Codex or Cursor on your subscription, at no extra cost. It reads this flowsheet and adds the units it designs.',
-    icon: Server,
-    accent: '#a855f7',
-    glow: 'rgba(168, 85, 247, 0.25)'
+    icon: Server
   },
   {
     id: 'openrouter',
     title: 'OpenRouter',
     best: 'Best for AI inside ProcessForge',
     detail: 'Sign in once, pay as you go, and use Claude, GPT, Gemini and others right here in the app.',
-    icon: Route,
-    accent: '#6366f1',
-    glow: 'rgba(99, 102, 241, 0.25)'
+    icon: Route
   }
 ];
 
@@ -59,9 +55,8 @@ const CLAUDE_EXTENSION_URL = 'https://github.com/omeaga1/process-forge/releases/
 const isListedModel = (id: string | undefined) => OPENROUTER_MODELS.models.some((m) => m.id === id);
 
 export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onConfigChanged, firstRun = false }) => {
-  const { theme, palette, font } = useTheme();
+  const { palette, font } = useTheme();
   const route = useAssistantRoute();
-  const isDark = theme !== 'light';
 
   const [choice, setChoice] = useState<Choice>('mcp');
   const [creds, setCreds] = useState<LlmCredentials>(() => getLlmCredentials());
@@ -106,7 +101,6 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
   if (!isOpen) return null;
 
   const signedIn = hasValidCredentials(creds);
-  const current = CHOICES.find((c) => c.id === choice) ?? CHOICES[0]!;
   const mcpClient = MCP_CLIENTS.find((c) => c.id === mcpClientId) ?? MCP_CLIENTS[0]!;
 
   const flashSaved = () => {
@@ -176,14 +170,15 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
     setJevResult({ busy: false, ...(await testJev(await keyForCall())) });
   };
 
-  // Color tokens
-  const modalBg = isDark ? 'linear-gradient(180deg, #14211c 0%, #0d1714 100%)' : 'linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%)';
-  const cardBg = isDark ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.03)';
-  const inputBg = isDark ? 'rgba(0, 0, 0, 0.35)' : '#ffffff';
-  const borderColor = isDark ? 'rgba(113, 206, 173, 0.18)' : 'rgba(0, 0, 0, 0.1)';
+  // The theme's own tokens, so the dialog matches the rest of the studio in both themes.
+  const accent = palette.jade[500];
+  const modalBg = palette.background.surfaceElevated;
+  const cardBg = palette.background.surface;
+  const inputBg = palette.background.base;
+  const borderColor = palette.border.default;
   const textColor = palette.text.primary;
-  const textMuted = isDark ? '#8ca395' : '#64748b';
-  const textDim = isDark ? '#597063' : '#94a3b8';
+  const textMuted = palette.text.secondary;
+  const textDim = palette.text.muted;
 
   const label: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: textColor, marginBottom: 6 };
   const input: React.CSSProperties = {
@@ -200,7 +195,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
   const secondaryButton: React.CSSProperties = {
     padding: '9px 14px',
     borderRadius: draftingRadius.soft,
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+    backgroundColor: palette.background.surface,
     border: `1px solid ${borderColor}`,
     color: textColor,
     fontSize: 12,
@@ -211,7 +206,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
     gap: 7
   };
   const smallText: React.CSSProperties = { margin: 0, fontSize: 11, color: textMuted, lineHeight: 1.5 };
-  const linkButton: React.CSSProperties = { background: 'none', border: 'none', padding: 0, color: current.accent, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
+  const linkButton: React.CSSProperties = { background: 'none', border: 'none', padding: 0, color: accent, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
 
   return (
     <div
@@ -219,7 +214,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(3, 7, 5, 0.78)',
+        backgroundColor: palette.background.overlay,
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         zIndex: 10000,
@@ -252,7 +247,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
             justifyContent: 'space-between',
             padding: '20px 24px',
             borderBottom: `1px solid ${borderColor}`,
-            background: isDark ? 'rgba(255, 255, 255, 0.015)' : 'transparent'
+            background: 'transparent'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -261,12 +256,12 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                 width: 40,
                 height: 40,
                 borderRadius: draftingRadius.soft,
-                background: `linear-gradient(135deg, ${current.glow}, rgba(255, 255, 255, 0.02))`,
-                border: `1px solid ${current.accent}40`,
+                background: tint(accent, 0.15),
+                border: `1px solid ${accent}40`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: current.accent
+                color: accent
               }}
             >
               <Cpu size={20} />
@@ -309,7 +304,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
         </div>
 
         {/* The two choices */}
-        <div style={{ padding: '14px 24px', background: isDark ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.02)' }}>
+        <div style={{ padding: '14px 24px', background: palette.background.base }}>
           <div role="tablist" aria-label="How to use AI" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {CHOICES.map((c) => {
               const Icon = c.icon;
@@ -332,16 +327,16 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                     padding: '12px 14px',
                     textAlign: 'left',
                     borderRadius: draftingRadius.soft,
-                    border: `1.5px solid ${selected ? c.accent : borderColor}`,
-                    backgroundColor: selected ? (isDark ? 'rgba(255, 255, 255, 0.06)' : '#ffffff') : cardBg,
-                    boxShadow: selected ? `0 0 0 3px ${c.glow}` : 'none',
+                    border: `1.5px solid ${selected ? accent : borderColor}`,
+                    backgroundColor: selected ? tint(accent, 0.1) : cardBg,
+                    boxShadow: selected ? `0 0 0 3px ${tint(accent, 0.2)}` : 'none',
                     color: textColor,
                     cursor: 'pointer',
                     transition: 'all 0.15s ease'
                   }}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Icon size={16} color={c.accent} />
+                    <Icon size={16} color={selected ? accent : textMuted} />
                     <span style={{ fontSize: 14, fontWeight: 700 }}>{c.title}</span>
                     {inUse && (
                       <span
@@ -351,15 +346,15 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                           fontWeight: 700,
                           padding: '1px 7px',
                           borderRadius: 999,
-                          color: '#10b981',
-                          backgroundColor: 'rgba(16, 185, 129, 0.14)'
+                          color: palette.jade[500],
+                          backgroundColor: tint(palette.jade[500], 0.14)
                         }}
                       >
                         In use
                       </span>
                     )}
                   </span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: c.accent }}>{c.best}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: accent }}>{c.best}</span>
                   <span style={{ fontSize: 12, color: textMuted, lineHeight: 1.45 }}>{c.detail}</span>
                 </button>
               );
@@ -375,8 +370,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
               style={{
                 padding: '10px 14px',
                 borderRadius: draftingRadius.soft,
-                backgroundColor: isDark ? 'rgba(245, 158, 11, 0.08)' : 'rgba(245, 158, 11, 0.07)',
-                border: '1px solid rgba(245, 158, 11, 0.35)',
+                backgroundColor: tint(palette.status.blocked, 0.08),
+                border: `1px solid ${tint(palette.status.blocked, 0.35)}`,
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: 10,
@@ -385,7 +380,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                 color: textColor
               }}
             >
-              <Info size={15} color="#f59e0b" style={{ flexShrink: 0, marginTop: 2 }} />
+              <Info size={15} color={palette.status.blocked} style={{ flexShrink: 0, marginTop: 2 }} />
               <span style={{ flex: 1 }}>{notice}</span>
               <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss" style={{ ...linkButton, color: textMuted }}>
                 <X size={14} />
@@ -417,8 +412,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                       padding: '10px 14px',
                       borderRadius: draftingRadius.soft,
                       border: 'none',
-                      background: current.accent,
-                      color: '#ffffff',
+                      background: accent,
+                      color: palette.text.inverse,
                       fontSize: 13,
                       fontWeight: 700,
                       cursor: orSignIn.busy ? 'progress' : 'pointer',
@@ -435,13 +430,13 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                   )}
                 </div>
                 {orSignIn.error && (
-                  <div role="alert" style={{ fontSize: 12, color: '#ef4444', lineHeight: 1.45 }}>
+                  <div role="alert" style={{ fontSize: 12, color: palette.status.failed, lineHeight: 1.45 }}>
                     {orSignIn.error}
                   </div>
                 )}
                 <p style={smallText}>
                   Opens OpenRouter in your browser; approve there and you are set. Give the key a spending limit in{' '}
-                  <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer" style={{ color: current.accent }}>
+                  <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer" style={{ color: accent }}>
                     your OpenRouter settings
                   </a>
                   , where you can also revoke it. Signing out here only forgets it on this device.{' '}
@@ -475,7 +470,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                 >
                   {creds.modelId && !isListedModel(creds.modelId) && <option value={creds.modelId}>{creds.modelId}</option>}
                   {OPENROUTER_MODELS.models.map((m) => (
-                    <option key={m.id} value={m.id} style={{ backgroundColor: isDark ? '#14211c' : '#ffffff', color: isDark ? '#f6f5dd' : '#1e2922' }}>
+                    <option key={m.id} value={m.id} style={{ backgroundColor: palette.background.surface, color: palette.text.primary }}>
                       {m.name}
                     </option>
                   ))}
@@ -490,7 +485,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                 />
                 <p style={{ ...smallText, marginTop: 6 }}>
                   Browse every model and its price at{' '}
-                  <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer" style={{ color: current.accent }}>
+                  <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer" style={{ color: accent }}>
                     openrouter.ai/models
                   </a>
                   . The free models need no credit but are rate-limited.
@@ -499,7 +494,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
 
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <button type="button" onClick={handleTestConnection} disabled={isTesting || (!signedIn && !pastedKey)} style={{ ...secondaryButton, opacity: signedIn || pastedKey ? 1 : 0.5 }}>
-                  {isTesting ? <RotateCcw size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={13} color={current.accent} />}
+                  {isTesting ? <RotateCcw size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Zap size={13} color={accent} />}
                   {isTesting ? 'Testing...' : 'Test connection'}
                 </button>
                 <button
@@ -517,9 +512,9 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                     flex: 1,
                     padding: '9px 18px',
                     borderRadius: draftingRadius.soft,
-                    background: saveFeedback ? '#10b981' : current.accent,
+                    background: saveFeedback ? palette.jade[500] : accent,
                     border: 'none',
-                    color: '#ffffff',
+                    color: palette.text.inverse,
                     fontSize: 12,
                     fontWeight: 700,
                     cursor: 'pointer',
@@ -540,8 +535,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                   style={{
                     padding: '10px 14px',
                     borderRadius: draftingRadius.soft,
-                    border: `1px solid ${testResult.ok ? '#10b981' : '#ef4444'}40`,
-                    backgroundColor: testResult.ok ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
+                    border: `1px solid ${testResult.ok ? palette.jade[500] : palette.status.failed}40`,
+                    backgroundColor: testResult.ok ? tint(palette.jade[500], 0.08) : tint(palette.status.failed, 0.08),
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
@@ -550,14 +545,14 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                     color: textColor
                   }}
                 >
-                  {testResult.ok ? <CheckCircle2 size={16} color="#10b981" /> : <AlertCircle size={16} color="#ef4444" />}
+                  {testResult.ok ? <CheckCircle2 size={16} color={palette.jade[500]} /> : <AlertCircle size={16} color={palette.status.failed} />}
                   <span style={{ flex: 1 }}>
                     {testResult.ok ? `${testResult.modelName} answered in ${testResult.latencyMs} ms.` : testResult.error}
                   </span>
                 </div>
               )}
               {jevResult.text && (
-                <p role="status" style={{ ...smallText, color: jevResult.ok ? '#10b981' : textMuted }}>
+                <p role="status" style={{ ...smallText, color: jevResult.ok ? palette.jade[500] : textMuted }}>
                   {jevResult.text}
                 </p>
               )}
@@ -587,8 +582,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                   padding: '10px 14px',
                   borderRadius: draftingRadius.soft,
                   border: route === 'claude-desktop' ? `1px solid ${borderColor}` : 'none',
-                  background: route === 'claude-desktop' ? 'transparent' : current.accent,
-                  color: route === 'claude-desktop' ? textColor : '#ffffff',
+                  background: route === 'claude-desktop' ? 'transparent' : accent,
+                  color: route === 'claude-desktop' ? textColor : palette.text.inverse,
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: 'pointer'
@@ -609,7 +604,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                   padding: 14,
                   borderRadius: draftingRadius.soft,
                   backgroundColor: cardBg,
-                  border: `1px solid ${current.accent}55`,
+                  border: `1px solid ${accent}55`,
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 10
@@ -627,8 +622,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                     gap: 8,
                     padding: '9px 14px',
                     borderRadius: draftingRadius.soft,
-                    border: `1px solid ${current.accent}`,
-                    color: current.accent,
+                    border: `1px solid ${accent}`,
+                    color: accent,
                     fontSize: 13,
                     fontWeight: 700,
                     textDecoration: 'none'
@@ -662,8 +657,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                       style={{
                         padding: '5px 10px',
                         borderRadius: draftingRadius.soft,
-                        border: `1px solid ${active ? current.accent : borderColor}`,
-                        background: active ? 'rgba(168, 85, 247, 0.12)' : 'transparent',
+                        border: `1px solid ${active ? accent : borderColor}`,
+                        background: active ? tint(palette.jade[500], 0.12) : 'transparent',
                         color: active ? textColor : textMuted,
                         fontSize: 12,
                         fontWeight: active ? 700 : 500,
@@ -700,7 +695,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                     fontSize: 11,
                     fontFamily: font.mono,
                     color: textMuted,
-                    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.05)',
+                    backgroundColor: palette.background.base,
                     padding: 12,
                     borderRadius: draftingRadius.soft,
                     overflowX: 'auto',
@@ -729,7 +724,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
         <div
           style={{
             padding: '14px 24px',
-            backgroundColor: isDark ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.02)',
+            backgroundColor: palette.background.base,
             borderTop: `1px solid ${borderColor}`,
             display: 'flex',
             justifyContent: 'flex-end',
@@ -746,7 +741,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
           <button
             type="button"
             onClick={onClose}
-            style={{ ...secondaryButton, padding: '7px 16px', backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)' }}
+            style={{ ...secondaryButton, padding: '7px 16px', backgroundColor: palette.background.surfaceHover }}
           >
             {firstRun ? 'Decide later' : 'Done'}
           </button>

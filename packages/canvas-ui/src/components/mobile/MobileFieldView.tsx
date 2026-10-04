@@ -11,7 +11,7 @@ import {
   Monitor
 } from 'lucide-react';
 import { MobileUnitOpSheet } from './MobileUnitOpSheet.js';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 export interface MobileFieldViewProps {
   graph: ProcessGraph;
@@ -212,7 +212,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
         <div
           style={{
             padding: '10px 16px',
-            backgroundColor: 'rgba(245, 158, 11, 0.12)',
+            backgroundColor: tint(palette.status.blocked, 0.12),
             borderBottom: `1px solid ${OsakaJadePalette.border.glowAmber}`,
             display: 'flex',
             alignItems: 'center',
@@ -275,7 +275,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
                       fontSize: 10,
                       fontWeight: 800,
                       color: OsakaJadePalette.jade.glow,
-                      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                      backgroundColor: tint(palette.jade[500], 0.12),
                       padding: '2px 6px',
                       borderRadius: draftingRadius.soft
                     }}

@@ -16,6 +16,7 @@ function formatVariables(palette: ThemePalette): string {
   --pf-bg-surface-muted: ${palette.background.surfaceMuted};
   --pf-bg-selected: ${palette.background.selectedBg};
   --pf-fg-selected: ${palette.background.selectedFg};
+  --pf-bg-overlay: ${palette.background.overlay};
 
   --pf-border-subtle: ${palette.border.subtle};
   --pf-border-default: ${palette.border.default};
@@ -49,6 +50,18 @@ function formatVariables(palette: ThemePalette): string {
   --pf-stream-blocked: ${palette.streams.backpressureBlocked};
   --pf-stream-cold: ${palette.streams.cold};
   --pf-stream-hot: ${palette.streams.hot};
+
+  /* Short names the web app's stylesheet uses. */
+  --pf-canvas-bg: ${palette.background.canvas};
+  --pf-surface: ${palette.background.surface};
+  --pf-surface-elevated: ${palette.background.surfaceElevated};
+  --pf-surface-hover: ${palette.background.surfaceHover};
+  --pf-border: ${palette.border.default};
+  --pf-jade: ${palette.jade[500]};
+  --pf-jade-hover: ${palette.jade[600]};
+  --pf-scrollbar-track: ${palette.background.base};
+  --pf-scrollbar-thumb: ${palette.border.default};
+  --pf-scrollbar-hover: ${palette.jade[500]};
   `.trim();
 }
 
@@ -57,17 +70,19 @@ function formatVariables(palette: ThemePalette): string {
  */
 export function generateOsakaJadeCssVariables(target: ThemeMode | 'both' = 'both'): string {
   if (target === 'dark') {
-    return `:root, [data-theme="dark"], .theme-dark, .theme-osaka-jade {\n  ${formatVariables(OsakaJadeDarkPalette)}\n}`;
+    return `:root, [data-theme="dark"], .theme-dark, .theme-osaka-jade {\n  color-scheme: dark;\n  ${formatVariables(OsakaJadeDarkPalette)}\n}`;
   }
   if (target === 'light') {
-    return `[data-theme="light"], .theme-light {\n  ${formatVariables(OsakaJadeLightPalette)}\n}`;
+    return `[data-theme="light"], .theme-light {\n  color-scheme: light;\n  ${formatVariables(OsakaJadeLightPalette)}\n}`;
   }
   return `
 :root, [data-theme="dark"], .theme-dark, .theme-osaka-jade {
+  color-scheme: dark;
   ${formatVariables(OsakaJadeDarkPalette)}
 }
 
 [data-theme="light"], .theme-light {
+  color-scheme: light;
   ${formatVariables(OsakaJadeLightPalette)}
 }
 `.trim();

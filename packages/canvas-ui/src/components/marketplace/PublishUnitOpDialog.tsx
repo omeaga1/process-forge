@@ -112,7 +112,7 @@ export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, 
       role="dialog"
       aria-modal="true"
       aria-label="Publish to the community library"
-      style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(5, 10, 12, 0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      style={{ position: 'fixed', inset: 0, zIndex: 10001, background: palette.background.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
     >
       <div style={{ width: 560, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', background: palette.background.surface, border: `1px solid ${palette.border.default}`, borderRadius: draftingRadius.sharp }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: `1px solid ${palette.border.subtle}` }}>

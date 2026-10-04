@@ -10,7 +10,9 @@ import {
   authorUnitOpContract,
   useAssistantRoute,
   type AiModelConfig,
-  ThemeProvider
+  ThemeProvider,
+  ThemeScope,
+  useTheme
 } from '@process-forge/canvas-ui';
 import {
   createSimulationProject,
@@ -51,6 +53,7 @@ import {
 } from './storage/localStorageAdapter.js';
 
 const AppInner: React.FC = () => {
+  const { theme } = useTheme();
   const updater = useAppUpdater();
   const assistantRoute = useAssistantRoute();
   const { isAccountModalOpen, accountModalTab, openAccountModal, closeAccountModal, isAuthenticated, user } = useAccount();
@@ -461,15 +464,18 @@ const AppInner: React.FC = () => {
         onConfigChanged={(cfg) => setAiConfig(cfg)}
       />
 
-      <StudioEntryGateModal
-        isOpen={isEntryGateOpen}
-        onClose={() => setIsEntryGateOpen(false)}
-        onOpenAccountModal={() => {
-          setIsEntryGateOpen(false);
-          openAccountModal();
-        }}
-        onContinueGuest={handleContinueGuest}
-      />
+      {/* Over the landing page, which is always dark, the entry dialog is dark too. */}
+      <ThemeScope mode={viewMode === 'landing' && !isDesktopRuntime() ? 'dark' : theme}>
+        <StudioEntryGateModal
+          isOpen={isEntryGateOpen}
+          onClose={() => setIsEntryGateOpen(false)}
+          onOpenAccountModal={() => {
+            setIsEntryGateOpen(false);
+            openAccountModal();
+          }}
+          onContinueGuest={handleContinueGuest}
+        />
+      </ThemeScope>
 
       <GuestAcknowledgementModal
         isOpen={isGuestModalOpen}
@@ -495,7 +501,7 @@ const AppInner: React.FC = () => {
             position: 'fixed',
             inset: 0,
             zIndex: 1000,
-            background: 'rgba(0,0,0,0.6)',
+            background: 'var(--pf-bg-overlay)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

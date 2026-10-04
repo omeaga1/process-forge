@@ -4,6 +4,7 @@ import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import { ArrowRight, Droplets, Package, CircleSlash, Flag, Gauge, Info } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
 import { describeUnitBehavior, formatRate } from '../../model/unitBehavior.js';
+import { tint } from '@process-forge/theme';
 
 interface UnitOverviewPanelProps {
   node: ProcessNode;
@@ -86,7 +87,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
         whiteSpace: 'nowrap',
         color: tone === 'ok' ? palette.jade[500] : tone === 'warn' ? palette.status.blocked : tone === 'accent' ? palette.text.accent : palette.text.muted,
         backgroundColor:
-          tone === 'ok' ? 'rgba(16, 185, 129, 0.1)' : tone === 'warn' ? 'rgba(245, 158, 11, 0.12)' : tone === 'accent' ? 'rgba(16, 185, 129, 0.08)' : palette.background.canvas
+          tone === 'ok' ? tint(palette.jade[500], 0.1) : tone === 'warn' ? tint(palette.status.blocked, 0.12) : tone === 'accent' ? tint(palette.jade[500], 0.08) : palette.background.canvas
       }}
     >
       {icon}
@@ -197,7 +198,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
               textAlign: 'center',
               padding: '12px 8px',
               borderColor: isBottleneck ? palette.status.blocked : palette.jade[600],
-              backgroundColor: 'rgba(16, 185, 129, 0.05)'
+              backgroundColor: tint(palette.jade[500], 0.05)
             }}
           >
             <div style={{ fontFamily: font.mono, fontSize: 24, fontWeight: 700, lineHeight: 1.1, color: palette.text.primary }}>

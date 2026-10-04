@@ -11,7 +11,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { useTheme } from '@process-forge/canvas-ui';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 export interface UpdateInfo {
   current_version: string;
@@ -178,7 +178,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
         backgroundColor: OsakaJadePalette.background.surfaceElevated,
         border: `1px solid ${
           status === 'error'
-            ? 'rgba(239, 68, 68, 0.6)'
+            ? tint(palette.status.failed, 0.6)
             : status === 'available'
             ? OsakaJadePalette.jade.glow
             : OsakaJadePalette.border.default
@@ -201,9 +201,9 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
             borderRadius: draftingRadius.soft,
             backgroundColor:
               status === 'error'
-                ? 'rgba(239, 68, 68, 0.15)'
+                ? tint(palette.status.failed, 0.15)
                 : status === 'up-to-date'
-                ? 'rgba(16, 185, 129, 0.15)'
+                ? tint(palette.jade[500], 0.15)
                 : `${OsakaJadePalette.jade.muted}`,
             display: 'flex',
             alignItems: 'center',
@@ -211,7 +211,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
             flexShrink: 0,
             color:
               status === 'error'
-                ? '#f87171'
+                ? palette.status.failed
                 : status === 'up-to-date'
                 ? OsakaJadePalette.text.accent
                 : OsakaJadePalette.jade[300]
@@ -315,7 +315,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
               gap: 5,
               padding: '6px 12px',
               borderRadius: draftingRadius.soft,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              backgroundColor: tint(palette.text.primary, 0.05),
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.primary,
               fontSize: '0.78rem',

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Cloud, HardDrive, ShieldAlert, ArrowRight, UserPlus, X, CheckCircle2 } from 'lucide-react';
 import { useTheme } from '@process-forge/canvas-ui';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 interface StudioEntryGateModalProps {
   isOpen: boolean;
@@ -26,7 +26,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(5, 10, 12, 0.88)',
+        backgroundColor: palette.background.overlay,
         backdropFilter: 'blur(10px)',
         zIndex: 10000,
         display: 'flex',
@@ -109,7 +109,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                     width: 36,
                     height: 36,
                     borderRadius: draftingRadius.soft,
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    backgroundColor: tint(palette.jade[500], 0.15),
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -133,7 +133,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                   fontWeight: 700,
                   padding: '3px 8px',
                   borderRadius: draftingRadius.soft,
-                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                  backgroundColor: tint(palette.jade[500], 0.2),
                   color: OsakaJadePalette.jade[300],
                   border: `1px solid ${OsakaJadePalette.jade[500]}66`
                 }}
@@ -204,7 +204,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                     width: 36,
                     height: 36,
                     borderRadius: draftingRadius.soft,
-                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    backgroundColor: tint(palette.status.blocked, 0.12),
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -228,9 +228,9 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({
                   fontWeight: 700,
                   padding: '3px 8px',
                   borderRadius: draftingRadius.soft,
-                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  backgroundColor: tint(palette.status.blocked, 0.15),
                   color: OsakaJadePalette.status.blocked,
-                  border: '1px solid rgba(245, 158, 11, 0.3)'
+                  border: `1px solid ${tint(palette.status.blocked, 0.3)}`
                 }}
               >
                 This device only

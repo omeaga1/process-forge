@@ -11,13 +11,18 @@ import {
   type UnitOpEvaluation,
   type ContractValidationIssue
 } from '@process-forge/protocol';
-import { OsakaJadePalette as P, drafting, draftingRadius } from '@process-forge/theme';
+import { drafting, draftingRadius } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
 import { layoutNozzles } from '../../nozzles/nozzleLayout.js';
 import type { AssistantRoute } from '../../ai/assistantRoute.js';
 import { McpDesignGuide } from './McpDesignGuide.js';
 
-const D = drafting('dark');
+/** The active theme's palette and drafting rules, so this screen follows the theme. */
+function useDrafting() {
+  const { palette, theme } = useTheme();
+  return { P: palette, D: drafting(theme) };
+}
 
 /**
  * The unit-op creator: where an engineer describes a unit operation that does
@@ -116,16 +121,8 @@ function gateState(r: ReviewState, gate: Gate): 'pass' | 'fail' | 'pending' {
   return blockingViolations(r.evaluation).length === 0 ? 'pass' : 'fail';
 }
 
-const card: React.CSSProperties = {
-  background: P.background.surfaceElevated,
-  border: D.rule,
-  borderRadius: draftingRadius.sharp,
-  padding: 14
-};
-
-const labelStyle: React.CSSProperties = { ...D.label, marginBottom: 6 } as React.CSSProperties;
-
 function GateBadge({ state, label }: { state: 'pass' | 'fail' | 'pending'; label: string }) {
+  const { D } = useDrafting();
   const color =
     state === 'pass' ? D.semantic.ok : state === 'fail' ? D.semantic.violation : D.semantic.inert;
   const glyph = state === 'pass' ? '✓' : state === 'fail' ? '✕' : '·';
@@ -159,6 +156,9 @@ export function UnitOpCreator({
   processContext,
   initialDescription = ''
 }: UnitOpCreatorProps) {
+  const { P, D } = useDrafting();
+  const card: React.CSSProperties = { background: P.background.surfaceElevated, border: D.rule, borderRadius: draftingRadius.sharp, padding: 14 };
+  const labelStyle = { ...D.label, marginBottom: 6 } as React.CSSProperties;
   const [description, setDescription] = useState(initialDescription);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);

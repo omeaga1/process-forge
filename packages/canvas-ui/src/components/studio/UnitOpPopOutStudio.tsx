@@ -27,7 +27,7 @@ import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import { UnitOverviewPanel } from './UnitOverviewPanel.js';
 import { useSavedUnitOps, saveUnitOp, removeSavedUnitOp } from '../../library/savedUnitOps.js';
 import { UnitOpContractSchema } from '@process-forge/protocol';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 interface UnitOpPopOutStudioProps {
   node: ProcessNode | null;
@@ -461,7 +461,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                         borderRadius: draftingRadius.soft,
                         fontSize: 9,
                         fontWeight: 700,
-                        backgroundColor: msg.isOffline ? 'rgba(255,255,255,0.06)' : 'rgba(16,185,129,0.15)',
+                        backgroundColor: msg.isOffline ? tint(palette.text.primary, 0.06) : tint(palette.jade[500], 0.15),
                         color: msg.isOffline ? OsakaJadePalette.text.muted : OsakaJadePalette.jade.glow,
                         border: `1px solid ${msg.isOffline ? OsakaJadePalette.border.default : OsakaJadePalette.jade[600]}`
                       }}
@@ -641,7 +641,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
             <div
               style={{
                 padding: '6px 14px',
-                backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                backgroundColor: tint(palette.jade[500], 0.05),
                 borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
                 display: 'flex',
                 alignItems: 'center',

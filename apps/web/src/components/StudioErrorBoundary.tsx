@@ -67,8 +67,8 @@ export class StudioErrorBoundary extends Component<Props, State> {
             justifyContent: 'center',
             width: '100vw',
             height: '100vh',
-            backgroundColor: '#11221c',
-            color: '#f6f5dd',
+            backgroundColor: 'var(--pf-bg-canvas)',
+            color: 'var(--pf-text-primary)',
             fontFamily: "'Inter', sans-serif",
             padding: 24,
             boxSizing: 'border-box',
@@ -79,8 +79,8 @@ export class StudioErrorBoundary extends Component<Props, State> {
             style={{
               maxWidth: 580,
               width: '100%',
-              backgroundColor: '#16241f',
-              border: '1px solid #e5c736',
+              backgroundColor: 'var(--pf-bg-surface)',
+              border: '1px solid var(--pf-status-blocked)',
               borderRadius: 8,
               padding: 28,
               boxShadow: '0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(229, 199, 54, 0.15)',
@@ -95,11 +95,11 @@ export class StudioErrorBoundary extends Component<Props, State> {
                 width: 48,
                 height: 48,
                 borderRadius: '50%',
-                backgroundColor: 'rgba(229, 199, 54, 0.15)',
+                backgroundColor: 'color-mix(in srgb, var(--pf-status-blocked) 15%, transparent)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#e5c736'
+                color: 'var(--pf-status-blocked)'
               }}
             >
               <AlertTriangle size={26} />
@@ -109,7 +109,7 @@ export class StudioErrorBoundary extends Component<Props, State> {
               Studio Interface Recovery
             </h2>
 
-            <p style={{ margin: 0, fontSize: 13, color: '#c1c497', lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--pf-text-secondary)', lineHeight: 1.5 }}>
               ProcessForge encountered an unexpected error while rendering the interactive studio canvas.
             </p>
 
@@ -118,13 +118,13 @@ export class StudioErrorBoundary extends Component<Props, State> {
                 style={{
                   width: '100%',
                   textAlign: 'left',
-                  backgroundColor: '#111c18',
-                  border: '1px solid #253c33',
+                  backgroundColor: 'var(--pf-bg-base)',
+                  border: '1px solid var(--pf-border-default)',
                   borderRadius: 6,
                   padding: '10px 14px',
                   fontSize: 12,
                   fontFamily: "'JetBrains Mono', monospace",
-                  color: '#ff7b72',
+                  color: 'var(--pf-status-failed)',
                   overflowX: 'auto',
                   maxHeight: 120,
                   boxSizing: 'border-box'
@@ -143,8 +143,8 @@ export class StudioErrorBoundary extends Component<Props, State> {
                   gap: 8,
                   padding: '10px 18px',
                   borderRadius: 2,
-                  backgroundColor: '#549e6a',
-                  color: '#111c18',
+                  backgroundColor: 'var(--pf-jade-500)',
+                  color: 'var(--pf-text-inverse)',
                   border: 'none',
                   fontSize: 13,
                   fontWeight: 700,
@@ -163,9 +163,9 @@ export class StudioErrorBoundary extends Component<Props, State> {
                   gap: 8,
                   padding: '10px 18px',
                   borderRadius: 4,
-                  backgroundColor: '#1d2f28',
-                  color: '#f6f5dd',
-                  border: '1px solid #253c33',
+                  backgroundColor: 'var(--pf-bg-surface-elevated)',
+                  color: 'var(--pf-text-primary)',
+                  border: '1px solid var(--pf-border-default)',
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer'
@@ -183,9 +183,9 @@ export class StudioErrorBoundary extends Component<Props, State> {
                   gap: 8,
                   padding: '10px 18px',
                   borderRadius: 4,
-                  backgroundColor: '#1d2f28',
-                  color: '#f6f5dd',
-                  border: '1px solid #253c33',
+                  backgroundColor: 'var(--pf-bg-surface-elevated)',
+                  color: 'var(--pf-text-primary)',
+                  border: '1px solid var(--pf-border-default)',
                   fontSize: 13,
                   fontWeight: 600,
                   cursor: 'pointer'

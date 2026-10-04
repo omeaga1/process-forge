@@ -303,7 +303,8 @@ function shapeSvg(s: DrawingShape, extra: string): string {
 export function drawingToSvg(drawing: UnitOpDrawing): { shell: string; details: string; viewBox: string } {
   const shell = drawing.shapes
     .filter((s) => s.layer !== 'detail')
-    .map((s) => shapeSvg(s, s.layer === 'fill' ? ' fill="rgba(16, 185, 129, 0.26)" stroke="none"' : ''))
+    // A tinted area takes the theme's jade where the app's CSS variables exist, and this jade elsewhere.
+    .map((s) => shapeSvg(s, s.layer === 'fill' ? ' style="fill: var(--pf-jade-500, #10b981); fill-opacity: 0.26" stroke="none"' : ''))
     .join('');
   const details = drawing.shapes
     .filter((s) => s.layer === 'detail')

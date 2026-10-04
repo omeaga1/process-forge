@@ -109,7 +109,7 @@ describe('Rendering', () => {
 
   it('puts details apart from the body, and tints fills', () => {
     const svg = drawingToSvg(WAX_COOLING_BELT_CONTRACT.drawing!);
-    assert.ok(svg.shell.includes('fill="rgba(16, 185, 129, 0.26)"'));
+    assert.ok(svg.shell.includes('fill: var(--pf-jade-500, #10b981); fill-opacity: 0.26'));
     assert.ok(svg.details.includes('stroke-dasharray="4 3"'));
     assert.equal(svg.viewBox, '0 0 220 90');
   });

@@ -13,7 +13,7 @@ import { useTheme } from '@process-forge/canvas-ui';
 import type { SimulationProject } from '@process-forge/protocol';
 import { useAccount } from '../auth/useAccount.js';
 import { hasCloudSession } from '../auth/accountManager.js';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 interface SaveProjectModalProps {
   isOpen: boolean;
@@ -91,7 +91,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(5, 10, 12, 0.85)',
+        backgroundColor: palette.background.overlay,
         backdropFilter: 'blur(8px)',
         zIndex: 10000,
         display: 'flex',
@@ -130,7 +130,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                 width: 32,
                 height: 32,
                 borderRadius: draftingRadius.soft,
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                backgroundColor: tint(palette.jade[500], 0.15),
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -218,7 +218,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: 14,
-                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                backgroundColor: tint(palette.jade[500], 0.08),
                 border: `1px solid ${OsakaJadePalette.jade[600]}`,
                 borderRadius: draftingRadius.soft
               }}
@@ -333,7 +333,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                   alignItems: 'center',
                   gap: 6,
                   padding: '6px 12px',
-                  backgroundColor: isSavedLocally ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+                  backgroundColor: isSavedLocally ? tint(palette.jade[500], 0.2) : tint(palette.text.primary, 0.06),
                   border: `1px solid ${isSavedLocally ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
                   borderRadius: draftingRadius.soft,
                   color: isSavedLocally ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.primary,
@@ -377,7 +377,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                   alignItems: 'center',
                   gap: 6,
                   padding: '6px 12px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                  backgroundColor: tint(palette.text.primary, 0.06),
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   borderRadius: draftingRadius.soft,
                   color: OsakaJadePalette.text.primary,

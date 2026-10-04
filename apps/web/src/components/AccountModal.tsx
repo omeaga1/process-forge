@@ -19,7 +19,7 @@ import { useAccount } from '../auth/useAccount.js';
 import { getInitials, hasCloudSession } from '../auth/accountManager.js';
 import { isDesktopRuntime } from '../runtime/desktop.js';
 import { isDesktopGoogleSignInConfigured } from '../auth/desktopGoogleSignIn.js';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 export interface AccountModalProps {
   isOpen: boolean;
@@ -183,7 +183,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(5, 10, 12, 0.85)',
+        backgroundColor: palette.background.overlay,
         backdropFilter: 'blur(8px)',
         zIndex: 10000,
         display: 'flex',
@@ -284,7 +284,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#fff',
+                    color: palette.text.inverse,
                     fontWeight: 700,
                     fontSize: 20,
                     flexShrink: 0,
@@ -366,7 +366,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                       borderRadius: draftingRadius.soft,
                       backgroundColor: OsakaJadePalette.jade[600],
                       border: 'none',
-                      color: '#fff',
+                      color: palette.text.inverse,
                       fontSize: 13,
                       fontWeight: 600,
                       cursor: 'pointer'
@@ -386,9 +386,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     gap: 6,
                     padding: '10px 16px',
                     borderRadius: draftingRadius.soft,
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    color: '#f87171',
+                    backgroundColor: tint(palette.status.failed, 0.1),
+                    border: `1px solid ${tint(palette.status.failed, 0.3)}`,
+                    color: palette.status.failed,
                     fontSize: 13,
                     fontWeight: 600,
                     cursor: 'pointer'
@@ -472,9 +472,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     gap: 8,
                     padding: '10px 12px',
                     borderRadius: draftingRadius.soft,
-                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    color: '#f87171',
+                    backgroundColor: tint(palette.status.failed, 0.12),
+                    border: `1px solid ${tint(palette.status.failed, 0.3)}`,
+                    color: palette.status.failed,
                     fontSize: 12,
                     marginBottom: 14
                   }}
@@ -492,7 +492,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     gap: 8,
                     padding: '10px 12px',
                     borderRadius: draftingRadius.soft,
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    backgroundColor: tint(palette.jade[500], 0.15),
                     border: `1px solid ${OsakaJadePalette.jade[600]}`,
                     color: OsakaJadePalette.text.accent,
                     fontSize: 12,
@@ -694,7 +694,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         borderRadius: draftingRadius.soft,
                         backgroundColor: OsakaJadePalette.jade[600],
                         border: 'none',
-                        color: '#fff',
+                        color: palette.text.inverse,
                         fontSize: 13,
                         fontWeight: 700,
                         cursor: isSubmitting ? 'not-allowed' : 'pointer',
@@ -727,7 +727,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                           borderRadius: draftingRadius.soft,
                           backgroundColor: OsakaJadePalette.jade[600],
                           border: 'none',
-                          color: '#fff',
+                          color: palette.text.inverse,
                           fontSize: 13,
                           fontWeight: 700,
                           cursor: isSubmitting ? 'wait' : 'pointer'

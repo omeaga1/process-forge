@@ -10,7 +10,9 @@ import {
   getMachineStateVisuals,
   getElevation,
   OsakaJadeDarkPalette,
+  OsakaJadeLightPalette,
   OsakaJadeDarkCanvasTokens,
+  generateOsakaJadeCssVariables,
   MachineStateVisualsDark,
   elevationDark,
   fontFamily,
@@ -64,6 +66,44 @@ const defaultContext: ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue>(defaultContext);
 
+/**
+ * The theme as CSS variables (--pf-*), generated from the palette, plus the
+ * third-party chrome that only CSS can reach (React Flow's controls,
+ * attribution and minimap). Injected once, at load, so a stylesheet never
+ * keeps a copy of the palette that can drift from it.
+ */
+const THEME_CSS = `${generateOsakaJadeCssVariables('both')}
+
+.react-flow {
+  --xy-controls-button-background-color: var(--pf-bg-surface-elevated);
+  --xy-controls-button-background-color-hover: var(--pf-bg-surface-hover);
+  --xy-controls-button-color: var(--pf-text-secondary);
+  --xy-controls-button-color-hover: var(--pf-text-primary);
+  --xy-controls-button-border-color: var(--pf-border-default);
+  --xy-controls-box-shadow: none;
+  --xy-attribution-background-color: transparent;
+  --xy-minimap-background-color: var(--pf-bg-surface);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--pf-bg-base) 60%, transparent);
+  --xy-minimap-node-background-color: var(--pf-bg-surface-hover);
+  --xy-edge-label-background-color: var(--pf-bg-surface-elevated);
+  --xy-edge-label-color: var(--pf-text-secondary);
+  --xy-selection-background-color: color-mix(in srgb, var(--pf-jade-500) 12%, transparent);
+  --xy-selection-border: 1px solid var(--pf-jade-500);
+}
+.react-flow__controls { border: 1px solid var(--pf-border-default); border-radius: 2px; overflow: hidden; }
+.react-flow .react-flow__attribution a { color: var(--pf-text-muted); }
+`;
+
+function injectThemeCss(): void {
+  if (typeof document === 'undefined' || document.getElementById('pf-theme-vars')) return;
+  const el = document.createElement('style');
+  el.id = 'pf-theme-vars';
+  el.textContent = THEME_CSS;
+  // First in <head>, so app stylesheets can still build on the variables.
+  document.head.insertBefore(el, document.head.firstChild);
+}
+injectThemeCss();
+
 export interface ThemeProviderProps {
   children: ReactNode;
   initialTheme?: ThemeMode;
@@ -91,7 +131,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialT
       document.documentElement.style.colorScheme = theme;
       const metaThemeColor = document.querySelector('meta[name="theme-color"]');
       if (metaThemeColor) {
-        metaThemeColor.setAttribute('content', theme === 'light' ? '#f8f7f0' : '#0c1214');
+        metaThemeColor.setAttribute('content', (theme === 'light' ? OsakaJadeLightPalette : OsakaJadeDarkPalette).background.base);
       }
     }
   }, [theme]);

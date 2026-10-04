@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createSimulationProject, type SimulationProject } from '@process-forge/protocol';
 import { useTheme } from '@process-forge/canvas-ui';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 import {
   Search,
   X,
@@ -287,7 +287,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
           padding: '8px 10px',
           borderRadius: draftingRadius.soft,
           border: `1px solid ${isCurrent ? palette.jade[600] : 'transparent'}`,
-          backgroundColor: isCurrent ? 'rgba(16, 185, 129, 0.06)' : 'transparent',
+          backgroundColor: isCurrent ? tint(palette.jade[500], 0.06) : 'transparent',
           cursor: 'pointer'
         }}
       >
@@ -352,8 +352,8 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
                 padding: '0 10px',
                 borderRadius: draftingRadius.soft,
                 border: 'none',
-                backgroundColor: '#dc2626',
-                color: '#fff',
+                backgroundColor: palette.status.failed,
+                color: palette.text.inverse,
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer'
@@ -420,7 +420,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
         fontSize: 10,
         fontWeight: 600,
         color: palette.text.accent,
-        backgroundColor: 'rgba(16, 185, 129, 0.1)'
+        backgroundColor: tint(palette.jade[500], 0.1)
       }}
     >
       {icon}
@@ -642,7 +642,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
                     padding: '0 14px',
                     borderRadius: draftingRadius.soft,
                     border: `1px solid ${palette.jade[600]}`,
-                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                    backgroundColor: tint(palette.jade[500], 0.12),
                     color: palette.text.accent,
                     fontSize: 13,
                     fontWeight: 600,
@@ -724,7 +724,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
         position: 'fixed',
         inset: 0,
         zIndex: 1500,
-        backgroundColor: 'rgba(0, 0, 0, 0.35)',
+        backgroundColor: palette.background.overlay,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

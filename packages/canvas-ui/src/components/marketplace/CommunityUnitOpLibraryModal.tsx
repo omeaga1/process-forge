@@ -30,7 +30,7 @@ import {
   type CommunityUnitOpItem,
   type CreatorSession
 } from '../../marketplace/communityLibraryClient.js';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 export interface CommunityUnitOpLibraryModalProps {
   isOpen: boolean;
@@ -159,7 +159,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(5, 10, 12, 0.85)',
+        backgroundColor: palette.background.overlay,
         backdropFilter: 'blur(8px)',
         zIndex: 10000,
         display: 'flex',
@@ -220,7 +220,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                     gap: space[1],
                     padding: `2px ${space[2]}px`,
                     borderRadius: r.full,
-                    backgroundColor: isLiveApi ? `${OsakaJadePalette.jade.glow}26` : 'rgba(255, 255, 255, 0.06)',
+                    backgroundColor: isLiveApi ? `${OsakaJadePalette.jade.glow}26` : tint(palette.text.primary, 0.06),
                     color: isLiveApi ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.secondary,
                     border: `1px solid ${isLiveApi ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
                     fontFamily: font.mono
@@ -362,7 +362,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                   borderRadius: draftingRadius.soft,
                   border: `1px solid ${selectedCategory === cat.id ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.subtle}`,
                   backgroundColor:
-                    selectedCategory === cat.id ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                    selectedCategory === cat.id ? tint(palette.jade[500], 0.15) : 'transparent',
                   color:
                     selectedCategory === cat.id ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.secondary,
                   fontSize: 12,
@@ -438,7 +438,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                         textTransform: 'uppercase',
                         padding: '2px 6px',
                         borderRadius: draftingRadius.soft,
-                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        backgroundColor: tint(palette.text.primary, 0.05),
                         border: `1px solid ${OsakaJadePalette.border.subtle}`,
                         color: OsakaJadePalette.text.secondary
                       }}
