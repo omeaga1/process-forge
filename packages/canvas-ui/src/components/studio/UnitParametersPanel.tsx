@@ -13,6 +13,7 @@ import {
 import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
 import { engineKeysOf } from '../../model/unitBehavior.js';
+import { tint } from '@process-forge/theme';
 
 interface UnitParametersPanelProps {
   node: ProcessNode;
@@ -149,13 +150,13 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
             padding: '10px 12px',
             borderRadius: r.md,
             fontSize: 13,
-            backgroundColor: evaluation.error || errors.length ? 'rgba(239, 68, 68, 0.08)' : warnings.length ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.08)',
-            border: `1px solid ${evaluation.error || errors.length ? 'rgba(239, 68, 68, 0.4)' : warnings.length ? 'rgba(245, 158, 11, 0.4)' : 'rgba(16, 185, 129, 0.35)'}`,
+            backgroundColor: evaluation.error || errors.length ? tint(palette.status.failed, 0.08) : warnings.length ? tint(palette.status.blocked, 0.1) : tint(palette.jade[500], 0.08),
+            border: `1px solid ${evaluation.error || errors.length ? tint(palette.status.failed, 0.4) : warnings.length ? tint(palette.status.blocked, 0.4) : tint(palette.jade[500], 0.35)}`,
             color: palette.text.primary
           }}
         >
           {evaluation.error || errors.length ? (
-            <XCircle size={16} color="#ef4444" />
+            <XCircle size={16} color={palette.status.failed} />
           ) : warnings.length ? (
             <AlertTriangle size={16} color={palette.status.blocked} />
           ) : (
@@ -237,7 +238,7 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
             <div style={heading}>Checks</div>
             {evaluation.constraints.map((c) => {
               const bad = !c.satisfied;
-              const color = !bad ? palette.jade[500] : c.severity === 'ERROR' ? '#ef4444' : palette.status.blocked;
+              const color = !bad ? palette.jade[500] : c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked;
               const Icon = !bad ? CheckCircle2 : c.severity === 'ERROR' ? XCircle : AlertTriangle;
               return (
                 <div key={c.id} style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: `1px solid ${palette.border.subtle}` }}>

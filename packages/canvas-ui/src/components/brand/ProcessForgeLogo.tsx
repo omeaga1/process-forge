@@ -72,7 +72,7 @@ export const ProcessForgeEmblem: React.FC<{ size?: number; color?: string; glow?
         stroke="url(#pf-hex-grad)"
         strokeWidth="2.5"
         strokeLinejoin="round"
-        fill={theme === 'dark' ? `${surfaceDark}cc` : '#ffffffcc'}
+        fill={`${theme === 'dark' ? surfaceDark : palette.background.surface}cc`}
       />
 
       {/* Inner Chamber Precision Grid Lines */}
@@ -110,7 +110,7 @@ export const ProcessForgeEmblem: React.FC<{ size?: number; color?: string; glow?
         fill={jadeGlow}
         opacity="0.9"
       />
-      <circle cx="24" cy="24" r="2" fill={theme === 'dark' ? surfaceDark : '#ffffff'} />
+      <circle cx="24" cy="24" r="2" fill={theme === 'dark' ? surfaceDark : palette.background.surface} />
     </svg>
   );
 };

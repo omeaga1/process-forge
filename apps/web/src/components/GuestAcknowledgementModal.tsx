@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShieldCheck, Download, ArrowRight, X, Cloud } from 'lucide-react';
 import { useTheme } from '@process-forge/canvas-ui';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 interface GuestAcknowledgementModalProps {
   isOpen: boolean;
@@ -26,7 +26,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(5, 10, 12, 0.85)',
+        backgroundColor: palette.background.overlay,
         backdropFilter: 'blur(8px)',
         zIndex: 10000,
         display: 'flex',
@@ -65,7 +65,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
                 width: 32,
                 height: 32,
                 borderRadius: draftingRadius.soft,
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                backgroundColor: tint(palette.jade[500], 0.15),
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -115,7 +115,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: 14,
-                backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                backgroundColor: tint(palette.jade[500], 0.08),
                 border: `1px solid ${OsakaJadePalette.jade[600]}`,
                 borderRadius: draftingRadius.soft
               }}
@@ -194,7 +194,7 @@ export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps>
                 }}
                 style={{
                   padding: '6px 12px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                  backgroundColor: tint(palette.text.primary, 0.06),
                   border: `1px solid ${OsakaJadePalette.border.default}`,
                   borderRadius: draftingRadius.soft,
                   color: OsakaJadePalette.text.primary,

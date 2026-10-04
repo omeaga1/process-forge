@@ -3,6 +3,7 @@ import { validateProcessGraph, kindLabel, type ProcessGraph } from '@process-for
 import { AlertTriangle, XCircle, Copy, Check, ExternalLink, Sparkles, ChevronRight } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
 import { claudeDesktopFlowsheetPrompt } from '../../ai/assistantRoute.js';
+import { tint } from '@process-forge/theme';
 
 /** Fired by the desktop app's MCP bridge for each unit op an MCP client adds. */
 const MCP_ACTIVITY_EVENT = 'pf-mcp-activity';
@@ -201,7 +202,7 @@ export const McpAssistantPanel: React.FC<McpAssistantPanelProps> = ({ graph, bot
                       padding: '1px 6px',
                       borderRadius: 999,
                       color: palette.status.blocked,
-                      backgroundColor: 'rgba(245, 158, 11, 0.12)'
+                      backgroundColor: tint(palette.status.blocked, 0.12)
                     }}
                   >
                     bottleneck
@@ -231,7 +232,7 @@ export const McpAssistantPanel: React.FC<McpAssistantPanelProps> = ({ graph, bot
               >
                 <Icon
                   size={14}
-                  color={d.severity === 'ERROR' ? '#ef4444' : palette.status.blocked}
+                  color={d.severity === 'ERROR' ? palette.status.failed : palette.status.blocked}
                   style={{ flexShrink: 0, marginTop: 2 }}
                 />
                 <span style={{ fontSize: 12, lineHeight: 1.45, color: palette.text.secondary }}>{d.message}</span>

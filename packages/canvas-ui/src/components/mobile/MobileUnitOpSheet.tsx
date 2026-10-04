@@ -7,7 +7,7 @@ import {
   Activity,
   Wrench
 } from 'lucide-react';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 export interface MobileUnitOpSheetProps {
   node: ProcessNode | null;
@@ -37,7 +37,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        backgroundColor: palette.background.overlay,
         backdropFilter: 'blur(4px)',
         zIndex: 1000,
         display: 'flex',
@@ -90,7 +90,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                   fontSize: 11,
                   fontWeight: 700,
                   color: OsakaJadePalette.jade.glow,
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  backgroundColor: tint(palette.jade[500], 0.15),
                   padding: '2px 6px',
                   borderRadius: draftingRadius.soft
                 }}
@@ -286,7 +286,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                             fontSize: 10,
                             padding: '3px 8px',
                             borderRadius: draftingRadius.soft,
-                            backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                            backgroundColor: tint(palette.jade[500], 0.12),
                             color: OsakaJadePalette.jade[300],
                             fontWeight: 700
                           }}
@@ -382,7 +382,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({
                 style={{
                   padding: '12px 14px',
                   borderRadius: draftingRadius.soft,
-                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                  backgroundColor: tint(palette.jade[500], 0.1),
                   border: `1px solid ${OsakaJadePalette.border.glow}`,
                   display: 'flex',
                   alignItems: 'center',

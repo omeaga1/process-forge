@@ -47,7 +47,7 @@ import { useMobileViewport } from '../hooks/useMobileViewport.js';
 import { useTheme } from '../hooks/useTheme.js';
 import { useAssistantRoute } from '../ai/assistantRoute.js';
 import type { CanvasNodeData, CanvasEdgeData, PlantTelemetryState } from '../types.js';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 /** Feeds and outlets are arrows; everything else is its equipment drawing. */
 const nodeTypeOf = (n: ProcessNode) => (n.kind === 'TERMINAL' ? 'terminalNode' : 'industrialNode');
@@ -1122,9 +1122,9 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                       maxWidth: 150,
                       padding: '0 8px',
                       borderRadius: draftingRadius.soft,
-                      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                      backgroundColor: tint(palette.status.blocked, 0.12),
                       color: OsakaJadePalette.status.blocked,
-                      border: '1px solid rgba(245, 158, 11, 0.35)',
+                      border: `1px solid ${tint(palette.status.blocked, 0.35)}`,
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: 'pointer',
@@ -1305,7 +1305,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                     border: 'none',
                     borderRadius: draftingRadius.soft,
                     backgroundColor: 'transparent',
-                    color: item.danger ? '#dc2626' : OsakaJadePalette.text.primary,
+                    color: item.danger ? palette.status.failed : OsakaJadePalette.text.primary,
                     fontSize: 13,
                     textAlign: 'left',
                     cursor: 'pointer'

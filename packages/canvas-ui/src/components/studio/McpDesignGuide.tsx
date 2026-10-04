@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { OsakaJadePalette as P, drafting, draftingRadius } from '@process-forge/theme';
-
-const D = drafting('dark');
+import { drafting, draftingRadius } from '@process-forge/theme';
+import { useTheme } from '../../hooks/useTheme.js';
 
 type Link = 'checking' | 'connected' | 'old-app' | 'browser';
 
@@ -11,6 +10,8 @@ type Link = 'checking' | 'connected' | 'old-app' | 'browser';
  * so it is clear the client cannot hand the canvas anything unchecked.
  */
 export const McpDesignGuide: React.FC = () => {
+  const { palette: P, theme } = useTheme();
+  const D = drafting(theme);
   const [link, setLink] = useState<Link>('checking');
   useEffect(() => {
     const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke?: (c: string) => Promise<unknown> } }).__TAURI_INTERNALS__?.invoke;

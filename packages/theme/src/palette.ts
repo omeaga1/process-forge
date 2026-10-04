@@ -21,6 +21,8 @@ export interface ThemeBackgroundColors {
   surfaceMuted: string;
   selectedBg: string;
   selectedFg: string;
+  /** The scrim behind a dialog: dims the sheet without hiding it. */
+  overlay: string;
 }
 
 export interface ThemeBorderColors {
@@ -95,7 +97,8 @@ export const OsakaJadeDarkPalette: ThemePalette = {
     surfaceActive: '#2d473e', // Selected state background
     surfaceMuted: '#141f1b', // Inactive / dimmed elements
     selectedBg: '#364538', // Selected row background (Btop selected_bg)
-    selectedFg: '#deb266' // Selected item highlight (Btop selected_fg / bamboo gold)
+    selectedFg: '#deb266', // Selected item highlight (Btop selected_fg / bamboo gold)
+    overlay: 'rgba(6, 12, 10, 0.78)' // Dialog scrim
   },
 
   // Subtle and Glowing Borders (from Hyprland, SwayOSD, Btop)
@@ -165,7 +168,8 @@ export const OsakaJadeLightPalette: ThemePalette = {
     surfaceActive: '#dcd8c4', // Selected state background
     surfaceMuted: '#f2f0e6', // Inactive / dimmed elements
     selectedBg: '#e4e8dc', // Selected row background
-    selectedFg: '#b47818' // Selected item highlight (bamboo amber)
+    selectedFg: '#b47818', // Selected item highlight (bamboo amber)
+    overlay: 'rgba(30, 41, 34, 0.38)' // Dialog scrim: dims the ivory sheet, stays light
   },
 
   // Subtle and Defined Borders

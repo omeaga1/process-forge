@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { OsakaJadePalette } from '@process-forge/theme';
+import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import type { NodeKind, UnitOpDressing } from '@process-forge/protocol';
 
@@ -17,12 +17,12 @@ export const EQUIPMENT_ANIM_CSS = `
   @keyframes pf-fade   { 0%,100%{opacity:.3} 50%{opacity:1} }
   @keyframes pf-pipe-flow { from{stroke-dashoffset:32} to{stroke-dashoffset:0} }
   .pf-nozzle-handle { transition: box-shadow 120ms ease-out, transform 120ms ease-out; }
-  .react-flow__handle.pf-nozzle-handle.connectingto.valid, .react-flow__handle.pf-nozzle-handle.valid { transform: translate(-50%, -50%) scale(1.45) !important; box-shadow: 0 0 0 3px ${OsakaJadePalette.jade.glow}, 0 0 12px ${OsakaJadePalette.streams.continuousFluid}; }
-  .react-flow__handle.pf-nozzle-handle.connectingto.invalid { box-shadow: 0 0 0 3px ${OsakaJadePalette.status.failed}55; }
+  .react-flow__handle.pf-nozzle-handle.connectingto.valid, .react-flow__handle.pf-nozzle-handle.valid { transform: translate(-50%, -50%) scale(1.45) !important; box-shadow: 0 0 0 3px var(--pf-jade-glow), 0 0 12px var(--pf-stream-fluid); }
+  .react-flow__handle.pf-nozzle-handle.connectingto.invalid { box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-status-failed) 33%, transparent); }
   @media (prefers-reduced-motion: reduce) { .pf-flow-bead { display: none; } .react-flow__edge path { animation: none !important; } }
-  @keyframes pf-glow-pulse { 0%,100%{filter:drop-shadow(0 0 2px ${OsakaJadePalette.jade.glow})} 50%{filter:drop-shadow(0 0 8px ${OsakaJadePalette.streams.continuousFluid})} }
+  @keyframes pf-glow-pulse { 0%,100%{filter:drop-shadow(0 0 2px var(--pf-jade-glow))} 50%{filter:drop-shadow(0 0 8px var(--pf-stream-fluid))} }
   @keyframes pf-conveyor-travel { 0% { transform: translateX(0); } 100% { transform: translateX(36px); } }
-  @keyframes pf-sensor-blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; filter: drop-shadow(0 0 4px ${OsakaJadePalette.jade.glow}); } }
+  @keyframes pf-sensor-blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; filter: drop-shadow(0 0 4px var(--pf-jade-glow)); } }
   @keyframes pf-gantry-move { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(24px, 0); } 50% { transform: translate(24px, 12px); } 75% { transform: translate(24px, 0); } 90% { transform: translate(0, 0); } }
   @keyframes pf-needle-dive { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
 `;
@@ -43,10 +43,13 @@ if (typeof document !== 'undefined') {
 
 // ── SepAnim: Flash Drum & Separator ───────────────────────────────────────────
 export const SepAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   return (
     <svg viewBox="0 0 160 140" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
       {/* Outer Shell */}
@@ -58,7 +61,7 @@ export const SepAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boole
         width="88"
         height="38"
         rx="10"
-        fill="rgba(56, 189, 248, 0.15)"
+        fill={tint(palette.status.starved, 0.15)}
         style={{ animation: isRunning ? 'pf-vapor 3s ease-in-out infinite' : 'none' }}
       />
       <line x1="35" y1="57" x2="125" y2="57" stroke={stroke} strokeWidth="1.5" strokeDasharray="6,3" opacity="0.4" />
@@ -69,7 +72,7 @@ export const SepAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boole
         width="88"
         height="58"
         rx="4"
-        fill="rgba(16, 185, 129, 0.25)"
+        fill={tint(palette.jade[500], 0.25)}
         style={{ animation: isRunning ? 'pf-shimmer 3.5s ease-in-out infinite' : 'none' }}
       />
       {/* Rising Bubbles */}
@@ -81,7 +84,7 @@ export const SepAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boole
               cx={b.cx}
               cy={b.cy}
               r={b.r}
-              fill="rgba(45, 212, 191, 0.6)"
+              fill={tint(palette.jade.glow, 0.6)}
               style={{ animation: `pf-bubble-rise 2.8s ease-in ${b.d} infinite` }}
             />
           )
@@ -100,13 +103,16 @@ export const ReactorAnim: React.FC<{
   /** Contents as a fraction of the batch, from the simulation; drawn at 60% without one. */
   levelFraction?: number;
 }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true,
   hasJacket = true,
   agitatorType = 'pitched_blade',
   levelFraction
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   // The vessel's liquid region runs from y = 127 (empty) up to y = 30 (full).
   const fraction = levelFraction === undefined ? 0.6 : Math.max(0, Math.min(1, levelFraction));
   const liquidTop = 127 - fraction * 97;
@@ -117,7 +123,7 @@ export const ReactorAnim: React.FC<{
         <path
           d="M 22 45 L 22 130 A 28 20 0 0 0 138 130 L 138 45"
           fill="none"
-          stroke={OsakaJadePalette.status.blocked}
+          stroke={palette.status.blocked}
           strokeWidth="2.5"
           strokeDasharray="4,2"
           opacity="0.8"
@@ -130,13 +136,13 @@ export const ReactorAnim: React.FC<{
       {/* Fluid level */}
       {fraction > 0.005 && (
         <>
-          <rect x="32" y={liquidTop} width="96" height={127 - liquidTop} rx="4" fill="rgba(16, 185, 129, 0.22)" style={{ transition: 'y 0.6s ease, height 0.6s ease' }} />
-          <path d={`M 32 ${liquidTop} Q 80 ${liquidTop - 7} 128 ${liquidTop} Q 80 ${liquidTop + 7} 32 ${liquidTop}`} fill="rgba(45, 212, 191, 0.35)" />
+          <rect x="32" y={liquidTop} width="96" height={127 - liquidTop} rx="4" fill={tint(palette.jade[500], 0.22)} style={{ transition: 'y 0.6s ease, height 0.6s ease' }} />
+          <path d={`M 32 ${liquidTop} Q 80 ${liquidTop - 7} 128 ${liquidTop} Q 80 ${liquidTop + 7} 32 ${liquidTop}`} fill={tint(palette.jade.glow, 0.35)} />
         </>
       )}
 
       {/* Agitator Motor */}
-      <rect x="65" y="5" width="30" height="20" rx="4" fill={OsakaJadePalette.background.surfaceElevated} stroke={stroke} strokeWidth="1.5" />
+      <rect x="65" y="5" width="30" height="20" rx="4" fill={palette.background.surfaceElevated} stroke={stroke} strokeWidth="1.5" />
 
       {/* Agitator Shaft */}
       <line x1="80" y1="25" x2="80" y2="110" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
@@ -168,7 +174,7 @@ export const ReactorAnim: React.FC<{
 
       {/* Reaction / Nucleation Bubbles */}
       {isRunning &&
-        [{ cx: 50, cy: 105, d: '0s', c: OsakaJadePalette.jade[400] }, { cx: 80, cy: 110, d: '.9s', c: OsakaJadePalette.jade[200] }, { cx: 110, cy: 102, d: '1.8s', c: OsakaJadePalette.jade[300] }].map((m, i) => (
+        [{ cx: 50, cy: 105, d: '0s', c: palette.jade[400] }, { cx: 80, cy: 110, d: '.9s', c: palette.jade[200] }, { cx: 110, cy: 102, d: '1.8s', c: palette.jade[300] }].map((m, i) => (
           <circle
             key={i}
             cx={m.cx}
@@ -187,11 +193,14 @@ export const ReactorAnim: React.FC<{
 
 // ── DistAnim: Distillation Column with Sieve Trays ─────────────────────────────
 export const DistAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean; trayCount?: number }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true,
   trayCount = 6
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   const trays = Array.from({ length: trayCount }, (_, i) => 25 + i * 16);
   return (
     <svg viewBox="0 0 160 150" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
@@ -202,7 +211,7 @@ export const DistAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
       {trays.map((y, i) => (
         <g key={i}>
           <line x1="56" y1={y} x2="104" y2={y} stroke={stroke} strokeWidth="1.5" opacity="0.4" />
-          <rect x="57" y={y + 1} width="46" height="5" fill="rgba(16, 185, 129, 0.25)" rx="1" />
+          <rect x="57" y={y + 1} width="46" height="5" fill={tint(palette.jade[500], 0.25)} rx="1" />
         </g>
       ))}
 
@@ -214,7 +223,7 @@ export const DistAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
             cx={b.cx}
             cy={b.cy}
             r="3"
-            fill={OsakaJadePalette.jade.glow}
+            fill={palette.jade.glow}
             style={{ animation: `pf-col-v 2.4s ease-in ${b.d} infinite` }}
           />
         ))}
@@ -224,10 +233,13 @@ export const DistAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
 
 // ── SprayChamberAnim: Spray Chamber & Atomizer ─────────────────────────────────
 export const SprayChamberAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   return (
     <svg viewBox="0 0 160 180" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
       <path
@@ -256,24 +268,27 @@ export const SprayChamberAnim: React.FC<{ stroke?: string; bg?: string; isRunnin
             cx={drop.cx}
             cy={drop.cy}
             r="2.5"
-            fill={OsakaJadePalette.streams.discreteContainer}
+            fill={palette.streams.discreteContainer}
             opacity="0.8"
             style={{ animation: `pf-spray-fall ${drop.dur} ease-in ${drop.d} infinite` }}
           />
         ))}
 
       {/* Collected Bottom Liquid */}
-      <polygon points="40,110 120,110 92,152 68,152" fill="rgba(16, 185, 129, 0.3)" style={{ animation: 'pf-shimmer 3s infinite' }} />
+      <polygon points="40,110 120,110 92,152 68,152" fill={tint(palette.jade[500], 0.3)} style={{ animation: 'pf-shimmer 3s infinite' }} />
     </svg>
   );
 };
 
 // ── PumpAnim: Centrifugal Pump with Spinning Impeller ─────────────────────────
 export const PumpAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   return (
     <svg viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
       {/* Volute Casing */}
@@ -301,17 +316,20 @@ export const PumpAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
 
 // ── ExchangerAnim: Heat Exchanger Multi-Pass Bundle ───────────────────────────
 export const ExchangerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   return (
     <svg viewBox="0 0 160 120" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
       <rect x="25" y="25" width="110" height="70" rx="8" fill={bg} stroke={stroke} strokeWidth="2" />
       {/* Hot Shell Tube Passes */}
-      <line x1="26" y1="45" x2="134" y2="45" stroke={OsakaJadePalette.status.blocked} strokeWidth="2" strokeDasharray="4,2" />
-      <line x1="26" y1="60" x2="134" y2="60" stroke={OsakaJadePalette.status.busy} strokeWidth="2" strokeDasharray="4,2" />
-      <line x1="26" y1="75" x2="134" y2="75" stroke={OsakaJadePalette.status.starved} strokeWidth="2" strokeDasharray="4,2" />
+      <line x1="26" y1="45" x2="134" y2="45" stroke={palette.status.blocked} strokeWidth="2" strokeDasharray="4,2" />
+      <line x1="26" y1="60" x2="134" y2="60" stroke={palette.status.busy} strokeWidth="2" strokeDasharray="4,2" />
+      <line x1="26" y1="75" x2="134" y2="75" stroke={palette.status.starved} strokeWidth="2" strokeDasharray="4,2" />
 
       {/* Internal Baffles */}
       <line x1="55" y1="26" x2="55" y2="75" stroke={stroke} strokeWidth="1.5" opacity="0.6" />
@@ -323,7 +341,7 @@ export const ExchangerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?:
           cx="28"
           cy="45"
           r="3"
-          fill={OsakaJadePalette.status.blocked}
+          fill={palette.status.blocked}
           style={{ animation: 'pf-pulse 1.8s infinite' }}
         />
       )}
@@ -333,11 +351,14 @@ export const ExchangerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?:
 
 // ── TankAnim: Storage / Buffer Tank ───────────────────────────────────────────
 export const TankAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean; levelPercent?: number }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true,
   levelPercent = 70
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   const liquidHeight = Math.max(0, Math.min(80, (levelPercent / 100) * 80));
   const liquidY = 105 - liquidHeight;
 
@@ -352,14 +373,14 @@ export const TankAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
         width="88"
         height={liquidHeight}
         rx="4"
-        fill="rgba(16, 185, 129, 0.28)"
+        fill={tint(palette.jade[500], 0.28)}
         style={{ animation: isRunning ? 'pf-shimmer 3s ease-in-out infinite' : 'none', transition: 'y 0.6s ease, height 0.6s ease' }}
       />
       {/* Liquid Top Wave Line */}
       <path
         d={`M 36 ${liquidY} Q 80 ${liquidY - 4} 124 ${liquidY}`}
         fill="none"
-        stroke={OsakaJadePalette.jade.glow}
+        stroke={palette.jade.glow}
         strokeWidth="1.5"
       />
     </svg>
@@ -377,9 +398,12 @@ export const CustomEquipmentAnim: React.FC<{
   shellSvg = '',
   detailsSvg = '',
   viewBox = '0 0 100 100',
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)'
+  stroke: strokeProp,
+  bg: bgProp
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   const sanitize = (svg: string) =>
     svg.replace(/<(script|style|use|image|defs)[^>]*>.*?<\/\1>/gis, '').replace(/<(script|style|use|image)[^>]*\/>/gi, '');
 
@@ -398,16 +422,19 @@ export const CustomEquipmentAnim: React.FC<{
 
 // ── FillerAnim: Rotary Canning & Bottling Turret ─────────────────────────────
 export const FillerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   return (
     <svg viewBox="0 0 160 140" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
       {/* Outer Enclosure Frame */}
       <rect x="25" y="15" width="110" height="110" rx="8" fill={bg} stroke={stroke} strokeWidth="1.5" />
       {/* Top Supply Bowl / Manifold */}
-      <rect x="40" y="22" width="80" height="24" rx="4" fill="rgba(16, 185, 129, 0.2)" stroke={stroke} strokeWidth="1.5" />
+      <rect x="40" y="22" width="80" height="24" rx="4" fill={tint(palette.jade[500], 0.2)} stroke={stroke} strokeWidth="1.5" />
       {/* Rotary Turret Carousel */}
       <circle cx="80" cy="85" r="32" fill="none" stroke={stroke} strokeWidth="1.5" strokeDasharray="5,3" />
       <g
@@ -423,8 +450,8 @@ export const FillerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bo
           const y = 85 + 24 * Math.sin(rad);
           return (
             <g key={i}>
-              <circle cx={x} cy={y} r="6" fill={OsakaJadePalette.jade[500]} stroke={stroke} strokeWidth="1" />
-              <circle cx={x} cy={y} r="2.5" fill="#ffffff" />
+              <circle cx={x} cy={y} r="6" fill={palette.jade[500]} stroke={stroke} strokeWidth="1" />
+              <circle cx={x} cy={y} r="2.5" fill={palette.text.primary} />
             </g>
           );
         })}
@@ -435,8 +462,8 @@ export const FillerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bo
         <line x1="90" y1="46" x2="90" y2="60" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
         {isRunning && (
           <>
-            <line x1="70" y1="60" x2="70" y2="70" stroke={OsakaJadePalette.jade.glow} strokeWidth="1.5" strokeDasharray="2,2" />
-            <line x1="90" y1="60" x2="90" y2="70" stroke={OsakaJadePalette.jade.glow} strokeWidth="1.5" strokeDasharray="2,2" />
+            <line x1="70" y1="60" x2="70" y2="70" stroke={palette.jade.glow} strokeWidth="1.5" strokeDasharray="2,2" />
+            <line x1="90" y1="60" x2="90" y2="70" stroke={palette.jade.glow} strokeWidth="1.5" strokeDasharray="2,2" />
           </>
         )}
       </g>
@@ -445,7 +472,7 @@ export const FillerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bo
         cx="33"
         cy="23"
         r="3"
-        fill={isRunning ? OsakaJadePalette.status.busy : OsakaJadePalette.jade.glow}
+        fill={isRunning ? palette.status.busy : palette.jade.glow}
         style={{ animation: 'pf-sensor-blink 1.2s infinite' }}
       />
     </svg>
@@ -454,10 +481,13 @@ export const FillerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bo
 
 // ── ConveyorAnim: Powered Roller Belt Conveyor ──────────────────────────────
 export const ConveyorAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   return (
     <svg viewBox="0 0 160 120" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
       {/* Conveyor Bed & Frame */}
@@ -478,9 +508,9 @@ export const ConveyorAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: 
         <g style={{ animation: isRunning ? 'pf-conveyor-travel 1.8s linear infinite' : 'none' }}>
           {[-15, 20, 55, 90, 125].map((x, i) => (
             <g key={i} transform={`translate(${x}, 35)`}>
-              <rect x="0" y="0" width="16" height="20" rx="3" fill={OsakaJadePalette.jade[500]} stroke={stroke} strokeWidth="1" />
-              <line x1="2" y1="6" x2="14" y2="6" stroke="#ffffff" strokeWidth="1" opacity="0.7" />
-              <line x1="2" y1="14" x2="14" y2="14" stroke="#ffffff" strokeWidth="1" opacity="0.7" />
+              <rect x="0" y="0" width="16" height="20" rx="3" fill={palette.jade[500]} stroke={stroke} strokeWidth="1" />
+              <line x1="2" y1="6" x2="14" y2="6" stroke={palette.text.primary} strokeWidth="1" opacity="0.7" />
+              <line x1="2" y1="14" x2="14" y2="14" stroke={palette.text.primary} strokeWidth="1" opacity="0.7" />
             </g>
           ))}
         </g>
@@ -495,7 +525,7 @@ export const ConveyorAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: 
         cx="140"
         cy="66"
         r="3"
-        fill={isRunning ? OsakaJadePalette.status.busy : OsakaJadePalette.jade.glow}
+        fill={isRunning ? palette.status.busy : palette.jade.glow}
         style={{ animation: 'pf-sensor-blink 1.2s infinite' }}
       />
     </svg>
@@ -504,10 +534,13 @@ export const ConveyorAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: 
 
 // ── LabelerAnim: High-Speed Rotary Can/Bottle Labeler ─────────────────────────
 export const LabelerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   return (
     <svg viewBox="0 0 160 130" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
       {/* Machine Cabinet Base */}
@@ -538,27 +571,27 @@ export const LabelerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: b
       </g>
 
       {/* Label Web Threading Path */}
-      <path d="M 64 38 L 80 52 L 80 72 L 95 48" fill="none" stroke={OsakaJadePalette.jade.glow} strokeWidth="1.5" strokeDasharray="3,2" />
+      <path d="M 64 38 L 80 52 L 80 72 L 95 48" fill="none" stroke={palette.jade.glow} strokeWidth="1.5" strokeDasharray="3,2" />
 
       {/* In-Line Cans Traveling Through Applicator */}
-      <rect x="30" y="70" width="18" height="24" rx="3" fill="rgba(16, 185, 129, 0.2)" stroke={stroke} strokeWidth="1" />
+      <rect x="30" y="70" width="18" height="24" rx="3" fill={tint(palette.jade[500], 0.2)} stroke={stroke} strokeWidth="1" />
       {/* Can being labeled */}
       <g transform="translate(71, 70)">
-        <rect x="0" y="0" width="18" height="24" rx="3" fill={OsakaJadePalette.jade[500]} stroke={stroke} strokeWidth="1" />
-        <rect x="2" y="5" width="14" height="14" rx="1" fill="#ffffff" opacity="0.85" />
+        <rect x="0" y="0" width="18" height="24" rx="3" fill={palette.jade[500]} stroke={stroke} strokeWidth="1" />
+        <rect x="2" y="5" width="14" height="14" rx="1" fill={palette.text.primary} opacity="0.85" />
         <line x1="4" y1="10" x2="14" y2="10" stroke={stroke} strokeWidth="1" />
         <line x1="4" y1="14" x2="12" y2="14" stroke={stroke} strokeWidth="1" />
       </g>
-      <rect x="112" y="70" width="18" height="24" rx="3" fill={OsakaJadePalette.jade[600]} stroke={stroke} strokeWidth="1" />
+      <rect x="112" y="70" width="18" height="24" rx="3" fill={palette.jade[600]} stroke={stroke} strokeWidth="1" />
 
       {/* Optical Photo-Eye Sensor */}
       <rect x="73" y="56" width="14" height="8" rx="2" fill={stroke} />
-      <line x1="80" y1="64" x2="80" y2="70" stroke={OsakaJadePalette.status.failed} strokeWidth="1.5" strokeDasharray="2,1" />
+      <line x1="80" y1="64" x2="80" y2="70" stroke={palette.status.failed} strokeWidth="1.5" strokeDasharray="2,1" />
       <circle
         cx="77"
         cy="60"
         r="2"
-        fill={isRunning ? OsakaJadePalette.status.busy : OsakaJadePalette.status.blocked}
+        fill={isRunning ? palette.status.busy : palette.status.blocked}
         style={{ animation: isRunning ? 'pf-sensor-blink 0.6s infinite' : 'none' }}
       />
     </svg>
@@ -567,10 +600,13 @@ export const LabelerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: b
 
 // ── PalletizerAnim: Robotic Cartesian Case Palletizer ────────────────────────
 export const PalletizerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: boolean }> = ({
-  stroke = OsakaJadePalette.jade[400],
-  bg = 'rgba(16, 185, 129, 0.08)',
+  stroke: strokeProp,
+  bg: bgProp,
   isRunning = true
 }) => {
+  const { palette } = useTheme();
+  const stroke = strokeProp ?? palette.jade[400];
+  const bg = bgProp ?? tint(palette.jade[500], 0.08);
   return (
     <svg viewBox="0 0 160 140" preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
       {/* Heavy Gantry Structural Frame */}
@@ -578,26 +614,26 @@ export const PalletizerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?
       <line x1="20" y1="30" x2="140" y2="30" stroke={stroke} strokeWidth="2" />
 
       {/* Wooden Pallet Base */}
-      <rect x="65" y="112" width="60" height="8" rx="1" fill="#78350f" stroke="#92400e" strokeWidth="1" />
-      <line x1="72" y1="112" x2="72" y2="120" stroke="#451a03" strokeWidth="1.5" />
-      <line x1="95" y1="112" x2="95" y2="120" stroke="#451a03" strokeWidth="1.5" />
-      <line x1="118" y1="112" x2="118" y2="120" stroke="#451a03" strokeWidth="1.5" />
+      <rect x="65" y="112" width="60" height="8" rx="1" fill={tint(palette.background.selectedFg, 0.55)} stroke={palette.background.selectedFg} strokeWidth="1" />
+      <line x1="72" y1="112" x2="72" y2="120" stroke={palette.background.selectedFg} strokeWidth="1.5" />
+      <line x1="95" y1="112" x2="95" y2="120" stroke={palette.background.selectedFg} strokeWidth="1.5" />
+      <line x1="118" y1="112" x2="118" y2="120" stroke={palette.background.selectedFg} strokeWidth="1.5" />
 
       {/* Stacked Box Layers on Pallet */}
-      <rect x="68" y="96" width="24" height="15" rx="2" fill={OsakaJadePalette.jade[600]} stroke={stroke} strokeWidth="1" />
-      <rect x="94" y="96" width="24" height="15" rx="2" fill={OsakaJadePalette.jade[600]} stroke={stroke} strokeWidth="1" />
-      <rect x="80" y="80" width="24" height="15" rx="2" fill={OsakaJadePalette.jade[500]} stroke={stroke} strokeWidth="1" />
+      <rect x="68" y="96" width="24" height="15" rx="2" fill={palette.jade[600]} stroke={stroke} strokeWidth="1" />
+      <rect x="94" y="96" width="24" height="15" rx="2" fill={palette.jade[600]} stroke={stroke} strokeWidth="1" />
+      <rect x="80" y="80" width="24" height="15" rx="2" fill={palette.jade[500]} stroke={stroke} strokeWidth="1" />
 
       {/* Robotic Cartesian Gantry Carriage & Gripper Head */}
       <g style={{ animation: isRunning ? 'pf-gantry-move 3s ease-in-out infinite' : 'none' }}>
         {/* Horizontal Trolley */}
-        <rect x="42" y="24" width="26" height="12" rx="2" fill={OsakaJadePalette.background.surfaceElevated} stroke={stroke} strokeWidth="1.5" />
+        <rect x="42" y="24" width="26" height="12" rx="2" fill={palette.background.surfaceElevated} stroke={stroke} strokeWidth="1.5" />
         {/* Telescoping Mast */}
         <line x1="55" y1="36" x2="55" y2="58" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
         {/* Vacuum Gripper / Clamping Head */}
         <rect x="45" y="58" width="20" height="6" rx="1" fill={stroke} />
         {/* Box in transit */}
-        <rect x="46" y="64" width="18" height="13" rx="2" fill={OsakaJadePalette.jade[400]} stroke={stroke} strokeWidth="1" />
+        <rect x="46" y="64" width="18" height="13" rx="2" fill={palette.jade[400]} stroke={stroke} strokeWidth="1" />
       </g>
 
       {/* Safety Beacon */}
@@ -605,7 +641,7 @@ export const PalletizerAnim: React.FC<{ stroke?: string; bg?: string; isRunning?
         cx="130"
         cy="22"
         r="3.5"
-        fill={isRunning ? OsakaJadePalette.status.busy : OsakaJadePalette.status.blocked}
+        fill={isRunning ? palette.status.busy : palette.status.blocked}
         style={{ animation: isRunning ? 'pf-sensor-blink 1s infinite' : 'none' }}
       />
     </svg>
@@ -624,12 +660,11 @@ export interface UnitAnimProps {
 
 export const UnitAnim: React.FC<UnitAnimProps> = ({ kind, dressing, isRunning = true, colorAccent, levelFraction }) => {
   const { palette } = useTheme();
-  const OsakaJadePalette = palette;
   useEffect(() => {
     injectEquipmentCSS();
   }, []);
 
-  const stroke = colorAccent || OsakaJadePalette.jade[400];
+  const stroke = colorAccent || palette.jade[400];
   const internals = dressing?.internals;
 
   if (dressing?.customSvgShell) {

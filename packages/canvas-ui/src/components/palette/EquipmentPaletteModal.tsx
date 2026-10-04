@@ -18,7 +18,7 @@ import {
   Trash2,
   Bookmark
 } from 'lucide-react';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 /** The catalog lives in the protocol package, so the MCP server lists the same units. */
 export { STANDARD_EQUIPMENT_CATALOG, type EquipmentPaletteItem };
@@ -102,7 +102,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'rgba(5, 10, 12, 0.85)',
+        backgroundColor: palette.background.overlay,
         backdropFilter: 'blur(8px)',
         zIndex: 10000,
         display: 'flex',
@@ -166,7 +166,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                     letterSpacing: '0.06em',
                     padding: '2px 8px',
                     borderRadius: r.full,
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    backgroundColor: tint(palette.jade[500], 0.15),
                     color: OsakaJadePalette.jade.glow,
                     border: `1px solid ${OsakaJadePalette.jade[600]}40`
                   }}
@@ -216,7 +216,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
               textAlign: 'left',
               borderRadius: draftingRadius.soft,
               border: `1px solid ${OsakaJadePalette.jade[600]}`,
-              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              backgroundColor: tint(palette.jade[500], 0.08),
               color: OsakaJadePalette.text.primary,
               cursor: 'pointer'
             }}
@@ -411,7 +411,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                         gap: 6,
                         padding: '8px 12px',
                         borderRadius: draftingRadius.soft,
-                        backgroundColor: isAdded ? OsakaJadePalette.jade.glow : 'rgba(16, 185, 129, 0.15)',
+                        backgroundColor: isAdded ? OsakaJadePalette.jade.glow : tint(palette.jade[500], 0.15),
                         border: `1px solid ${OsakaJadePalette.jade[600]}`,
                         color: isAdded ? OsakaJadePalette.background.base : OsakaJadePalette.jade.glow,
                         fontSize: 12,
@@ -433,8 +433,8 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                           padding: '8px 10px',
                           borderRadius: draftingRadius.soft,
                           border: 'none',
-                          backgroundColor: '#dc2626',
-                          color: '#fff',
+                          backgroundColor: palette.status.failed,
+                          color: palette.text.inverse,
                           fontSize: 12,
                           fontWeight: 700,
                           cursor: 'pointer'
@@ -579,7 +579,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
                     gap: 6,
                     padding: '8px 12px',
                     borderRadius: draftingRadius.soft,
-                    backgroundColor: isAdded ? OsakaJadePalette.jade.glow : 'rgba(16, 185, 129, 0.15)',
+                    backgroundColor: isAdded ? OsakaJadePalette.jade.glow : tint(palette.jade[500], 0.15),
                     border: `1px solid ${OsakaJadePalette.jade[600]}`,
                     color: isAdded ? OsakaJadePalette.background.base : OsakaJadePalette.jade.glow,
                     fontSize: 12,

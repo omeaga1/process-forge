@@ -21,7 +21,7 @@ import { useMobileViewport, useTheme, ProcessForgeLogo } from '@process-forge/ca
 import { useAccount } from '../auth/useAccount.js';
 import { hasCloudSession } from '../auth/accountManager.js';
 import { isTauriEnvironment } from './UpdateNotificationBanner.js';
-import { draftingRadius } from '@process-forge/theme';
+import { draftingRadius, tint } from '@process-forge/theme';
 
 /** Where the open project stands against its cloud copy. */
 export type CloudSaveStatus =
@@ -141,7 +141,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               width: 32,
               height: 32,
               borderRadius: draftingRadius.soft,
-              backgroundColor: isAuthenticated ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+              backgroundColor: isAuthenticated ? tint(palette.jade[500], 0.15) : tint(palette.text.primary, 0.04),
               border: `1px solid ${isAuthenticated ? OsakaJadePalette.jade[600] : OsakaJadePalette.border.default}`,
               color: isAuthenticated ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.secondary,
               cursor: 'pointer'
@@ -160,7 +160,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               width: 32,
               height: 32,
               borderRadius: draftingRadius.soft,
-              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              backgroundColor: tint(palette.jade[500], 0.15),
               border: `1px solid ${OsakaJadePalette.jade[600]}`,
               color: OsakaJadePalette.text.accent,
               cursor: 'pointer'
@@ -179,7 +179,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               width: 32,
               height: 32,
               borderRadius: draftingRadius.soft,
-              backgroundColor: 'rgba(16, 185, 129, 0.15)',
+              backgroundColor: tint(palette.jade[500], 0.15),
               border: `1px solid ${OsakaJadePalette.jade.glow}`,
               color: OsakaJadePalette.jade.glow,
               cursor: 'pointer'
@@ -200,7 +200,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 width: 32,
                 height: 32,
                 borderRadius: draftingRadius.soft,
-                backgroundColor: hasUpdateAvailable ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                backgroundColor: hasUpdateAvailable ? tint(palette.jade[500], 0.2) : tint(palette.text.primary, 0.04),
                 border: `1px solid ${hasUpdateAvailable ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
                 color: hasUpdateAvailable ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.primary,
                 cursor: 'pointer'
@@ -220,7 +220,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               width: 32,
               height: 32,
               borderRadius: draftingRadius.soft,
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+              backgroundColor: tint(palette.text.primary, 0.04),
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: theme === 'dark' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.primary,
               cursor: 'pointer'
@@ -279,7 +279,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               height: 32,
               padding: '0 9px',
               borderRadius: draftingRadius.soft,
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+              backgroundColor: tint(palette.text.primary, 0.04),
               border: `1px solid ${OsakaJadePalette.border.default}`,
               color: OsakaJadePalette.text.secondary,
               fontSize: 12,
@@ -385,8 +385,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               height: 32,
               padding: '0 8px',
               borderRadius: draftingRadius.soft,
-              backgroundColor: 'rgba(245, 158, 11, 0.10)',
-              border: '1px solid rgba(245, 158, 11, 0.35)',
+              backgroundColor: tint(palette.status.blocked, 0.10),
+              border: `1px solid ${tint(palette.status.blocked, 0.35)}`,
               fontSize: 11,
               color: OsakaJadePalette.border.glowAmber,
               fontWeight: 600,
@@ -426,7 +426,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             gap: 5,
             height: 32,
             boxSizing: 'border-box',
-            backgroundColor: quiet ? 'transparent' : 'rgba(16, 185, 129, 0.15)',
+            backgroundColor: quiet ? 'transparent' : tint(palette.jade[500], 0.15),
             border: `1px solid ${st.kind === 'error' ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[600]}`,
             color: quiet ? OsakaJadePalette.text.secondary : OsakaJadePalette.text.accent,
             fontSize: 12,
@@ -480,7 +480,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             alignItems: 'center',
             gap: 5,
             height: 32,
-            backgroundColor: 'rgba(16, 185, 129, 0.10)',
+            backgroundColor: tint(palette.jade[500], 0.10),
             border: `1px solid ${OsakaJadePalette.jade[600]}`,
             borderRadius: draftingRadius.soft,
             padding: '0 10px',
@@ -505,7 +505,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             alignItems: 'center',
             gap: 5,
             height: 32,
-            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+            backgroundColor: tint(palette.text.primary, 0.04),
             border: `1px solid ${OsakaJadePalette.border.default}`,
             borderRadius: draftingRadius.soft,
             padding: '0 10px',
@@ -533,7 +533,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             alignItems: 'center',
             gap: 6,
             height: 32,
-            backgroundColor: isAuthenticated ? 'rgba(16, 185, 129, 0.10)' : 'rgba(255, 255, 255, 0.04)',
+            backgroundColor: isAuthenticated ? tint(palette.jade[500], 0.10) : tint(palette.text.primary, 0.04),
             border: `1px solid ${isAuthenticated ? OsakaJadePalette.jade[600] : OsakaJadePalette.border.default}`,
             borderRadius: draftingRadius.soft,
             padding: '0 10px',
@@ -582,7 +582,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               height: 32,
               padding: hasUpdateAvailable ? '0 10px' : '0',
               width: hasUpdateAvailable ? 'auto' : 32,
-              backgroundColor: hasUpdateAvailable ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+              backgroundColor: hasUpdateAvailable ? tint(palette.jade[500], 0.15) : tint(palette.text.primary, 0.04),
               border: `1px solid ${hasUpdateAvailable ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
               borderRadius: draftingRadius.soft,
               color: hasUpdateAvailable ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.secondary,
@@ -615,7 +615,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             justifyContent: 'center',
             width: 32,
             height: 32,
-            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+            backgroundColor: tint(palette.text.primary, 0.04),
             border: `1px solid ${OsakaJadePalette.border.default}`,
             borderRadius: draftingRadius.soft,
             color: theme === 'dark' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.accent,
