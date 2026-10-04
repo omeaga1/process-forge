@@ -269,8 +269,10 @@ export async function purgeAllCredentials(): Promise<void> {
       window.localStorage.removeItem(STORAGE_KEY);
     } catch (e) {}
   }
-  // Every secret, from the one list, so a new one is purged too.
+  // Every secret, from the one list, so a new one is purged too, and any a
+  // removed provider left behind.
   for (const field of SECRET_FIELDS) await deleteTauriSecureToken(SECRET_SERVICE[field], 'api_key');
+  for (const p of Object.values(REMOVED_PROVIDERS)) if (p.service) await deleteTauriSecureToken(p.service, 'api_key');
   resetToOfflineConfig();
 }
 

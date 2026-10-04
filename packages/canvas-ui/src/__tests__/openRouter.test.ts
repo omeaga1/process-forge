@@ -1,7 +1,5 @@
 /**
- * "Sign in with OpenRouter" and the OpenRouter provider, and the stored-model
- * migration, which must leave current models (gemini-3.8-flash, claude-opus-5)
- * alone.
+ * "Sign in with OpenRouter" and the OpenRouter provider.
  */
 import { describe, it, afterEach } from 'node:test';
 import * as assert from 'node:assert/strict';
@@ -16,7 +14,7 @@ import {
   saveLlmCredentials,
   loadLlmCredentials,
   hasValidCredentials,
-  DEFAULT_PROVIDER_MODELS
+  OPENROUTER_MODELS
 } from '../ai/aiModelManager.js';
 import { callLlmModel, openRouterErrorMessage } from '../ai/llmClient.js';
 import { purgeAllCredentials } from '../ai/aiModelManager.js';
@@ -132,7 +130,7 @@ describe('OpenRouter provider', () => {
   });
 
   it('offers a default that is in its own list', () => {
-    const p = DEFAULT_PROVIDER_MODELS.openrouter;
+    const p = OPENROUTER_MODELS;
     assert.ok(p.models.some((m) => m.id === p.defaultModel));
   });
 });
@@ -157,12 +155,12 @@ describe('OpenRouter errors, said plainly', () => {
     );
   });
   it('offers a free model, so a new account can test without credit', () => {
-    assert.ok(DEFAULT_PROVIDER_MODELS.openrouter.models.some((m) => m.id === 'openrouter/free'));
+    assert.ok(OPENROUTER_MODELS.models.some((m) => m.id === 'openrouter/free'));
   });
 });
 
 describe('Purge all keys', () => {
-  it('removes the OpenRouter key from the keychain too', async () => {
+  it('removes the OpenRouter key from the keychain too, and any key a removed provider left there', async () => {
     const vault = new Map<string, string>([
       ['com.processforge.studio:openrouter:api_key', 'sk-or'],
       ['com.processforge.studio:claude:api_key', 'sk-ant']
@@ -182,28 +180,3 @@ describe('Purge all keys', () => {
   });
 });
 
-describe('Stored model ids', () => {
-  for (const [provider, modelId] of [
-    ['gemini', 'gemini-3.8-flash'],
-    ['gemini', 'gemini-3.6-flash'],
-    ['claude', 'claude-opus-5']
-  ] as const) {
-    it(`keeps ${modelId}: it is a real model`, () => {
-      g.window = { localStorage: makeStorage() };
-      (g.window.localStorage as ReturnType<typeof makeStorage>).setItem(
-        'pf_ai_credentials',
-        JSON.stringify({ provider, modelId })
-      );
-      assert.equal(getLlmCredentials().modelId, modelId);
-    });
-  }
-
-  it('still moves a retired Gemini id forward', () => {
-    g.window = { localStorage: makeStorage() };
-    (g.window.localStorage as ReturnType<typeof makeStorage>).setItem(
-      'pf_ai_credentials',
-      JSON.stringify({ provider: 'gemini', modelId: 'gemini-1.5-pro' })
-    );
-    assert.notEqual(getLlmCredentials().modelId, 'gemini-1.5-pro');
-  });
-});
