@@ -298,21 +298,18 @@ const AppInner: React.FC = () => {
    * engine re-evaluates it at construction, so an accepted design is checked
    * once more before it can affect a simulation.
    */
-  // Claude designs the unit op from inside the app, on the engineer's own API
-  // key. Anthropic does not allow third-party apps to use a Claude
-  // subscription, so a key is the permitted route; MCP remains the way to use
-  // a subscription from Claude Desktop.
+  // A model on the engineer's OpenRouter sign-in designs the unit op from
+  // inside the app. A Claude or ChatGPT subscription cannot be used by a
+  // third-party app; an MCP client is the way to use one.
   const handleProposeUnitOp = useCallback(async (description: string, onProgress?: (note: string) => void) => {
     const creds = await loadLlmCredentials();
-    // Any provider the app can call: a key for Claude, GPT or Gemini, or a
-    // local Ollama model. The engine judges the result either way.
+    // The engine judges the result whichever model wrote it.
     if (!hasValidCredentials(creds)) {
       throw new Error(
-        'Set up AI to have it design this: sign in with OpenRouter under AI model, or ask Claude Desktop over MCP. Or paste a contract below.'
+        'Set up AI to have it design this: sign in with OpenRouter under AI model, or ask your MCP client. Or paste a contract below.'
       );
     }
-    const providerName = { claude: 'Claude', openai: 'GPT', gemini: 'Gemini', ollama: 'your local model', openrouter: 'your OpenRouter model' }[creds.provider] ?? creds.provider;
-    onProgress?.(`Asking ${providerName} to write the contract…`);
+    onProgress?.(`Asking ${creds.modelId} on OpenRouter to write the contract…`);
     const result = await authorUnitOpContract(description, {
       creds,
       onRound: (r) =>

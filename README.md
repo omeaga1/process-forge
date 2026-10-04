@@ -53,17 +53,14 @@ Either way the engine checks every design before it reaches your flowsheet.
 
 **OpenRouter, in the app.** Open **AI model**, choose OpenRouter and sign in.
 OpenRouter issues a key for this app only; set a spending limit on it in your
-OpenRouter settings.
+OpenRouter settings. **Sign out** forgets it on this device.
 
-**Other options**, under **AI model → Other options**:
+On desktop, the key is stored in the OS keychain. In the browser, it is stored
+in the browser's local storage. The app sends it only to OpenRouter.
 
-- your own API key for Claude, OpenAI or Gemini;
-- a local Ollama server (default `http://localhost:11434`): free, offline, and
-  nothing leaves your computer. Smaller local models have more designs rejected.
-
-On desktop, keys are stored in the OS keychain. In the browser, they are stored
-in the browser's local storage. The app sends them only to the provider you
-chose.
+These are the only two ways (see [ADR-0009](docs/adr/0009-mcp-and-openrouter-only.md)).
+Own API keys for Claude, OpenAI or Gemini, and local Ollama, were removed; a
+saved one is deleted on upgrade, and the AI model dialog says so once.
 
 **Claude Desktop and other MCP clients.**
 

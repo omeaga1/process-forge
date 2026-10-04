@@ -48,9 +48,16 @@ describe('AI connection manager', () => {
     assert.strictEqual(getAiConnection().mode, 'offline');
     store['pf_ai_connection_state'] = JSON.stringify({ mode: 'oauth' });
     assert.strictEqual(getAiConnection().mode, 'offline');
-    saveAiConnection({ mode: 'claude', provider: 'claude' });
-    assert.strictEqual(getAiConnection().mode, 'claude');
-    assert.deepStrictEqual(JSON.parse(store['pf_ai_connection_state']!), { mode: 'claude' });
+    saveAiConnection({ mode: 'openrouter', provider: 'openrouter' });
+    assert.strictEqual(getAiConnection().mode, 'openrouter');
+    assert.deepStrictEqual(JSON.parse(store['pf_ai_connection_state']!), { mode: 'openrouter' });
+  });
+
+  it('reads a removed provider (claude, openai, gemini, ollama) as offline', () => {
+    for (const mode of ['claude', 'openai', 'gemini', 'ollama']) {
+      store['pf_ai_connection_state'] = JSON.stringify({ mode });
+      assert.strictEqual(getAiConnection().mode, 'offline', mode);
+    }
   });
 
   it('with no model: the unit-op studio says what still works', async () => {
@@ -132,38 +139,18 @@ describe('AI connection manager', () => {
 
   it('in-app chat is locked until an AI model is connected', () => {
     resetToOfflineConfig();
-    const locked = isAgentChatUnlocked(getAiConnection(), { provider: 'gemini', modelId: 'gemini-2.5-flash' });
+    const locked = isAgentChatUnlocked(getAiConnection(), { provider: 'openrouter', modelId: 'openrouter/free' });
     assert.strictEqual(locked.unlocked, false);
     assert.strictEqual(locked.activeProvider, 'none');
     assert.ok(locked.reason?.includes('No AI model is connected'));
 
-    // Unlocks with Gemini API key
-    const geminiUnlocked = isAgentChatUnlocked(getAiConnection(), {
-      provider: 'gemini',
-      modelId: 'gemini-2.5-flash',
-      geminiApiKey: 'AIzaSyTestKey12345'
+    const unlocked = isAgentChatUnlocked(getAiConnection(), {
+      provider: 'openrouter',
+      modelId: 'openrouter/free',
+      openrouterApiKey: 'sk-or-v1-test'
     });
-    assert.strictEqual(geminiUnlocked.unlocked, true);
-    assert.strictEqual(geminiUnlocked.activeProvider, 'gemini');
-
-    // Unlocks with Claude API key
-    const claudeUnlocked = isAgentChatUnlocked(getAiConnection(), {
-      provider: 'claude',
-      modelId: 'claude-opus-5',
-      claudeApiKey: 'sk-ant-api03-test-token'
-    });
-    assert.strictEqual(claudeUnlocked.unlocked, true);
-    assert.strictEqual(claudeUnlocked.activeProvider, 'claude');
-
-    // Unlocks with OpenAI API key
-    const openaiUnlocked = isAgentChatUnlocked(getAiConnection(), {
-      provider: 'openai',
-      modelId: 'gpt-4o',
-      openaiApiKey: 'sk-proj-test-token'
-    });
-    assert.strictEqual(openaiUnlocked.unlocked, true);
-    assert.strictEqual(openaiUnlocked.activeProvider, 'openai');
-
+    assert.strictEqual(unlocked.unlocked, true);
+    assert.strictEqual(unlocked.activeProvider, 'openrouter');
   });
 
   it('maskApiKey shows only the ends of a key', () => {
@@ -175,27 +162,21 @@ describe('AI connection manager', () => {
   });
 
   it('purgeAllCredentials removes every key and returns to no model', async () => {
-    saveLlmCredentials({
-      provider: 'gemini',
-      geminiApiKey: 'AIzaSySecretToBePurged123',
-      claudeApiKey: 'sk-ant-secret',
-      openaiApiKey: 'sk-proj-secret'
-    });
+    saveLlmCredentials({ provider: 'openrouter', openrouterApiKey: 'sk-or-SecretToBePurged123' });
 
     const beforePurge = getLlmCredentials();
-    assert.strictEqual(beforePurge.geminiApiKey, 'AIzaSySecretToBePurged123');
+    assert.strictEqual(beforePurge.openrouterApiKey, 'sk-or-SecretToBePurged123');
+    assert.strictEqual(getAiConnection().mode, 'openrouter');
 
     await purgeAllCredentials();
 
     const afterPurge = getLlmCredentials();
-    assert.strictEqual(afterPurge.geminiApiKey, undefined);
-    assert.strictEqual(afterPurge.claudeApiKey, undefined);
-    assert.strictEqual(afterPurge.openaiApiKey, undefined);
+    assert.strictEqual(afterPurge.openrouterApiKey, undefined);
     assert.strictEqual(getAiConnection().mode, 'offline');
     assert.strictEqual(isAgentChatUnlocked().unlocked, false);
   });
 
-  it('sends the Gemini key in a header, never in the URL', async () => {
+  it('sends the key in a header, never in the URL', async () => {
     let capturedUrl = '';
     let capturedHeaders: Record<string, string> = {};
 
@@ -205,23 +186,21 @@ describe('AI connection manager', () => {
       capturedHeaders = opts.headers || {};
       return {
         ok: true,
-        json: async () => ({ candidates: [{ content: { parts: [{ text: 'OK' }] } }] })
+        json: async () => ({ choices: [{ message: { content: 'OK' } }] })
       } as any;
     };
 
     try {
       const result = await testLlmConnection({
-        provider: 'gemini',
-        modelId: 'gemini-2.5-flash',
-        geminiApiKey: 'AIzaSyDirectHeaderKey999'
+        provider: 'openrouter',
+        modelId: 'openrouter/free',
+        openrouterApiKey: 'sk-or-DirectHeaderKey999'
       });
 
       assert.strictEqual(result.ok, true);
-      // Verify query string does NOT leak the API key in the URL
-      assert.ok(!capturedUrl.includes('?key='), 'Gemini URL must not contain ?key= query string');
-      assert.ok(!capturedUrl.includes('AIzaSyDirectHeaderKey999'), 'API key must not be present anywhere in URL');
-      // Verify key is securely sent in header
-      assert.strictEqual(capturedHeaders['x-goog-api-key'], 'AIzaSyDirectHeaderKey999');
+      assert.strictEqual(capturedUrl, 'https://openrouter.ai/api/v1/chat/completions');
+      assert.ok(!capturedUrl.includes('sk-or-DirectHeaderKey999'), 'API key must not be present anywhere in URL');
+      assert.strictEqual(capturedHeaders.Authorization, 'Bearer sk-or-DirectHeaderKey999');
     } finally {
       globalThis.fetch = originalFetch;
     }

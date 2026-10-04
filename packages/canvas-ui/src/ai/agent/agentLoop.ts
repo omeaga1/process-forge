@@ -8,12 +8,11 @@ import { offlineDecider, type SourcedDecisionProvider } from './jevProvider.js';
  * that change the flowsheet wait for the engineer's approval of that call; a
  * declined call is reported to the model as declined, and nothing changes.
  *
- * Uses OpenAI-style tool calling, which OpenRouter speaks for every model that
- * supports tools, and OpenAI keys directly.
+ * Runs on OpenRouter, with OpenAI-style tool calling, which OpenRouter speaks
+ * for every model that supports tools.
  */
 
-export const AGENT_PROVIDERS: LlmCredentials['provider'][] = ['openrouter', 'openai'];
-export const supportsAgent = (creds: LlmCredentials | null | undefined): boolean => Boolean(creds && AGENT_PROVIDERS.includes(creds.provider));
+export const supportsAgent = (creds: LlmCredentials | null | undefined): boolean => creds?.provider === 'openrouter';
 
 export const AGENT_SYSTEM_PROMPT = `You are the assistant inside ProcessForge, a process simulation studio. You work on the flowsheet the engineer has open, with the same tools ProcessForge gives MCP clients.
 
@@ -70,12 +69,11 @@ const toolSchemas = AGENT_TOOLS.map((t) => ({ type: 'function' as const, functio
 const MAX_RESULT_CHARS = 60000;
 
 async function chatCompletion(creds: LlmCredentials, messages: AgentMessage[], signal?: AbortSignal) {
-  const openrouter = creds.provider === 'openrouter';
-  const key = openrouter ? creds.openrouterApiKey : creds.openaiApiKey;
-  if (!key?.trim()) throw new Error(openrouter ? 'Sign in with OpenRouter first (AI model settings).' : 'Add your OpenAI API key first (AI model settings).');
-  const res = await fetch(openrouter ? OPENROUTER_CHAT_URL : 'https://api.openai.com/v1/chat/completions', {
+  const key = creds.openrouterApiKey;
+  if (!key?.trim()) throw new Error('Sign in with OpenRouter first (AI model settings).');
+  const res = await fetch(OPENROUTER_CHAT_URL, {
     method: 'POST',
-    headers: openrouter ? openRouterHeaders(key) : { Authorization: `Bearer ${key.trim()}`, 'Content-Type': 'application/json' },
+    headers: openRouterHeaders(key),
     body: JSON.stringify({ model: creds.modelId, messages, tools: toolSchemas, tool_choice: 'auto' }),
     ...(signal ? { signal } : {})
   });
@@ -83,7 +81,7 @@ async function chatCompletion(creds: LlmCredentials, messages: AgentMessage[], s
   if (!res.ok) {
     const detail = data.error?.message;
     if (/tool|function/i.test(detail ?? '')) throw new Error(`This model cannot use tools${detail ? ` (${detail})` : ''}. Choose another model in the AI model settings, e.g. Claude or GPT.`);
-    throw new Error(openrouter ? openRouterErrorMessage(res.status, detail) : detail || `OpenAI error (HTTP ${res.status}).`);
+    throw new Error(openRouterErrorMessage(res.status, detail));
   }
   const message = data.choices?.[0]?.message;
   if (!message) throw new Error('The model sent back nothing.');

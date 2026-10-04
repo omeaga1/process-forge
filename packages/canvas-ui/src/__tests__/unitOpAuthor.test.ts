@@ -9,7 +9,7 @@ import {
 } from '../ai/unitOpAuthor.js';
 import type { LlmChatMessage, LlmCredentials } from '../ai/llmClient.js';
 
-const creds: LlmCredentials = { provider: 'claude', modelId: 'claude-opus-5-5', claudeApiKey: 'sk-test' };
+const creds: LlmCredentials = { provider: 'openrouter', modelId: 'anthropic/claude-opus-5.5', openrouterApiKey: 'sk-or-test' };
 
 /** A stand-in for Claude that replies from a script and records what it saw. */
 function scripted(replies: string[]) {

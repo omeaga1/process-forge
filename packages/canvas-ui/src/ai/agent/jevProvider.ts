@@ -1,4 +1,5 @@
 import {
+  DESIGN_QUESTIONS,
   heuristicProvider,
   type AnswersFor,
   type ChoiceAnswer,
@@ -141,6 +142,24 @@ export function translate(q: Question, a: unknown): ChoiceAnswer | NoulAnswer | 
   const s = num(a) ?? num(o.score) ?? num(o.value);
   if (s === undefined) return undefined;
   return { type: 'score', value: s, confidence: num(o.confidence) ?? 0.5 };
+}
+
+/**
+ * Asks Jev about a sample unit on the engineer's OpenRouter key, and says
+ * plainly what came back. Used by the "Test Jev" buttons.
+ */
+export async function testJev(key: string | undefined): Promise<{ ok: boolean; text: string }> {
+  if (!key?.trim()) return { ok: false, text: 'Jev runs on OpenRouter: sign in with OpenRouter first.' };
+  const probe = new JevOpenRouterProvider(key.trim(), { timeoutMs: 30000 });
+  const a = await probe.ask({ message: 'Spray dryer: dries milk concentrate to powder with hot air; the moist air leaves as exhaust.' }, DESIGN_QUESTIONS);
+  if (probe.lastSource.by !== 'jev') {
+    return { ok: false, text: `Jev did not answer: ${probe.lastSource.reason}. Design checks use the offline rules until this works.` };
+  }
+  const pct = (v: number) => Math.round(v * 100);
+  return {
+    ok: true,
+    text: `Jev answered. For a spray dryer: energy balance ${pct(a.energyBalance.value)}%, vapour leaves ${pct(a.gasLeaves.value)}%, solids leave ${pct(a.solidLeaves.value)}%, discrete items ${pct(a.handlesItems.value)}%; runs ${a.mode.value} (${pct(a.mode.confidence)}%).`
+  };
 }
 
 /** The offline provider, with the same lastSource shape. */
