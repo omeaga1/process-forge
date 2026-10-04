@@ -6,7 +6,7 @@ import { bridgeHost } from './desktopBridge.js';
  * against the cloud API, and the open flowsheet over the desktop bridge.
  */
 
-const DEFAULT_API = 'https://process-forge-community-library.vprescenzi.workers.dev/api';
+const DEFAULT_API = 'https://process-forge-community-library.valabs.workers.dev/api';
 
 export function communityApiBase(env: NodeJS.ProcessEnv = process.env): string {
   return (env.PROCESS_FORGE_COMMUNITY_API_URL || DEFAULT_API).replace(/\/+$/, '');

@@ -68,7 +68,7 @@ export interface CreatorSession {
 const API_BASE_URL =
   typeof window !== 'undefined' && (window as any).__PF_COMMUNITY_API_URL__
     ? (window as any).__PF_COMMUNITY_API_URL__
-    : 'https://process-forge-community-library.vprescenzi.workers.dev/api';
+    : 'https://process-forge-community-library.valabs.workers.dev/api';
 
 /** A route on the cloud API, e.g. communityApiUrl('/me/unitops'). */
 export const communityApiUrl = (route: string): string => `${API_BASE_URL}${route}`;

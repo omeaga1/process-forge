@@ -62,10 +62,10 @@ jobs:
         run: |
           expected=$(node packages/community-library-api/scripts/latest-migration.mjs)
           for i in $(seq 1 12); do
-            body=$(curl -fsS https://process-forge-community-library.vprescenzi.workers.dev/api/health || true)
+            body=$(curl -fsS https://process-forge-community-library.valabs.workers.dev/api/health || true)
             echo "$body" | grep -Eq "\"schema\": ?\"$expected\"" && break
             sleep 5
           done
           echo "$body"
           echo "$body" | grep -Eq "\"schema\": ?\"$expected\""             || { echo "::error::the live API does not report schema $expected"; exit 1; }
-          curl -fsS -o /dev/null https://process-forge-community-library.vprescenzi.workers.dev/api/unitops             || { echo "::error::GET /api/unitops failed after deploy"; exit 1; }
+          curl -fsS -o /dev/null https://process-forge-community-library.valabs.workers.dev/api/unitops             || { echo "::error::GET /api/unitops failed after deploy"; exit 1; }
