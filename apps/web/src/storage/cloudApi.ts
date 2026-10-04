@@ -5,7 +5,7 @@ export function cloudApiBase(): string {
   if (typeof window !== 'undefined' && (window as any).__PF_CLOUD_API_URL__) {
     return (window as any).__PF_CLOUD_API_URL__;
   }
-  return 'https://process-forge-community-library.vprescenzi.workers.dev/api';
+  return 'https://process-forge-community-library.valabs.workers.dev/api';
 }
 
 /** What the API returns for a successful sign-in. */
