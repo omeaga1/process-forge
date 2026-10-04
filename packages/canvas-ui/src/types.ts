@@ -42,6 +42,8 @@ export interface CanvasNodeData extends Record<string, unknown> {
   levelGallons?: number;
   flowGpm?: number;
   phase?: 'FILLING' | 'HEATING' | 'REACTING' | 'DISCHARGING';
+  /** Batch units: the name of the phase it is in, from its contract. */
+  phaseName?: string;
   temperatureC?: number;
   activeSubAgentId: string;
   subAgentChatHistory: ChatMessage[];
@@ -51,7 +53,10 @@ export interface CanvasNodeData extends Record<string, unknown> {
 export interface CanvasEdgeData extends Record<string, unknown> {
   processEdge: ProcessEdge;
   isBackpressureBlocked: boolean;
+  /** gal/min for a liquid pipe, items/min otherwise, as the engine reports the unit it leaves. */
   activeFlowRate: number;
+  /** A liquid pipe: °C of what it carries, while the simulation runs. */
+  temperatureC?: number;
 }
 
 export interface PlantTelemetryState {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, CircleSlash, Eye, Loader2, PencilLine, Square, X } from 'lucide-react';
+import { Check, CircleSlash, Eye, Loader2, PencilLine, Square, X, ArrowUp, Hand, ShieldCheck, Workflow } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
 import { loadLlmCredentials } from '../../ai/aiModelManager.js';
 import { runAgent, type AgentMessage, type ApprovalRequest } from '../../ai/agent/agentLoop.js';
@@ -31,7 +31,37 @@ export interface AgentChatProps {
 }
 
 export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
-  const { palette } = useTheme();
+  const { palette, font } = useTheme();
+  const [focused, setFocused] = useState(false);
+  const graph = host.getGraph();
+  const sheet = { name: graph.name, units: graph.nodes.filter((n) => n.kind !== 'TERMINAL').length };
+  const chip = (color: string): React.CSSProperties => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    height: 22,
+    padding: '0 7px',
+    borderRadius: 2,
+    border: `1px solid ${palette.border.default}`,
+    background: 'transparent',
+    color,
+    fontSize: 10.5,
+    fontWeight: 600,
+    whiteSpace: 'nowrap'
+  });
+  const iconButton = (bg: string, fg: string, border: string): React.CSSProperties => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 28,
+    height: 28,
+    borderRadius: 2,
+    border: `1px solid ${border}`,
+    background: bg,
+    color: fg,
+    cursor: 'pointer',
+    flexShrink: 0
+  });
   const [lines, setLines] = useState<Line[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -195,63 +225,92 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
         )}
       </div>
 
-      <label
-        title="Jev, a decision model on your OpenRouter account, decides what a complete design of each unit needs (energy balance, outlets, components) and checks designs for what is missing. About $0.0004 a check. Off: the same checks with offline keyword rules, less accurate."
-        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderTop: `1px solid ${palette.border.subtle}`, fontSize: 11, color: palette.text.muted, cursor: 'pointer' }}
-      >
-        <input
-          type="checkbox"
-          checked={jevOn}
-          onChange={(e) => {
-            setJevOn(e.target.checked);
-            setJevEnabled(e.target.checked);
+      {/* The composer: what you ask, and how the assistant will act on it. */}
+      <div style={{ padding: 10, borderTop: `1px solid ${palette.border.default}`, background: palette.background.base }}>
+        <div
+          style={{
+            border: `1px solid ${focused ? palette.jade[500] : palette.border.strong}`,
+            borderRadius: 2,
+            background: palette.background.surfaceElevated,
+            boxShadow: focused ? `0 0 0 3px ${palette.jade[500]}22` : 'none',
+            transition: 'border-color 120ms, box-shadow 120ms'
           }}
-        />
-        Design checks by Jev (OpenRouter, a fraction of a cent each)
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            void runJevTest();
-          }}
-          disabled={jevTest.busy}
-          style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, color: palette.jade.glow, fontSize: 11, cursor: 'pointer' }}
         >
-          {jevTest.busy ? 'Testing…' : 'Test Jev'}
-        </button>
-      </label>
-      {jevTest.text && (
-        <div role="status" style={{ padding: '0 12px 6px', fontSize: 11, lineHeight: 1.45, color: jevTest.ok ? palette.jade.glow : palette.text.secondary }}>
-          {jevTest.text}
+          <textarea
+            value={input}
+            rows={2}
+            aria-label="Message the assistant"
+            placeholder="Ask about this flowsheet, or what to build…"
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void send(input);
+              }
+            }}
+            style={{ display: 'block', width: '100%', boxSizing: 'border-box', resize: 'none', background: 'transparent', border: 'none', padding: '9px 10px 4px', color: palette.text.primary, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px 6px 8px' }}>
+            <span
+              title="Reading, simulating, what-ifs and design checks run straight away; every change to the flowsheet waits for your approval."
+              style={chip(palette.text.secondary)}
+            >
+              <Hand size={11} /> Asks before changes
+            </span>
+            <button
+              type="button"
+              aria-pressed={jevOn}
+              onClick={() => {
+                setJevOn(!jevOn);
+                setJevEnabled(!jevOn);
+              }}
+              title="Jev, a decision model on your OpenRouter account, decides what a complete design of each unit needs (energy balance, outlets, components) and checks designs for what is missing. About $0.0004 a check. Off: the same checks with offline keyword rules, less accurate."
+              style={{ ...chip(jevOn ? palette.jade.glow : palette.text.muted), cursor: 'pointer', borderColor: jevOn ? `${palette.jade[500]}88` : palette.border.default, background: jevOn ? `${palette.jade[500]}1a` : 'transparent' }}
+            >
+              <ShieldCheck size={11} /> Jev checks {jevOn ? 'on' : 'off'}
+            </button>
+            <span title={`Model: ${modelLabel}`} style={{ marginLeft: 'auto', fontFamily: font.mono, fontSize: 10, color: palette.text.muted, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {modelLabel}
+            </span>
+            {busy ? (
+              <button type="button" onClick={stop} title="Stop" aria-label="Stop" style={iconButton(palette.background.surface, palette.text.secondary, palette.border.default)}>
+                <Square size={11} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => send(input)}
+                disabled={!input.trim()}
+                title="Send (Enter)"
+                aria-label="Send"
+                style={iconButton(input.trim() ? palette.jade[500] : palette.background.surface, input.trim() ? palette.text.inverse : palette.text.muted, input.trim() ? palette.jade[500] : palette.border.default)}
+              >
+                <ArrowUp size={14} />
+              </button>
+            )}
+          </div>
         </div>
-      )}
-      <div style={{ padding: 10, borderTop: `1px solid ${palette.border.default}`, display: 'flex', gap: 6, background: palette.background.base }}>
-        <textarea
-          value={input}
-          rows={2}
-          placeholder="Ask about this flowsheet, or what to build…"
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              void send(input);
-            }
-          }}
-          style={{ flex: 1, resize: 'none', background: palette.background.surfaceElevated, border: `1px solid ${palette.border.default}`, borderRadius: 6, padding: '6px 8px', color: palette.text.primary, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
-        />
-        {busy ? (
-          <button type="button" onClick={stop} title="Stop" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 12px', borderRadius: 6, border: `1px solid ${palette.border.default}`, background: 'transparent', color: palette.text.secondary, fontSize: 12, cursor: 'pointer' }}>
-            <Square size={11} /> Stop
-          </button>
-        ) : (
+        {/* What it works on, under the composer like an attachment tray. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 2px 0', fontSize: 10.5, color: palette.text.muted }}>
+          <Workflow size={11} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            Works on <span style={{ color: palette.text.secondary }}>{sheet.name}</span> · {sheet.units} {sheet.units === 1 ? 'unit' : 'units'} · ProcessForge tools
+          </span>
           <button
             type="button"
-            onClick={() => send(input)}
-            disabled={!input.trim()}
-            style={{ padding: '0 14px', borderRadius: 6, border: 'none', background: input.trim() ? palette.jade[500] : palette.background.surfaceElevated, color: input.trim() ? palette.text.inverse : palette.text.muted, fontWeight: 700, fontSize: 12, cursor: input.trim() ? 'pointer' : 'default' }}
+            onClick={() => void runJevTest()}
+            disabled={jevTest.busy}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, color: palette.jade.glow, fontSize: 10.5, cursor: 'pointer', flexShrink: 0 }}
           >
-            Send
+            {jevTest.busy ? 'Testing Jev…' : 'Test Jev'}
           </button>
+        </div>
+        {jevTest.text && (
+          <div role="status" style={{ padding: '4px 2px 0', fontSize: 11, lineHeight: 1.45, color: jevTest.ok ? palette.jade.glow : palette.text.secondary }}>
+            {jevTest.text}
+          </div>
         )}
       </div>
     </>

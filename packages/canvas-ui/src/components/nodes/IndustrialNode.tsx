@@ -4,6 +4,9 @@ import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
 import { EquipmentFigure, flangePoint } from '../../nozzles/EquipmentFigure.js';
 import { drawingSize, layoutNozzles, type Side } from '../../nozzles/nozzleLayout.js';
+import { effectiveContract } from '@process-forge/protocol';
+import { unitTag } from '../../model/unitTag.js';
+import { PhaseTrack } from './PhaseTrack.js';
 
 const POSITION: Record<Side, Position> = {
   left: Position.Left,
@@ -25,7 +28,7 @@ const PAD = 18;
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { palette, machineVisuals, font, size, weight, radius: r, motion } = useTheme();
   const nodeData = data as unknown as CanvasNodeData;
-  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, phase } = nodeData;
+  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, phase, phaseName } = nodeData;
   // A pipe-fed filler has a product bowl, but what matters there is containers.
   const isLiquid = levelGallons !== undefined && processNode.kind !== 'ROTARY_FILLER';
   const [hovered, setHovered] = useState(false);
@@ -37,6 +40,11 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const isRunning = state === 'BUSY';
 
   const layout = useMemo(() => layoutNozzles(processNode), [processNode]);
+  // A batch unit's phases, as its contract runs them.
+  const phases = useMemo(() => {
+    const b = effectiveContract(processNode)?.behavior;
+    return b?.mode === 'BATCH' ? b.phases.map((p) => p.name) : [];
+  }, [processNode]);
   const { width, height } = drawingSize(processNode.kind, processNode.dressing);
 
   const connected = useMemo(() => {
@@ -69,7 +77,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
   const hasBottomNozzle = [...layout.anchors.map((a) => a.side), ...layout.decorative.map((z) => z.position)].includes('bottom');
 
-  const tag = processNode.name.match(/\b[A-Z]{1,3}-\d{2,4}\b/)?.[0];
+  const tag = unitTag(processNode.name);
   const title = tag ? processNode.name.replace(tag, '').trim() : processNode.name;
 
   return (
@@ -208,7 +216,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               border: `1px solid ${visualState.badgeText}40`
             }}
           >
-            <span>{phase ? phase.charAt(0) + phase.slice(1).toLowerCase() : visualState.label}</span>
+            <span>{phaseName ?? (phase ? phase.charAt(0) + phase.slice(1).toLowerCase() : visualState.label)}</span>
             {isLiquid ? (
               <>
                 {levelFraction !== undefined && processNode.kind !== 'PUMP' && (
@@ -224,6 +232,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
             )}
           </div>
         )}
+        {phases.length > 1 && phaseName && <PhaseTrack phases={phases} current={phaseName} color={visualState.badgeText} width={Math.min(150, Math.max(110, width))} />}
       </div>
     </div>
   );

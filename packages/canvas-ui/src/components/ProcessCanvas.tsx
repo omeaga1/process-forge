@@ -11,8 +11,7 @@ import {
   type OnEdgesChange,
   type OnConnect,
   type Connection,
-  type IsValidConnection,
-  ConnectionLineType
+  type IsValidConnection
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
@@ -24,6 +23,8 @@ import {
   effectivePortKind,
   portsFit,
   PAINT_CANNING_LINE,
+  STANDARD_EQUIPMENT_CATALOG,
+  createStandardUnitOp,
   type ProcessGraph,
   type ProcessNode,
   type ProcessEdge
@@ -32,7 +33,9 @@ import { SimulationEngine, type SimulationResult, type NodeTelemetrySnapshot } f
 
 import { IndustrialNode } from './nodes/IndustrialNode.js';
 import { TerminalNode } from './nodes/TerminalNode.js';
-import { AnimatedStreamEdge } from './edges/AnimatedStreamEdge.js';
+import { AnimatedStreamEdge, PipeConnectionLine } from './edges/AnimatedStreamEdge.js';
+import { unitTag } from '../model/unitTag.js';
+import { CommandPalette, type PaletteCommand } from './CommandPalette.js';
 import { MasterOrchestratorDock } from './dock/MasterOrchestratorDock.js';
 import { UnitOpPopOutStudio } from './studio/UnitOpPopOutStudio.js';
 import { CommunityUnitOpLibraryModal } from './marketplace/CommunityUnitOpLibraryModal.js';
@@ -105,12 +108,13 @@ function neighbourContext(graph: ProcessGraph, nodeId: string): { upstreamContex
 /** The liquid part of a unit's telemetry, for its node on the canvas. */
 function liquidOf(t: NodeTelemetrySnapshot | undefined): Partial<CanvasNodeData> {
   if (!t || t.levelGallons === undefined)
-    return { levelFraction: undefined, levelGallons: undefined, flowGpm: undefined, phase: undefined, temperatureC: undefined };
+    return { levelFraction: undefined, levelGallons: undefined, flowGpm: undefined, phase: undefined, phaseName: undefined, temperatureC: undefined };
   return {
     levelFraction: t.levelFraction,
     levelGallons: t.levelGallons,
     flowGpm: t.flowGpm,
     phase: t.phase,
+    phaseName: t.phaseName,
     temperatureC: t.temperatureC
   };
 }
@@ -119,6 +123,15 @@ function liquidOf(t: NodeTelemetrySnapshot | undefined): Partial<CanvasNodeData>
 function flowOut(t: NodeTelemetrySnapshot | undefined): number {
   if (!t) return 0;
   return t.flowGpm ?? t.instantaneousRatePerMin;
+}
+
+/** A pipe's live state, from the unit it leaves, as the engine recorded it. */
+function pipeState(t: NodeTelemetrySnapshot | undefined): Pick<CanvasEdgeData, 'isBackpressureBlocked' | 'activeFlowRate' | 'temperatureC'> {
+  return {
+    isBackpressureBlocked: t?.state === 'BLOCKED',
+    activeFlowRate: flowOut(t),
+    ...(t?.temperatureC !== undefined ? { temperatureC: t.temperatureC } : {})
+  };
 }
 
 /** Every toolbar button: one height, one type size, never wrapping. */
@@ -426,8 +439,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         data: {
           processEdge: pEdge,
           // Blocked upstream, as the engine reports it.
-          isBackpressureBlocked: snapshotByNode.get(pEdge.sourceNodeId)?.state === 'BLOCKED',
-          activeFlowRate: flowOut(snapshotByNode.get(pEdge.sourceNodeId))
+          ...pipeState(snapshotByNode.get(pEdge.sourceNodeId))
         } satisfies CanvasEdgeData
       }))
     );
@@ -458,10 +470,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         ...e,
         data: {
           ...e.data,
-          isBackpressureBlocked:
-            snapshotByNode.get((e.data as CanvasEdgeData).processEdge.sourceNodeId)?.state ===
-            'BLOCKED',
-          activeFlowRate: flowOut(snapshotByNode.get((e.data as CanvasEdgeData).processEdge.sourceNodeId))
+          temperatureC: undefined,
+          ...pipeState(snapshotByNode.get((e.data as CanvasEdgeData).processEdge.sourceNodeId))
         }
       }))
     );
@@ -720,6 +730,19 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     }
   };
 
+  // Ctrl+K: every action from the keyboard.
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsPaletteOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const handleResetSimulation = () => {
     setIsRunning(false);
     setTelemetry({
@@ -922,6 +945,24 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
             <button
               type="button"
+              onClick={() => setIsPaletteOpen(true)}
+              title="Every action from the keyboard (Ctrl+K)"
+              aria-label="Open the command palette"
+              style={{
+                ...toolbarButton,
+                padding: '0 8px',
+                backgroundColor: 'transparent',
+                color: OsakaJadePalette.text.muted,
+                border: `1px solid ${OsakaJadePalette.border.default}`,
+                fontFamily: font.mono,
+                fontSize: 11
+              }}
+            >
+              Ctrl K
+            </button>
+
+            <button
+              type="button"
               onClick={handleResetSimulation}
               title="Reset the simulation clock and counters"
               aria-label="Reset simulation"
@@ -1067,7 +1108,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                 const id = telemetry.activeBottleneck ?? telemetry.bottlenecks.bottleneckNodeId;
                 const unit = id ? graph.nodes.find((n) => n.id === id) : undefined;
                 if (!unit) return null;
-                const tag = unit.name.match(/\b[A-Z]{1,3}-\d{2,4}\b/)?.[0];
+                const tag = unitTag(unit.name);
                 return (
                   <button
                     type="button"
@@ -1159,8 +1200,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           isValidConnection={isValidConnection}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          connectionLineStyle={{ stroke: OsakaJadePalette.jade[300], strokeWidth: 2, strokeDasharray: '6 4' }}
+          connectionLineComponent={PipeConnectionLine}
           connectionRadius={28}
           onNodeClick={(_event, n) => setPopOutNodeId(n.id)}
           // Delete is handled above, so a unit and its streams go as one
@@ -1346,6 +1386,33 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       />
 
       {/* Industrial Equipment Palette Modal */}
+      <CommandPalette
+        open={isPaletteOpen}
+        onClose={() => setIsPaletteOpen(false)}
+        commands={[
+          { id: 'run', group: 'Line', title: isRunning ? 'Pause the simulation' : 'Run the simulation', hint: 'Space', keywords: 'simulate start play stop', run: handleToggleSimulation },
+          { id: 'reset', group: 'Line', title: 'Reset the simulation', keywords: 'restart clear', run: handleResetSimulation },
+          ...[1, 2, 5].map((x): PaletteCommand => ({ id: `speed-${x}`, group: 'Line', title: `Play back at ${x}×`, keywords: 'speed fast slow', run: () => setSimSpeed(x) })),
+          ...(onDesignUnitOp ? [{ id: 'design', group: 'Equipment', title: 'Design a unit op…', keywords: 'new custom ai contract create', run: onDesignUnitOp }] : []),
+          { id: 'palette', group: 'Equipment', title: 'Browse standard equipment…', keywords: 'add catalog library', run: () => setIsEquipmentPaletteOpen(true) },
+          { id: 'community', group: 'Equipment', title: 'Browse the community library…', keywords: 'shared published', run: () => setIsForgeHubOpen(true) },
+          ...STANDARD_EQUIPMENT_CATALOG.map(
+            (item): PaletteCommand => ({
+              id: `add-${item.id}`,
+              group: 'Add equipment',
+              title: `Add ${item.title}`,
+              keywords: `add new ${item.short} ${item.subtitle} ${item.tags.join(' ')}`,
+              run: () => handleAddNode(createStandardUnitOp(item))
+            })
+          ),
+          ...graph.nodes.map(
+            (n): PaletteCommand => ({ id: `open-${n.id}`, group: 'Open a unit', title: `Open ${n.name}`, keywords: `go unit ${n.kind.replace(/_/g, ' ')}`, run: () => setPopOutNodeId(n.id) })
+          ),
+          { id: 'undo', group: 'Edit', title: 'Undo', hint: 'Ctrl+Z', run: undo },
+          { id: 'redo', group: 'Edit', title: 'Redo', hint: 'Ctrl+Y', run: redo }
+        ]}
+      />
+
       <EquipmentPaletteModal
         isOpen={isEquipmentPaletteOpen}
         onClose={() => setIsEquipmentPaletteOpen(false)}

@@ -47,6 +47,8 @@ function formatVariables(palette: ThemePalette): string {
   --pf-stream-fluid: ${palette.streams.continuousFluid};
   --pf-stream-discrete: ${palette.streams.discreteContainer};
   --pf-stream-blocked: ${palette.streams.backpressureBlocked};
+  --pf-stream-cold: ${palette.streams.cold};
+  --pf-stream-hot: ${palette.streams.hot};
   `.trim();
 }
 

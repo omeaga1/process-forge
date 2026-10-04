@@ -16,6 +16,8 @@ import { createDefaultProcessNode } from '../../utils/nodeFactory.js';
 import { draftingRadius } from '@process-forge/theme';
 import { AiModelModal } from '../modals/AiModelModal.js';
 import { McpAssistantPanel } from './McpAssistantPanel.js';
+import { SplitFlap } from './SplitFlap.js';
+import { unitTag } from '../../model/unitTag.js';
 import { AgentChat } from './AgentChat.js';
 import { supportsAgent } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
@@ -338,7 +340,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         </div>
       </div>
 
-      {/* Whole-Plant Telemetry Dashboard Banner (3-Card KPI Grid) */}
+      {/* The line at a glance, as a departure board: each figure flips when the run changes it. */}
       <div
         style={{
           padding: '10px 14px',
@@ -346,78 +348,42 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           backgroundColor: OsakaJadePalette.background.base
         }}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-          <div
-            style={{
-              padding: '6px 8px',
-              borderRadius: 6,
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            <span style={{ fontSize: 9, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Output
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
-              {telemetry.totalPackaged}
-            </span>
-          </div>
-
-          <div
-            style={{
-              padding: '6px 8px',
-              borderRadius: 6,
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            <span style={{ fontSize: 9, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Throughput
-            </span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.text.primary, marginTop: 2 }}>
-              {Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin)}/m
-            </span>
-          </div>
-
-          <div
-            style={{
-              padding: '6px 8px',
-              borderRadius: 6,
-              backgroundColor: OsakaJadePalette.background.surface,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            <span style={{ fontSize: 9, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Bottleneck
-            </span>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: bottlenecks.bottleneckNodeId ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade.glow,
-                marginTop: 3,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}
-              title={bottlenecks.bottleneckNodeId ? (graph.nodes.find(n => n.id === bottlenecks.bottleneckNodeId)?.name || bottlenecks.bottleneckNodeId) : 'None (Balanced)'}
-            >
-              {bottlenecks.bottleneckNodeId
-                ? (() => {
-                    // The unit's tag (P-227) when it has one; its name otherwise.
-                    const name = graph.nodes.find((n) => n.id === bottlenecks.bottleneckNodeId)?.name;
-                    return name ? name.match(/\b[A-Z]{1,3}-\d{2,4}\b/)?.[0] ?? name : '—';
-                  })()
-                : 'Balanced'}
-            </span>
-          </div>
-        </div>
+        {(() => {
+          const limitName = bottlenecks.bottleneckNodeId ? graph.nodes.find((n) => n.id === bottlenecks.bottleneckNodeId)?.name : undefined;
+          // The unit's tag (P-227) when it has one; its name otherwise.
+          const limit = bottlenecks.bottleneckNodeId ? (limitName ? unitTag(limitName) ?? limitName : 'NONE') : 'NONE';
+          const rate = telemetry.averageRatePerMin;
+          const cell = (label: string, unit: string, flap: React.ReactNode, title?: string) => (
+            <div title={title} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: font.mono }}>
+                {label}
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
+                {flap}
+                <span style={{ fontSize: 10, color: OsakaJadePalette.text.muted, fontFamily: font.mono }}>{unit}</span>
+              </span>
+            </div>
+          );
+          return (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px' }}>
+              {cell('Line output', 'units', <SplitFlap label="Line output" value={String(telemetry.totalPackaged)} width={5} />)}
+              {cell('Shift average', '/min', <SplitFlap label="Shift average" value={rate > 0 ? rate.toFixed(rate < 100 ? 1 : 0) : '0'} width={5} />)}
+              {cell('Capacity', '/min', <SplitFlap label="Capacity" value={String(Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin))} width={5} color={OsakaJadePalette.text.secondary} />)}
+              {cell(
+                'Limited by',
+                '',
+                <SplitFlap
+                  label="Limited by"
+                  value={limit.toUpperCase()}
+                  width={6}
+                  align="left"
+                  color={bottlenecks.bottleneckNodeId ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade.glow}
+                />,
+                limitName ?? 'Nothing limits the line in the static analysis'
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {agentMode && agentHost && <AgentChat host={agentHost} modelLabel={agentCreds.modelId} />}

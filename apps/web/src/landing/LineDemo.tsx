@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
-import { EquipmentFigure, TerminalArrow, ThemeScope } from '@process-forge/canvas-ui';
+import { EquipmentFigure, SplitFlap, TerminalArrow, ThemeScope } from '@process-forge/canvas-ui';
 import type { NodeKind } from '@process-forge/protocol';
 import {
   DEMO_DEFAULTS,
@@ -294,9 +294,18 @@ export const LineDemo: React.FC = () => {
               ['LIMIT', limit ? STAGE_LABEL[limit.stage].replace('the ', '') : '…', '', limit ? LIMIT : D.text.muted]
             ].map(([k, v, u, c]) => (
               <div key={k}>
-                <div style={{ ...mono, fontSize: 9.5, letterSpacing: '0.12em', color: D.text.muted }}>{k}</div>
-                <div style={{ ...mono, fontSize: 19, fontWeight: 600, color: c, textTransform: k === 'LIMIT' ? 'capitalize' : 'none', whiteSpace: 'nowrap' }}>
-                  {v}<span style={{ fontSize: 11, fontWeight: 400, color: D.text.muted }}> {u}</span>
+                <div style={{ ...mono, fontSize: 9.5, letterSpacing: '0.12em', color: D.text.muted, marginBottom: 4 }}>{k}</div>
+                {/* A departure board: each figure flips as the shift runs. */}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, whiteSpace: 'nowrap' }}>
+                  <SplitFlap
+                    label={k}
+                    value={k === 'LIMIT' ? String(v).toUpperCase() : String(v)}
+                    width={k === 'LIMIT' ? 8 : k === 'FILLED SO FAR' ? 5 : 4}
+                    align={k === 'LIMIT' ? 'left' : 'right'}
+                    color={c}
+                    size={24}
+                  />
+                  <span style={{ ...mono, fontSize: 11, color: D.text.muted }}>{u}</span>
                 </div>
               </div>
             ))}

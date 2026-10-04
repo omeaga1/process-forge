@@ -69,6 +69,10 @@ export interface ThemeStreamColors {
   continuousFluid: string;
   discreteContainer: string;
   backpressureBlocked: string;
+  /** Liquid at or below 10 °C: a pipe shades toward this as it carries colder liquid. */
+  cold: string;
+  /** Liquid at or above 90 °C: a pipe shades toward this as it carries hotter liquid. */
+  hot: string;
 }
 
 export interface ThemePalette {
@@ -144,7 +148,9 @@ export const OsakaJadeDarkPalette: ThemePalette = {
   streams: {
     continuousFluid: '#2dd5b7', // Luminous turquoise-jade wire for piping & fluid
     discreteContainer: '#8cd3cb', // Ice-cyan wire for conveyors & cans
-    backpressureBlocked: '#e5c736' // Pulsing amber warning for blocked conveyors
+    backpressureBlocked: '#e5c736', // Pulsing amber warning for blocked conveyors
+    cold: '#7aa7ff', // Chilled liquid: glacial blue
+    hot: '#ff8f5a' // Hot liquid: ember orange, apart from amber (blocked) and coral (failed)
   }
 };
 
@@ -212,7 +218,9 @@ export const OsakaJadeLightPalette: ThemePalette = {
   streams: {
     continuousFluid: '#0d9488', // Luminous teal-jade wire for fluid streams
     discreteContainer: '#0284c7', // Cyan wire for conveyors & cans
-    backpressureBlocked: '#d97706' // High-contrast amber warning for blocked conveyors
+    backpressureBlocked: '#d97706', // High-contrast amber warning for blocked conveyors
+    cold: '#2563eb', // Chilled liquid
+    hot: '#c2410c' // Hot liquid
   }
 };
 

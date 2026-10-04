@@ -30,3 +30,5 @@ export * from './unitop/contractToNode.js';
 export * from './library/savedUnitOps.js';
 export * from './library/unitOpCloudSync.js';
 export * from './model/unitBehavior.js';
+export * from './components/dock/SplitFlap.js';
+export * from './components/CommandPalette.js';
