@@ -1,6 +1,7 @@
 import type { ProcessGraph } from './graph.js';
 import type { ProcessNode } from './nodes.js';
 import { resolveUnit } from './connect.js';
+import { FEED_LIQUID_KEYS, terminalRole } from './terminals.js';
 import type { UnitOpContract } from './unitop/contract.js';
 import { executeValidateUnitOp } from './unitop/review.js';
 
@@ -96,7 +97,8 @@ function updateUnit(graph: ProcessGraph, edit: Extract<FlowsheetEdit, { op: 'upd
     if (typeof before === 'number' && (typeof value !== 'number' || !Number.isFinite(value))) {
       return { ok: false, error: `"${path}" on ${found.name} is a number (now ${before}); ${JSON.stringify(value)} is not.` };
     }
-    if (!(path.split('.')[0]! in config)) {
+    const feedSetting = terminalRole(found) === 'feed' && (FEED_LIQUID_KEYS as readonly string[]).includes(path);
+    if (!feedSetting && !(path.split('.')[0]! in config)) {
       warnings.push(
         `${found.name} had no setting "${path.split('.')[0]}"; it was added. If the engine does not read it, it changes nothing.` +
           (contract ? ` Its design parameters are: ${contract.parameters.map((p) => p.name).join(', ')}.` : '')

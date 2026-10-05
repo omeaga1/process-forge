@@ -1,7 +1,8 @@
 import type { ProcessGraph } from './graph.js';
 import type { ProcessNode } from './nodes.js';
 import type { ProcessEdge } from './streams.js';
-import { effectivePortKind, portsFit, type Carries } from './terminals.js';
+import { effectivePortKind, feedLiquid, portsFit, terminalRole, type Carries } from './terminals.js';
+import { effectiveContract } from './unitop/standardKinds.js';
 
 /**
  * Pipes one unit into another: the same rules the canvas applies when an
@@ -71,8 +72,40 @@ function pickPort(ports: Port[], ref: string | undefined): Port[] | string {
 const describe = (ports: Port[]) =>
   ports.map((p) => `${p.name} (${discrete(p) ? 'items' : 'liquid'})`).join(', ') || 'none';
 
+export interface PipeFluid {
+  name: string;
+  densityGPerCm3: number;
+  viscosityCentipoise: number;
+  temperatureCelsius: number;
+  specificHeatKjPerKgK?: number;
+}
+
+/**
+ * What a new pipe from a feed carries: what the feed says it supplies, else
+ * the liquid the unit it feeds was designed for (its designInlet), so raw
+ * material is not water unless someone says so. Other pipes: undefined (the
+ * default, which the engine overrides with what actually flows).
+ */
+export function defaultFluidFor(from: ProcessNode, to: ProcessNode): PipeFluid | undefined {
+  if (terminalRole(from) !== 'feed') return undefined;
+  const own = feedLiquid(from);
+  const design = effectiveContract(to)?.designInlet;
+  const t = own.temperatureC ?? design?.temperatureC;
+  const rho = own.densityGPerCm3 ?? design?.densityGPerCm3;
+  const cp = own.specificHeatKjPerKgK ?? design?.specificHeatKjPerKgK;
+  if (t === undefined && rho === undefined && cp === undefined) return undefined;
+  const material = (from.config as { material?: unknown }).material;
+  return {
+    name: typeof material === 'string' && material.trim() ? material.trim() : 'Process Fluid',
+    densityGPerCm3: rho ?? 1,
+    viscosityCentipoise: 1,
+    temperatureCelsius: t ?? 20,
+    ...(cp !== undefined ? { specificHeatKjPerKgK: cp } : {})
+  };
+}
+
 /** A default stream for a new pipe, of the kind its outlet carries. The engine reads only the ends. */
-export function defaultStreamFor(port: Port | Carries): ProcessEdge['stream'] {
+export function defaultStreamFor(port: Port | Carries, fluid?: PipeFluid): ProcessEdge['stream'] {
   const items = typeof port === 'string' ? port === 'items' : discrete(port);
   return items
     ? { type: 'DISCRETE_CONTAINER_STREAM', targetPiecesPerMinute: 40, containerVolumeGallons: 1, containerType: 'CAN_1_GAL' }
@@ -81,7 +114,7 @@ export function defaultStreamFor(port: Port | Carries): ProcessEdge['stream'] {
         designFlowRateGpm: 45,
         operatingPressurePsi: 30,
         pipeDiameterInches: 2,
-        fluid: { name: 'Process Fluid', densityGPerCm3: 1, viscosityCentipoise: 1, temperatureCelsius: 20 }
+        fluid: fluid ?? { name: 'Process Fluid', densityGPerCm3: 1, viscosityCentipoise: 1, temperatureCelsius: 20 }
       };
 }
 
@@ -130,7 +163,7 @@ export function planStream(graph: ProcessGraph, req: StreamRequest, now: number 
     sourcePortId: best.out.id,
     targetNodeId: to.id,
     targetPortId: best.in.id,
-    stream: defaultStreamFor(carries)
+    stream: carries === 'items' ? defaultStreamFor(carries) : defaultStreamFor(carries, defaultFluidFor(from, to))
   };
   return {
     ok: true,

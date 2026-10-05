@@ -4,6 +4,7 @@ import {
   LITERS_PER_GALLON,
   evaluateUnitOp,
   fluidOf,
+  feedLiquid,
   normalise,
   pipeTemperature,
   react,
@@ -125,6 +126,8 @@ export interface BatchRun {
   reactions?: EvaluatedReaction[];
   /** Seconds spent in each phase, by name, over the run. */
   secondsByPhase: Record<string, number>;
+  /** kWh the phase's duty has put in so far (a HOLD with dutyKw). */
+  dutyKwh: number;
 }
 
 export interface LiveContract {
@@ -141,6 +144,12 @@ export interface ContractRunTally {
   firstError?: string;
   errorSeconds: number;
   shortReactions: Record<string, number>;
+  /**
+   * HOLD phases whose duty over their time does not match the heat the batch
+   * took to change temperature (m·cp·ΔT of what is actually in the vessel),
+   * by phase name: the worst mismatch seen, and how many batches.
+   */
+  heatBalance: Record<string, { deliveredKwh: number; neededKwh: number; batches: number }>;
 }
 
 export interface HeatTally {
@@ -281,7 +290,7 @@ export class MaterialNetwork {
         id: node.id,
         role,
         node,
-        ...(contract ? { contract, run: { evaluations: 0, broken: {}, errorSeconds: 0, shortReactions: {} } } : {}),
+        ...(contract ? { contract, run: { evaluations: 0, broken: {}, errorSeconds: 0, shortReactions: {}, heatBalance: {} } } : {}),
         hold: emptyParcel(),
         capacity: Infinity,
         inRate: 0,
@@ -303,6 +312,11 @@ export class MaterialNetwork {
         const props = { ...pipeStock(this.outEdges.get(node.id)) };
         const own = compositionOf(node.config);
         if (own && Object.keys(own).length) props.comp = own;
+        // What the feed says it supplies wins over what its pipe says.
+        const liquid = feedLiquid(node);
+        if (liquid.temperatureC !== undefined) props.tempC = liquid.temperatureC;
+        if (liquid.densityGPerCm3 !== undefined) props.density = liquid.densityGPerCm3;
+        if (liquid.specificHeatKjPerKgK !== undefined) props.cp = liquid.specificHeatKjPerKgK;
         u.feedStock = stock(1, props);
         u.hold.tempC = u.feedStock.tempC;
         const gpm = terminalSupplyRate(node);
@@ -372,6 +386,7 @@ export class MaterialNetwork {
         temperatureC: u.hold.tempC,
         massKg: u.hold.kg,
         number: u.batches + 1,
+        cpKjPerKgK: u.hold.cp,
         composition: u.hold.comp
       }
     });
@@ -407,7 +422,8 @@ export class MaterialNetwork {
       startTempC: u.hold.tempC,
       broken: ev.error ? [] : ev.constraints.filter((c) => !c.satisfied).map((c) => ({ id: c.id, message: c.message, severity: c.severity })),
       ...(!ev.error && declared.react ? { reactions: ev.reactions } : {}),
-      secondsByPhase: u.batchRun?.secondsByPhase ?? {}
+      secondsByPhase: u.batchRun?.secondsByPhase ?? {},
+      dutyKwh: 0
     };
     // A HOLD of no time (a batch already at temperature, a heater with no
     // duty) takes effect at once rather than costing a tick. A batch always has
@@ -431,9 +447,20 @@ export class MaterialNetwork {
     const run = u.batchRun!;
     const ph = run.phase;
     if (ph.temperatureC !== undefined) {
+      const neededKwh = (u.hold.kg * u.hold.cp * Math.abs(ph.temperatureC - run.startTempC)) / 3600;
       // A change of temperature with no duty stated still took heat: m·cp·ΔT.
-      if (!ph.dutyKw && Math.abs(ph.temperatureC - run.startTempC) > 1e-9) {
-        u.heat.energyKwh += (u.hold.kg * u.hold.cp * Math.abs(ph.temperatureC - run.startTempC)) / 3600;
+      if (!ph.dutyKw && neededKwh > 1e-9) u.heat.energyKwh += neededKwh;
+      // With a duty, the phase's time should be what that duty takes to move
+      // this batch: duty × time = m·cp·ΔT. When it is not, the contract's time
+      // does not follow from what is in the vessel (a cp of its own, say).
+      if (ph.dutyKw && neededKwh > 1e-6 && Math.abs(run.dutyKwh - neededKwh) > 0.05 * neededKwh) {
+        const t = u.run!.heatBalance[ph.name];
+        const worse = !t || Math.abs(run.dutyKwh - neededKwh) / neededKwh > Math.abs(t.deliveredKwh - t.neededKwh) / t.neededKwh;
+        u.run!.heatBalance[ph.name] = {
+          deliveredKwh: worse ? run.dutyKwh : t!.deliveredKwh,
+          neededKwh: worse ? neededKwh : t!.neededKwh,
+          batches: (t?.batches ?? 0) + 1
+        };
       }
       u.hold.tempC = ph.temperatureC;
     }
@@ -464,6 +491,7 @@ export class MaterialNetwork {
       if (ph.dutyKw) {
         u.heat.energyKwh += (ph.dutyKw * spent) / 3600;
         u.heat.activeSeconds += spent;
+        run.dutyKwh += (ph.dutyKw * spent) / 3600;
       }
       if (ph.temperatureC !== undefined) {
         const f = Math.min(1, run.elapsed / Math.max(1e-9, span));

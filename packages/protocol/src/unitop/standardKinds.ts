@@ -276,8 +276,9 @@ export function standardContract(node: ProcessNode, edges: readonly ProcessEdge[
         ...base(node, ports, 'Fills, brings the batch to reaction temperature on its jacket, reacts for a set time, then discharges.'),
         parameters,
         ...rel,
-        // Charged without a feed pipe, it charges its own fluid at ambient.
-        designInlet: { temperatureC: AMBIENT_C, ...design },
+        // Charged without a feed pipe, it charges its own fluid at ambient,
+        // with the charge's specific heat.
+        designInlet: { temperatureC: AMBIENT_C, ...design, ...(heated ? { specificHeatKjPerKgK: parameters.find((p) => p.name === 'specificHeatKjPerKgK')!.value } : {}) },
         behavior: {
           mode: 'BATCH',
           batchGallons: 'batchVolumeGallons',
@@ -289,7 +290,7 @@ export function standardContract(node: ProcessNode, edges: readonly ProcessEdge[
                     name: 'Heating',
                     kind: 'HOLD' as const,
                     // m cp dT / Q on the jacket; with no jacket duty the batch is there at once.
-                    seconds: 'if(jacketDutyKw > 0, batch.massKg * specificHeatKjPerKgK * abs(reactionTemperatureC - batch.temperatureC) / jacketDutyKw, 0)',
+                    seconds: 'if(jacketDutyKw > 0, batch.massKg * batch.cpKjPerKgK * abs(reactionTemperatureC - batch.temperatureC) / jacketDutyKw, 0)',
                     temperatureC: 'reactionTemperatureC',
                     dutyKw: 'if(jacketDutyKw > 0, jacketDutyKw, 0)'
                   }

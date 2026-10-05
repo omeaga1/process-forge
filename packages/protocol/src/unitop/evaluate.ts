@@ -1,7 +1,7 @@
 import type { ExprScope } from './expression.js';
 import { evaluateBoolean, evaluateNumber, ExpressionError } from './expression.js';
 import type { UnitOpContract } from './contract.js';
-import { LITERS_PER_GALLON } from '../thermal.js';
+import { DEFAULT_SPECIFIC_HEAT, LITERS_PER_GALLON } from '../thermal.js';
 
 /**
  * Stream state the engine hands a unit op at evaluation time.
@@ -38,6 +38,8 @@ export interface BatchState {
   temperatureC: number;
   massKg: number;
   number: number;
+  /** Specific heat of what is in the vessel, kJ/kg-K. Defaults to the inlet's (designInlet at validation). */
+  cpKjPerKgK?: number;
   /** Mass fractions by component. */
   composition?: Record<string, number>;
 }
@@ -197,7 +199,11 @@ function buildScope(
   if (utility) scope.utility = utility;
   if (batch) {
     const { composition, ...rest } = batch;
-    scope.batch = { ...rest, x: fractionsScope(contract, composition) };
+    const cp = rest.cpKjPerKgK ?? (typeof inlet?.specificHeatKjPerKgK === 'number' ? inlet.specificHeatKjPerKgK : DEFAULT_SPECIFIC_HEAT);
+    // Density follows from what is in the vessel; an empty one reads as the inlet's.
+    const liters = rest.gallons * LITERS_PER_GALLON;
+    const density = liters > 1e-9 && rest.massKg > 0 ? rest.massKg / liters : typeof inlet?.densityGPerCm3 === 'number' ? inlet.densityGPerCm3 : 1;
+    scope.batch = { ...rest, cpKjPerKgK: cp, densityGPerCm3: density, x: fractionsScope(contract, composition) };
   }
   return scope;
 }

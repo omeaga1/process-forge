@@ -690,6 +690,16 @@ export class SimulationEngine {
         .sort((a, b) => (a.severity === b.severity ? b.seconds - a.seconds : a.severity === 'ERROR' ? -1 : 1)),
       ...(run.firstError ? { evaluationError: run.firstError, evaluationErrorSeconds: Math.round(run.errorSeconds) } : {}),
       ...(Object.keys(run.shortReactions).length ? { shortReactions: Object.keys(run.shortReactions) } : {}),
+      ...(Object.keys(run.heatBalance).length
+        ? {
+            heatBalance: Object.entries(run.heatBalance).map(([phase, h]) => ({
+              phase,
+              deliveredKwh: round1(h.deliveredKwh),
+              neededKwh: round1(h.neededKwh),
+              batches: h.batches
+            }))
+          }
+        : {}),
       ...(u.live && Number.isFinite(u.live.capacity) ? { capacityGpm: round1((u.live.capacity / M3_PER_GALLON) * 60) } : {}),
       ...(u.batchRun ? { secondsByPhase: Object.fromEntries(Object.entries(u.batchRun.secondsByPhase).map(([k, v]) => [k, Math.round(v)])) } : {})
     };

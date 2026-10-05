@@ -52,6 +52,26 @@ export interface TerminalConfig {
   supplyRate?: number;
   /** Liquid feeds: what it supplies is made of, as mass fractions, e.g. { water: 0.88, sugar: 0.12 }. */
   composition?: Record<string, number>;
+  /** Liquid feeds: the liquid it supplies. Unset, it is what its pipe says. */
+  temperatureC?: number;
+  densityGPerCm3?: number;
+  specificHeatKjPerKgK?: number;
+}
+
+/** The settings that describe the liquid a feed supplies. */
+export const FEED_LIQUID_KEYS = ['temperatureC', 'densityGPerCm3', 'specificHeatKjPerKgK'] as const;
+
+/** The liquid a feed says it supplies (only what it sets). */
+export function feedLiquid(node: Pick<ProcessNode, 'config'>): { temperatureC?: number; densityGPerCm3?: number; specificHeatKjPerKgK?: number } {
+  const c = node.config as Record<string, unknown>;
+  const out: { temperatureC?: number; densityGPerCm3?: number; specificHeatKjPerKgK?: number } = {};
+  const t = c.temperatureC;
+  if (typeof t === 'number' && Number.isFinite(t)) out.temperatureC = t;
+  for (const k of ['densityGPerCm3', 'specificHeatKjPerKgK'] as const) {
+    const v = c[k];
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) out[k] = v;
+  }
+  return out;
 }
 
 export function isTerminal(node: Pick<ProcessNode, 'kind'> | undefined): boolean {
@@ -95,6 +115,10 @@ export interface CreateTerminalOptions {
   supplyRate?: number;
   /** Liquid feeds: mass fractions of what it supplies. */
   composition?: Record<string, number>;
+  /** Liquid feeds: the liquid it supplies. */
+  temperatureC?: number;
+  densityGPerCm3?: number;
+  specificHeatKjPerKgK?: number;
   position?: { x: number; y: number };
   id?: string;
 }
@@ -106,7 +130,8 @@ export function createTerminalNode(role: TerminalRole, options: CreateTerminalOp
     role,
     material,
     ...(role === 'feed' ? { supplyRate: options.supplyRate ?? 0 } : {}),
-    ...(role === 'feed' && options.composition ? { composition: options.composition } : {})
+    ...(role === 'feed' && options.composition ? { composition: options.composition } : {}),
+    ...(role === 'feed' ? feedLiquid({ config: options as Record<string, unknown> }) : {})
   };
   return {
     id: options.id ?? `${role}-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`,

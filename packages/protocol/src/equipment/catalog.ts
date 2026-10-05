@@ -2,6 +2,7 @@ import type { NodeKind, ProcessNode } from '../nodes.js';
 import { createDefaultProcessNode } from './nodeFactory.js';
 import {
   createTerminalNode,
+  feedLiquid,
   TERMINAL_ROLE_DESCRIPTION,
   type Carries,
   type TerminalRole
@@ -282,6 +283,8 @@ export function createStandardUnitOp(item: EquipmentPaletteItem, options: Create
       ...(options.carries ? { carries: options.carries } : {}),
       ...(options.supplyRate !== undefined ? { supplyRate: options.supplyRate } : {}),
       ...(options.composition ? { composition: options.composition } : {}),
+      // A feed's liquid: temperatureC, densityGPerCm3, specificHeatKjPerKgK.
+      ...(item.terminalRole === 'feed' ? feedLiquid({ config: options.parameters ?? {} }) : {}),
       ...(options.position ? { position: options.position } : {})
     });
   }

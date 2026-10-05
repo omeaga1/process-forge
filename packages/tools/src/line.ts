@@ -16,10 +16,10 @@ import { simulateProcess, type HeatReport, type MachineOeeReport, type TerminalR
  */
 
 /** What to change when this unit is what limits the line, from what its contract does. */
-export function bottleneckAdvice(node: ProcessNode | undefined, unitsPerMin: number, graph?: ProcessGraph): string {
+export function bottleneckAdvice(node: ProcessNode | undefined, unitsPerMin: number, graph?: ProcessGraph, per = 'units/min'): string {
   if (!node) return 'No unit limits the line in the static analysis.';
   const rate = Math.round(unitsPerMin * 10) / 10;
-  const who = `"${node.name}" limits the line at about ${rate} units/min.`;
+  const who = `"${node.name}" limits the line at about ${rate} ${per}.`;
   if (terminalRole(node)) {
     return `${who} It is a feed: the supply rate set on it is what limits the line. Raise it (or set it to 0 to supply whatever the line takes) if the real supply allows.`;
   }
@@ -73,13 +73,45 @@ export interface SimulationResultPayload {
   engineeringDiagnosis: string;
 }
 
-export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed?: number): SimulationResultPayload {
+/**
+ * What limited the line in the run itself: the busiest unit (busy at least 90%
+ * of the time) whose neighbours waited on it, the units after it starved or
+ * the ones before it blocked for at least 10%. A batch reactor, a slow tank
+ * outlet or a breakdown-prone filler shows up here even when the static
+ * capacities say nothing limits the line.
+ */
+export function observedBottleneck(graph: ProcessGraph, result: ReturnType<typeof simulateProcess>, seconds: number): ProcessNode | undefined {
+  const share = (id: string, key: 'busyTimeSeconds' | 'starvedTimeSeconds' | 'blockedTimeSeconds') => (result.nodeReports[id]?.[key] ?? 0) / seconds;
+  const isUnit = (id: string) => graph.nodes.some((n) => n.id === id && n.kind !== 'TERMINAL');
+  let best: { node: ProcessNode; busy: number } | undefined;
+  for (const node of graph.nodes) {
+    if (node.kind === 'TERMINAL') continue;
+    const busy = share(node.id, 'busyTimeSeconds');
+    if (busy < 0.9) continue;
+    const after = graph.edges.filter((e) => e.sourceNodeId === node.id && isUnit(e.targetNodeId)).map((e) => e.targetNodeId);
+    const before = graph.edges.filter((e) => e.targetNodeId === node.id && isUnit(e.sourceNodeId)).map((e) => e.sourceNodeId);
+    const waitedOn = after.some((id) => share(id, 'starvedTimeSeconds') >= 0.1) || before.some((id) => share(id, 'blockedTimeSeconds') >= 0.1);
+    if (waitedOn && (!best || busy > best.busy)) best = { node, busy };
+  }
+  return best?.node;
+}
+
+export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed?: number, name?: string): SimulationResultPayload {
   const duration = durationMinutes && durationMinutes > 0 ? Math.min(durationMinutes, 24 * 60) : 30;
   const result = simulateProcess(graph, duration, seed !== undefined ? { seed } : {});
 
   const validation = validateProcessGraph(graph);
-  const bottleneckId = validation.bottlenecks.bottleneckNodeId ?? 'unknown-bottleneck';
+  // What the run showed first; the static capacities when the run shows nothing clear.
+  const observed = observedBottleneck(graph, result, duration * 60);
+  const bottleneckId = observed?.id ?? validation.bottlenecks.bottleneckNodeId ?? 'unknown-bottleneck';
   const bottleneckNode = graph.nodes.find((n) => n.id === bottleneckId);
+  const observedReport = observed ? result.nodeReports[observed.id] : undefined;
+  const observedLiquid = Boolean(observedReport?.fluid);
+  const bottleneckRate = observed
+    ? observedLiquid
+      ? (observedReport!.fluid!.deliveredGallons ?? 0) / duration
+      : (observedReport?.unitsProduced ?? 0) / duration
+    : validation.bottlenecks.maximumSystemThroughputUnitsPerMin;
 
   const machineMetrics = graph.nodes
     .filter((node) => node.kind !== 'TERMINAL')
@@ -107,7 +139,11 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
     const bad = d?.brokenConstraints.filter((c) => c.severity === 'ERROR' || c.seconds > duration * 60 * 0.05) ?? [];
     const failed = [
       ...(d?.evaluationError ? [`its contract failed to evaluate for ${d.evaluationErrorSeconds} s (${d.evaluationError})`] : []),
-      ...(d?.shortReactions?.length ? [`reaction ${d.shortReactions.join(', ')} ran short of a co-reactant and stopped there`] : [])
+      ...(d?.shortReactions?.length ? [`reaction ${d.shortReactions.join(', ')} ran short of a co-reactant and stopped there`] : []),
+      ...(d?.heatBalance ?? []).map(
+        (h) =>
+          `its "${h.phase}" phase put in ${h.deliveredKwh} kWh (duty × time) where the batch took ${h.neededKwh} kWh (m·cp·ΔT of what was in the vessel), in ${h.batches} batch${h.batches === 1 ? '' : 'es'}: write that phase's time from batch.massKg * batch.cpKjPerKgK`
+      )
     ];
     const reasons = [...bad.map((c) => `"${c.message}" for ${Math.round((c.seconds / (duration * 60)) * 100)}% of the run`), ...failed];
     if (!reasons.length) return [];
@@ -135,15 +171,18 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
   const side = sides.length ? ` Also out: ${sides.map((t) => `${amount(t)} of ${t.material} as ${t.role}`).join('; ')}.` : '';
   const feeds = result.terminals.filter((t) => t.role === 'feed');
   const fed = feeds.length ? ` Fed: ${feeds.map((t) => `${amount(t)} of ${t.material}`).join('; ')}.` : '';
-  const diagnosis = `Simulated ${duration} minutes: ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.${liquid}${fed}${side}${notes.length ? ` ${notes.join(' ')}` : ''} ${bottleneckAdvice(
+  // A liquid-only line finishes no items: say what it did make.
+  const items = result.totalUnitsPackaged > 0 || !liquid ? ` ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.` : '';
+  const diagnosis = `Simulated ${duration} minutes:${items}${liquid}${fed}${side}${notes.length ? ` ${notes.join(' ')}` : ''} ${bottleneckAdvice(
     bottleneckNode,
-    validation.bottlenecks.maximumSystemThroughputUnitsPerMin,
-    graph
+    bottleneckRate,
+    graph,
+    observedLiquid ? 'gal/min' : 'units/min'
   )}`;
 
   return {
     success: true,
-    facilityName: (graph.metadata?.facility as string) || graph.name,
+    facilityName: name || (graph.metadata?.facility as string) || graph.name,
     durationMinutes: duration,
     simulatedSeconds: result.simulatedTimeSeconds,
     seed: result.seed,

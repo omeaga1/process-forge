@@ -188,6 +188,8 @@ export const ENGINE_NAME_DIMENSIONS: Record<string, Dimension> = {
   'batch.temperatureC': TEMPERATURE,
   'batch.massKg': MASS,
   'batch.number': DIMENSIONLESS,
+  'batch.cpKjPerKgK': SPECIFIC_HEAT,
+  'batch.densityGPerCm3': DENSITY,
   PI: DIMENSIONLESS,
   E: DIMENSIONLESS
 };
