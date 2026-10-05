@@ -401,11 +401,11 @@ export const RESERVED_SCOPE_NAMES = [
 
 /**
  * What a BATCH unit's expressions can read about the batch in hand: its
- * volume, temperature and mass as the phase starts, and which batch it is
- * (1, 2, ...). At validation they describe a full vessel at designInlet
- * temperature.
+ * volume, temperature, mass, specific heat and density as the phase starts,
+ * and which batch it is (1, 2, ...). At validation they describe a full vessel
+ * of designInlet liquid.
  */
-export const BATCH_SCOPE_NAMES = ['batch.gallons', 'batch.temperatureC', 'batch.massKg', 'batch.number'] as const;
+export const BATCH_SCOPE_NAMES = ['batch.gallons', 'batch.temperatureC', 'batch.massKg', 'batch.number', 'batch.cpKjPerKgK', 'batch.densityGPerCm3'] as const;
 
 /**
  * Static checks that a contract is coherent BEFORE it is ever simulated:

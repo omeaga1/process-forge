@@ -134,7 +134,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     summarize: (a) => `Simulate ${a.durationMinutes ?? 30} min`,
     run: async (a, host) => {
       const r = await graphOf(a, host);
-      return withSource(r, simulateLine(r.graph, Number(a.durationMinutes) || undefined, typeof a.seed === 'number' ? a.seed : undefined));
+      return withSource(r, simulateLine(r.graph, Number(a.durationMinutes) || undefined, typeof a.seed === 'number' ? a.seed : undefined, r.name));
     }
   },
   {
@@ -300,7 +300,11 @@ export const FORGE_TOOLS: ForgeTool[] = [
       properties: {
         unit: { type: 'string', description: `Catalog id from list_standard_unit_ops: ${STANDARD_EQUIPMENT_CATALOG.map((i) => i.id).join(', ')}.` },
         name: { type: 'string', description: 'Optional name, e.g. "Transfer Pump P-102". A tag like P-102 lets add_stream find it.' },
-        parameters: { type: 'object', description: 'Optional settings to change, by the names list_standard_unit_ops gives, e.g. { "designFlowRateGpm": 80 }.' },
+        parameters: {
+          type: 'object',
+          description:
+            'Optional settings to change, by the names list_standard_unit_ops gives, e.g. { "designFlowRateGpm": 80 }. Liquid feeds: the liquid it supplies, { "temperatureC": 25, "densityGPerCm3": 0.95, "specificHeatKjPerKgK": 1.9 }; unset, the liquid the unit it feeds was designed for.'
+        },
         material: { type: 'string', description: 'Feeds and outlets: what the stream is, e.g. "Latex base" or "Rejected cans".' },
         supplyRate: { type: 'number', description: 'Feeds: the most it supplies, gal/min for liquid or items/min. Omit or 0 to supply whatever the line takes.' },
         composition: { type: 'object', description: 'Liquid feeds, tanks and reactors: mass fractions by component, e.g. { "water": 0.88, "sugar": 0.12 }.' },

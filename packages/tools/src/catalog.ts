@@ -55,7 +55,9 @@ function describeEntry(item: EquipmentPaletteItem) {
       ? {
           note:
             'Its port takes on the kind of the first unit it is piped to (liquid or items). Give "material" to name what it carries' +
-            (item.terminalRole === 'feed' ? ', and "supplyRate" (gal/min or items/min) to limit the supply.' : '.')
+            (item.terminalRole === 'feed'
+              ? ', and "supplyRate" (gal/min or items/min) to limit the supply. Say what liquid it supplies with parameters { "temperatureC", "densityGPerCm3", "specificHeatKjPerKgK" }; unset, it supplies the liquid the unit it feeds was designed for.'
+              : '.')
         }
       : {})
   };

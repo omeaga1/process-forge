@@ -95,6 +95,13 @@ export interface DesignedUnitReport {
   secondsByPhase?: Record<string, number>;
   /** Reactions that ran short of a co-reactant at some point (they stopped when it ran out). */
   shortReactions?: string[];
+  /**
+   * Batch HOLD phases whose duty × time did not match the heat the batch took
+   * (m·cp·ΔT of what was in the vessel) by more than 5%: the worst batch, and
+   * how many batches. The phase's time does not follow from the batch's own
+   * properties; write it from batch.massKg and batch.cpKjPerKgK.
+   */
+  heatBalance?: { phase: string; deliveredKwh: number; neededKwh: number; batches: number }[];
 }
 
 export interface HeatReport {

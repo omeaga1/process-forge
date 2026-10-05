@@ -19,6 +19,7 @@ import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles, Undo2, R
 import {
   validateProcessGraph,
   defaultStreamFor,
+  defaultFluidFor,
   addStreamToGraph,
   effectivePortKind,
   portsFit,
@@ -537,7 +538,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         sourcePortId: connection.sourceHandle || 'out-1',
         targetPortId: connection.targetHandle || 'in-1',
         stream: defaultStreamFor(
-          sourcePort && targetPort ? effectivePortKind(g, sourceNode, sourcePort, targetNode, targetPort) : sourcePort ?? fallback
+          sourcePort && targetPort ? effectivePortKind(g, sourceNode, sourcePort, targetNode, targetPort) : sourcePort ?? fallback,
+          sourceNode && targetNode ? defaultFluidFor(sourceNode, targetNode) : undefined
         )
       };
       // A feed or outlet arrow takes on the kind of the unit it is piped to.

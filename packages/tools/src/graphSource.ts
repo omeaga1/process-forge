@@ -11,6 +11,8 @@ export interface ResolvedGraph {
   /** Where the flowsheet came from, so the result can say which line it describes. */
   source: 'graph' | 'template' | 'open-flowsheet' | 'demo';
   note?: string;
+  /** The open flowsheet's name in the app. */
+  name?: string;
 }
 
 export const DEMO_LINE = 'paint-canning-line';
@@ -32,6 +34,7 @@ export async function resolveGraph(params: GraphSourceParams, readOpen: ToolHost
     return {
       graph: open.graph,
       source: 'open-flowsheet',
+      ...(open.projectName ? { name: open.projectName } : {}),
       note: `The flowsheet open in ProcessForge${open.projectName ? ` ("${open.projectName}")` : ''}.`
     };
   }
