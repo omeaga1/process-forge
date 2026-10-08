@@ -148,7 +148,8 @@ function pipeState(
   // A gas or solids pipe is stated in its own units: what its port sends, else the unit's mass flow.
   if (!t || (edge?.phase !== 'GAS' && edge?.phase !== 'SOLID')) return { ...base, liveText: undefined };
   const port = t.portFlows?.[edge.sourcePortId];
-  const kgPerHour = port?.kgPerHour ?? t.kgPerHour ?? 0;
+  // A unit that reports per port: that port's flow, which is zero while it sends nothing.
+  const kgPerHour = t.portFlows ? port?.kgPerHour ?? 0 : t.kgPerHour ?? 0;
   const temperatureC = port?.temperatureC ?? t.temperatureC;
   const figure = edge.phase === 'GAS' && port?.acfm !== undefined ? `${fmtFlow(port.acfm)} ACFM` : `${fmtFlow(kgPerHour)} kg/h`;
   return {

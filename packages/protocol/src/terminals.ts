@@ -82,7 +82,7 @@ export function terminalPhase(node: Pick<ProcessNode, 'config'>): 'LIQUID' | 'GA
 export function feedMassSupplyKgPerS(node: Pick<ProcessNode, 'config'>): number | undefined {
   const c = node.config as { supplyKgPerHour?: unknown; supplyScfm?: unknown; composition?: Record<string, number> };
   if (typeof c.supplyKgPerHour === 'number' && Number.isFinite(c.supplyKgPerHour) && c.supplyKgPerHour > 0) return c.supplyKgPerHour / 3600;
-  if (typeof c.supplyScfm === 'number' && Number.isFinite(c.supplyScfm) && c.supplyScfm > 0) return scfmToKgPerS(c.supplyScfm, mixtureMolarMass(c.composition));
+  if (terminalPhase(node) === 'GAS' && typeof c.supplyScfm === 'number' && Number.isFinite(c.supplyScfm) && c.supplyScfm > 0) return scfmToKgPerS(c.supplyScfm, mixtureMolarMass(c.composition));
   return undefined;
 }
 

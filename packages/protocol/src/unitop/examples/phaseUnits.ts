@@ -27,7 +27,7 @@ export const DUST_COLLECTOR_CONTRACT: UnitOpContract = {
     { id: 'dirty_air', name: 'Dirty air', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', dispersed: { lubricant: 'SOLID' }, carries: ['air', 'lubricant'] },
     // No carries: whatever else the gas brings (water vapour, say) leaves with the clean air, not in the hopper.
     { id: 'clean_air', name: 'Clean air', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', dispersed: { lubricant: 'SOLID' } },
-    { id: 'hopper', name: 'Collected powder', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'SOLID', carries: ['lubricant'] }
+    { id: 'hopper', name: 'Collected powder', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'SOLID', carries: ['lubricant'], densityKgPerM3: 250 }
   ],
   components: ['air', 'lubricant'],
   parameters: [
@@ -160,7 +160,7 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
   ports: [
     { id: 'feed', name: 'Liquid feed', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID', carries: ['water', 'solids'] },
     { id: 'air_in', name: 'Process air', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', carries: ['air', 'water'] },
-    { id: 'powder', name: 'Powder', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'SOLID', dispersed: { water: 'LIQUID' }, carries: ['solids', 'water'] },
+    { id: 'powder', name: 'Powder', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'SOLID', dispersed: { water: 'LIQUID' }, carries: ['solids', 'water'], densityKgPerM3: 550 },
     { id: 'exhaust', name: 'Exhaust air', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', dispersed: { solids: 'SOLID' }, carries: ['air', 'water', 'solids'] }
   ],
   components: ['water', 'solids', 'air'],
@@ -195,8 +195,8 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
     { name: 'airKgPerS', label: 'Dry air in', unit: 'kg/s', expr: 'inlet.massFlowKgPerS * inlet.x.air' },
     { name: 'airWaterKgPerS', label: 'Water in the air', unit: 'kg/s', expr: 'airKgPerS * humidityIn' },
     { name: 'feedWaterKgPerS', label: 'Water in the feed', unit: 'kg/s', expr: 'max(0, inlet.massFlowKgPerS * inlet.x.water - airWaterKgPerS)' },
-    { name: 'powderKgPerS', label: 'Powder made', unit: 'kg/s', expr: 'solidsKgPerS / (1 - residualMoisture)' },
-    { name: 'powderWaterKgPerS', label: 'Water left in the powder', unit: 'kg/s', expr: 'min(powderKgPerS - solidsKgPerS, feedWaterKgPerS)' },
+    { name: 'powderKgPerS', label: 'Powder collected from the chamber', unit: 'kg/s', expr: 'solidsKgPerS * (1 - finesToExhaust) / (1 - residualMoisture)' },
+    { name: 'powderWaterKgPerS', label: 'Water left in the powder', unit: 'kg/s', expr: 'min(powderKgPerS * residualMoisture, feedWaterKgPerS)' },
     { name: 'evaporatedKgPerS', label: 'Water evaporated', unit: 'kg/s', expr: 'feedWaterKgPerS - powderWaterKgPerS' },
     {
       name: 'latentKjPerKg',

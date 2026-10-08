@@ -26,8 +26,11 @@ function recoveryBaghouse(): UnitOpContract {
     id: 'product-recovery-baghouse-v1',
     name: 'Product-recovery baghouse',
     description: 'Catches the spray dryer\'s fines from its exhaust and returns them as product. Humid exhaust in; clean air to the stack; powder out of the hopper.',
+    ports: renamed.ports.map((p) => (p.id === 'hopper' ? { ...p, densityKgPerM3: 500 } : p)),
     parameters: renamed.parameters.map((p) =>
-      p.name === 'dustMeltC'
+      p.name === 'molarMass'
+        ? { ...p, value: 28.2, description: 'Humid exhaust: air with about 4 % water vapour by mass.' }
+        : p.name === 'dustMeltC'
         ? { ...p, value: 140, description: 'Maltodextrin turns sticky well above the exhaust temperature at this moisture.' }
         : p.name === 'filterAreaFt2'
           ? { ...p, value: 400 }

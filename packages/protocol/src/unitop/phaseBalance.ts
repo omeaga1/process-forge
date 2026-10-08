@@ -59,8 +59,10 @@ function outletsFor(contract: UnitOpContract, component: string): UnitOpPort[] {
 function heatSources(contract: UnitOpContract): string[] {
   const out: string[] = [];
   const b = contract.behavior;
-  if (b.mode === 'CONTINUOUS_RATE' && b.dutyKw) out.push('behavior.dutyKw');
-  if (b.mode === 'BATCH' && b.phases.some((ph) => ph.dutyKw)) out.push('a HOLD phase dutyKw');
+  // A duty written as zero or as a negative (cooling) supplies no heat.
+  const supplies = (expr: string | undefined) => Boolean(expr) && !/^\s*(-|0+(\.0*)?\s*$)/.test(expr!);
+  if (b.mode === 'CONTINUOUS_RATE' && supplies(b.dutyKw)) out.push('behavior.dutyKw');
+  if (b.mode === 'BATCH' && b.phases.some((ph) => supplies(ph.dutyKw))) out.push('a HOLD phase dutyKw');
   for (const p of contract.ports) {
     if (p.direction !== 'INLET') continue;
     if (p.role === 'UTILITY' || p.role === 'ENERGY') out.push(`${p.role.toLowerCase()} port "${p.id}"`);
@@ -137,14 +139,18 @@ export function phaseIssues(contract: UnitOpContract): ContractValidationIssue[]
   for (const c of components ?? []) {
     const cameIn = new Set(inlets.filter((p) => carries(p, c)).map((p) => componentPhaseAt(p, c)));
     const changesOfC = changes.filter((pc) => pc.component === c);
+    // The phases it can reach: what it enters as, then every change from there, chained (melt, then evaporate).
+    const reachable = new Set(cameIn);
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const pc of changesOfC) if (reachable.has(pc.from) && !reachable.has(pc.to)) ((grew = true), reachable.add(pc.to));
+    }
     for (const pc of changesOfC) {
-      if (cameIn.size > 0 && !cameIn.has(pc.from)) {
-        issues.push({ path: 'phaseChanges', message: `"${c}" changes from ${pc.from}, but it only enters as ${[...cameIn].join(', ')}` });
+      if (cameIn.size > 0 && !reachable.has(pc.from)) {
+        issues.push({ path: 'phaseChanges', message: `"${c}" changes from ${pc.from}, but it only enters as ${[...cameIn].join(', ')} and nothing takes it to ${pc.from} first` });
       }
     }
     if (cameIn.size === 0) continue; // Made in the unit (by a reaction), or not carried in at all.
-    const reachable = new Set(cameIn);
-    for (const pc of changesOfC) if (reachable.has(pc.from)) reachable.add(pc.to);
     for (const p of outletsFor(contract, c)) {
       if (portPhase(p) === 'ITEMS') continue;
       const ph = componentPhaseAt(p, c);
@@ -290,11 +296,16 @@ export function phaseEnergy(
 /** A warning when the latent duty at the design point is more than the unit's stated duty. */
 export function phaseEnergyWarnings(check: PhaseEnergyCheck | undefined): string[] {
   if (!check || check.dutyKw === undefined) return [];
+  if (check.dutyKw <= 0) {
+    return [
+      `phase-energy: the phase changes take about ${Math.round(check.latentKw)} kW of latent heat at the design point, but the unit's duty is ${Math.round(check.dutyKw)} kW (${check.dutyKw < 0 ? 'cooling' : 'none'}). A change that takes heat needs a positive duty or a hot stream.`
+    ];
+  }
   const exact = check.changes.every((c) => !c.estimate);
-  if (exact ? check.latentKw <= Math.abs(check.dutyKw) * 1.001 : true) return [];
+  if (exact ? check.latentKw <= check.dutyKw * 1.001 : true) return [];
   const what = check.changes.map((c) => `${c.component} ${c.from.toLowerCase()} to ${c.to.toLowerCase()}: ${round3(c.kgPerS)} kg/s x ${Math.round(c.latentKjPerKg)} kJ/kg = ${Math.round(c.kw)} kW`).join('; ');
   return [
-    `phase-energy: at the design point the phase changes take ${Math.round(check.latentKw)} kW of latent heat (${what}), more than the unit's duty of ${Math.round(Math.abs(check.dutyKw))} kW. The duty cannot make the change it declares: raise the duty, or let less change phase.`
+    `phase-energy: at the design point the phase changes take ${Math.round(check.latentKw)} kW of latent heat (${what}), more than the unit's duty of ${Math.round(check.dutyKw)} kW. The duty cannot make the change it declares: raise the duty, or let less change phase.`
   ];
 }
 

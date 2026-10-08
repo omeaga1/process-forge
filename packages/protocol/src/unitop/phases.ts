@@ -221,7 +221,7 @@ export function waterLatentHeatKjPerKg(tempC: number): number {
   if (tempC <= 100) return 2500.9 - 2.445 * Math.max(tempC, 0);
   const tc = 647.096;
   const tr = Math.min(tempC + 273.15, tc);
-  // Exponent 0.33 fits the steam tables from 100 to 250 °C within 0.5 %.
+  // Exponent 0.33 fits the steam tables within 0.5 % from 100 to 200 °C, 1.2 % at 250 °C.
   return 2256.4 * Math.pow((tc - tr) / (tc - 373.15), 0.33);
 }
 
@@ -295,7 +295,7 @@ export const PHASE_ARCHETYPES: readonly PhaseArchetype[] = [
   {
     id: 'dust-collector',
     name: 'Dust collector (baghouse / cartridge / pulse-jet)',
-    keywords: ['dust collector', 'baghouse', 'bag house', 'bag filter', 'cartridge collector', 'pulse jet', 'pulse-jet', 'fabric filter', 'dust extraction', 'dust'],
+    keywords: ['dust collector', 'baghouse', 'bag house', 'bag filter', 'cartridge collector', 'pulse jet', 'fabric filter', 'dust extraction', 'dust'],
     summary: 'Dust-laden air in; clean air out the top; collected powder out of the hopper. Mechanical separation: no phase changes, the dust stays SOLID throughout.',
     components: ['air', 'dust'],
     ports: [
@@ -472,7 +472,7 @@ export const PHASE_ARCHETYPES: readonly PhaseArchetype[] = [
   {
     id: 'mill',
     name: 'Mill / grinder / blender',
-    keywords: ['mill', 'grinder', 'pulveriser', 'pulverizer', 'blender', 'v-blender', 'ribbon blender', 'granulator', 'sieve', 'screen'],
+    keywords: ['mill', 'grinder', 'pulveriser', 'pulverizer', 'blender', 'v blender', 'ribbon blender', 'granulator', 'sieve', 'screen'],
     summary: 'Solids in, solids out: size reduction or mixing. No phase change.',
     components: ['solids'],
     ports: [
@@ -516,8 +516,11 @@ export const PHASE_ARCHETYPES: readonly PhaseArchetype[] = [
 ];
 
 function score(text: string, a: PhaseArchetype): number {
-  // Longer phrases are more specific: "spray dryer" outranks "dryer".
-  return a.keywords.reduce((s, k) => (text.includes(k) ? s + k.split(' ').length * 2 + k.length / 20 : s), 0);
+  // Whole words only, and a keyword inside a longer one that also matched ("condense" in
+  // "condenser", "dryer" in "spray dryer") scores once, as the longer one.
+  const hits = a.keywords.filter((k) => text.includes(` ${k} `) || (k.length >= 6 && new RegExp(` ${k}[a-z]* `).test(text)));
+  const kept = hits.filter((k) => !hits.some((o) => o !== k && o.length > k.length && o.includes(k)));
+  return kept.reduce((s, k) => s + k.split(' ').length * 2 + k.length / 20, 0);
 }
 
 /** The archetypes a description matches, best first. */

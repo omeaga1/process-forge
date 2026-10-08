@@ -87,7 +87,7 @@ describe('phase-aware worked examples', () => {
     const d = r.derived!;
     assert.ok(d.heatAvailableKw! >= d.heatNeededKw!);
     near(d.exhaustRh!, 0.095, 0.01, 'exhaust RH');
-    near(d.powderKgPerH!, 41.7, 0.2, 'powder, kg/h');
+    near(d.powderKgPerH!, 40.83, 0.05, 'powder, kg/h: 98 % of the solids at 4 % moisture');
     assert.deepEqual(phaseWarnings(SPRAY_DRYER_CONTRACT), []);
   });
   it('a spray dryer starved of air is physically rejected', () => {
@@ -243,5 +243,39 @@ describe('latent heat against the stated duty', () => {
   it('is quiet when the duty covers it', () => {
     const r = executeValidateUnitOp({ contract: boiler('2100') });
     assert.ok(!r.gates.physical.warnings.some((w) => w.startsWith('phase-energy')));
+  });
+});
+
+describe('phase gate: review fixes', () => {
+  it('accepts a chain of changes (melt, then evaporate)', () => {
+    const c = clone(SPRAY_DRYER_CONTRACT);
+    c.ports[0]!.phase = 'SOLID'; // a solid feed that melts, then its water evaporates
+    c.ports[0]!.dispersed = { water: 'SOLID', solids: 'SOLID' };
+    c.phaseChanges = [
+      { component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'EVAPORATION', latentHeatKjPerKg: 'latentKjPerKg' },
+      { component: 'water', from: 'SOLID', to: 'LIQUID', mechanism: 'MELTING', latentHeatKjPerKg: '334' }
+    ];
+    const issues = phaseIssues(c).map((i) => i.message).join('\n');
+    assert.doesNotMatch(issues, /water/, issues);
+  });
+  it('does not take a cooling duty as the heat for evaporation', () => {
+    const c: UnitOpContract = clone(JUICE_CONCENTRATOR_CONTRACT);
+    c.ports.find((p) => p.id === 'vapour')!.phase = 'GAS';
+    c.phaseChanges = [{ component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'EVAPORATION', latentHeatKjPerKg: 'latentKjPerKg' }];
+    if (c.behavior.mode === 'CONTINUOUS_RATE') c.behavior.dutyKw = '-steamKw';
+    assert.match(phaseIssues(c).map((i) => i.message).join('\n'), /no heat source/);
+  });
+  it('matches whole words, the longer phrase once', () => {
+    assert.equal(matchPhaseArchetype('evaporator with a vapour condenser')?.id, 'evaporator');
+    assert.equal(matchPhaseArchetype('a pulse-jet collector')?.id, 'dust-collector');
+    assert.equal(matchPhaseArchetype('cooling crystalliser')?.id, 'crystalliser');
+    assert.equal(matchPhaseArchetype('profiler'), null, 'no "filter" inside another word');
+  });
+  it('unit names are not object built-ins', () => {
+    assert.equal(parseUnit('constructor'), null);
+    assert.equal(parseUnit('toString/s'), null);
+  });
+  it('SCFM is a gas feed\'s supply only', () => {
+    assert.equal(feedMassSupplyKgPerS(createTerminalNode('feed', { supplyScfm: 1000 })), undefined);
   });
 });

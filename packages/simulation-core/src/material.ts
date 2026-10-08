@@ -10,6 +10,9 @@ import {
   react,
   terminalRole,
   terminalSupplyRate,
+  componentPhaseAt,
+  idealGasDensity,
+  mixtureMolarMass,
   feedGasDensityGPerCm3,
   feedMassSupplyKgPerS,
   type EvaluatedBatchPhase,
@@ -731,6 +734,33 @@ export class MaterialNetwork {
     };
   }
 
+  /**
+   * kg/m³ of what leaves by a port that states its phase: a gas by the ideal
+   * gas law at the temperature it leaves at (its dispersed matter adds mass,
+   * not volume), a solid at its bulk density (600 unless stated), a liquid at
+   * its stated density. Undefined for ports that state no phase: they keep the
+   * volume of the unit's own mix, as before.
+   */
+  private portDensity(u: MaterialUnit, portId: string | undefined, comp: Composition, tempC: number): number | undefined {
+    const port = portId ? u.contract?.ports.find((p) => p.id === portId) : undefined;
+    if (!port?.phase || port.flowDimension !== 'CONTINUOUS_FLUID') return undefined;
+    if (port.phase === 'GAS') {
+      const entries = Object.entries(comp).filter(([, f]) => f > 0);
+      const gas = entries.filter(([c]) => componentPhaseAt(port, c) === 'GAS');
+      const gasFraction = entries.length ? gas.reduce((a, [, f]) => a + f, 0) : 1;
+      if (gasFraction <= 0) return undefined;
+      return idealGasDensity(tempC, 101.325, mixtureMolarMass(Object.fromEntries(gas))) / gasFraction;
+    }
+    if (port.phase === 'SOLID') return port.densityKgPerM3 ?? 600;
+    return port.densityKgPerM3;
+  }
+
+  /** A parcel leaving by a port, with the volume of the port's phase. */
+  private inPhase(u: MaterialUnit, port: string, p: Parcel): Parcel {
+    const rho = this.portDensity(u, port, p.comp, p.tempC);
+    return rho ? { ...p, m3: p.kg / rho } : p;
+  }
+
   /** The design flow of a unit's outlet pipes, m³/s (45 gal/min each by default). */
   private pipeDesignRate(u: MaterialUnit): number {
     const gpm = (this.outEdges.get(u.id) ?? []).reduce((sum, e) => {
@@ -842,7 +872,7 @@ export class MaterialNetwork {
           const declared = plan.unpiped.reduce((a, x) => a + x.share, 0);
           for (const x of plan.unpiped) {
             const f = declared > 0 ? x.share / declared : 0;
-            tallyPort(u, x.port, { ...parcel, kg: parcel.kg * f, m3: parcel.m3 * f, ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) });
+            tallyPort(u, x.port, this.inPhase(u, x.port, { ...parcel, kg: parcel.kg * f, m3: parcel.m3 * f, ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) }));
           }
         }
       } else {
@@ -858,7 +888,12 @@ export class MaterialNetwork {
           const v = total * o.share;
           if (v <= 0) continue;
           remaining.set(o.target.id, remaining.get(o.target.id)! - v);
-          const piece: Parcel = { kg: v * kgPerM3, m3: v, tempC: o.temp ?? parcel.tempC, cp: parcel.cp, comp: o.comp ?? { ...parcel.comp } };
+          const tempC = o.temp ?? parcel.tempC;
+          const comp = o.comp ?? { ...parcel.comp };
+          // Mass splits by the plan; a port that states its phase gets the volume of that phase.
+          const kg = v * kgPerM3;
+          const rho = this.portDensity(u, o.port, comp, tempC);
+          const piece: Parcel = { kg, m3: rho ? kg / rho : v, tempC, cp: parcel.cp, comp };
           this.receive(o.target, piece, dt);
           mixInto(u.heat.sent, piece);
           tallyPort(u, o.port, piece);
@@ -867,7 +902,7 @@ export class MaterialNetwork {
           // A declared outlet with no pipe leaves the line; the unclaimed remainder is lost.
           const scale = (f: number): Parcel => ({ ...parcel, kg: parcel.kg * f, m3: parcel.m3 * f, comp: { ...parcel.comp } });
           if (plan.unpipedShare > 0) mixInto(u.leftLine, scale(plan.unpipedShare));
-          for (const x of plan.unpiped) tallyPort(u, x.port, { ...scale(x.share), ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) });
+          for (const x of plan.unpiped) tallyPort(u, x.port, this.inPhase(u, x.port, { ...scale(x.share), ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) }));
           if (plan.lossShare > 0) mixInto(u.lost, scale(plan.lossShare));
         }
         mixInto(u.delivered, parcel);

@@ -69,7 +69,13 @@ export const UnitOpPortSchema = z.object({
    */
   dispersed: z.record(MaterialPhaseSchema).optional(),
   /** The components this port carries. Absent: any. */
-  carries: z.array(z.string().min(1)).optional()
+  carries: z.array(z.string().min(1)).optional(),
+  /**
+   * kg/m³ of what leaves by this port, for its volume: a SOLID port's bulk
+   * density (600 when absent), a LIQUID port's density. A GAS port's density
+   * comes from the ideal gas law at the temperature it leaves at.
+   */
+  densityKgPerM3: z.number().positive().optional()
 });
 export type UnitOpPort = z.infer<typeof UnitOpPortSchema>;
 

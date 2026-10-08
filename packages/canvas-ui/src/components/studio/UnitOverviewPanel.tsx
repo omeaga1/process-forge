@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import type { ProcessGraph, ProcessNode } from '@process-forge/protocol';
+import { nodePortPhase, type ProcessGraph, type ProcessNode } from '@process-forge/protocol';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import { ArrowRight, Droplets, Package, CircleSlash, Flag, Gauge, Info } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
@@ -99,7 +99,14 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
     const peers = peersOf(port, dir);
     const discrete = String(port.flowDimension).startsWith('DISCRETE');
     const role = contractPorts.get(port.id);
-    const color = discrete ? palette.streams.discreteContainer : palette.streams.continuousFluid;
+    const phase = discrete ? undefined : nodePortPhase(node, port.id);
+    const color = discrete
+      ? palette.streams.discreteContainer
+      : phase === 'GAS'
+        ? palette.streams.gas
+        : phase === 'SOLID'
+          ? palette.streams.solid
+          : palette.streams.continuousFluid;
     return (
       <div key={port.id} style={{ ...card, padding: '8px 10px', borderLeft: `3px solid ${color}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -109,7 +116,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
           </span>
         </div>
         <div style={{ fontSize: 11, color: palette.text.muted, marginTop: 2 }}>
-          {discrete ? 'Containers / parts' : 'Fluid'}
+          {discrete ? 'Containers / parts' : phase === 'GAS' ? 'Gas' : phase === 'SOLID' ? 'Bulk solids' : phase === 'LIQUID' ? 'Liquid' : 'Fluid'}
           {role && role !== 'MATERIAL' ? ` · ${role.toLowerCase()}` : ''}
         </div>
         <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -281,7 +288,8 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
               {d}
             </li>
           ))}
-          {node.outputs.length > 1 && (
+          {/* Items go to the outlets in turn; a liquid, gas or solid splits by its outlet plan (said above). */}
+          {node.outputs.length > 1 && node.outputs.every((o) => String(o.flowDimension).startsWith('DISCRETE')) && (
             <li style={{ fontSize: 13, lineHeight: 1.5, color: palette.text.secondary }}>
               With more than one outlet, output is dealt out one unit at a time to each in turn.
             </li>

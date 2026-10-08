@@ -4,6 +4,7 @@ import {
   UnitOpContractSchema,
   TERMINAL_ROLE_LABEL,
   terminalCarries,
+  terminalPhase,
   terminalMaterial,
   terminalRole,
   terminalSupplyRate,
@@ -260,6 +261,27 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
   const tRole = terminalRole(node);
   if (tRole) {
     const items = terminalCarries(node) === 'items';
+    const phase = terminalPhase(node) ?? 'LIQUID';
+    // A feed's supply is stated in one unit: SCFM (a gas), kg/h, or gal/min (items/min for items).
+    const supplyUnit: 'scfm' | 'kgh' | 'gpm' =
+      !items && phase === 'GAS' && typeof config.supplyScfm === 'number' ? 'scfm' : !items && typeof config.supplyKgPerHour === 'number' ? 'kgh' : 'gpm';
+    const supplyValue = supplyUnit === 'scfm' ? Number(config.supplyScfm) : supplyUnit === 'kgh' ? Number(config.supplyKgPerHour) : terminalSupplyRate(node);
+    const withSupply = (unit: 'scfm' | 'kgh' | 'gpm', v: number): Record<string, unknown> => {
+      const { supplyScfm: _s, supplyKgPerHour: _k, ...rest } = config as Record<string, unknown>;
+      if (unit === 'scfm') return { ...rest, supplyRate: 0, supplyScfm: v };
+      if (unit === 'kgh') return { ...rest, supplyRate: 0, supplyKgPerHour: v };
+      return { ...rest, supplyRate: v };
+    };
+    const chip = (on: boolean): React.CSSProperties => ({
+      padding: '5px 10px',
+      borderRadius: r.md,
+      fontSize: 12,
+      fontWeight: on ? 700 : 500,
+      border: `1px solid ${on ? palette.jade[500] : palette.border.subtle}`,
+      background: on ? `${palette.jade[500]}22` : 'transparent',
+      color: on ? palette.text.primary : palette.text.secondary,
+      cursor: 'pointer'
+    });
     const textBox: React.CSSProperties = { ...numberBox(false), width: 200, padding: '5px 8px' };
     return (
       <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -307,6 +329,35 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
             />
           </label>
         </div>
+        {!items && (
+          <div style={row}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>Phase</div>
+              <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>
+                {phase === 'GAS' ? 'An ideal gas at its temperature, unless it states a density.' : phase === 'SOLID' ? 'Bulk solids, counted in kg.' : 'A liquid.'}
+              </div>
+            </div>
+            <div role="radiogroup" aria-label="Phase" style={{ display: 'flex', gap: 4 }}>
+              {(['LIQUID', 'GAS', 'SOLID'] as const).map((ph) => (
+                <button
+                  key={ph}
+                  type="button"
+                  role="radio"
+                  aria-checked={phase === ph}
+                  onClick={() => {
+                    const next: Record<string, unknown> = { ...config, phase: ph };
+                    // SCFM only describes a gas.
+                    if (ph !== 'GAS' && typeof next.supplyScfm === 'number') delete next.supplyScfm;
+                    onUpdateConfig(node.id, next);
+                  }}
+                  style={chip(phase === ph)}
+                >
+                  {ph.charAt(0) + ph.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {tRole === 'feed' && (
           <div style={row}>
             <div>
@@ -319,19 +370,32 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
                 aria-label="Supply rate"
                 min={0}
                 step="any"
-                value={terminalSupplyRate(node)}
+                value={supplyValue}
                 onChange={(e) => {
                   const v = parseFloat(e.target.value);
-                  if (Number.isFinite(v) && v >= 0) onUpdateConfig(node.id, { ...config, supplyRate: v });
+                  if (Number.isFinite(v) && v >= 0) onUpdateConfig(node.id, withSupply(supplyUnit, v));
                 }}
                 style={input}
               />
-              <span style={unitTag}>{items ? 'items/min' : 'gal/min'}</span>
+              {items ? (
+                <span style={unitTag}>items/min</span>
+              ) : (
+                <select
+                  aria-label="Supply unit"
+                  value={supplyUnit}
+                  onChange={(e) => onUpdateConfig(node.id, withSupply(e.target.value as 'scfm' | 'kgh' | 'gpm', supplyValue))}
+                  style={{ ...unitTag, background: 'transparent', border: 'none', color: palette.text.secondary, cursor: 'pointer' }}
+                >
+                  {(phase !== 'GAS' || supplyUnit === 'gpm') && <option value="gpm">gal/min</option>}
+                  <option value="kgh">kg/h</option>
+                  {phase === 'GAS' && <option value="scfm">SCFM</option>}
+                </select>
+              )}
             </label>
           </div>
         )}
         <div style={{ fontSize: 12, color: palette.text.muted, lineHeight: 1.5, marginTop: 10 }}>
-          Carries {items ? 'whole items' : 'liquid'}. An arrow with nothing piped to it takes on the kind of the first unit you pipe it to.
+          Carries {items ? 'whole items' : phase === 'GAS' ? 'a gas' : phase === 'SOLID' ? 'bulk solids' : 'liquid'}. An arrow with nothing piped to it takes on the kind of the first unit you pipe it to.
         </div>
       </div>
     );

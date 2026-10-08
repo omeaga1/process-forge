@@ -100,7 +100,7 @@ const times = (a: Dimension, b: Dimension, k = 1): Dimension => D(a[0] + k * b[0
 export function parseUnit(unit: string): Dimension | null {
   const u = unit.trim();
   if (u === '' || u === '-' || u === '1') return DIMENSIONLESS;
-  if (u in ATOMS) return ATOMS[u]!;
+  if (Object.prototype.hasOwnProperty.call(ATOMS, u)) return ATOMS[u]!;
   const slash = u.indexOf('/');
   const num = slash < 0 ? u : u.slice(0, slash);
   const den = slash < 0 ? '' : u.slice(slash + 1).replace(/^\(|\)$/g, '');
@@ -109,7 +109,7 @@ export function parseUnit(unit: string): Dimension | null {
     const factors = part.split(/[\s·*.\-/]+(?![0-9])/).filter(Boolean);
     for (const f of factors) {
       if (/^\d+$/.test(f)) continue; // "1/min"
-      if (f in ATOMS) {
+      if (Object.prototype.hasOwnProperty.call(ATOMS, f)) {
         // A symbol that ends in a digit of its own ("Nm3"), not a power.
         dim = times(dim, ATOMS[f]!, sign);
         continue;
@@ -117,7 +117,7 @@ export function parseUnit(unit: string): Dimension | null {
       const parsed = parseFactor(f);
       if (!parsed) return null;
       if (parsed.symbol === '' || parsed.symbol === '1') continue;
-      const atom = ATOMS[parsed.symbol];
+      const atom = Object.prototype.hasOwnProperty.call(ATOMS, parsed.symbol) ? ATOMS[parsed.symbol] : undefined;
       if (!atom) return null;
       dim = times(dim, atom, sign * parsed.power);
     }
