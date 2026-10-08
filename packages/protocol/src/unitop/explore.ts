@@ -1,6 +1,20 @@
 import { referencedNames } from './expression.js';
 import { contractExpressions, type UnitOpContract, type UnitOpParameter } from './contract.js';
 import { evaluateUnitOp, type UnitOpEvaluationInput } from './evaluate.js';
+import { parseUnit } from './dimensions.js';
+
+/**
+ * Whole numbers only: declared integer, or counted in things (nozzles,
+ * containers, stations) rather than a fraction. Explored and solved in whole
+ * steps, since the engine refuses a queue of 12.5 containers.
+ */
+export function isWholeNumberParameter(p: UnitOpParameter): boolean {
+  if (p.integer) return true;
+  const u = p.unit.trim();
+  if (['-', '%', '', 'ratio', 'fraction', 'ppm', 'ppb', 'x', '×', 'rad', 'deg', '°', 'dB'].includes(u)) return false;
+  const d = parseUnit(u);
+  return !!d && d.every((x) => x === 0) && Number.isInteger(p.value);
+}
 
 /**
  * Exploring a design around its current point, for the parameters panel and
@@ -80,7 +94,8 @@ export function sweepParameter(contract: UnitOpContract, name: string, samples =
   const p = contract.parameters.find((x) => x.name === name);
   if (!p) return { range: { from: 0, to: 1, log: false }, points: [], transitions: [] };
   const r = range ?? sweepRange(p);
-  const at = (value: number) => statusOf(contract, { [name]: p.integer ? Math.round(value) : value }, input);
+  const whole = isWholeNumberParameter(p);
+  const at = (value: number) => statusOf(contract, { [name]: whole ? Math.round(value) : value }, input);
   const points: SweepPoint[] = [];
   for (let i = 0; i < samples; i++) {
     const value = atFraction(r, samples === 1 ? 0 : i / (samples - 1));
@@ -98,7 +113,7 @@ export function sweepParameter(contract: UnitOpContract, name: string, samples =
       if (at(mid).status === a.status) lo = mid;
       else hi = mid;
     }
-    transitions.push({ value: p.integer ? Math.round(hi) : hi, from: a.status, to: b.status });
+    transitions.push({ value: whole ? Math.round(hi) : hi, from: a.status, to: b.status });
   }
   return { range: r, points, transitions };
 }
@@ -131,7 +146,9 @@ export function solveForConstraint(contract: UnitOpContract, constraintId: strin
   const p = contract.parameters.find((x) => x.name === parameter);
   if (!p) return null;
   const r = sweepRange(p);
-  const holds = (v: number): boolean | null => {
+  const whole = isWholeNumberParameter(p);
+  const holds = (raw: number): boolean | null => {
+    const v = whole ? Math.round(raw) : raw;
     const ev = evaluateUnitOp(contract, { ...input, parameterOverrides: { ...(input.parameterOverrides ?? {}), [parameter]: v } });
     if (ev.error) return null;
     return ev.constraints.find((c) => c.id === constraintId)?.satisfied ?? null;
@@ -163,8 +180,8 @@ export function solveForConstraint(contract: UnitOpContract, constraintId: strin
   let value = hi;
   const inward = good === hi ? 0 : (good - hi) * 0.01;
   value += inward;
-  let tidy = p.integer ? (good >= bad ? Math.ceil(value) : Math.floor(value)) : niceValue(value);
-  if (holds(tidy) !== true) tidy = p.integer ? Math.round(good) : niceValue(good);
+  let tidy = whole ? (good >= bad ? Math.ceil(value) : Math.floor(value)) : niceValue(value);
+  if (holds(tidy) !== true) tidy = whole ? Math.round(good) : niceValue(good);
   if (holds(tidy) !== true) tidy = good;
   if (p.min !== undefined) tidy = Math.max(p.min, tidy);
   if (p.max !== undefined) tidy = Math.min(p.max, tidy);
