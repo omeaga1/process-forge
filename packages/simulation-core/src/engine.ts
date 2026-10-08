@@ -818,11 +818,13 @@ export class SimulationEngine {
   /** The heat a liquid unit moved: a duty it states, or a batch's heating. */
   private heatReport(u: MaterialUnit): { heat?: HeatReport } {
     if (!(u.heat.energyKwh > 1e-9) && !(u.heat.activeSeconds > 0)) return {};
-    const energyKwh = round1(u.heat.energyKwh);
+    // A pump's fraction of a kilowatt matters as much as a dryer's megawatts: small figures keep three significant figures.
+    const fig = (v: number) => (Math.abs(v) >= 100 ? round1(v) : Number(v.toPrecision(3)));
+    const energyKwh = fig(u.heat.energyKwh);
     return {
       heat: {
         energyKwh,
-        ...(u.role === 'pass' && u.heat.activeSeconds > 0 ? { averageDutyKw: round1((u.heat.energyKwh * 3600) / u.heat.activeSeconds) } : {}),
+        ...(u.role === 'pass' && u.heat.activeSeconds > 0 ? { averageDutyKw: fig((u.heat.energyKwh * 3600) / u.heat.activeSeconds) } : {}),
         ...(u.heat.heatingSeconds > 0 ? { heatingTimeSeconds: Math.round(u.heat.heatingSeconds) } : {})
       }
     };

@@ -394,3 +394,23 @@ What a failure means:
 
 - In a declared archetype, a relation that does not hold is an ERROR. This catches a wrong formula, or a missing ÷ 1000, which the dimension check cannot see.
 - A role the engine cannot bind is reported, with a `roles` fix to name it.
+
+## A line verified unit by unit: juice concentration
+
+The **Juice concentration line** example (`juice-concentration-line`, `templates/juiceLine.ts`) was built through the MCP server. It was then checked against hand calculations made apart from the engine: Antoine for the boiling point, steam-table latent heat.
+
+| Unit | Quantity | Hand | Engine |
+| --- | --- | --- | --- |
+| Feed F-100 | juice | 4,760.5 kg/h | 4,760.5 kg/h |
+| P-101 | shaft power, Q·Δp/η | 0.497 kW | 0.497 kW |
+| E-101 | preheat duty, m·cp·ΔT | 295.3 kW | 295.1 kW |
+| EV-201 | boiling point at 31.2 kPa | 70.08 °C | 70.0 °C (IF97) |
+| EV-201 | vapour boiled off | 3,378 kg/h | 3,384 kg/h |
+| EV-201 | concentrate | 41.3 °Brix | 41.5 °Brix |
+| C-301 | condensing duty | 2,189 kW | 2,190 kW |
+| C-301 | cooling water return | 42.35 °C | 42.4 °C |
+| Line | mass and sugar balance | — | within 0.01 % |
+
+Its designed units are shipped as worked examples (`examples/juiceConcentration.ts`): two pumps, a vacuum evaporator and a surface condenser. Each declares its archetype and passes its governing relation. A test holds the line to these numbers.
+
+Building it found and fixed one engine bug. A liquid outlet with no stated density, such as a condenser's condensate, kept the volume the stream had as vapour, and reported thousands of gal/min. It now leaves with a liquid's volume.

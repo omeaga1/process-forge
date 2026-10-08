@@ -5,6 +5,7 @@
  */
 import type { ProcessGraph } from '../graph.js';
 import { SPRAY_DRYING_LINE } from './powderLine.js';
+import { JUICE_CONCENTRATION_LINE } from './juiceLine.js';
 
 export const PAINT_CANNING_LINE: ProcessGraph = {
   id: 'paint-canning-line-01',
@@ -574,10 +575,11 @@ export const BLANK_LINE: ProcessGraph = {
 export const EXAMPLE_LINES: Record<string, ProcessGraph> = {
   'paint-canning-line': PAINT_CANNING_LINE,
   'beverage-bottling-line': BEVERAGE_BOTTLING_LINE,
-  'spray-drying-line': SPRAY_DRYING_LINE
+  'spray-drying-line': SPRAY_DRYING_LINE,
+  'juice-concentration-line': JUICE_CONCENTRATION_LINE
 };
 
-export { SPRAY_DRYING_LINE };
+export { SPRAY_DRYING_LINE, JUICE_CONCENTRATION_LINE };
 
 /** Keys earlier versions used, still accepted. */
 export const EXAMPLE_LINE_ALIASES: Record<string, string> = {

@@ -80,6 +80,9 @@ export interface Parcel {
 
 const emptyParcel = (): Parcel => ({ kg: 0, m3: 0, tempC: AMBIENT_C, cp: DEFAULT_SPECIFIC_HEAT, comp: {} });
 
+/** Below this a stream is a gas or vapour by its density (water vapour at 70 °C: 0.2 kg/m3; light oils: 700). */
+const GAS_LIKE_KG_PER_M3 = 50;
+
 /** Adds a parcel to what a unit has sent by one port. */
 function tallyPort(u: MaterialUnit, port: string | undefined, p: Parcel): void {
   if (!port || (p.kg <= 0 && p.m3 <= 0)) return;
@@ -851,7 +854,12 @@ export class MaterialNetwork {
   /** A parcel leaving by a port, with the volume of the port's phase. */
   private inPhase(u: MaterialUnit, port: string, p: Parcel): Parcel {
     const rho = this.portDensity(u, port, p.comp, p.tempC);
-    return rho ? { ...p, m3: p.kg / rho } : p;
+    if (rho) return { ...p, m3: p.kg / rho };
+    // A liquid outlet carrying what came in as a gas (a condenser's condensate)
+    // takes a liquid's volume, not the vapour's: 1000 kg/m3 unless the port says.
+    const spec = u.contract?.ports.find((x) => x.id === port);
+    if (spec?.phase === 'LIQUID' && p.m3 > 0 && p.kg / p.m3 < GAS_LIKE_KG_PER_M3) return { ...p, m3: p.kg / (spec.densityKgPerM3 ?? 1000) };
+    return p;
   }
 
   /** The design flow of a unit's outlet pipes, m³/s (45 gal/min each by default). */
