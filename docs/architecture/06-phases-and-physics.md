@@ -348,3 +348,49 @@ gate checks that it is the equipment it claims to be
 - When the contract's own constraints fail, the verdict includes
   `suggestedFixes`: single-parameter values the engine solved for. The
   parameters panel offers the same fixes as one-click buttons.
+
+## Property functions
+
+A contract can call these instead of typing property values (`properties.ts`).
+
+| Function | Returns | Source |
+| --- | --- | --- |
+| `water_psat(T °C)` | kPa | IAPWS-IF97 region 4 (saturation line) |
+| `water_tsat(P kPa abs)` | °C | IAPWS-IF97 region 4 |
+| `water_rho(T °C)` | kg/m³ | Kell (1975), liquid, 0–150 °C |
+| `water_cp(T °C)` | kJ/kg·K | liquid, 0–100 °C |
+| `water_hvap(T °C)` | kJ/kg | the engine's own latent-heat curve |
+| `gas_rho(T °C, P kPa abs, M kg/kmol)` | kg/m³ | ideal gas |
+| `air_rho(T °C, P kPa abs)` | kg/m³ | ideal gas, M = 28.9647 |
+
+How the arguments are checked:
+
+- **Dimension.** Each argument must be the right kind of quantity: a temperature, a pressure, a molar mass.
+- **Unit.** A parameter or derived value passed straight in must be declared in the function's own unit. A temperature in K or a gauge pressure is an error, with the conversion to write.
+- **Range.** A value outside a function's range is an evaluation error, so a property is never extrapolated silently.
+
+## Governing relations
+
+Requirements check that a quantity exists. Relations check that it is right.
+
+Where the archetypes have relations (`ARCHETYPE_RELATIONS` in `archetypes.ts`):
+
+| Archetype | Relation |
+| --- | --- |
+| Pump, fan | power × efficiency = flow × pressure rise |
+| Heater | duty = m·cp·(T_out − T_in) |
+| Dust collector | air-to-cloth = actual flow ÷ cloth area |
+| Evaporator | duty ≥ vapour × λ |
+| Condenser | duty = vapour × λ |
+| Agitated mixer | P = Np·ρ·N³·D⁵ |
+
+How a relation is checked (`relations.ts`):
+
+1. **Binding.** Each role is bound to one of the contract's quantities. The binding comes from `contract.roles` when the contract states it. Otherwise the engine matches by kind of quantity and by a ranked name pattern, preferring derived values, then engine names, then parameters.
+2. **Conversion.** Each bound value is converted to SI using its declared unit.
+3. **Comparison.** The relation is evaluated at the design point, within 3 %.
+
+What a failure means:
+
+- In a declared archetype, a relation that does not hold is an ERROR. This catches a wrong formula, or a missing ÷ 1000, which the dimension check cannot see.
+- A role the engine cannot bind is reported, with a `roles` fix to name it.

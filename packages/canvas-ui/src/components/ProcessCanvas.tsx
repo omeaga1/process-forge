@@ -150,8 +150,10 @@ function pipeState(
     activeFlowRate: flowOut(t),
     ...(t?.temperatureC !== undefined ? { temperatureC: t.temperatureC } : {})
   };
+  // A liquid pipe from a unit that reports per port (an exchanger's hot and cold sides) takes its own port's temperature.
+  const own = edge ? t?.portFlows?.[edge.sourcePortId] : undefined;
   // A gas or solids pipe is stated in its own units: what its port sends, else the unit's mass flow.
-  if (!t || (edge?.phase !== 'GAS' && edge?.phase !== 'SOLID')) return { ...base, liveText: undefined };
+  if (!t || (edge?.phase !== 'GAS' && edge?.phase !== 'SOLID')) return { ...base, ...(own ? { temperatureC: own.temperatureC } : {}), liveText: undefined };
   const port = t.portFlows?.[edge.sourcePortId];
   // A unit that reports per port: that port's flow, which is zero while it sends nothing.
   const kgPerHour = t.portFlows ? port?.kgPerHour ?? 0 : t.kgPerHour ?? 0;

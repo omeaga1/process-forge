@@ -90,3 +90,20 @@ describe('governing relations, checked in SI', () => {
     assert.ok(unbound.warnings.some((w) => w.path === 'roles'));
   });
 });
+
+describe('equations as an engineer reads them', () => {
+  it('sets operators, powers and functions, with only the brackets precedence needs', async () => {
+    const { expressionText } = await import('../unitop/formatExpression.js');
+    assert.equal(expressionText('hydraulicKw / efficiency'), 'hydraulicKw ÷ efficiency');
+    assert.equal(expressionText('(a - b) / (c * d)'), '(a − b) ÷ (c × d)');
+    assert.equal(expressionText('a - (b - c)'), 'a − (b − c)');
+    assert.equal(expressionText('a * b + c'), 'a × b + c');
+    assert.equal(expressionText('pow(x, 2) + sqrt(y)'), 'x^2 + √(y)');
+    assert.equal(expressionText('if(f > 0, d / f, 0)'), 'if f > 0 then d ÷ f else 0');
+    assert.equal(expressionText('-x * 2'), '−x × 2');
+    assert.equal(expressionText('a <= b && c >= d'), 'a ≤ b and c ≥ d');
+    assert.equal(expressionText('flow * 0.0000630902'), 'flow × 6.30902×10⁻⁵');
+    assert.equal(expressionText('shaftKw', (n) => (n === 'shaftKw' ? 'Shaft power' : n)), 'Shaft power');
+    assert.equal(expressionText('this is not ('), 'this is not (');
+  });
+});

@@ -19,6 +19,7 @@ export * from './unitop/archetypes.js';
 export * from './unitop/physicsAlignment.js';
 export * from './unitop/relations.js';
 export * from './unitop/properties.js';
+export * from './unitop/formatExpression.js';
 export * from './unitop/examples/pump.js';
 export * from './unitop/review.js';
 export * from './unitop/examples/waxCoolingBelt.js';
