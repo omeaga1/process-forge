@@ -399,3 +399,125 @@ export const EQUIPMENT_ARCHETYPES: PhaseArchetype[] = [
     keyConstraints: ['WARNING pack rate below the line rate']
   }
 ];
+
+/**
+ * A governing relation the equipment's main quantities must satisfy, checked
+ * numerically at the design point, in SI. Requirements say a quantity exists;
+ * a relation says it is right: a pump's shaft power times its efficiency is
+ * its flow times its pressure rise, whatever the contract called them and
+ * whatever units it wrote them in. A wrong formula or a missing / 1000 shows
+ * up here, where the dimension check cannot see it.
+ *
+ * Each role is found in the contract by `roles` (contract.roles maps a role
+ * to a parameter, a derived value or an engine name such as
+ * inlet.massFlowKgPerS) or, failing that, by its kind of quantity and name.
+ * lhs and rhs are expressions over the roles, every role in SI (m3/s, Pa, W,
+ * kg/s, J/kg-K, K, m, kg/m3, rev/s).
+ */
+export interface PhysicsRelation {
+  id: string;
+  what: string;
+  roles: Record<string, { unit: string; names?: string; what: string }>;
+  lhs: string;
+  rhs: string;
+  /** '=' within tolerance, or lhs must be at least ('>=') / at most ('<=') rhs. */
+  relation?: '=' | '>=' | '<=';
+  /** Relative tolerance; 0.03 when absent. */
+  tolerance?: number;
+  fix: string;
+}
+
+const pumpLike = (powerNames: string): PhysicsRelation => ({
+  id: 'power-balance',
+  what: 'shaft power x efficiency = volumetric flow x pressure rise',
+  roles: {
+    flow: { unit: 'm3/s', names: 'flow|q$|gpm|acfm|m3|capacity|volum', what: 'the volumetric flow through it' },
+    dp: { unit: 'Pa', names: 'dp|diff|delta|rise|static|head|discharge|developed|drop', what: 'the pressure it adds' },
+    power: { unit: 'W', names: powerNames, what: 'the power it takes' },
+    efficiency: { unit: '-', names: 'eff', what: 'its efficiency' }
+  },
+  lhs: 'power * efficiency',
+  rhs: 'flow * dp',
+  fix: 'Work the power out as flow x pressure rise / efficiency, in consistent units: kW = m3/s x kPa / efficiency.'
+});
+
+/** Relations for the archetypes that have one, by archetype id. */
+export const ARCHETYPE_RELATIONS: Record<string, PhysicsRelation[]> = {
+  pump: [pumpLike('shaft|brake|bhp|absorbed')],
+  'fan-blower': [pumpLike('power|shaft|bhp|absorbed|fan|kw')],
+  'dust-collector': [
+    {
+      id: 'air-to-cloth',
+      what: 'air-to-cloth ratio = actual gas flow / cloth area',
+      roles: {
+        ratio: { unit: 'm/s', names: 'cloth|filtration|face|a2c|atc', what: 'the air-to-cloth ratio' },
+        flow: { unit: 'm3/s', names: 'actual|acfm', what: 'the actual gas flow' },
+        area: { unit: 'm2', names: 'area|cloth', what: 'the cloth area' }
+      },
+      lhs: 'ratio',
+      rhs: 'flow / area',
+      fix: 'airToCloth = actual flow / filter area, in consistent units (ACFM / ft2 gives ft/min).'
+    }
+  ],
+  heater: [
+    {
+      id: 'sensible-heat',
+      what: 'duty = mass flow x specific heat x (outlet - inlet temperature)',
+      roles: {
+        duty: { unit: 'W', names: 'duty|used|q$|kw|heat', what: 'the heat it adds' },
+        massFlow: { unit: 'kg/s', names: 'mass|kg|flow', what: 'the mass flow heated' },
+        cp: { unit: 'J/kg-K', names: 'cp|specific', what: 'the specific heat' },
+        tIn: { unit: 'K', names: 'in|feed|temperatureC', what: 'the inlet temperature' },
+        tOut: { unit: 'K', names: 'out|exit|leav', what: 'the outlet temperature' }
+      },
+      lhs: 'abs(duty)',
+      rhs: 'abs(massFlow * cp * (tOut - tIn))',
+      fix: 'duty (kW) = m (kg/s) x cp (kJ/kg-K) x (T_out - T_in), and the outlet temperature from the same duty.'
+    }
+  ],
+  evaporator: [
+    {
+      id: 'latent-duty',
+      what: 'duty covers the vapour boiled off x latent heat',
+      roles: {
+        duty: { unit: 'W', names: 'duty|steam|heat|q$', what: 'the heat supplied' },
+        vapour: { unit: 'kg/s', names: 'vap|evap|boil|steam', what: 'the vapour boiled off' },
+        latent: { unit: 'J/kg', names: 'latent|lambda|hvap|hfg|vaporis|vaporiz', what: 'the latent heat' }
+      },
+      lhs: 'duty',
+      rhs: 'vapour * latent',
+      relation: '>=',
+      fix: 'The steam duty must at least cover vapour x latent heat (plus the sensible heat to bring the feed to the boil).'
+    }
+  ],
+  condenser: [
+    {
+      id: 'condensing-duty',
+      what: 'duty = vapour condensed x latent heat',
+      roles: {
+        duty: { unit: 'W', names: 'duty|q$|heat', what: 'the heat removed' },
+        vapour: { unit: 'kg/s', names: 'vap|steam|condens', what: 'the vapour condensed' },
+        latent: { unit: 'J/kg', names: 'latent|lambda|hvap|hfg', what: 'the latent heat' }
+      },
+      lhs: 'abs(duty)',
+      rhs: 'vapour * latent',
+      fix: 'Q (kW) = vapour (kg/s) x latent heat (kJ/kg).'
+    }
+  ],
+  'agitated-mixer': [
+    {
+      id: 'agitator-power',
+      what: 'agitator power = power number x density x speed^3 x diameter^5',
+      roles: {
+        power: { unit: 'W', names: 'power|agitat|impeller|motor|kw', what: 'the agitator power' },
+        np: { unit: '-', names: '^np|power ?number|powernumber', what: 'the power number' },
+        rho: { unit: 'kg/m3', names: 'rho|dens', what: 'the liquid density' },
+        speed: { unit: 'Hz', names: 'speed|rpm|^n$|rate', what: 'the impeller speed (rev/s)' },
+        diameter: { unit: 'm', names: 'diam|imp|^d$', what: 'the impeller diameter' }
+      },
+      lhs: 'power',
+      rhs: 'np * rho * pow(speed, 3) * pow(diameter, 5)',
+      fix: 'P (W) = Np x rho (kg/m3) x N^3 (rev/s) x D^5 (m); divide by 1000 for kW, and convert rpm to rev/s.'
+    }
+  ]
+};

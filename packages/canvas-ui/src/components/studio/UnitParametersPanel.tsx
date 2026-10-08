@@ -13,12 +13,15 @@ import {
   type UnitOpContract
 } from '@process-forge/protocol';
 import { ContractParametersPanel } from './ContractParametersPanel.js';
+import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import { useTheme } from '../../hooks/useTheme.js';
 import { engineKeysOf } from '../../model/unitBehavior.js';
 
 interface UnitParametersPanelProps {
   node: ProcessNode;
   onUpdateConfig: (nodeId: string, newConfig: Record<string, unknown>) => void;
+  /** The unit's state at the simulation's playhead, when there is a run. */
+  live?: NodeTelemetrySnapshot | undefined;
 }
 
 /** Unit words at the end of a built-in config key, and how they are shown. */
@@ -61,7 +64,7 @@ export function describeConfigKey(key: string): { label: string; unit: string } 
  * both are edited in ContractParametersPanel, with the engine's verdict on
  * every knob. Feeds and outlets have their own settings below.
  */
-export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, onUpdateConfig }) => {
+export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, onUpdateConfig, live: telemetry }) => {
   const { palette, font, radius: r } = useTheme();
   const config = node.config as Record<string, unknown>;
   const parsed = useMemo(() => UnitOpContractSchema.safeParse(config.contract), [config.contract]);
@@ -122,7 +125,7 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
 
   // ---- a unit run by a contract: designed, or a standard unit built from its config ----
   if (contract && !terminalRole(node)) {
-    return <ContractParametersPanel node={node} contract={contract} own={own} onUpdateConfig={onUpdateConfig} />;
+    return <ContractParametersPanel node={node} contract={contract} own={own} onUpdateConfig={onUpdateConfig} live={telemetry} />;
   }
 
   // ---- a feed or outlet arrow -------------------------------------------------

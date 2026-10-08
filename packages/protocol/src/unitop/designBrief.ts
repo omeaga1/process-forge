@@ -1,4 +1,6 @@
 import { EXPRESSION_FUNCTIONS } from './expression.js';
+import { PROPERTY_FUNCTIONS } from './properties.js';
+import { ARCHETYPE_RELATIONS } from './archetypes.js';
 import { RESERVED_SCOPE_NAMES, BATCH_SCOPE_NAMES, type UnitOpDesignStream } from './contract.js';
 import { UNIT_OP_AUTHORING_RULES } from './review.js';
 import { WAX_COOLING_BELT_CONTRACT } from './examples/waxCoolingBelt.js';
@@ -329,7 +331,9 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
       arity:
         name === 'interp'
           ? 'interp(x, x1, y1, x2, y2, ...): piecewise-linear table, x ascending, clamped at the ends'
-          : Array.isArray(def.arity)
+          : PROPERTY_FUNCTIONS[name]
+            ? `${name}(${PROPERTY_FUNCTIONS[name]!.argNames.map((a, i) => `${a} in ${PROPERTY_FUNCTIONS[name]!.args[i]}`).join(', ')}) -> ${PROPERTY_FUNCTIONS[name]!.returns}: ${PROPERTY_FUNCTIONS[name]!.what}`
+            : Array.isArray(def.arity)
             ? `${def.arity[0]}-${def.arity[1]} args`
             : `${def.arity} arg(s)`
     }))
@@ -395,6 +399,12 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
           '',
           `Declare archetype: '${phasePlan.archetype.id}'. A complete design of it has (validate_unit_op checks each; ERROR ones are required):`,
           ...(phasePlan.archetype.requirements ?? []).map((r) => `  [${r.severity}] ${r.what}: ${r.fix}`),
+          ...(ARCHETYPE_RELATIONS[phasePlan.archetype.id]?.length
+            ? [
+                'Its governing relations, checked numerically in SI at the design point (a wrong formula or a missing / 1000 fails here):',
+                ...ARCHETYPE_RELATIONS[phasePlan.archetype.id]!.map((r) => `  ${r.what}: roles ${Object.entries(r.roles).map(([k, v]) => `${k} (${v.what}, ${v.unit === '-' ? 'dimensionless' : `${v.unit}-like`})`).join(', ')}. Name them in roles: { ${Object.keys(r.roles).map((k) => `${k}: '<your name>'`).join(', ')} }.`)
+              ]
+            : []),
           'The engine also checks energy at the design point: outlets that leave hotter or colder than the feed need a duty that covers m cp dT (plus latent heat), and streams kept apart in channels must trade the same heat without crossing temperatures.'
         ]
       : [

@@ -142,7 +142,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   const tRole = terminalRole(node);
   const tabs: { id: StudioTab; label: string; Icon: React.ElementType }[] = [
     ...(graph ? [{ id: 'OVERVIEW' as const, label: 'How it works', Icon: Workflow }] : []),
-    { id: 'PARAMETERS', label: 'Parameters', Icon: Sliders },
+    { id: 'PARAMETERS', label: 'Design', Icon: Sliders },
     // A feed or outlet is an arrow: it has no drawing or nozzles to edit.
     ...(tRole ? [] : [{ id: 'DRESSING' as const, label: 'Drawing & nozzles', Icon: Palette }]),
     ...(route === 'claude-desktop' ? [] : [{ id: 'CHAT' as const, label: 'Ask AI', Icon: MessageSquare }])
@@ -742,7 +742,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       {/* Parameters */}
       {shownTab === 'PARAMETERS' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 20px 20px' }}>
-          <UnitParametersPanel node={node} onUpdateConfig={onUpdateConfig} />
+          <UnitParametersPanel node={node} onUpdateConfig={onUpdateConfig} live={live} />
         </div>
       )}
 

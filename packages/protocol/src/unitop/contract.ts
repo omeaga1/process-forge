@@ -2,7 +2,9 @@ import { z } from 'zod';
 import { UnitOpDrawingSchema } from './drawing.js';
 import { MaterialPhaseSchema, PHASE_ARCHETYPES, UnitOpPhaseChangeSchema } from './phases.js';
 import { phaseIssues } from './phaseBalance.js';
-import { parseExpression, referencedNames, ExpressionError } from './expression.js';
+import { parseExpression, referencedNames, ExpressionError, type Ast } from './expression.js';
+import { PROPERTY_FUNCTIONS } from './properties.js';
+import { convertUnit } from './unitConversion.js';
 import {
   checkDimension,
   DIMENSIONLESS,
@@ -413,6 +415,13 @@ export const UnitOpContractSchema = z.object({
    * only warns.
    */
   archetype: z.string().min(1).optional(),
+  /**
+   * Which of the contract's quantities plays each role in its archetype's
+   * governing relations (archetypes.ts ARCHETYPE_RELATIONS): { flow: 'flowM3PerS',
+   * power: 'shaftKw' }. A parameter, a derived value or an engine name
+   * (inlet.massFlowKgPerS). Unstated roles are found by kind and name.
+   */
+  roles: z.record(z.string().min(1)).optional(),
   ports: z.array(UnitOpPortSchema).min(1),
   parameters: z.array(UnitOpParameterSchema).default([]),
   derived: z.array(UnitOpDerivedSchema).default([]),
@@ -799,6 +808,80 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   }
 
   issues.push(...dimensionIssues(contract));
+  issues.push(...propertyUnitIssues(contract));
+  return issues;
+}
+
+/** The unit each engine-supplied name is in. */
+export const ENGINE_NAME_UNITS: Record<string, string> = {
+  temperatureC: '°C',
+  massFlowKgPerS: 'kg/s',
+  volumetricFlowGpm: 'gal/min',
+  densityGPerCm3: 'g/cm3',
+  specificHeatKjPerKgK: 'kJ/kg-K',
+  latentHeatKjPerKg: 'kJ/kg',
+  chargedKg: 'kg',
+  gallons: 'gal',
+  massKg: 'kg',
+  cpKjPerKgK: 'kJ/kg-K'
+};
+
+/**
+ * A property function takes its arguments in one unit (water_psat: °C). The
+ * dimension check passes a temperature in K or °F just the same, so a
+ * parameter or derived value passed straight in must be declared in the
+ * function's own unit: otherwise the number is right in kind and wrong in size.
+ */
+function propertyUnitIssues(contract: UnitOpContract): ContractValidationIssue[] {
+  const declared = new Map<string, string>();
+  for (const v of [...contract.parameters, ...contract.derived]) declared.set(v.name, v.unit);
+  const unitOf = (name: string): string | undefined => {
+    if (declared.has(name)) return declared.get(name);
+    const field = name.split('.').pop() ?? '';
+    return /^(inlet|utility|batch|port)./.test(name) ? ENGINE_NAME_UNITS[field] : undefined;
+  };
+  const issues: ContractValidationIssue[] = [];
+  for (const { path, expr } of contractExpressions(contract)) {
+    let ast: Ast;
+    try {
+      ast = parseExpression(expr);
+    } catch {
+      continue;
+    }
+    const walk = (n: Ast): void => {
+      if (n.k === 'call') {
+        const prop = PROPERTY_FUNCTIONS[n.name];
+        if (prop) {
+          n.args.forEach((a, i) => {
+            if (a.k !== 'ref') return;
+            const unit = unitOf(a.name);
+            const want = prop.args[i];
+            if (!unit || !want) return;
+            // Same size and the same zero: °C into °C, kPa into kPa.
+            if (want === 'kPa' && ['psig', 'barg', 'kPag'].includes(unit.trim())) {
+              issues.push({ path, unit: true, message: `${n.name}() takes ${prop.argNames[i]} in kPa absolute, but "${a.name}" is a gauge pressure (${unit}): add the atmosphere and convert (e.g. (${a.name} + 14.696) * 6.894757 for psig).` });
+              return;
+            }
+            const one = convertUnit(1, unit, want);
+            const zero = convertUnit(0, unit, want);
+            if (one === null || zero === null) return; // a dimension problem, reported by the dimension check
+            if (Math.abs(one - 1) > 1e-9 || Math.abs(zero) > 1e-9) {
+              issues.push({
+                path,
+                unit: true,
+                message: `${n.name}() takes ${prop.argNames[i]} in ${want}, but "${a.name}" is in ${unit}: convert it in the expression (e.g. ${unit === 'K' && want === '°C' ? `${a.name} - 273.15` : `declare it in ${want}`}).`
+              });
+            }
+          });
+        }
+        n.args.forEach(walk);
+      } else if (n.k === 'bin') {
+        walk(n.a);
+        walk(n.b);
+      } else if (n.k === 'unary') walk(n.a);
+    };
+    walk(ast);
+  }
   return issues;
 }
 
