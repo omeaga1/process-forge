@@ -1,7 +1,13 @@
 import type { ProcessGraph, ProcessNode, UnitOpContract, UnitOpEvaluation } from '@process-forge/protocol';
 import {
   blockingViolations,
+  componentPhaseAt,
   effectiveContract,
+  idealGasDensity,
+  isPhaseAware,
+  portPhase,
+  M3_PER_FT3,
+  SCFM_STD_C,
   evaluateUnitOp,
   terminalCarries,
   terminalMaterial,
@@ -9,6 +15,7 @@ import {
   terminalSupplyRate,
   type TerminalRole
 } from '@process-forge/protocol';
+import type { PortStreamReport } from './types.js';
 import { PriorityQueue } from './priority-queue.js';
 import { M3_PER_GALLON, MaterialNetwork, gallonsOf, type MaterialUnit, type Parcel } from './material.js';
 import { isCycleSource, isFluidEdge } from './roles.js';
@@ -88,6 +95,69 @@ function componentKg(p: Parcel): Record<string, number> | undefined {
   const entries = Object.entries(p.comp).filter(([, v]) => v > 1e-9);
   if (!entries.length || p.kg <= 0) return undefined;
   return Object.fromEntries(entries.map(([k, v]) => [k, round1(v * p.kg)]));
+}
+
+/** kg/kmol of components a gas commonly carries; anything else is taken as air-like. */
+const MOLAR_MASS: Record<string, number> = {
+  air: 28.96, water: 18.015, steam: 18.015, vapour: 18.015, vapor: 18.015, h2o: 18.015,
+  nitrogen: 28.013, n2: 28.013, oxygen: 31.999, o2: 31.999, co2: 44.01, carbon_dioxide: 44.01,
+  co: 28.01, hydrogen: 2.016, h2: 2.016, methane: 16.04, ch4: 16.04, ammonia: 17.031, nh3: 17.031,
+  argon: 39.948, hcl: 36.461, so2: 64.066, ethanol: 46.07
+};
+
+/**
+ * What a designed unit sent out of each outlet port over the run, in the
+ * units of the port's phase: gal/min for a liquid, ACFM and SCFM (ideal gas,
+ * at the temperature it left at) for a gas, kg/h for a solid. Components
+ * carried in another phase (dust in air, moisture in a powder) are reported
+ * apart and left out of the gas volume.
+ */
+export function portStreams(contract: UnitOpContract, byPort: Record<string, Parcel>, seconds: number): PortStreamReport[] {
+  if (seconds <= 0) return [];
+  const out: PortStreamReport[] = [];
+  for (const port of contract.ports) {
+    if (port.direction !== 'OUTLET' || port.flowDimension !== 'CONTINUOUS_FLUID') continue;
+    const p = byPort[port.id];
+    if (!p || p.kg <= 1e-9) continue;
+    const phase = portPhase(port);
+    const report: PortStreamReport = {
+      port: port.id,
+      name: port.name,
+      phase,
+      kg: round1(p.kg),
+      kgPerHour: round1((p.kg / seconds) * 3600),
+      temperatureC: round1(p.tempC),
+      ...(componentKg(p) ? { componentsKg: componentKg(p) } : {})
+    };
+    // Split the port's mass into its own phase and what it carries dispersed.
+    const dispersed: Record<string, number> = {};
+    let ownFraction = 0;
+    let kmolPerKg = 0;
+    for (const [c, f] of Object.entries(p.comp)) {
+      if (f <= 0) continue;
+      if (componentPhaseAt(port, c) !== phase) dispersed[c] = round1(((f * p.kg) / seconds) * 3600);
+      else {
+        ownFraction += f;
+        kmolPerKg += f / (MOLAR_MASS[c.toLowerCase()] ?? 28.96);
+      }
+    }
+    if (Object.keys(p.comp).length === 0) {
+      ownFraction = 1;
+      kmolPerKg = 1 / 28.96;
+    }
+    if (Object.keys(dispersed).length) report.dispersedKgPerHour = dispersed;
+    if (phase === 'LIQUID') report.gallonsPerMinute = round1((p.m3 / M3_PER_GALLON / seconds) * 60);
+    if (phase === 'GAS' && ownFraction > 0) {
+      const molarMass = ownFraction / kmolPerKg;
+      const kgPerS = (ownFraction * p.kg) / seconds;
+      report.gasKgPerHour = round1(kgPerS * 3600);
+      report.molarMass = round1(molarMass);
+      report.actualCubicFeetPerMinute = round1((kgPerS / idealGasDensity(p.tempC, 101.325, molarMass) / M3_PER_FT3) * 60);
+      report.standardCubicFeetPerMinute = round1((kgPerS / idealGasDensity(SCFM_STD_C, 101.325, molarMass) / M3_PER_FT3) * 60);
+    }
+    out.push(report);
+  }
+  return out;
 }
 
 /** Event types that are a unit's own cycle, and so pause while it is down. */
@@ -681,7 +751,7 @@ export class SimulationEngine {
   }
 
   /** How a contract unit with liquid held up at the conditions it actually saw. */
-  private contractReport(u: MaterialUnit): DesignedUnitReport {
+  private contractReport(u: MaterialUnit, seconds = 0): DesignedUnitReport {
     const run = u.run!;
     return {
       liveEvaluations: run.evaluations,
@@ -701,7 +771,8 @@ export class SimulationEngine {
           }
         : {}),
       ...(u.live && Number.isFinite(u.live.capacity) ? { capacityGpm: round1((u.live.capacity / M3_PER_GALLON) * 60) } : {}),
-      ...(u.batchRun ? { secondsByPhase: Object.fromEntries(Object.entries(u.batchRun.secondsByPhase).map(([k, v]) => [k, Math.round(v)])) } : {})
+      ...(u.batchRun ? { secondsByPhase: Object.fromEntries(Object.entries(u.batchRun.secondsByPhase).map(([k, v]) => [k, Math.round(v)])) } : {}),
+      ...(u.contract && isPhaseAware(u.contract) && seconds > 0 ? { streams: portStreams(u.contract, u.byPort, seconds) } : {})
     };
   }
 
@@ -774,7 +845,7 @@ export class SimulationEngine {
               ...this.heatReport(unit)
             }
           : {}),
-        ...(unit?.run && r.ev?.behavior.mode !== 'DISCRETE_CYCLE' ? { designedUnit: this.contractReport(unit) } : {})
+        ...(unit?.run && r.ev?.behavior.mode !== 'DISCRETE_CYCLE' ? { designedUnit: this.contractReport(unit, totalTime) } : {})
       };
 
       if (r.terminal) {

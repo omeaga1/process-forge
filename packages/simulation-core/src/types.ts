@@ -102,6 +102,32 @@ export interface DesignedUnitReport {
    * properties; write it from batch.massKg and batch.cpKjPerKgK.
    */
   heatBalance?: { phase: string; deliveredKwh: number; neededKwh: number; batches: number }[];
+  /**
+   * Units that state their phases: what left by each outlet port, in the
+   * units of its phase (gal/min for a liquid, ACFM/SCFM for a gas, kg/h for
+   * a solid).
+   */
+  streams?: PortStreamReport[];
+}
+
+export interface PortStreamReport {
+  port: string;
+  name: string;
+  phase: 'LIQUID' | 'GAS' | 'SOLID' | 'ITEMS';
+  /** Over the run, and averaged over it. */
+  kg: number;
+  kgPerHour: number;
+  temperatureC?: number;
+  componentsKg?: Record<string, number>;
+  /** Components carried in another phase (dust in a gas, moisture in a powder), kg/h. */
+  dispersedKgPerHour?: Record<string, number>;
+  /** LIQUID: average volumetric flow. */
+  gallonsPerMinute?: number;
+  /** GAS: the gas itself (dispersed matter excluded), its mean molar mass, and its volume as an ideal gas at the temperature it left at (actual) and at 68 °F (standard), 1 atm. */
+  gasKgPerHour?: number;
+  molarMass?: number;
+  actualCubicFeetPerMinute?: number;
+  standardCubicFeetPerMinute?: number;
 }
 
 export interface HeatReport {

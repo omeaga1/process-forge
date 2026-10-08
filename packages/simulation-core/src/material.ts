@@ -74,6 +74,13 @@ export interface Parcel {
 
 const emptyParcel = (): Parcel => ({ kg: 0, m3: 0, tempC: AMBIENT_C, cp: DEFAULT_SPECIFIC_HEAT, comp: {} });
 
+/** Adds a parcel to what a unit has sent by one port. */
+function tallyPort(u: MaterialUnit, port: string | undefined, p: Parcel): void {
+  if (!port || (p.kg <= 0 && p.m3 <= 0)) return;
+  const t = (u.byPort[port] ??= emptyParcel());
+  mixInto(t, p);
+}
+
 /** Adds `b` into `a` (in place): mass and volume add, heat and composition mix by mass. */
 function mixInto(a: Parcel, b: Parcel): void {
   if (b.kg <= 0 && b.m3 <= 0) return;
@@ -182,6 +189,8 @@ export interface MaterialUnit {
   leftLine: Parcel;
   /** Liquid no outlet took (vented, evaporated). */
   lost: Parcel;
+  /** What it sent out of each outlet port (piped or not), over the run. */
+  byPort: Record<string, Parcel>;
   batches: number;
   heat: HeatTally;
   /** Per-tick scratch. */
@@ -238,9 +247,19 @@ function stock(m3: number, props: { tempC?: number; density?: number; cp?: numbe
 
 interface Outlet {
   target: MaterialUnit;
+  /** The unit's outlet port it leaves by. */
+  port?: string;
   share: number;
   temp?: number;
   comp?: Composition;
+}
+
+interface SplitPlan {
+  outs: Outlet[];
+  unpipedShare: number;
+  lossShare: number;
+  /** Declared outlet ports with no pipe: their share leaves the line. */
+  unpiped: { port: string; share: number; comp?: Composition; temp?: number }[];
 }
 
 export class MaterialNetwork {
@@ -299,6 +318,7 @@ export class MaterialNetwork {
         delivered: emptyParcel(),
         leftLine: emptyParcel(),
         lost: emptyParcel(),
+        byPort: {},
         batches: 0,
         heat: { energyKwh: 0, activeSeconds: 0, heatingSeconds: 0, sent: emptyParcel() },
         accept: 0,
@@ -613,11 +633,11 @@ export class MaterialNetwork {
    * one, else evenly to every pipe. `unpipedShare` leaves the line through a
    * declared outlet with no pipe; `lossShare` is what no outlet takes.
    */
-  private split(u: MaterialUnit): { outs: Outlet[]; unpipedShare: number; lossShare: number } {
+  private split(u: MaterialUnit): SplitPlan {
     const piped = this.pipedPorts(u);
     if (!this.hasOutletPlan(u)) {
       const edges = [...piped.values()].flat();
-      return { outs: edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, share: 1 / edges.length })), unpipedShare: 0, lossShare: 0 };
+      return { outs: edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, port: e.sourcePortId, share: 1 / edges.length })), unpipedShare: 0, lossShare: 0, unpiped: [] };
     }
     const plan = u.live!.outlets;
     if (Object.values(plan).some((o) => o.recovery)) return this.recoverySplit(u, piped);
@@ -630,12 +650,13 @@ export class MaterialNetwork {
       const share = plan[port]?.share ?? (open.length ? rest / open.length : 0);
       pipedShare += share;
       const temp = plan[port]?.temperatureC;
-      for (const e of list) outs.push({ target: this.units.get(e.targetNodeId)!, share: share / list.length, ...(temp !== undefined ? { temp } : {}) });
+      for (const e of list) outs.push({ target: this.units.get(e.targetNodeId)!, port, share: share / list.length, ...(temp !== undefined ? { temp } : {}) });
     }
-    const unpipedShare = Object.entries(plan)
-      .filter(([port]) => !piped.has(port))
-      .reduce((sum, [, o]) => sum + (o.share ?? 0), 0);
-    return { outs, unpipedShare, lossShare: Math.max(0, 1 - pipedShare - unpipedShare) };
+    const unpiped = Object.entries(plan)
+      .filter(([port, o]) => !piped.has(port) && (o.share ?? 0) > 0)
+      .map(([port, o]) => ({ port, share: o.share!, ...(o.temperatureC !== undefined ? { temp: o.temperatureC } : {}) }));
+    const unpipedShare = unpiped.reduce((sum, o) => sum + o.share, 0);
+    return { outs, unpipedShare, lossShare: Math.max(0, 1 - pipedShare - unpipedShare), unpiped };
   }
 
   /**
@@ -643,7 +664,7 @@ export class MaterialNetwork {
    * recover it; ports that do not name it split what is left; the rest is
    * lost. Each port's flow and composition follow from the mass it gets.
    */
-  private recoverySplit(u: MaterialUnit, piped: Map<string, ProcessEdge[]>): { outs: Outlet[]; unpipedShare: number; lossShare: number } {
+  private recoverySplit(u: MaterialUnit, piped: Map<string, ProcessEdge[]>): SplitPlan {
     const plan = u.live!.outlets;
     const ports = [...new Set([...Object.keys(plan), ...piped.keys()])];
     const mass: Record<string, Composition> = Object.fromEntries(ports.map((p) => [p, {}]));
@@ -657,30 +678,33 @@ export class MaterialNetwork {
     const outs: Outlet[] = [];
     let pipedShare = 0;
     let unpipedShare = 0;
+    const unpiped: SplitPlan['unpiped'] = [];
     for (const p of ports) {
       const share = Object.values(mass[p]!).reduce((a, v) => a + v, 0);
       if (!piped.has(p)) {
         unpipedShare += share;
+        if (share > 0) unpiped.push({ port: p, share, comp: normalise(mass[p]), ...(plan[p]?.temperatureC !== undefined ? { temp: plan[p]!.temperatureC } : {}) });
         continue;
       }
       pipedShare += share;
       const list = piped.get(p)!;
       const temp = plan[p]?.temperatureC;
       const comp = normalise(mass[p]);
-      for (const e of list) outs.push({ target: this.units.get(e.targetNodeId)!, share: share / list.length, comp, ...(temp !== undefined ? { temp } : {}) });
+      for (const e of list) outs.push({ target: this.units.get(e.targetNodeId)!, port: p, share: share / list.length, comp, ...(temp !== undefined ? { temp } : {}) });
     }
-    return { outs, unpipedShare, lossShare: Math.max(0, 1 - pipedShare - unpipedShare) };
+    return { outs, unpipedShare, lossShare: Math.max(0, 1 - pipedShare - unpipedShare), unpiped };
   }
 
   /** A batch unit's outlets while it drains: one port if the phase names it, else by its outlet plan. */
-  private batchSplit(u: MaterialUnit): { outs: Outlet[]; unpipedShare: number; lossShare: number } {
+  private batchSplit(u: MaterialUnit): SplitPlan {
     const port = u.batchRun?.phase.port;
     if (!port) return this.split(u);
     const edges = (this.outEdges.get(u.id) ?? []).filter((e) => e.sourcePortId === port && this.units.has(e.targetNodeId));
     return {
-      outs: edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, share: 1 / edges.length })),
+      outs: edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, port, share: 1 / edges.length })),
       unpipedShare: edges.length === 0 ? 1 : 0,
-      lossShare: 0
+      lossShare: 0,
+      unpiped: edges.length === 0 ? [{ port, share: 1 }] : []
     };
   }
 
@@ -785,6 +809,12 @@ export class MaterialNetwork {
           mixInto(u.leftLine, parcel);
           mixInto(u.heat.sent, parcel);
           mixInto(u.delivered, parcel);
+          // Out of the line by its declared ports, in their proportions.
+          const declared = plan.unpiped.reduce((a, x) => a + x.share, 0);
+          for (const x of plan.unpiped) {
+            const f = declared > 0 ? x.share / declared : 0;
+            tallyPort(u, x.port, { ...parcel, kg: parcel.kg * f, m3: parcel.m3 * f, ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) });
+          }
         }
       } else {
         // Largest total that respects every outlet's share and room.
@@ -801,11 +831,13 @@ export class MaterialNetwork {
           const piece: Parcel = { kg: v * kgPerM3, m3: v, tempC: o.temp ?? parcel.tempC, cp: parcel.cp, comp: o.comp ?? { ...parcel.comp } };
           this.receive(o.target, piece, dt);
           mixInto(u.heat.sent, piece);
+          tallyPort(u, o.port, piece);
         }
         if (this.hasOutletPlan(u) && !u.batchRun?.phase.port) {
           // A declared outlet with no pipe leaves the line; the unclaimed remainder is lost.
           const scale = (f: number): Parcel => ({ ...parcel, kg: parcel.kg * f, m3: parcel.m3 * f, comp: { ...parcel.comp } });
           if (plan.unpipedShare > 0) mixInto(u.leftLine, scale(plan.unpipedShare));
+          for (const x of plan.unpiped) tallyPort(u, x.port, { ...scale(x.share), ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) });
           if (plan.lossShare > 0) mixInto(u.lost, scale(plan.lossShare));
         }
         mixInto(u.delivered, parcel);
