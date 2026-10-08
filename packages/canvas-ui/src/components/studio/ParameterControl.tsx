@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { atFraction, convertUnit, fractionOf, niceValue, parseQuantity, type Sweep, type SweepPoint, type SweepRange, type UnitOpParameter } from '@process-forge/protocol';
+import { atFraction, convertUnit, fractionOf, isTemperatureDifference, niceValue, parseQuantity, type Sweep, type SweepPoint, type SweepRange, type UnitOpParameter } from '@process-forge/protocol';
 import { Minus, Plus } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
@@ -47,7 +47,9 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
 }) => {
   const { palette, font, radius: r } = useTheme();
   const kind: ParameterControlKind = controlFor(p);
-  const toShown = (v: number) => convertUnit(v, p.unit, displayUnit) ?? v;
+  // An approach or a rise converts by size only: 10 °C of approach is 18 °F.
+  const difference = isTemperatureDifference(p);
+  const toShown = (v: number) => convertUnit(v, p.unit, displayUnit, { difference }) ?? v;
   const out = (p.min !== undefined && p.value < p.min) || (p.max !== undefined && p.value > p.max);
   const band = useMemo(() => (sweep ? feasibleBand(sweep, p.value) : undefined), [sweep, p.value]);
   const statusColor = (s: SweepPoint['status']) =>
@@ -230,7 +232,7 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
         <button type="button" aria-label={`Fewer ${p.label}`} disabled={atMin} onClick={() => commit(p.value - step)} style={btn(atMin)}>
           <Minus size={13} />
         </button>
-        <QuantityText value={p.value} unit={p.unit} displayUnit={displayUnit} label={p.label} onCommit={commit} width={52} step={step} />
+        <QuantityText value={p.value} unit={p.unit} displayUnit={displayUnit} difference={difference} label={p.label} onCommit={commit} width={52} step={step} />
         <button type="button" aria-label={`More ${p.label}`} disabled={atMax} onClick={() => commit(p.value + step)} style={btn(atMax)}>
           <Plus size={13} />
         </button>
@@ -240,7 +242,7 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
   } else {
     control = (
       <span style={box(out)}>
-        <QuantityText value={p.value} unit={p.unit} displayUnit={displayUnit} label={p.label} onCommit={commit} width={92} step={stepFor(p)} />
+        <QuantityText value={p.value} unit={p.unit} displayUnit={displayUnit} difference={difference} label={p.label} onCommit={commit} width={92} step={stepFor(p)} />
         {unitPicker}
       </span>
     );
@@ -392,18 +394,19 @@ const QuantityText: React.FC<{
   value: number;
   unit: string;
   displayUnit: string;
+  difference: boolean;
   label: string;
   onCommit: (v: number) => void;
   width: number;
   step: number;
-}> = ({ value, unit, displayUnit, label, onCommit, width, step }) => {
+}> = ({ value, unit, displayUnit, difference, label, onCommit, width, step }) => {
   const { palette, font } = useTheme();
-  const shown = convertUnit(value, unit, displayUnit) ?? value;
+  const shown = convertUnit(value, unit, displayUnit, { difference }) ?? value;
   const text = formatQuantity(shown).replace(/,/g, '');
   const [draft, setDraft] = useState<string | null>(null);
   const [bad, setBad] = useState(false);
   const apply = (s: string) => {
-    const v = parseQuantity(s, unit, displayUnit);
+    const v = parseQuantity(s, unit, displayUnit, { difference });
     if (v === null) {
       setBad(true);
       return;

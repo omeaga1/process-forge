@@ -145,3 +145,53 @@ describe('the design brief hands the requirements over up front', () => {
     }
   });
 });
+
+describe('review regressions', () => {
+  it('converts temperature differences by size, not as temperatures', async () => {
+    const { convertUnit, isTemperatureDifference } = await import('../unitop/unitConversion.js');
+    assert.ok(Math.abs(convertUnit(5, 'delta°C', '°F')! - 9) < 1e-9);
+    assert.ok(Math.abs(convertUnit(10, '°C', '°F', { difference: true })! - 18) < 1e-9);
+    assert.ok(Math.abs(convertUnit(10, '°C', '°F')! - 50) < 1e-9);
+    assert.ok(isTemperatureDifference({ name: 'minApproachC', label: 'Minimum approach', unit: '°C' }));
+    assert.ok(isTemperatureDifference({ name: 'lmtd', label: 'LMTD', unit: 'K' }));
+    assert.ok(!isTemperatureDifference({ name: 'targetC', label: 'Target temperature', unit: '°C' }));
+  });
+
+  it('only rejects a temperature cross in equipment declared to pass heat between its own streams', () => {
+    const c = clone(TWO_STREAM_EXCHANGER_CONTRACT) as UnitOpContract;
+    c.derived = c.derived.map((d) => (d.name === 'dutyKw' ? { ...d, expr: '2000' } : d));
+    c.archetype = 'custom';
+    const a = physicsAlignment(c, evaluateUnitOp(c));
+    assert.equal(a.errors.length, 0);
+    assert.ok(a.warnings.some((w) => /Temperature cross/.test(w.message)));
+  });
+
+  it('takes a pump head given as a height', () => {
+    const c = clone(PUMP_CONTRACT);
+    c.parameters = c.parameters
+      .filter((p) => p.name !== 'differentialPsi')
+      .map((p) => (p.name === 'suctionPsia' ? { ...p, label: 'Inlet pressure, absolute' } : p))
+      .concat([{ name: 'totalHeadFt', label: 'Total head', unit: 'ft', value: 104, min: 1, max: 3000 }]);
+    c.derived = c.derived.map((d) => (d.name === 'dpKpa' ? { ...d, expr: 'totalHeadFt * 0.3048 * inlet.densityGPerCm3 * gravity' } : d.name === 'headFt' ? { ...d, expr: 'totalHeadFt' } : d));
+    const r = executeValidateUnitOp({ contract: c });
+    assert.equal(r.verdict, 'ACCEPTED', r.revisionGuidance);
+  });
+
+  it('declaring the archetype it suggests never rejects a shipped example', async () => {
+    const P = await import('../index.js');
+    for (const [name, c] of Object.entries(P).filter(([k, v]) => k.endsWith('_CONTRACT') && v && typeof v === 'object') as [string, UnitOpContract][]) {
+      const inferred = physicsAlignment(c).archetype?.id;
+      if (!inferred || c.archetype) continue;
+      const r = executeValidateUnitOp({ contract: { ...c, archetype: inferred } });
+      assert.equal(r.verdict, 'ACCEPTED', `${name} as ${inferred}: ${r.gates.physicsAlignment.errors.join('; ')}`);
+    }
+  });
+
+  it('allows an efficiency of 0 (none), not below', async () => {
+    const { validateUnitOpContract } = await import('../unitop/contract.js');
+    const withEff = (value: number) =>
+      validateUnitOpContract({ ...PUMP_CONTRACT, parameters: [...PUMP_CONTRACT.parameters, { name: 'heatRecoveryEfficiency', label: 'Heat recovery efficiency', unit: '-', value, min: 0, max: 1 }] });
+    assert.equal(withEff(0).length, 0);
+    assert.ok(withEff(1.2).length > 0);
+  });
+});

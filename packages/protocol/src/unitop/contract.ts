@@ -581,8 +581,8 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     // An efficiency over 100 % makes energy; a temperature below absolute zero does not exist.
     if (/(^|_)(eff|efficiency)$|Efficiency$|Eff$/.test(p.name) || /\befficiency\b/i.test(p.label)) {
       const cap = p.unit.trim() === '%' ? 100 : ['-', '', 'fraction', 'ratio'].includes(p.unit.trim()) ? 1 : undefined;
-      if (cap !== undefined && (p.value > cap || p.value <= 0)) {
-        issues.push({ path: `parameters.${p.name}`, message: `an efficiency of ${p.value} ${p.unit} is not physical: it must be above 0 and at most ${cap} ${p.unit}` });
+      if (cap !== undefined && (p.value > cap || p.value < 0)) {
+        issues.push({ path: `parameters.${p.name}`, message: `an efficiency of ${p.value} ${p.unit} is not physical: it must lie between 0 and ${cap} ${p.unit}` });
       }
     }
     const absZero = p.unit.trim() === 'K' ? 0 : ['°C', 'degC', 'C'].includes(p.unit.trim()) ? -273.15 : ['°F', 'degF', 'F'].includes(p.unit.trim()) ? -459.67 : undefined;

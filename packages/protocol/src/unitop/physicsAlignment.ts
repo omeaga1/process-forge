@@ -2,7 +2,7 @@ import { referencedNames } from './expression.js';
 import { parseUnit, type Dimension } from './dimensions.js';
 import { contractExpressions, type UnitOpContract } from './contract.js';
 import { matchPhaseArchetypes, PHASE_ARCHETYPES, type MaterialPhase, type PhaseArchetype } from './phases.js';
-import { phaseEnergy, portPhase } from './phaseBalance.js';
+import { isPhaseAware, phaseEnergy, portPhase } from './phaseBalance.js';
 import type { UnitOpEvaluation } from './evaluate.js';
 import type { PhysicsRequirement, RequirementCheck } from './archetypes.js';
 
@@ -95,9 +95,10 @@ function quantityMet(contract: UnitOpContract, check: Extract<RequirementCheck, 
   if (!dim) return true;
   const re = check.names ? new RegExp(check.names, 'i') : null;
   const values = check.computed ? contract.derived : [...contract.parameters, ...contract.derived];
+  const dims = [dim, ...(check.orUnits ?? []).map((u) => parseUnit(u)).filter((d): d is Dimension => d !== null)];
   return values.some((v) => {
     const d = parseUnit(v.unit);
-    if (!d || !sameDim(d, dim)) return false;
+    if (!d || !dims.some((x) => sameDim(d, x))) return false;
     if (re && !re.test(v.name) && !re.test(v.label)) return false;
     return !check.guarded || guarded.has(v.name);
   });
@@ -190,9 +191,21 @@ export function physicsAlignment(contract: UnitOpContract, evaluation?: UnitOpEv
 
   if (archetype) {
     const what = archetype.name.toLowerCase();
+    // A contract that states phases is held to them; one that models the
+    // equipment on liquid alone (the vapour simply leaves, the crystals stay
+    // in a slurry) is a simplification worth a warning, not a wrong design.
+    const statesPhases = isPhaseAware(contract);
+    const phaseSeverity = statesPhases ? ('ERROR' as const) : ('WARNING' as const);
+    const simplification = statesPhases ? '' : ' (This contract models every stream as a liquid: state the phases to model it fully.)';
     // 1. Ports: each phase the equipment moves, in each direction.
     const has = (dir: 'INLET' | 'OUTLET', phase: MaterialPhase, utility: boolean) =>
-      contract.ports.some((p) => p.direction === dir && portPhase(p) === phase && (utility ? p.role === 'UTILITY' || p.role === 'MATERIAL' : p.role !== 'UTILITY'));
+      contract.ports.some(
+        (p) =>
+          p.direction === dir &&
+          // Its own phase, or carried in another (crystals in a slurry, droplets in a mist).
+          (portPhase(p) === phase || Object.values(p.dispersed ?? {}).includes(phase)) &&
+          (utility ? p.role === 'UTILITY' || p.role === 'MATERIAL' : p.role !== 'UTILITY')
+      );
     const seen = new Set<string>();
     for (const p of archetype.ports) {
       if (p.optional) continue;
@@ -202,8 +215,8 @@ export function physicsAlignment(contract: UnitOpContract, evaluation?: UnitOpEv
       if (!has(p.direction, p.phase, p.role === 'UTILITY')) {
         add({
           path: 'ports',
-          severity: p.role === 'UTILITY' ? 'WARNING' : 'ERROR',
-          message: `${cap(an(what))} ${p.direction === 'INLET' ? 'takes in' : 'sends out'} ${PHASE_WORD[p.phase]} (${p.name.toLowerCase()}), but no ${p.direction.toLowerCase()} port of this contract is ${p.phase}.`,
+          severity: p.role === 'UTILITY' ? 'WARNING' : phaseSeverity,
+          message: `${cap(an(what))} ${p.direction === 'INLET' ? 'takes in' : 'sends out'} ${PHASE_WORD[p.phase]} (${p.name.toLowerCase()}), but no ${p.direction.toLowerCase()} port of this contract is ${p.phase}.${simplification}`,
           fix: `Add (or re-phase) a port: ${portSnippet(p)}.`
         });
       }
@@ -228,7 +241,7 @@ export function physicsAlignment(contract: UnitOpContract, evaluation?: UnitOpEv
       if (!made) {
         add({
           path: 'phaseChanges',
-          severity: 'ERROR',
+          severity: phaseSeverity,
           message: `${cap(an(what))} turns ${pc.component} from ${pc.from.toLowerCase()} to ${pc.to.toLowerCase()} (${pc.mechanism.toLowerCase()}), but the contract declares no ${pc.from}→${pc.to} change.`,
           fix: `Add phaseChanges: [{ component: '${pc.component}', from: '${pc.from}', to: '${pc.to}', mechanism: '${pc.mechanism}'${pc.from === 'LIQUID' && pc.to === 'GAS' ? ", latentHeatKjPerKg: 'latentKjPerKg'" : ''} }] (rename the component to yours).`
         });
@@ -261,7 +274,9 @@ export function physicsAlignment(contract: UnitOpContract, evaluation?: UnitOpEv
   }
 
   if (evaluation && !evaluation.error) {
-    energyChecks(contract, evaluation, out);
+    // A temperature cross is certain only in equipment declared to pass heat between its own streams.
+    const crossBinds = decidedBy === 'declared' && (archetype?.id === 'two-stream-exchanger' || archetype?.id === 'condenser');
+    energyChecks(contract, evaluation, out, crossBinds);
   }
   return out;
 }
@@ -295,7 +310,7 @@ function pathOf(r: PhysicsRequirement): string {
 const fmt = (v: number) => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('en-US') : Number(v.toPrecision(3)).toString());
 
 /** Energy and the second law at the design point. */
-function energyChecks(contract: UnitOpContract, ev: UnitOpEvaluation, out: PhysicsAlignment): void {
+function energyChecks(contract: UnitOpContract, ev: UnitOpEvaluation, out: PhysicsAlignment, crossBinds: boolean): void {
   if (contract.behavior.mode !== 'CONTINUOUS_RATE') return;
   const reacts = (contract.reactions?.length ?? 0) > 0;
 
@@ -317,17 +332,17 @@ function energyChecks(contract: UnitOpContract, ev: UnitOpEvaluation, out: Physi
         const hottestIn = Math.max(...others.map((o) => o.tIn));
         const coldestIn = Math.min(...others.map((o) => o.tIn));
         if (!external && s.tOut > s.tIn + 0.05 && s.tOut > hottestIn + 0.05) {
-          out.errors.push({
+          (crossBinds ? out.errors : out.warnings).push({
             path: `outlets.${s.ch.outlet}`,
-            severity: 'ERROR',
+            severity: crossBinds ? 'ERROR' : 'WARNING',
             message: `Temperature cross: "${s.ch.outlet}" leaves at ${fmt(s.tOut)} °C, hotter than any stream that heats it comes in (${fmt(hottestIn)} °C). Heat does not flow from cold to hot.`,
             fix: 'Rate the duty so it cannot exceed what the temperatures allow: Q = eps x Cmin x (Th,in - Tc,in) with eps <= 1, and each outlet temperature from Q.'
           });
         }
         if (!external && s.tOut < s.tIn - 0.05 && s.tOut < coldestIn - 0.05) {
-          out.errors.push({
+          (crossBinds ? out.errors : out.warnings).push({
             path: `outlets.${s.ch.outlet}`,
-            severity: 'ERROR',
+            severity: crossBinds ? 'ERROR' : 'WARNING',
             message: `Temperature cross: "${s.ch.outlet}" leaves at ${fmt(s.tOut)} °C, colder than any stream that cools it comes in (${fmt(coldestIn)} °C).`,
             fix: 'Rate the duty with eps <= 1 and work each outlet temperature out from the same Q.'
           });

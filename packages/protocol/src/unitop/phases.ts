@@ -384,7 +384,8 @@ const MULTIPHASE_ARCHETYPES: PhaseArchetype[] = [
     components: ['solids', 'water', 'air'],
     ports: [
       { id: 'wet', name: 'Wet solids', direction: 'INLET', phase: 'SOLID', dispersed: { water: 'LIQUID' }, carries: ['solids', 'water'], flowUnits: 'kg/h; moisture % wet basis' },
-      { id: 'hot_gas', name: 'Hot gas', direction: 'INLET', phase: 'GAS', carries: ['air', 'water'], flowUnits: 'kg/h dry gas or SCFM; °C' },
+      // Optional: an indirect (contact, steam-tube) dryer is heated through a wall, not by a gas stream.
+      { id: 'hot_gas', name: 'Hot gas', direction: 'INLET', phase: 'GAS', carries: ['air', 'water'], flowUnits: 'kg/h dry gas or SCFM; °C', optional: true },
       { id: 'dry', name: 'Dry solids', direction: 'OUTLET', phase: 'SOLID', dispersed: { water: 'LIQUID' }, carries: ['solids', 'water'], flowUnits: 'kg/h' },
       { id: 'exhaust', name: 'Exhaust', direction: 'OUTLET', phase: 'GAS', carries: ['air', 'water'], flowUnits: 'ACFM' }
     ],

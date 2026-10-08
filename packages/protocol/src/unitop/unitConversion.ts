@@ -152,8 +152,26 @@ export function unitScale(unit: string): Scale | null {
   return { f };
 }
 
-/** `value` in `from` expressed in `to`, or null when they are not the same kind of quantity. */
-export function convertUnit(value: number, from: string, to: string): number | null {
+/** Units that are a temperature difference by name. */
+const DELTA_TEMPERATURE = new Set(['delta°C', 'ΔC', 'Δ°C']);
+
+/**
+ * A temperature parameter that is really a difference (an approach, a rise,
+ * an LMTD): converted by size only, so 10 °C of approach is 18 °F, not 50 °F.
+ */
+export function isTemperatureDifference(p: { name: string; label?: string; unit: string }): boolean {
+  const u = p.unit.trim();
+  if (DELTA_TEMPERATURE.has(u)) return true;
+  if (!['°C', 'degC', 'C', '°F', 'degF', 'F', 'K', 'R'].includes(u)) return false;
+  return /approach|rise|delta|differ|lmtd|superheat|subcool|range|span|drop|dt$|^dt|dT|gap|margin/i.test(`${p.name} ${p.label ?? ''}`);
+}
+
+/**
+ * `value` in `from` expressed in `to`, or null when they are not the same
+ * kind of quantity. A lone temperature is absolute (with its offset) unless
+ * either unit is a difference (delta°C) or `difference` says it is one.
+ */
+export function convertUnit(value: number, from: string, to: string, options: { difference?: boolean } = {}): number | null {
   if (from.trim() === to.trim()) return value;
   const a = unitScale(from);
   const b = unitScale(to);
@@ -164,7 +182,8 @@ export function convertUnit(value: number, from: string, to: string): number | n
   if (!da || !db || !sameDim(da, db)) return null;
   // A lone temperature is absolute, with its offset; otherwise a pure scale.
   const lone = a.o !== undefined || b.o !== undefined;
-  if (lone && isTemperature(da)) {
+  const difference = options.difference || DELTA_TEMPERATURE.has(from.trim()) || DELTA_TEMPERATURE.has(to.trim());
+  if (lone && !difference && isTemperature(da)) {
     const si = a.f * value + (a.o ?? 0);
     return (si - (b.o ?? 0)) / b.f;
   }
@@ -236,12 +255,12 @@ export function alternativeUnits(unit: string): string[] {
  * kg/h". The number is converted into `unit`; a bare number is taken to be in
  * `assumed` (the unit being shown). Null when it cannot be read or converted.
  */
-export function parseQuantity(text: string, unit: string, assumed: string = unit): number | null {
+export function parseQuantity(text: string, unit: string, assumed: string = unit, options: { difference?: boolean } = {}): number | null {
   const m = /^\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*(.*?)\s*$/.exec(text.replace(/,/g, ''));
   if (!m) return null;
   const v = Number(m[1]);
   if (!Number.isFinite(v)) return null;
   const typed = (m[2] ?? '').trim();
   const from = typed === '' ? assumed : typed;
-  return convertUnit(v, from, unit);
+  return convertUnit(v, from, unit, options);
 }

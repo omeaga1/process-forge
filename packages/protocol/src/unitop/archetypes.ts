@@ -22,7 +22,7 @@ export type BehaviorMode = 'DISCRETE_CYCLE' | 'CONTINUOUS_RATE' | 'BATCH' | 'STO
 
 export type RequirementCheck =
   /** A parameter or derived value of this kind of quantity (its unit's dimension), optionally named like `names`; `guarded`: a constraint reads it; `computed`: a derived value, worked out rather than typed in. */
-  | { kind: 'quantity'; unit: string; names?: string; guarded?: boolean; computed?: boolean }
+  | { kind: 'quantity'; unit: string; orUnits?: string[]; names?: string; guarded?: boolean; computed?: boolean }
   /** Heat goes in or out: behavior.dutyKw, a batch phase duty, a UTILITY or ENERGY port, or a hot stream of its own (channels, a GAS inlet). */
   | { kind: 'duty' }
   /** Streams kept apart: channels. */
@@ -162,7 +162,7 @@ export const ARCHETYPE_PHYSICS: Record<string, ArchetypePhysics> = {
   pump: {
     behaviorModes: ['CONTINUOUS_RATE'],
     requirements: [
-      { id: 'head', what: 'the pressure (or head) it develops', check: given('psi', 'head|dp|delta|diff|pressure|discharge|tdh'), severity: 'ERROR', fix: 'Give the differential pressure (psi, bar) or head (ft, m) as a parameter or derive it from the system curve.' },
+      { id: 'head', what: 'the pressure (or head) it develops', check: { kind: 'quantity', unit: 'psi', orUnits: ['ft'], names: 'head|dp|delta|diff|discharge|tdh|developed|differential' }, severity: 'ERROR', fix: 'Give the differential pressure (psi, bar) or head (ft, m) as a parameter or derive it from the system curve.' },
       { id: 'power', what: 'shaft power = Q x dP / efficiency', check: q('kW', 'shaft|brake|bhp|absorbed'), severity: 'ERROR', fix: 'Derive shaftKw = Q (m3/s) x dP (kPa) / efficiency, report it as behavior.dutyKw and constrain it below the motor rating.' },
       { id: 'efficiency', what: 'hydraulic efficiency', check: given('-', 'eff'), severity: 'WARNING', fix: 'Add an efficiency parameter (0-1), typically 0.5-0.8 for a centrifugal pump.' },
       { id: 'capacity', what: 'the most it pumps', check: { kind: 'capacity' }, severity: 'WARNING', fix: 'Give behavior.capacityGpm (its rated flow) so the engine limits the flow.' },
@@ -199,7 +199,7 @@ export const ARCHETYPE_PHYSICS: Record<string, ArchetypePhysics> = {
   'distillation-column': {
     behaviorModes: ['CONTINUOUS_RATE', 'BATCH'],
     requirements: [
-      { id: 'split', what: 'which components go overhead and which to the bottoms', check: { kind: 'recoveries' }, severity: 'ERROR', fix: 'Give recoveries per outlet: the light key mostly to the distillate, the heavy key mostly to the bottoms.' },
+      { id: 'split', what: 'which components go overhead and which to the bottoms', check: { kind: 'recoveries' }, severity: 'WARNING', fix: 'Give recoveries per outlet: the light key mostly to the distillate, the heavy key mostly to the bottoms.' },
       { id: 'reboiler', what: 'reboiler duty', check: { kind: 'duty' }, severity: 'ERROR', fix: 'Derive the reboiler duty (kW) from the boil-up and latent heat, as behavior.dutyKw.' },
       { id: 'reflux', what: 'reflux ratio against the minimum', check: given('-', 'reflux|r_?min|rr', true), severity: 'WARNING', fix: 'Give the reflux ratio and check it above R_min (Underwood).' }
     ]

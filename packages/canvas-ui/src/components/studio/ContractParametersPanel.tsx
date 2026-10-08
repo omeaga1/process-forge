@@ -1,6 +1,7 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   convertUnit,
+  isTemperatureDifference,
   evaluateUnitOp,
   parameterInfluence,
   physicsAlignment,
@@ -284,8 +285,9 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
           {fixes.slice(0, 4).map((f) => {
             const p = paramOf(f.parameter)!;
             const du = unitFor(p.unit, displayUnitsFor(p));
-            const shown = convertUnit(f.value, p.unit, du) ?? f.value;
-            const now = convertUnit(p.value, p.unit, du) ?? p.value;
+            const difference = isTemperatureDifference(p);
+            const shown = convertUnit(f.value, p.unit, du, { difference }) ?? f.value;
+            const now = convertUnit(p.value, p.unit, du, { difference }) ?? p.value;
             return (
               <button
                 key={`${f.parameter}:${f.value}`}
@@ -372,7 +374,8 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
             const pct = before ? (delta / Math.abs(before)) * 100 : 0;
             const choices = displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 });
             const du = unitFor(d.unit, choices);
-            const shown = v !== undefined ? convertUnit(v, d.unit, du) ?? v : NaN;
+            const difference = isTemperatureDifference(d);
+            const shown = v !== undefined ? convertUnit(v, d.unit, du, { difference }) ?? v : NaN;
             const isLit = lit.has(`d:${d.name}`);
             return (
               <div
@@ -394,7 +397,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                 <span style={{ fontSize: 13, color: palette.text.secondary }}>{d.label ?? d.name}</span>
                 <span style={{ fontFamily: font.mono, fontSize: 13, color: palette.text.primary, whiteSpace: 'nowrap' }}>
                   {delta !== 0 && (
-                    <span style={{ fontSize: 11, marginRight: 6, color: palette.text.muted }} title={`When you opened it: ${formatQuantity(convertUnit(before!, d.unit, du) ?? before!)}`}>
+                    <span style={{ fontSize: 11, marginRight: 6, color: palette.text.muted }} title={`When you opened it: ${formatQuantity(convertUnit(before!, d.unit, du, { difference }) ?? before!)}`}>
                       {delta > 0 ? '▲' : '▼'} {Math.abs(pct) >= 0.1 && Number.isFinite(pct) ? `${Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%` : ''}
                     </span>
                   )}
