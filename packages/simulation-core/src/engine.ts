@@ -801,7 +801,11 @@ export class SimulationEngine {
         : {}),
       ...(u.live && Number.isFinite(u.live.capacity) ? { capacityGpm: round1((u.live.capacity / M3_PER_GALLON) * 60) } : {}),
       ...(u.batchRun ? { secondsByPhase: Object.fromEntries(Object.entries(u.batchRun.secondsByPhase).map(([k, v]) => [k, Math.round(v)])) } : {}),
-      ...(u.contract && isPhaseAware(u.contract) && seconds > 0 ? { streams: portStreams(u.contract, u.byPort, seconds) } : {})
+      // Each outlet on its own wherever one figure would mislead: phases in their own units, and
+      // several outlets (an exchanger's two sides, a separator's cuts) at their own temperatures.
+      ...(u.contract && seconds > 0 && (isPhaseAware(u.contract) || u.contract.ports.filter((p) => p.direction === 'OUTLET' && p.flowDimension === 'CONTINUOUS_FLUID').length > 1)
+        ? { streams: portStreams(u.contract, u.byPort, seconds) }
+        : {})
     };
   }
 

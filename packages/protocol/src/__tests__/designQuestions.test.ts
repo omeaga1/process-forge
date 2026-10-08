@@ -50,3 +50,15 @@ describe('Design questions: what a complete design of a unit carries', () => {
     }
   });
 });
+
+describe('Completeness guesses defer to the physics', () => {
+  it('does not read a centrifugal pump as a centrifuge', async () => {
+    const p = await profileOf('Sanitary centrifugal pump moving orange juice to the filler');
+    assert.ok(p.changesComposition.value < 0.6, String(p.changesComposition.value));
+  });
+
+  it('leaves a contract that declares its archetype to the physics-alignment gate', async () => {
+    const declared = { ...EVAPORATOR_CONTRACT, archetype: 'evaporator', outlets: [], components: [] } as UnitOpContract;
+    assert.deepEqual(checkDesignCompleteness(declared, await profileOf(designStateOf(declared).message)), []);
+  });
+});
