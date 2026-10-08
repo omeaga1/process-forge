@@ -281,9 +281,15 @@ describe('design_unit_op: which phase drives each port', () => {
   it('ships phase examples the engine accepts, and rejects a liquid-in, solid-out design that does not say how', async () => {
     const { executeDesignUnitOp } = await import('../tools/designUnitOp.js');
     const { executeValidateUnitOp } = await import('@process-forge/protocol');
-    const r = executeDesignUnitOp({ description: 'a pump' });
-    assert.equal(r.phasePlan.decidedBy, 'none');
-    assert.equal(executeValidateUnitOp({ contract: r.gasSolidExample }).verdict, 'ACCEPTED');
+    const pump = executeDesignUnitOp({ description: 'a pump' });
+    assert.equal(pump.phasePlan.decidedBy, 'none');
+    assert.equal(pump.gasSolidExample, undefined, 'only the example a unit needs comes back');
+    assert.equal(pump.phaseChangeExample, undefined);
+    assert.ok(JSON.stringify(pump).length < 60000, 'the brief fits the in-app tool-result budget');
+    const collector = executeDesignUnitOp({ description: 'baghouse' });
+    assert.equal(executeValidateUnitOp({ contract: collector.gasSolidExample }).verdict, 'ACCEPTED');
+    const r = executeDesignUnitOp({ description: 'spray dryer' });
+    assert.equal(r.gasSolidExample, undefined);
     assert.equal(executeValidateUnitOp({ contract: r.phaseChangeExample }).verdict, 'ACCEPTED');
     const broken = JSON.parse(JSON.stringify(r.phaseChangeExample));
     delete broken.phaseChanges;

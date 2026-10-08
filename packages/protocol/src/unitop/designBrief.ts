@@ -94,10 +94,16 @@ export interface DesignUnitOpResult {
   phasePlan: PhasePlan;
   /** How each phase's flow is stated and the relations that govern it. */
   phaseFlowBasis: Record<MaterialPhase, PhaseFlowBasis>;
-  /** A complete, valid gas-solid separation (no phase change): a pulse-jet dust collector. */
-  gasSolidExample: unknown;
-  /** A complete, valid unit that takes a liquid in and sends a solid and a gas out: a spray dryer. */
-  phaseChangeExample: unknown;
+  /**
+   * A complete, valid gas-solid separation (no phase change): a pulse-jet dust
+   * collector. Included when the phase plan is a separation of a gas or solid.
+   */
+  gasSolidExample?: unknown;
+  /**
+   * A complete, valid unit that takes a liquid in and sends a solid and a gas
+   * out: a spray dryer. Included when the phase plan changes a phase.
+   */
+  phaseChangeExample?: unknown;
   /** What the surrounding process looks like, when a graph was supplied. */
   processContext: {
     available: boolean;
@@ -140,7 +146,9 @@ export function phasePlanFor(description: string): PhasePlan {
     notes: [
       `The description reads as a ${best.name}. Write the ports with these phases, state each flow in the units given, and declare these phaseChanges (with latentHeatKjPerKg): the phase gate in validate_unit_op checks that every component leaves only in a phase it entered in or was changed to, and that a change that takes heat has a heat source.`,
       'Rename ports and components to the engineer\'s words (lubricant rather than dust); keep the phases.',
-      ...(best.example ? [`A complete contract of this kind is in ${best.example === 'DUST_COLLECTOR_CONTRACT' ? 'gasSolidExample' : 'phaseChangeExample'}.`] : [])
+      best.phaseChanges.length
+        ? 'phaseChangeExample (a spray dryer) shows phaseChanges with a latent heat, the energy balance that pays for them, and per-phase recoveries.'
+        : 'gasSolidExample (a dust collector) shows a gas with a dispersed solid separated into gas and solid outlets, sized in ACFM and kg/h.'
     ]
   };
 }
@@ -294,6 +302,11 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     ? `The engineer expects behavior.mode = ${preferredMode}.`
     : 'Choose behavior.mode: DISCRETE_CYCLE for machines that process whole items on a cycle, CONTINUOUS_RATE for steady flow transformations, BATCH for a vessel that holds a charge of liquid and runs it through fill, hold and drain steps.';
 
+  const phasePlan = phasePlanFor(description);
+  const plannedPorts = phasePlan.archetype?.ports ?? [];
+  const changesPhase = (phasePlan.archetype?.phaseChanges.length ?? 0) > 0;
+  const multiphase = plannedPorts.some((p) => p.phase === 'GAS' || p.phase === 'SOLID');
+
   const brief = [
     `Design a unit operation from this description: "${description}"`,
     '',
@@ -344,10 +357,11 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     batchNames: BATCH_SCOPE_NAMES,
     componentsExample: JUICE_CONCENTRATOR_CONTRACT,
     reactionExample: NEUTRALISER_CONTRACT,
-    phasePlan: phasePlanFor(description),
+    phasePlan,
     phaseFlowBasis: PHASE_FLOW_BASIS,
-    gasSolidExample: DUST_COLLECTOR_CONTRACT,
-    phaseChangeExample: SPRAY_DRYER_CONTRACT,
+    // The examples are large, so only the one this unit needs comes back.
+    ...(multiphase && !changesPhase ? { gasSolidExample: DUST_COLLECTOR_CONTRACT } : {}),
+    ...(changesPhase ? { phaseChangeExample: SPRAY_DRYER_CONTRACT } : {}),
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:
       'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'

@@ -66,7 +66,7 @@ export interface AgentRunOptions {
 const toolSchemas = AGENT_TOOLS.map((t) => ({ type: 'function' as const, function: { name: t.name, description: t.description, parameters: t.parameters } }));
 
 /** Tool results can be large (a design brief); models need the start more than the tail. */
-const MAX_RESULT_CHARS = 60000;
+const MAX_RESULT_CHARS = 90000;
 
 async function chatCompletion(creds: LlmCredentials, messages: AgentMessage[], signal?: AbortSignal) {
   const key = creds.openrouterApiKey;
