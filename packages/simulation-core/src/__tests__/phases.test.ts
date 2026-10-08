@@ -172,10 +172,29 @@ describe('Each inlet on its own: port.<id>.*', () => {
     // 0.3 % of 7056 kg/h is 21.2 kg/h of dust, nearly all caught in the liquor.
     assert.ok(Math.abs(liquor.dispersedKgPerHour!.dust! - 21.2) < 0.5, JSON.stringify(liquor));
     const gasOut = d.streams!.find((s) => s.port === 'gas_out')!;
-    assert.ok(gasOut.molarMass! < 28.2, 'the gas leaves humid');
+    assert.ok(gasOut.molarMass! < 28.6, `the gas leaves humid (M = ${gasOut.molarMass})`);
     // Starve it of water: the L/G check breaks at the conditions it actually got, because it reads the water port itself.
     const dry = run(1500);
     assert.ok(dry.nodeReports['venturi']!.designedUnit!.brokenConstraints.some((c) => c.id === 'enough-liquor'), 'L/G read live from port.liquor_in');
   });
 });
 
+
+describe('An inlet port with no pipe', () => {
+  it('reads as no flow, not as its design values', async () => {
+    const { VENTURI_SCRUBBER_CONTRACT } = await import('@process-forge/protocol');
+    const gas = createTerminalNode('feed', { id: 'flue', material: 'Flue gas', phase: 'GAS', temperatureC: 180, supplyKgPerHour: 7056, composition: { air: 0.988, water: 0.009, dust: 0.003 } });
+    let g = {
+      id: 'scrub',
+      name: 'scrub',
+      version: '1',
+      metadata: {},
+      nodes: [gas, unit('venturi', VENTURI_SCRUBBER_CONTRACT), sink('stack'), sink('pond')],
+      edges: [pipe('venturi', 'stack', 'gas_out', 'in-0', 0.001, 46, 50), pipe('venturi', 'pond', 'liquor_out', 'in-0', 1, 46, 50)]
+    } as unknown as ProcessGraph;
+    g = addStreamToGraph(g, pipe('flue', 'venturi', gas.outputs[0]!.id, 'gas_in', 0.001, 180, 50));
+    const r = simulateProcess(g, 10);
+    const broken = r.nodeReports['venturi']!.designedUnit!.brokenConstraints.map((c) => c.id);
+    assert.ok(broken.includes('enough-liquor'), `no water piped, so L/G is 0: ${broken.join(', ')}`);
+  });
+});

@@ -320,3 +320,19 @@ describe('port.<id>.* names', () => {
     assert.ok(r.rules.some((x) => x.includes('port.<portId>')));
   });
 });
+
+describe('second review fixes', () => {
+  it('designPorts must name continuous inlet ports, and calculate_stream refuses impossible temperatures', async () => {
+    const { VENTURI_SCRUBBER_CONTRACT, calculateStream } = await import('../index.js');
+    const c = clone(VENTURI_SCRUBBER_CONTRACT);
+    c.designPorts!.gas_out = { temperatureC: 40 };
+    assert.match(validateUnitOpContract(c).map((i) => i.message).join('\n'), /"gas_out", which is not a continuous INLET port/);
+    assert.equal(calculateStream({ phase: 'GAS', flow: { value: 1, unit: 'kg/s' }, temperatureC: -300 }).success, false);
+    near(Object.values(calculateStream({ phase: 'GAS', flow: { value: 1, unit: 'kg/s' }, composition: { air: 0.5 } }).composition!).reduce((a, v) => a + v, 0), 1, 1e-9, 'normalised');
+  });
+  it('the scrubber balances the gas heat against evaporation and warming its water', async () => {
+    const { VENTURI_SCRUBBER_CONTRACT } = await import('../index.js');
+    const d = executeValidateUnitOp({ contract: VENTURI_SCRUBBER_CONTRACT }).derived!;
+    assert.ok(Math.abs(d.heatGivenKw! - d.heatNeededKw!) / d.heatGivenKw! < 0.05, `${d.heatGivenKw} vs ${d.heatNeededKw}`);
+  });
+});

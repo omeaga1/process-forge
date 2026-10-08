@@ -593,11 +593,12 @@ export class MaterialNetwork {
       specificHeatKjPerKgK: q.cp,
       ...(Object.keys(q.comp).length ? { composition: q.comp } : {})
     });
-    // Each piped inlet port on its own; one that got nothing this tick reads as no flow.
+    // Each continuous inlet port on its own; one that got nothing this tick (or has no pipe) reads as no flow.
     const ports: Record<string, ReturnType<typeof state> | { massFlowKgPerS: number; volumetricFlowGpm: number }> = {};
-    for (const e of this.inEdges.get(u.id) ?? []) {
-      const q = u.inboxByPort[e.targetPortId];
-      ports[e.targetPortId] = q && q.kg > 0 ? state(q) : { massFlowKgPerS: 0, volumetricFlowGpm: 0 };
+    for (const port of u.contract!.ports) {
+      if (port.direction !== 'INLET' || port.flowDimension !== 'CONTINUOUS_FLUID') continue;
+      const q = u.inboxByPort[port.id];
+      ports[port.id] = q && q.kg > 0 ? state(q) : { massFlowKgPerS: 0, volumetricFlowGpm: 0 };
     }
     const ev = evaluateUnitOp(u.contract!, { inlet: state(p), ...(Object.keys(ports).length ? { ports } : {}) });
     run.evaluations++;

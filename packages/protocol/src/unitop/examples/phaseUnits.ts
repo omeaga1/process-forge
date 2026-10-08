@@ -308,7 +308,8 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
  *   ΔP   = 5e-5 v² (L/G)                                    (Calvert, inH2O, v in ft/s)
  *
  * and the hot gas evaporates water until it nears saturation at the outlet
- * temperature: the heat the gas gives up must cover that evaporation.
+ * temperature: the heat the gas gives up pays for that evaporation and for
+ * warming the once-through water, which sets the outlet temperature.
  */
 export const VENTURI_SCRUBBER_CONTRACT: UnitOpContract = {
   contractVersion: 1,
@@ -329,12 +330,13 @@ export const VENTURI_SCRUBBER_CONTRACT: UnitOpContract = {
     { name: 'particleUm', label: 'Particle size (mass median)', unit: 'um', value: 3, min: 0.1, max: 100 },
     { name: 'particleDensity', label: 'Particle density', unit: 'kg/m3', value: 2200, min: 500, max: 8000 },
     { name: 'gasViscosity', label: 'Gas viscosity', unit: 'Pa-s', value: 0.000021, min: 0.00001, max: 0.00005 },
-    { name: 'outletC', label: 'Gas outlet temperature', unit: '°C', value: 46, min: 20, max: 100, description: 'Near the adiabatic saturation temperature of the inlet gas.' },
+    { name: 'outletC', label: 'Gas and liquor outlet temperature', unit: '°C', value: 34, min: 10, max: 100, description: 'Where the gas\'s heat balances the water it evaporates and the warming of the once-through water.' },
     { name: 'pressureKpa', label: 'Absolute pressure', unit: 'kPa', value: 99, min: 80, max: 110 },
     { name: 'molarMass', label: 'Gas molar mass', unit: 'kg/kmol', value: 28.7, min: 2, max: 100 },
     { name: 'gasConstant', label: 'Gas constant R', unit: 'kJ/kmol-K', value: 8.314, min: 8.314, max: 8.315 },
     { name: 'cpGas', label: 'Gas specific heat', unit: 'kJ/kg-K', value: 1.03, min: 0.9, max: 1.2 },
-    { name: 'latentKjPerKg', label: 'Latent heat of water', unit: 'kJ/kg', value: 2390, min: 2250, max: 2500 },
+    { name: 'latentKjPerKg', label: 'Latent heat of water', unit: 'kJ/kg', value: 2418, min: 2250, max: 2500 },
+    { name: 'cpWater', label: 'Water specific heat', unit: 'kJ/kg-K', value: 4.18, min: 4.1, max: 4.25 },
     { name: 'buckP0', label: 'Buck constant', unit: 'kPa', value: 0.61121, min: 0.61121, max: 0.61121 },
     { name: 'buckA', label: 'Buck constant', unit: '°C', value: 234.5, min: 234.5, max: 234.5 },
     { name: 'buckB', label: 'Buck constant', unit: '°C', value: 257.14, min: 257.14, max: 257.14 },
@@ -376,6 +378,13 @@ export const VENTURI_SCRUBBER_CONTRACT: UnitOpContract = {
     { name: 'evaporatedKgPerS', label: 'Water evaporated', unit: 'kg/s', expr: 'max(dryGasKgPerS * humidityOut - waterInGasKgPerS, 0)' },
     { name: 'heatGivenKw', label: 'Heat the gas gives up', unit: 'kW', expr: 'gasKgPerS * cpGas * (port.gas_in.temperatureC - outletC)' },
     { name: 'heatToEvaporateKw', label: 'Heat to evaporate the water', unit: 'kW', expr: 'evaporatedKgPerS * latentKjPerKg' },
+    {
+      name: 'heatToWarmKw',
+      label: 'Heat to warm the scrubbing water',
+      unit: 'kW',
+      expr: 'port.liquor_in.massFlowKgPerS * cpWater * (outletC - port.liquor_in.temperatureC)'
+    },
+    { name: 'heatNeededKw', label: 'Heat the water takes', unit: 'kW', expr: 'heatToEvaporateKw + heatToWarmKw' },
     { name: 'waterTotalKgPerS', label: 'Water in', unit: 'kg/s', expr: 'inlet.massFlowKgPerS * inlet.x.water' },
     { name: 'waterToGas', label: 'Share of the water leaving with the gas', unit: '-', expr: 'if(waterTotalKgPerS > 0, min((waterInGasKgPerS + evaporatedKgPerS) / waterTotalKgPerS, 1), 0)' }
   ],
@@ -397,11 +406,11 @@ export const VENTURI_SCRUBBER_CONTRACT: UnitOpContract = {
     },
     { id: 'fan', expr: 'dpInH2O <= maxDpInH2O', severity: 'ERROR', message: 'The pressure drop is more than the fan can pull.', hint: 'Widen the throat or lower L/G.' },
     {
-      id: 'adiabatic',
-      expr: 'abs(heatGivenKw - heatToEvaporateKw) <= 0.25 * max(heatGivenKw, 1)',
+      id: 'heat-balance',
+      expr: 'abs(heatGivenKw - heatNeededKw) <= 0.1 * max(heatGivenKw, 1)',
       severity: 'WARNING',
-      message: 'The outlet temperature and humidity do not balance the heat the gas gives up (it is not near adiabatic saturation).',
-      hint: 'Adjust outletC toward the inlet gas\'s adiabatic saturation temperature.'
+      message: 'The outlet temperature does not balance: the heat the gas gives up should equal what the water takes to evaporate and warm.',
+      hint: 'Move outletC: lower when the water takes more heat than the gas gives, higher when it takes less.'
     },
     { id: 'velocity', expr: 'throatVelocity >= 40 && throatVelocity <= 150', severity: 'WARNING', message: 'Throat velocity outside 40-150 m/s.', hint: 'Resize the throat.' }
   ],

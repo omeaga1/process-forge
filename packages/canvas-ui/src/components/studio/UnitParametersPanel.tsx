@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import {
+  calculateStream,
   evaluateUnitOp,
   UnitOpContractSchema,
   TERMINAL_ROLE_LABEL,
@@ -266,6 +267,22 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
     const supplyUnit: 'scfm' | 'kgh' | 'gpm' =
       !items && phase === 'GAS' && typeof config.supplyScfm === 'number' ? 'scfm' : !items && typeof config.supplyKgPerHour === 'number' ? 'kgh' : 'gpm';
     const supplyValue = supplyUnit === 'scfm' ? Number(config.supplyScfm) : supplyUnit === 'kgh' ? Number(config.supplyKgPerHour) : terminalSupplyRate(node);
+    // The same supply in another unit, by the feed's own temperature, density and composition.
+    const convert = (v: number, from: 'scfm' | 'kgh' | 'gpm', to: 'scfm' | 'kgh' | 'gpm', ph: 'LIQUID' | 'GAS' | 'SOLID' = phase as 'LIQUID' | 'GAS' | 'SOLID'): number => {
+      if (!(v > 0) || from === to) return v;
+      const unitOf = { scfm: 'SCFM', kgh: 'kg/h', gpm: 'gal/min' } as const;
+      const rho = typeof config.densityGPerCm3 === 'number' ? config.densityGPerCm3 * 1000 : undefined;
+      const r = calculateStream({
+        phase: ph,
+        flow: { value: v, unit: unitOf[from] },
+        ...(typeof config.temperatureC === 'number' ? { temperatureC: config.temperatureC } : {}),
+        ...(config.composition && typeof config.composition === 'object' ? { composition: config.composition as Record<string, number> } : {}),
+        ...(rho !== undefined && ph !== 'GAS' ? { densityKgPerM3: rho } : {})
+      });
+      if (!r.success) return v;
+      const out = to === 'kgh' ? r.mass!.kgPerHour : to === 'scfm' ? r.volume!.standardCubicFeetPerMinute ?? v : r.volume!.gallonsPerMinute ?? (r.volume!.actualM3PerHour / 0.227124707);
+      return Number(out.toPrecision(4));
+    };
     const withSupply = (unit: 'scfm' | 'kgh' | 'gpm', v: number): Record<string, unknown> => {
       const { supplyScfm: _s, supplyKgPerHour: _k, ...rest } = config as Record<string, unknown>;
       if (unit === 'scfm') return { ...rest, supplyRate: 0, supplyScfm: v };
@@ -346,8 +363,12 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
                   aria-checked={phase === ph}
                   onClick={() => {
                     const next: Record<string, unknown> = { ...config, phase: ph };
-                    // SCFM only describes a gas.
-                    if (ph !== 'GAS' && typeof next.supplyScfm === 'number') delete next.supplyScfm;
+                    // SCFM only describes a gas: keep the same supply as a mass flow.
+                    if (ph !== 'GAS' && typeof next.supplyScfm === 'number') {
+                      const kgh = convert(next.supplyScfm as number, 'scfm', 'kgh', 'GAS');
+                      delete next.supplyScfm;
+                      if (kgh > 0) next.supplyKgPerHour = kgh;
+                    }
                     onUpdateConfig(node.id, next);
                   }}
                   style={chip(phase === ph)}
@@ -383,7 +404,10 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
                 <select
                   aria-label="Supply unit"
                   value={supplyUnit}
-                  onChange={(e) => onUpdateConfig(node.id, withSupply(e.target.value as 'scfm' | 'kgh' | 'gpm', supplyValue))}
+                  onChange={(e) => {
+                    const to = e.target.value as 'scfm' | 'kgh' | 'gpm';
+                    onUpdateConfig(node.id, withSupply(to, convert(supplyValue, supplyUnit, to)));
+                  }}
                   style={{ ...unitTag, background: 'transparent', border: 'none', color: palette.text.secondary, cursor: 'pointer' }}
                 >
                   {(phase !== 'GAS' || supplyUnit === 'gpm') && <option value="gpm">gal/min</option>}

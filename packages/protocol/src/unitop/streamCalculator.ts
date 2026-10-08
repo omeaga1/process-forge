@@ -77,10 +77,14 @@ export function calculateStream(input: StreamCalcInput): StreamCalcResult {
   const T = input.temperatureC ?? 20;
   const P = input.pressureKpa ?? STD_PRESSURE_KPA;
   if (!(P > 0)) return { success: false, error: 'pressureKpa is absolute and must be > 0' };
+  if (!(T > -273.15)) return { success: false, error: 'temperatureC must be above absolute zero (-273.15 °C)' };
   const notes: string[] = [];
 
   // What it is made of; a gas at a stated humidity is air plus water.
-  let comp = { ...(input.composition ?? {}) };
+  // Mass fractions, normalised to add up to 1.
+  const given = Object.entries(input.composition ?? {}).filter(([, w]) => typeof w === 'number' && w > 0);
+  const givenTotal = given.reduce((a, [, w]) => a + w, 0);
+  let comp: Record<string, number> = Object.fromEntries(given.map(([c, w]) => [c, w / givenTotal]));
   if (phase === 'GAS' && input.relativeHumidity !== undefined) {
     const rh = Math.min(Math.max(input.relativeHumidity, 0), 1);
     const pv = rh * waterSaturationPressureKpa(T);

@@ -446,8 +446,10 @@ export const RESERVED_SCOPE_NAMES = [
 export const PORT_STREAM_FIELDS = ['temperatureC', 'massFlowKgPerS', 'volumetricFlowGpm', 'densityGPerCm3', 'specificHeatKjPerKgK', 'latentHeatKjPerKg'] as const;
 
 /** port.<id>.<field> and port.<id>.x.<component> for every continuous inlet port whose id is a plain name. */
-export function portScopeNames(contract: Pick<UnitOpContract, 'ports' | 'components'>): string[] {
+export function portScopeNames(contract: Pick<UnitOpContract, 'ports' | 'components' | 'behavior'>): string[] {
   const out: string[] = [];
+  // Only a continuous unit is evaluated live at each port; a batch or cycle unit reads the mix (inlet.*).
+  if (contract.behavior.mode !== 'CONTINUOUS_RATE') return out;
   for (const p of contract.ports) {
     if (p.direction !== 'INLET' || p.flowDimension !== 'CONTINUOUS_FLUID' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(p.id)) continue;
     for (const f of PORT_STREAM_FIELDS) out.push(`port.${p.id}.${f}`);
@@ -478,6 +480,11 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     if (contract.behavior.mode === 'BATCH') known.add(`batch.x.${c}`);
   }
   for (const name of portScopeNames(contract)) known.add(name);
+  for (const id of Object.keys(contract.designPorts ?? {})) {
+    if (!contract.ports.some((p) => p.id === id && p.direction === 'INLET' && p.flowDimension === 'CONTINUOUS_FLUID')) {
+      issues.push({ path: `designPorts.${id}`, message: `names "${id}", which is not a continuous INLET port. Inlets: ${contract.ports.filter((p) => p.direction === 'INLET').map((p) => p.id).join(', ') || 'none'}` });
+    }
+  }
 
   for (const p of contract.parameters) {
     if (known.has(p.name)) {

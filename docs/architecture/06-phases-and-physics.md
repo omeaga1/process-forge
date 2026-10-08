@@ -203,8 +203,9 @@ archetype's example) is built on this:
 - inertial impaction ψ = ρ_p v d_p² / (18 µ d_d);
 - Johnstone efficiency η = 1 − exp(−k (L/G) √ψ);
 - Calvert pressure drop ΔP = 5×10⁻⁵ v² (L/G) inH₂O;
-- the hot gas's heat balanced against the water it evaporates, so the gas
-  leaves near adiabatic saturation.
+- the heat the hot gas gives up, balanced against the water it evaporates
+  plus the warming of the once-through water, which sets the outlet
+  temperature.
 
 The correlation constants carry units, so they are parameters, and the
 dimension checker verifies each formula.
