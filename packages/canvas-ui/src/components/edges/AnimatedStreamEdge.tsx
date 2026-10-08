@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { getSmoothStepPath, EdgeLabelRenderer, Position, useReactFlow, useStore, type ConnectionLineComponentProps, type EdgeProps, type ReactFlowState } from '@xyflow/react';
-import { moveRun, roundedPath, routePipe, routeThrough, type Point, type Rect } from '@process-forge/protocol';
+import { moveRun, placedSize, roundedPath, routePipe, routeThrough, type Point, type ProcessNode, type Rect } from '@process-forge/protocol';
+import { drawingSize } from '../../nozzles/nozzleLayout.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasEdgeData } from '../../types.js';
 import { flowPeriodSeconds, liveLabel, pipeColor } from './streamLook.js';
@@ -26,6 +27,8 @@ import { flowPeriodSeconds, liveLabel, pipeColor } from './streamLook.js';
  */
 export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -59,14 +62,20 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   // Every unit on the sheet, as the boxes the pipe keeps clear of. A string, so
   // panning (which moves nothing on the sheet) does not re-route every pipe.
   const obstacleKey = useStore(obstaclesOf);
-  const obstacles = useMemo(() => parseObstacles(obstacleKey), [obstacleKey]);
+  const boxes = useMemo(() => parseObstacles(obstacleKey), [obstacleKey]);
+  const obstacles = useMemo(() => boxes.map((b) => b.rect), [boxes]);
+  // Each end's own unit: its pipe's lead clears that, and nothing else.
+  const own = useMemo(
+    () => ({ fromOwn: boxes.filter((b) => b.node === source).map((b) => b.rect), toOwn: boxes.filter((b) => b.node === target).map((b) => b.rect) }),
+    [boxes, source, target]
+  );
   const waypoints = edgeData?.processEdge.waypoints;
   const from = { x: sourceX, y: sourceY, side: sourcePosition };
   const to = { x: targetX, y: targetY, side: targetPosition };
   const route = useMemo(
-    () => (waypoints?.length ? routeThrough(from, to, waypoints, obstacles) : routePipe(from, to, obstacles)),
+    () => (waypoints?.length ? routeThrough(from, to, waypoints, obstacles, own) : routePipe(from, to, obstacles, own)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, waypoints, obstacles]
+    [sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, waypoints, obstacles, own]
   );
   // A run being dragged: the route as it will be when let go.
   const [dragging, setDragging] = useState<Point[] | null>(null);
@@ -97,7 +106,7 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
       const target = Math.round(((vertical ? a.x : a.y) + raw) / 10) * 10;
       const delta = target - (vertical ? a.x : a.y);
       bends = moveRun(base, i, delta);
-      setDragging(routeThrough(from, to, bends, obstacles));
+      setDragging(routeThrough(from, to, bends, obstacles, own));
     };
     const up = () => {
       el.removeEventListener('pointermove', move);
@@ -248,24 +257,43 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   );
 };
 
-/** Each unit's box on the sheet, as a string key: "x,y,w,h;..." */
+/** Room the node keeps around its drawing (IndustrialNode's PAD). */
+const PAD = 18;
+
+/**
+ * The boxes pipes keep clear of, as a string key "node|x,y,w,h;...". A unit is
+ * two boxes, its equipment and its label under it, not one box as wide as the
+ * label: a nozzle on the side of a pump sits beside the pump, not inside it.
+ */
 function obstaclesOf(st: ReactFlowState): string {
   const out: string[] = [];
+  const box = (id: string, x: number, y: number, w: number, h: number) => {
+    if (w > 0 && h > 0) out.push(`${id}|${Math.round(x)},${Math.round(y)},${Math.round(w)},${Math.round(h)}`);
+  };
   for (const n of st.nodeLookup.values()) {
     const w = n.measured?.width;
     const h = n.measured?.height;
     if (!w || !h) continue;
     const p = n.internals.positionAbsolute;
-    out.push(`${Math.round(p.x)},${Math.round(p.y)},${Math.round(w)},${Math.round(h)}`);
+    const pn = (n.data as { processNode?: ProcessNode } | undefined)?.processNode;
+    if (n.type === 'industrialNode' && pn) {
+      const natural = drawingSize(pn.kind, pn.dressing);
+      const placed = placedSize(natural.width, natural.height, pn.layout);
+      const bw = Math.min(w, placed.width + 2 * PAD);
+      const bh = Math.min(h, placed.height + 2 * PAD);
+      box(n.id, p.x + (w - bw) / 2, p.y, bw, bh);
+      box(n.id, p.x, p.y + bh, w, h - bh);
+    } else box(n.id, p.x, p.y, w, h);
   }
   return out.join(';');
 }
 
-function parseObstacles(key: string): Rect[] {
+function parseObstacles(key: string): { node: string; rect: Rect }[] {
   if (!key) return [];
   return key.split(';').map((r) => {
-    const [x, y, width, height] = r.split(',').map(Number) as [number, number, number, number];
-    return { x, y, width, height };
+    const [node, nums] = r.split('|') as [string, string];
+    const [x, y, width, height] = nums.split(',').map(Number) as [number, number, number, number];
+    return { node, rect: { x, y, width, height } };
   });
 }
 

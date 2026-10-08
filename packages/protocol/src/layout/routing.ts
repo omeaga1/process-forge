@@ -42,6 +42,13 @@ export interface RouteOptions {
   clearance?: number;
   /** Length a bend costs, px: higher makes fewer, longer runs. */
   bendCost?: number;
+  /**
+   * The boxes of the units at each end. A pipe's lead only has to clear its
+   * own unit: pushing it out past a neighbour would send it through that
+   * neighbour and back. Absent, every obstacle counts.
+   */
+  fromOwn?: readonly Rect[];
+  toOwn?: readonly Rect[];
 }
 
 export const PIPE_LEAD = 22;
@@ -262,9 +269,9 @@ const stepOf = (s: Side) => (s === 'right' ? 0 : s === 'bottom' ? 1 : s === 'lef
  * obstacle: the fewest-bend, shortest path on the grid of lines through the
  * leads and along the obstacles' grown edges. Null when there is none.
  */
-function searchRoute(a: Point, aSide: Side, b: Point, bSide: Side, obstacles: readonly Rect[], clearance: number, bendCost: number): Point[] | null {
-  const xs = uniqSorted([a.x, b.x, (a.x + b.x) / 2, ...obstacles.flatMap((r) => [r.x - clearance, r.x + r.width + clearance])]);
-  const ys = uniqSorted([a.y, b.y, (a.y + b.y) / 2, ...obstacles.flatMap((r) => [r.y - clearance, r.y + r.height + clearance])]);
+function searchRoute(a: Point, aSide: Side, b: Point, bSide: Side, zones: readonly { r: Rect; pad: number }[], bendCost: number): Point[] | null {
+  const xs = uniqSorted([a.x, b.x, (a.x + b.x) / 2, ...zones.flatMap(({ r, pad }) => [r.x - pad, r.x + r.width + pad])]);
+  const ys = uniqSorted([a.y, b.y, (a.y + b.y) / 2, ...zones.flatMap(({ r, pad }) => [r.y - pad, r.y + r.height + pad])]);
   const nx = xs.length;
   const ny = ys.length;
   const idx = (v: number[], t: number) => v.findIndex((x) => Math.abs(x - t) < EPS);
@@ -272,10 +279,9 @@ function searchRoute(a: Point, aSide: Side, b: Point, bSide: Side, obstacles: re
   const ay = idx(ys, a.y);
   const bx = idx(xs, b.x);
   const by = idx(ys, b.y);
-  // Grid lines sit on the grown edges, so blocking uses a hair less clearance than that.
-  const pad = clearance - 1;
-  const blocked = (x: number, y: number) => obstacles.some((r) => inside({ x, y }, r, pad));
-  const runFree = (x0: number, y0: number, x1: number, y1: number) => !obstacles.some((r) => runHits({ x: x0, y: y0 }, { x: x1, y: y1 }, r, pad));
+  // Grid lines sit on the grown edges, so blocking uses a hair less than each zone's clearance.
+  const blocked = (x: number, y: number) => zones.some(({ r, pad }) => inside({ x, y }, r, Math.max(0, pad - 1)));
+  const runFree = (x0: number, y0: number, x1: number, y1: number) => !zones.some(({ r, pad }) => runHits({ x: x0, y: y0 }, { x: x1, y: y1 }, r, Math.max(0, pad - 1)));
 
   const key = (ix: number, iy: number, d: number) => (iy * nx + ix) * 4 + d;
   const best = new Map<number, number>();
@@ -347,17 +353,19 @@ export function routePipe(from: PipeEnd, to: PipeEnd, obstacles: readonly Rect[]
   const clearance = options.clearance ?? PIPE_CLEARANCE;
   const lead = options.lead ?? PIPE_LEAD;
   const bendCost = options.bendCost ?? BEND_COST;
-  const a = leadPoint(from, obstacles, lead, clearance);
-  const b = leadPoint(to, obstacles, lead, clearance);
+  const a = leadPoint(from, options.fromOwn ?? obstacles, lead, clearance);
+  const b = leadPoint(to, options.toOwn ?? obstacles, lead, clearance);
   // Only what is near the way between the ends matters; a lead inside a unit (overlapping units) ignores that unit.
   const minX = Math.min(a.x, b.x) - SEARCH_MARGIN;
   const maxX = Math.max(a.x, b.x) + SEARCH_MARGIN;
   const minY = Math.min(a.y, b.y) - SEARCH_MARGIN;
   const maxY = Math.max(a.y, b.y) + SEARCH_MARGIN;
-  const near = obstacles.filter(
-    (r) => r.x < maxX && r.x + r.width > minX && r.y < maxY && r.y + r.height > minY && !inside(a, r, clearance - 1) && !inside(b, r, clearance - 1)
-  );
-  const found = searchRoute(a, from.side, b, to.side, near, clearance, bendCost);
+  // A unit whose clearance margin takes in a lead (it sits close by) still blocks with its body; only a
+  // unit a lead is actually inside (units overlapping) is left out.
+  const zones = obstacles
+    .filter((r) => r.x < maxX && r.x + r.width > minX && r.y < maxY && r.y + r.height > minY && !inside(a, r, 0) && !inside(b, r, 0))
+    .map((r) => ({ r, pad: inside(a, r, clearance - 1) || inside(b, r, clearance - 1) ? 0 : clearance }));
+  const found = searchRoute(a, from.side, b, to.side, zones, bendCost);
   const middle = found ?? orthogonalize([a, b], from.side, to.side);
   return simplifyPolyline([{ x: from.x, y: from.y }, ...middle, { x: to.x, y: to.y }]);
 }
@@ -366,8 +374,8 @@ export function routePipe(from: PipeEnd, to: PipeEnd, obstacles: readonly Rect[]
 export function routeThrough(from: PipeEnd, to: PipeEnd, waypoints: readonly Point[], obstacles: readonly Rect[] = [], options: RouteOptions = {}): Point[] {
   const lead = options.lead ?? PIPE_LEAD;
   const clearance = options.clearance ?? PIPE_CLEARANCE;
-  const a = leadPoint(from, obstacles, lead, clearance);
-  const b = leadPoint(to, obstacles, lead, clearance);
+  const a = leadPoint(from, options.fromOwn ?? obstacles, lead, clearance);
+  const b = leadPoint(to, options.toOwn ?? obstacles, lead, clearance);
   const middle = orthogonalize([a, ...waypoints, b], from.side, to.side);
   return simplifyPolyline([{ x: from.x, y: from.y }, ...middle, { x: to.x, y: to.y }]);
 }

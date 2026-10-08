@@ -1,7 +1,7 @@
 import { evaluateNumber } from './expression.js';
 import { parseUnit, type Dimension } from './dimensions.js';
 import { ENGINE_NAME_UNITS, type UnitOpContract } from './contract.js';
-import { unitScale } from './unitConversion.js';
+import { convertUnit, unitScale } from './unitConversion.js';
 import type { UnitOpEvaluation } from './evaluate.js';
 import { ARCHETYPE_RELATIONS, type PhysicsRelation } from './archetypes.js';
 
@@ -38,6 +38,8 @@ export interface RelationResult {
   rhs?: number;
   /** (lhs - rhs) / max(|lhs|, |rhs|). */
   deviation?: number;
+  /** Both sides in the unit an engineer reads them in (kW, ft/min), and that unit. */
+  shown?: { lhs: number; rhs: number; unit: string };
   fix: string;
 }
 
@@ -153,7 +155,16 @@ export function checkRelations(contract: UnitOpContract, archetypeId: string, ev
     const tol = rel.tolerance ?? 0.03;
     const op = rel.relation ?? '=';
     const holds = op === '=' ? Math.abs(deviation) <= tol : op === '>=' ? deviation >= -tol : deviation <= tol;
-    return { ...base, status: holds ? ('holds' as const) : ('fails' as const), lhs, rhs, deviation };
+    const lhsShown = convertUnit(lhs, rel.display.si, rel.display.unit);
+    const rhsShown = convertUnit(rhs, rel.display.si, rel.display.unit);
+    return {
+      ...base,
+      status: holds ? ('holds' as const) : ('fails' as const),
+      lhs,
+      rhs,
+      deviation,
+      ...(lhsShown !== null && rhsShown !== null ? { shown: { lhs: lhsShown, rhs: rhsShown, unit: rel.display.unit } } : {})
+    };
   });
 }
 

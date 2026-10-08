@@ -1,5 +1,7 @@
 import {
+  contractExpressions,
   effectiveContract,
+  referencedNames,
   evaluateUnitOp,
   hasOwnContract,
   isPhaseAware,
@@ -228,7 +230,9 @@ export function describeUnit(node: ProcessNode, graph: ProcessGraph): UnitBehavi
   const inletC = pipeTemperature(graph.edges.filter((e) => e.targetNodeId === node.id && isFluidEdge(e, graph)));
   const ev = evaluateUnitOp(contract, inletC !== undefined ? { inlet: { temperatureC: inletC } } : {});
   const keys = own ? ['contract'] : contract.parameters.map((p) => p.name);
-  const keyFigures = contract.derived.slice(0, 4).map((d) => ({ label: d.label ?? d.name, value: ev.derived[d.name] ?? NaN, unit: d.unit }));
+  const keyFigures = rankDerived(contract)
+    .slice(0, 6)
+    .map((d) => ({ label: d.label ?? d.name, value: ev.derived[d.name] ?? NaN, unit: d.unit }));
   const phases = phasesOf(contract, { ...Object.fromEntries(contract.parameters.map((p) => [p.name, p.value])), ...ev.derived });
   const figures = { ...(keyFigures.length ? { keyFigures } : {}), ...(phases ? { phases } : {}) };
   if (ev.error) {
@@ -404,4 +408,31 @@ export function describeUnit(node: ProcessNode, graph: ProcessGraph): UnitBehavi
 export function engineKeysOf(node: ProcessNode): string[] {
   const alone: ProcessGraph = { id: '', name: '', version: '', metadata: {}, nodes: [node], edges: [] };
   return describeUnit(node, alone).engineKeys;
+}
+
+/**
+ * The derived values worth showing up front: results, not working. A value
+ * the engine runs on (behavior, outlets), a check reads, or a governing
+ * relation binds counts most; one nothing later uses (a final result) next;
+ * the first steps of a calculation (water in the feed) last.
+ */
+function rankDerived(contract: UnitOpContract): UnitOpContract['derived'] {
+  const refs = (expr: string | undefined): string[] => {
+    if (!expr) return [];
+    try {
+      return referencedNames(expr);
+    } catch {
+      return [];
+    }
+  };
+  const used = new Map<string, number>();
+  const bump = (name: string, by: number) => used.set(name, (used.get(name) ?? 0) + by);
+  for (const e of contractExpressions(contract)) {
+    const w = e.path.startsWith('constraints.') ? 2 : e.path.startsWith('derived.') ? 0 : 3;
+    for (const r of refs(e.expr)) bump(r, w);
+  }
+  for (const name of Object.values(contract.roles ?? {})) bump(name, 3);
+  const laterUse = (i: number, name: string) => contract.derived.slice(i + 1).some((d) => refs(d.expr).includes(name));
+  const scored = contract.derived.map((d, i) => ({ d, i, score: (used.get(d.name) ?? 0) + (laterUse(i, d.name) ? 0 : 2) }));
+  return scored.sort((a, b) => b.score - a.score || b.i - a.i).map((x) => x.d);
 }

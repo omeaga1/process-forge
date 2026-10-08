@@ -287,7 +287,7 @@ export function physicsAlignment(contract: UnitOpContract, evaluation?: UnitOpEv
           path: 'derived',
           severity: 'ERROR',
           requirement: r.id,
-          message: `At the design point, ${r.what} does not hold: ${fmt3(r.lhs!)} against ${fmt3(r.rhs!)} in SI (${Math.round(r.deviation! * 1000) / 10} %). Read as ${describeBindings(r)}.`,
+          message: `At the design point, ${r.what} does not hold: ${r.shown ? `${fmt3(r.shown.lhs)} ${r.shown.unit} against ${fmt3(r.shown.rhs)} ${r.shown.unit}` : `${fmt3(r.lhs!)} against ${fmt3(r.rhs!)} in SI`} (${Math.round(r.deviation! * 1000) / 10} %). Read as ${describeBindings(r)}.`,
           fix: `${r.fix} If a role is bound to the wrong quantity, say which in roles (e.g. roles: { ${r.bindings[0]?.role ?? 'role'}: '<name>' }).`
         });
       } else if (r.status === 'unbound' && (decidedBy === 'declared' || contract.roles)) {

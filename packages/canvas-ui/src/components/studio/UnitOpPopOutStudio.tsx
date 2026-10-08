@@ -141,7 +141,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   const config = node.config as Record<string, unknown>;
   const tRole = terminalRole(node);
   const tabs: { id: StudioTab; label: string; Icon: React.ElementType }[] = [
-    ...(graph ? [{ id: 'OVERVIEW' as const, label: 'How it works', Icon: Workflow }] : []),
+    ...(graph ? [{ id: 'OVERVIEW' as const, label: 'Overview', Icon: Workflow }] : []),
     { id: 'PARAMETERS', label: 'Design', Icon: Sliders },
     // A feed or outlet is an arrow: it has no drawing or nozzles to edit.
     ...(tRole ? [] : [{ id: 'DRESSING' as const, label: 'Drawing & nozzles', Icon: Palette }]),

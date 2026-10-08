@@ -141,3 +141,26 @@ describe('pipe routing', () => {
     assert.deepEqual(ProcessEdgeSchema.parse(edge).waypoints, [{ x: 10, y: 20 }]);
   });
 });
+
+describe('pipes between close neighbours', () => {
+  it('leave a nozzle clear of their own unit only, not pushed through the next one', () => {
+    // A pump whose discharge faces a heater 50 px away: the lead must not jump past the heater.
+    const pumpBody: Rect = { x: 0, y: 0, width: 100, height: 100 };
+    const heaterBody: Rect = { x: 150, y: 0, width: 120, height: 60 };
+    const route = routePipe({ x: 100, y: 20, side: 'right' }, { x: 150, y: 30, side: 'left' }, [pumpBody, heaterBody], { fromOwn: [pumpBody], toOwn: [heaterBody] });
+    assert.ok(route.every((p) => p.x >= 100 && p.x <= 150), JSON.stringify(route));
+  });
+});
+
+describe('a unit right below a lead', () => {
+  it('still blocks with its body: the pipe goes round it into a side nozzle', () => {
+    // An evaporator's bottom lead ends 7 px above a pump whose suction faces left: the pipe must not run down through the pump.
+    const pump: Rect = { x: 800, y: 420, width: 226, height: 194 };
+    const route = routePipe({ x: 840.5, y: 391, side: 'bottom' }, { x: 843, y: 525, side: 'left' }, [pump], { toOwn: [pump] });
+    const inner = route.slice(1, -1);
+    assert.ok(!polylineHits(inner.slice(0, -1), [pump]), JSON.stringify(route));
+    // It arrives moving right, into the suction.
+    const last = route[route.length - 2]!;
+    assert.ok(last.x < 800 && Math.abs(last.y - 525) < 1, JSON.stringify(route));
+  });
+});

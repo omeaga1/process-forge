@@ -169,7 +169,8 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
       color: on ? palette.text.primary : palette.text.secondary,
       cursor: 'pointer'
     });
-    const textBox: React.CSSProperties = { ...numberBox(false), width: 200, padding: '5px 8px' };
+    // The material is a name, not a number: room for "Evaporator condensate" and longer.
+    const textBox: React.CSSProperties = { ...numberBox(false), width: 'min(280px, 100%)', padding: '0 4px' };
     return (
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={heading}>{tRole === 'feed' ? 'Feed' : 'Outlet'}</div>
@@ -212,7 +213,7 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
               aria-label="Material"
               value={terminalMaterial(node)}
               onChange={(e) => onUpdateConfig(node.id, { ...config, material: e.target.value })}
-              style={{ ...input, textAlign: 'left' }}
+              style={{ ...input, width: '100%', textAlign: 'left', fontFamily: font.sans }}
             />
           </label>
         </div>

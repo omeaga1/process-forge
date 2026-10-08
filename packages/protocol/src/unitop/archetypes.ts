@@ -424,6 +424,8 @@ export interface PhysicsRelation {
   relation?: '=' | '>=' | '<=';
   /** Relative tolerance; 0.03 when absent. */
   tolerance?: number;
+  /** How to show the two sides to an engineer: their SI unit, and the unit to show them in. */
+  display: { si: string; unit: string };
   fix: string;
 }
 
@@ -438,6 +440,7 @@ const pumpLike = (powerNames: string): PhysicsRelation => ({
   },
   lhs: 'power * efficiency',
   rhs: 'flow * dp',
+  display: { si: 'W', unit: 'kW' },
   fix: 'Work the power out as flow x pressure rise / efficiency, in consistent units: kW = m3/s x kPa / efficiency.'
 });
 
@@ -456,6 +459,7 @@ export const ARCHETYPE_RELATIONS: Record<string, PhysicsRelation[]> = {
       },
       lhs: 'ratio',
       rhs: 'flow / area',
+      display: { si: 'm/s', unit: 'ft/min' },
       fix: 'airToCloth = actual flow / filter area, in consistent units (ACFM / ft2 gives ft/min).'
     }
   ],
@@ -472,6 +476,7 @@ export const ARCHETYPE_RELATIONS: Record<string, PhysicsRelation[]> = {
       },
       lhs: 'abs(duty)',
       rhs: 'abs(massFlow * cp * (tOut - tIn))',
+      display: { si: 'W', unit: 'kW' },
       fix: 'duty (kW) = m (kg/s) x cp (kJ/kg-K) x (T_out - T_in), and the outlet temperature from the same duty.'
     }
   ],
@@ -487,6 +492,7 @@ export const ARCHETYPE_RELATIONS: Record<string, PhysicsRelation[]> = {
       lhs: 'duty',
       rhs: 'vapour * latent',
       relation: '>=',
+      display: { si: 'W', unit: 'kW' },
       fix: 'The steam duty must at least cover vapour x latent heat (plus the sensible heat to bring the feed to the boil).'
     }
   ],
@@ -501,6 +507,7 @@ export const ARCHETYPE_RELATIONS: Record<string, PhysicsRelation[]> = {
       },
       lhs: 'abs(duty)',
       rhs: 'vapour * latent',
+      display: { si: 'W', unit: 'kW' },
       fix: 'Q (kW) = vapour (kg/s) x latent heat (kJ/kg).'
     }
   ],
@@ -517,6 +524,7 @@ export const ARCHETYPE_RELATIONS: Record<string, PhysicsRelation[]> = {
       },
       lhs: 'power',
       rhs: 'np * rho * pow(speed, 3) * pow(diameter, 5)',
+      display: { si: 'W', unit: 'kW' },
       fix: 'P (W) = Np x rho (kg/m3) x N^3 (rev/s) x D^5 (m); divide by 1000 for kW, and convert rpm to rev/s.'
     }
   ]

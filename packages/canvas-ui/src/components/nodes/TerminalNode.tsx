@@ -27,7 +27,7 @@ export function terminalColor(role: TerminalRole, palette: ThemeContextValue['pa
   }
 }
 
-const W = 168;
+const W_MIN = 168;
 const H = 52;
 const TIP = 18;
 
@@ -41,7 +41,7 @@ export const TerminalArrow: React.FC<{ role: TerminalRole; color: string; fill: 
   role,
   color,
   fill,
-  width = W,
+  width = W_MIN,
   height = H,
   selected = false
 }) => {
@@ -96,6 +96,9 @@ export const TerminalNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   // Which way the arrow points once turned or mirrored, and where its nozzle ends up.
   const pointing = placePoint(100, 50, 'right', processNode.layout).side;
   const vertical = pointing === 'top' || pointing === 'bottom';
+  // As long as its words need, so "Evaporator condensate" is not cut short: 168 to 300 px.
+  const heading = `${TERMINAL_ROLE_LABEL[role]} · ${carriesWord}`;
+  const W = Math.round(Math.min(300, Math.max(168, 52 + Math.max(material.length * 7.4, heading.length * 6.6))));
   const boxW = vertical ? H : W;
   const boxH = vertical ? W : H;
   const nozzle = role === 'feed' ? placePoint(100, 50, 'right', processNode.layout) : placePoint(0, 50, 'left', processNode.layout);
@@ -126,7 +129,7 @@ export const TerminalNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         }}
       >
       <div style={{ position: 'absolute', inset: 0, ...(mirrored ? { transform: 'scaleX(-1)' } : {}) }}>
-        <TerminalArrow role={role} color={color} fill={selected || hovered ? `${color}26` : `${color}14`} selected={Boolean(selected)} />
+        <TerminalArrow role={role} color={color} fill={selected || hovered ? `${color}26` : `${color}14`} selected={Boolean(selected)} width={W} />
       </div>
       <div
         style={{
