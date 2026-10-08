@@ -38,11 +38,16 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   const isFluid = stream?.type === 'CONTINUOUS_FLUID';
   const temperatureC = flowing && isFluid ? edgeData?.temperatureC : undefined;
 
+  const phase = edgeData?.phase;
   const color = isBlocked
     ? palette.status.blocked
-    : isFluid
-      ? pipeColor(palette.streams.continuousFluid, palette.streams.cold, palette.streams.hot, temperatureC)
-      : palette.streams.discreteContainer;
+    : phase === 'GAS'
+      ? palette.streams.gas
+      : phase === 'SOLID'
+        ? palette.streams.solid
+        : isFluid
+          ? pipeColor(palette.streams.continuousFluid, palette.streams.cold, palette.streams.hot, temperatureC)
+          : palette.streams.discreteContainer;
 
   const [path, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -57,8 +62,10 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   });
 
   // The design figure when idle, the engine's live figure while it runs.
-  const designLabel = isFluid ? `${stream.designFlowRateGpm} gpm` : stream ? `${stream.targetPiecesPerMinute} cpm` : '';
-  const labelText = isBlocked ? 'BLOCKED' : flowing ? liveLabel(isFluid, rate, temperatureC) : designLabel;
+  // A gas or solids pipe is not sized in gal/min: name what it carries instead.
+  const designLabel =
+    phase === 'GAS' ? 'gas' : phase === 'SOLID' ? 'solids' : isFluid ? `${stream.designFlowRateGpm} gpm` : stream ? `${stream.targetPiecesPerMinute} cpm` : '';
+  const labelText = isBlocked ? 'BLOCKED' : flowing ? (edgeData?.liveText ?? liveLabel(isFluid, rate, temperatureC)) : designLabel;
   const emphasis = selected || hovered;
   const period = flowPeriodSeconds(rate, isFluid ? 120 : 90);
 

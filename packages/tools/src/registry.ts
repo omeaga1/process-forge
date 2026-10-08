@@ -4,6 +4,8 @@ import {
   EXAMPLE_LINES,
   STANDARD_EQUIPMENT_CATALOG,
   UnitOpContractSchema,
+  FLOW_UNITS,
+  calculateStream,
   checkDesignCompleteness,
   designChecklist,
   designStateOf,
@@ -233,7 +235,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     idempotent: true,
     graphSource: true,
     description:
-      "Returns everything needed to author a UnitOpContract for a unit operation described in plain words: the schema, the expression language and its functions, the names the engine supplies, worked examples, the stream conditions at the unit's place in the open flowsheet, and a checklist of what a complete design of this unit carries. You are the model: write the contract from this brief, check it with validate_unit_op, fix what fails, then place it with add_unit_op_to_flowsheet.",
+      "Returns everything needed to author a UnitOpContract for a unit operation described in plain words: the schema, the expression language and its functions, the names the engine supplies, worked examples, the stream conditions at the unit's place in the open flowsheet, a phase plan (which ports carry liquid, gas, solid or items for this kind of equipment, the flow units of each, and the phase changes and governing relations, e.g. ACFM in and kg/h of powder out of a dust collector; liquid in, powder and humid air out of a spray dryer), and a checklist of what a complete design of this unit carries. You are the model: write the contract from this brief, check it with validate_unit_op, fix what fails, then place it with add_unit_op_to_flowsheet.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -262,12 +264,40 @@ export const FORGE_TOOLS: ForgeTool[] = [
     }
   },
   {
+    name: 'calculate_stream',
+    title: 'Convert a stream between flow units',
+    access: 'read',
+    idempotent: true,
+    description:
+      "Converts a liquid, gas or solid stream between flow units, with the physics done by the engine rather than in your head: kg/s, kg/h, lb/h, t/h, ACFM, SCFM (68 °F, 1 atm), Nm³/h (0 °C), m³/h, gal/min, L/min. A gas is an ideal gas at its temperature and absolute pressure, with the molar mass of its composition (air if none); give relativeHumidity to make it humid air, and it returns the humidity ratio, relative humidity and dew point. A liquid or solid uses its density (or bulk density). Returns the stream's density, mass flow, volumes and a designInlet to paste into a contract. Use it whenever a design states a gas or solids flow, before writing designInlet.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phase: { type: 'string', enum: ['GAS', 'LIQUID', 'SOLID'] },
+        flow: {
+          type: 'object',
+          properties: { value: { type: 'number' }, unit: { type: 'string', enum: [...FLOW_UNITS] } },
+          required: ['value', 'unit'],
+          description: 'The flow as the engineer states it, e.g. { "value": 4000, "unit": "ACFM" }.'
+        },
+        temperatureC: { type: 'number', description: 'Default 20 °C.' },
+        pressureKpa: { type: 'number', description: 'Absolute, default 101.325 kPa.' },
+        composition: { type: 'object', description: 'Mass fractions, e.g. { "air": 0.996, "dust": 0.004 }.' },
+        densityKgPerM3: { type: 'number', description: 'A liquid\'s density or a solid\'s bulk density (1000 and 600 when absent).' },
+        relativeHumidity: { type: 'number', description: 'A gas: relative humidity 0..1; sets its water content.' }
+      },
+      required: ['phase', 'flow']
+    },
+    summarize: (a) => `Convert ${a.flow?.value ?? '?'} ${a.flow?.unit ?? ''} of ${String(a.phase ?? 'stream').toLowerCase()}`,
+    run: async (a) => calculateStream(a as never)
+  },
+  {
     name: 'validate_unit_op',
     title: 'Check a unit op design',
     access: 'read',
     idempotent: true,
     description:
-      "The engine's verdict on a proposed UnitOpContract: schema; every expression parses, every name resolves and the units agree; every ERROR constraint holds at its own parameter values; and the drawing works (every port has a nozzle, every shape lies inside the viewBox). Returns ACCEPTED or REJECTED with the failures and what to change, plus completeness warnings: what a unit like this usually carries that the design leaves out.",
+      "The engine's verdict on a proposed UnitOpContract: schema; every expression parses, every name resolves and the units agree; every ERROR constraint holds at its own parameter values; phases balance (each component leaves only in a phase it entered in or a declared phase change takes it to, and a change that takes heat has a heat source); and the drawing works (every port has a nozzle, every shape lies inside the viewBox). Returns ACCEPTED or REJECTED with the failures and what to change, plus completeness warnings: what a unit like this usually carries that the design leaves out.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -309,6 +339,9 @@ export const FORGE_TOOLS: ForgeTool[] = [
         supplyRate: { type: 'number', description: 'Feeds: the most it supplies, gal/min for liquid or items/min. Omit or 0 to supply whatever the line takes.' },
         composition: { type: 'object', description: 'Liquid feeds, tanks and reactors: mass fractions by component, e.g. { "water": 0.88, "sugar": 0.12 }.' },
         carries: { type: 'string', enum: ['liquid', 'items'], description: 'Feeds and outlets: optional; by default it matches the first unit it is piped to.' },
+        phase: { type: 'string', enum: ['LIQUID', 'GAS', 'SOLID'], description: 'Feeds and outlets: the phase of what it carries. A GAS feed is an ideal gas at its temperature (density from its composition\'s molar mass) unless parameters give a density. Use it for extraction air, drying air, powders.' },
+        supplyKgPerHour: { type: 'number', description: 'Feeds: the most it supplies as a mass flow, kg/h (any phase). Wins over supplyRate.' },
+        supplyScfm: { type: 'number', description: 'GAS feeds: the most it supplies in standard ft3/min (68 °F, 1 atm). Wins over supplyRate.' },
         ...connect,
         position
       },

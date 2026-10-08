@@ -1,4 +1,4 @@
-import { PAINT_CANNING_LINE, BEVERAGE_BOTTLING_LINE, BLANK_LINE, type ProcessGraph } from '@process-forge/protocol';
+import { PAINT_CANNING_LINE, BEVERAGE_BOTTLING_LINE, BLANK_LINE, SPRAY_DRYING_LINE, type ProcessGraph } from '@process-forge/protocol';
 
 /** What a new project can start from. */
 export interface ProjectTemplate {
@@ -26,6 +26,12 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     name: 'Beverage bottling line',
     description: 'Carbonation, rotary filling, capping, accumulation and case packing.',
     graph: BEVERAGE_BOTTLING_LINE
+  },
+  {
+    key: 'spray-drying-line',
+    name: 'Spray drying line',
+    description: 'Liquid in, powder out: a spray dryer and a product-recovery baghouse, with gas, liquid and solid streams in their own units.',
+    graph: SPRAY_DRYING_LINE
   }
 ];
 

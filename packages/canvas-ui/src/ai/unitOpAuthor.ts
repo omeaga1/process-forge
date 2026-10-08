@@ -4,7 +4,10 @@ import {
   UNIT_OP_AUTHORING_RULES,
   WAX_COOLING_BELT_CONTRACT,
   EVAPORATOR_CONTRACT,
+  DUST_COLLECTOR_CONTRACT,
+  SPRAY_DRYER_CONTRACT,
   executeValidateUnitOp,
+  phasePlanFor,
   type ValidateUnitOpResult
 } from '@process-forge/protocol';
 import { callLlmModel, type LlmChatMessage, type LlmCredentials } from './llmClient.js';
@@ -70,6 +73,25 @@ export function unitOpAuthoringSystemPrompt(): string {
   ].join('\n');
 }
 
+/**
+ * The phase plan for the description, when it names equipment that handles a
+ * gas or a solid or changes phase: the phase of each port, the phase changes,
+ * the flow units and the governing relations, with a worked example of the kind.
+ */
+export function phaseContext(description: string): string {
+  const plan = phasePlanFor(description);
+  if (plan.decidedBy !== 'archetype' || !plan.archetype) return '';
+  const example =
+    plan.archetype.example === 'DUST_COLLECTOR_CONTRACT' ? DUST_COLLECTOR_CONTRACT : plan.archetype.example === 'SPRAY_DRYER_CONTRACT' ? SPRAY_DRYER_CONTRACT : undefined;
+  return [
+    '',
+    '',
+    'Phase plan (from the engine, for this kind of unit):',
+    JSON.stringify({ archetype: plan.archetype, notes: plan.notes }),
+    ...(example ? ['', 'A complete, valid contract of this kind:', JSON.stringify(example)] : [])
+  ].join('\n');
+}
+
 /** Pulls one JSON object out of a reply, tolerating fences or a stray sentence. */
 export function extractJsonObject(text: string): unknown {
   const unfenced = text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
@@ -97,7 +119,7 @@ export async function authorUnitOpContract(
   const maxRounds = opts.maxRounds ?? 3;
   const system = unitOpAuthoringSystemPrompt();
   const messages: LlmChatMessage[] = [
-    { role: 'user', content: `Design a unit operation from this description:\n\n${description}` }
+    { role: 'user', content: `Design a unit operation from this description:\n\n${description}${phaseContext(description)}` }
   ];
   const rounds: AuthorRound[] = [];
   let draft: unknown;

@@ -8,6 +8,10 @@
   are stored, the Content-Security-Policy, and cloud sign-in.
 - [Simulation math](architecture/04-simulation-math.md): the balances, cycle
   times and OEE formulas the engine uses.
+- [Phases and physics](architecture/06-phases-and-physics.md): how a unit's
+  ports state liquid, gas, solid or items, how the design tool picks the
+  physics and flow units for a kind of equipment, the phase gate, and the
+  mass, energy, gas and particle relations underneath.
 - [Osaka Jade design](architecture/05-osaka-jade-design.md): the colour tokens
   for dark and light themes and what the status colours mean.
 
@@ -31,6 +35,10 @@ each says so at the top.
   desktop auto-update and web hosting.
 - [ADR-0009](adr/0009-mcp-and-openrouter-only.md): MCP clients and OpenRouter
   sign-in are the only AI paths.
+- [ADR-0010](adr/0010-one-tool-registry.md): one tool registry for MCP clients
+  and the in-app assistant.
+- [ADR-0011](adr/0011-phase-aware-contracts.md): phases are part of the
+  unit-op contract.
 
 ADR-0004 was removed along with the tooling it described.
 

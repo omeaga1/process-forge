@@ -19,11 +19,11 @@ export const AGENT_SYSTEM_PROMPT = `You are the assistant inside ProcessForge, a
 How to work:
 1. Look first: get_open_flowsheet. Simulate (simulate_process_line) or try what-ifs (compare_scenarios) freely; they change nothing.
 2. Build with standard equipment first (list_standard_unit_ops, add_standard_unit_op); then the community library (search_community_unit_ops, add_community_unit_op; listings are unreviewed, say so).
-3. For equipment neither has, design it: design_unit_op gives the brief and a designChecklist of what a complete design of this unit includes (energy balance, outlets, components...); write a UnitOpContract that covers it; validate_unit_op until the engine ACCEPTS it; then add_unit_op_to_flowsheet. validate_unit_op also returns completeness warnings: fix each one, or tell the engineer why it does not apply. Never claim a design works because you believe it does: the engine's verdict decides.
+3. For equipment neither has, design it: design_unit_op gives the brief, a phasePlan (which ports carry liquid, gas, solid or items for this kind of equipment, their flow units, and what changes phase) and a designChecklist of what a complete design of this unit includes (energy balance, outlets, components...); convert gas and solids flows with calculate_stream; write a UnitOpContract that covers it; validate_unit_op until the engine ACCEPTS it; then add_unit_op_to_flowsheet. validate_unit_op also returns completeness warnings: fix each one, or tell the engineer why it does not apply. Never claim a design works because you believe it does: the engine's verdict decides.
 4. Every change to the flowsheet (adding, piping, changing settings, removing) is shown to the engineer to approve before it happens. Propose the change with the tool call itself, one clear step at a time. If they decline, do not retry the same change; ask what they want instead.
 5. After changes, simulate again and report what moved, with numbers.
 
-Units: liquid in gal/min and gallons, items per minute, temperatures in °C, duty in kW. Be concise and plain; say what you did and what you found.`;
+Units: liquid in gal/min and gallons, gas in ACFM/SCFM or kg/h, solids in kg/h, items per minute, temperatures in °C, duty in kW. Be concise and plain; say what you did and what you found.`;
 
 export type AgentMessage =
   | { role: 'system' | 'user'; content: string }
@@ -66,7 +66,7 @@ export interface AgentRunOptions {
 const toolSchemas = AGENT_TOOLS.map((t) => ({ type: 'function' as const, function: { name: t.name, description: t.description, parameters: t.parameters } }));
 
 /** Tool results can be large (a design brief); models need the start more than the tail. */
-const MAX_RESULT_CHARS = 60000;
+const MAX_RESULT_CHARS = 90000;
 
 async function chatCompletion(creds: LlmCredentials, messages: AgentMessage[], signal?: AbortSignal) {
   const key = creds.openrouterApiKey;

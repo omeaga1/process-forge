@@ -4,7 +4,7 @@ import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
 import { EquipmentFigure, flangePoint } from '../../nozzles/EquipmentFigure.js';
 import { drawingSize, layoutNozzles, type Side } from '../../nozzles/nozzleLayout.js';
-import { effectiveContract } from '@process-forge/protocol';
+import { effectiveContract, nodePortPhase } from '@process-forge/protocol';
 import { unitTag } from '../../model/unitTag.js';
 import { PhaseTrack } from './PhaseTrack.js';
 
@@ -28,7 +28,12 @@ const PAD = 18;
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { palette, machineVisuals, font, size, weight, radius: r, motion } = useTheme();
   const nodeData = data as unknown as CanvasNodeData;
-  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, phase, phaseName } = nodeData;
+  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, kgPerHour, phase, phaseName } = nodeData;
+  // A unit with a gas or solid port is read in kg/h: its gallons are not meaningful.
+  const byMass = (processNode.outputs ?? []).concat(processNode.inputs ?? []).some((p) => {
+    const ph = nodePortPhase(processNode, p.id);
+    return ph === 'GAS' || ph === 'SOLID';
+  });
   // A pipe-fed filler has a product bowl, but what matters there is containers.
   const isLiquid = levelGallons !== undefined && processNode.kind !== 'ROTARY_FILLER';
   const [hovered, setHovered] = useState(false);
@@ -63,15 +68,20 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
     updateNodeInternals(id);
   }, [id, anchorKey, width, height, updateNodeInternals]);
 
-  const streamColor = (dim: string) =>
-    dim === 'DISCRETE_CONTAINER' ? palette.streams.discreteContainer : palette.streams.continuousFluid;
+  const phaseOf = (portId: string) => nodePortPhase(processNode, portId);
+  const streamColor = (dim: string, portId?: string) => {
+    const phase = portId ? phaseOf(portId) : undefined;
+    if (phase === 'GAS') return palette.streams.gas;
+    if (phase === 'SOLID') return palette.streams.solid;
+    return dim === 'DISCRETE_CONTAINER' ? palette.streams.discreteContainer : palette.streams.continuousFluid;
+  };
   const showLabels = hovered || selected;
 
   const outline = isBlocked ? palette.status.blocked : selected ? palette.border.glow : 'transparent';
   const figureStubs = [
     ...layout.anchors
       .filter((a) => a.nozzle)
-      .map((a) => ({ nozzle: a.nozzle!, color: streamColor(a.port.flowDimension), emphasis: connected.has(a.port.id) })),
+      .map((a) => ({ nozzle: a.nozzle!, color: streamColor(a.port.flowDimension, a.port.id), emphasis: connected.has(a.port.id) })),
     ...layout.decorative.map((z) => ({ nozzle: z, color: palette.text.muted }))
   ];
 
@@ -120,7 +130,8 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         >
           {layout.anchors.map((a) => {
             const at = a.nozzle ? flangePoint(a.x, a.y, a.side, width, height) : { x: (a.x / 100) * width, y: (a.y / 100) * height };
-            const color = streamColor(a.port.flowDimension);
+            const color = streamColor(a.port.flowDimension, a.port.id);
+            const phase = phaseOf(a.port.id);
             const isConnected = connected.has(a.port.id);
             const discrete = a.port.flowDimension === 'DISCRETE_CONTAINER';
             const label = a.nozzle?.name ?? a.port.name;
@@ -131,7 +142,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
                   type={a.direction === 'in' ? 'target' : 'source'}
                   position={POSITION[a.side]}
                   id={a.port.id}
-                  title={`${a.direction === 'in' ? 'Inlet' : 'Outlet'}: ${label}`}
+                  title={`${a.direction === 'in' ? 'Inlet' : 'Outlet'}: ${label}${phase && phase !== 'ITEMS' ? ` (${phase.toLowerCase()})` : ''}`}
                   className="pf-nozzle-handle"
                   style={{
                     left: at.x,
@@ -222,7 +233,9 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
                 {levelFraction !== undefined && processNode.kind !== 'PUMP' && (
                   <span style={{ fontFamily: font.mono }}>{Math.round(levelFraction * 100)}%</span>
                 )}
-                {(flowGpm ?? 0) > 0 && <span style={{ fontFamily: font.mono }}>{Math.round(flowGpm!)} gpm</span>}
+                {byMass
+                  ? (kgPerHour ?? 0) > 0 && <span style={{ fontFamily: font.mono }}>{Math.round(kgPerHour!).toLocaleString('en-US')} kg/h</span>
+                  : (flowGpm ?? 0) > 0 && <span style={{ fontFamily: font.mono }}>{Math.round(flowGpm!)} gpm</span>}
               </>
             ) : (
               <>

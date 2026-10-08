@@ -41,6 +41,9 @@ export interface CanvasNodeData extends Record<string, unknown> {
   levelFraction?: number;
   levelGallons?: number;
   flowGpm?: number;
+  /** Mass held (an outlet: received; a feed: supplied), and kg/h moving now: right whatever the phase. */
+  levelKg?: number;
+  kgPerHour?: number;
   phase?: 'FILLING' | 'HEATING' | 'REACTING' | 'DISCHARGING';
   /** Batch units: the name of the phase it is in, from its contract. */
   phaseName?: string;
@@ -57,12 +60,18 @@ export interface CanvasEdgeData extends Record<string, unknown> {
   activeFlowRate: number;
   /** A liquid pipe: °C of what it carries, while the simulation runs. */
   temperatureC?: number;
+  /** What it carries, when the units at its ends say: a gas or bulk solids rather than a liquid. */
+  phase?: 'LIQUID' | 'GAS' | 'SOLID' | 'ITEMS';
+  /** A gas or solids pipe while it flows: its figure in its phase's units (ACFM, kg/h). */
+  liveText?: string;
 }
 
 export interface PlantTelemetryState {
   simulatedTimeSeconds: number;
   totalPackaged: number;
   totalScrapped: number;
+  /** A line whose output is bulk (liquid, powder): kg it delivered over the run. */
+  productKg?: number;
   averageRatePerMin: number;
   activeBottleneck: string | null;
   diagnostics: GraphDiagnostic[];

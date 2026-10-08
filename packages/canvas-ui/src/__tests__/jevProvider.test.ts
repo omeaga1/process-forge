@@ -64,7 +64,15 @@ describe('Jev through OpenRouter', () => {
     const jev = new JevOpenRouterProvider('sk', { fetcher: fakeOpenRouter(() => ({ content: evaporatorAnswers })).fetcher });
     const graph = { id: 'g', name: 'L', version: '1', metadata: {}, nodes: [{ ...createStandardUnitOp(findStandardUnitOp('feed')!), id: 'juice', name: 'Juice' }], edges: [] } as unknown as ProcessGraph;
     const host = { getGraph: () => graph, commit: () => {} };
-    const noHeat = { ...EVAPORATOR_CONTRACT, behavior: { mode: 'CONTINUOUS_RATE', throughputPerMinute: 'inlet.volumetricFlowGpm' }, outlets: [{ port: 'vapour', share: 'vapourShare' }, { port: 'concentrate' }] };
+    // No duty and no stated phases: consistent as far as the engine can check
+    // (stating the evaporation without a heat source is itself rejected).
+    const noHeat = {
+      ...EVAPORATOR_CONTRACT,
+      ports: EVAPORATOR_CONTRACT.ports.map(({ phase: _p, dispersed: _d, ...p }) => p),
+      phaseChanges: undefined,
+      behavior: { mode: 'CONTINUOUS_RATE', throughputPerMinute: 'inlet.volumetricFlowGpm' },
+      outlets: [{ port: 'vapour', share: 'vapourShare' }, { port: 'concentrate' }]
+    };
     const seen: any[] = [];
     let step = 0;
     await runAgent({

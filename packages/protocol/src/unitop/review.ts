@@ -1,6 +1,7 @@
 import { UnitOpContractSchema, unitWarnings, validateUnitOpContract, type UnitOpContract } from './contract.js';
 import { evaluateUnitOp, blockingViolations } from './evaluate.js';
 import { checkUnitOpDrawing } from './drawing.js';
+import { phaseEnergy, phaseEnergyWarnings, phaseWarnings, type PhaseEnergyCheck } from './phaseBalance.js';
 
 /**
  * The engine's verdict on a proposed unit operation.
@@ -36,6 +37,8 @@ export interface ValidateUnitOpResult {
   };
   /** Computed quantities, when evaluation got far enough to produce them. */
   derived?: Record<string, number>;
+  /** Units that declare phase changes: the latent heat they take at the design point, and the stated duty. */
+  phaseEnergy?: PhaseEnergyCheck;
   behavior?: unknown;
   /** Written to be handed back to the authoring model verbatim. */
   revisionGuidance: string;
@@ -89,6 +92,15 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
         'Remember: derived values resolve in declaration order, so a value may only',
         'reference parameters, engine-supplied names, or derived values declared',
         'BEFORE it. Reorder your derived list as a calculation sequence.',
+        ...(issues.some((i) => /phase|leaves by|takes heat/.test(i.message) && !i.unit)
+          ? [
+              '',
+              'Phases: a component may only leave in a phase it entered in (port phase, or',
+              'dispersed on the port) or was changed to by a phaseChanges entry, and a change',
+              'that takes heat (evaporation, drying, melting) needs a duty, a hot gas inlet or',
+              'a utility. Call design_unit_op for the phasePlan of this kind of unit.'
+            ]
+          : []),
         ...(issues.some((i) => i.unit)
           ? [
               '',
@@ -101,7 +113,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     );
   }
   gates.staticAnalysis.passed = true;
-  const unchecked = unitWarnings(contract).map((w) => `${w.path}: ${w.message}`);
+  const unchecked = [...unitWarnings(contract), ...phaseWarnings(contract)].map((w) => `${w.path}: ${w.message}`);
   if (unchecked.length) gates.staticAnalysis.warnings = unchecked;
 
   // Gate 4 -- the drawing. Checked here so its problems come back in the same
@@ -142,6 +154,9 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
   const warnings = evaluation.constraints.filter((c) => !c.satisfied && c.severity === 'WARNING');
 
   gates.physical.warnings = warnings.map((w) => `${w.id}: ${w.message}${w.hint ? ` (${w.hint})` : ''}`);
+  // The latent heat the declared phase changes take at the design point, against the stated duty.
+  const energy = phaseEnergy(contract, evaluation);
+  gates.physical.warnings.push(...phaseEnergyWarnings(energy));
 
   if (blocking.length > 0) {
     gates.physical.errors = blocking.map((c) => `${c.id}: ${c.message}${c.hint ? ` (${c.hint})` : ''}`);
@@ -184,7 +199,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
         warnings.map((w) => `  - ${w.message}${w.hint ? ` (${w.hint})` : ''}`).join('\n')
       : '',
     gates.drawing.warnings.length > 0 ? `\nDrawing:\n` + gates.drawing.warnings.map((w) => `  - ${w}`).join('\n') : '',
-    unchecked.length > 0 ? `\nUnits not checked:\n` + unchecked.map((w) => `  - ${w}`).join('\n') : '',
+    unchecked.length > 0 ? `\nUnits not checked, and phase notes:\n` + unchecked.map((w) => `  - ${w}`).join('\n') : '',
     '',
     'Attach it to a node as config.contract (or send it to the desktop app with',
     'add_unit_op_to_flowsheet). The engine re-evaluates it when the simulation',
@@ -199,6 +214,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     gates,
     derived: evaluation.derived,
     behavior: evaluation.behavior,
+    ...(energy ? { phaseEnergy: energy } : {}),
     revisionGuidance: guidance
   };
 }
@@ -218,7 +234,7 @@ export const UNIT_OP_AUTHORING_RULES: readonly string[] = [
   'Write each constraint `message` so an engineer can act on it, and add a `hint` naming the knob to turn. These strings are fed back to you verbatim when a design is rejected.',
   'Prefer a constraint that is INDEPENDENT of the quantity it guards. A check that reduces algebraically to another check adds no information.',
   'Read what flows in through inlet.temperatureC, inlet.volumetricFlowGpm, inlet.massFlowKgPerS, inlet.densityGPerCm3 and inlet.specificHeatKjPerKgK (and utility.* for a service stream). During a run the engine evaluates a CONTINUOUS_RATE unit every second at the stream that actually reaches it, so its capacity, duty and outlets follow the real feed. Give designInlet with a value for every inlet.* you read: validation checks the design there, and the run uses it until liquid arrives.',
-  'CONTINUOUS_RATE: capacityGpm is the most liquid it passes (gal/min) and the engine limits the flow to it; throughputPerMinute is your own figure, in the unit you state, and is reported but not enforced; dutyKw is reported as energy used. It evaluates algebraic relations each second rather than integrating: if a unit op genuinely needs a time-resolved profile, say so plainly rather than approximating it.',
+  'CONTINUOUS_RATE: capacityGpm is the most liquid it passes (gal/min) and the engine limits the flow to it; a gas or solids unit gives capacityKgPerHour instead (a fan, a feeder), which the engine applies as a mass limit; throughputPerMinute is your own figure, in the unit you state, and is reported but not enforced; dutyKw is reported as energy used. It evaluates algebraic relations each second rather than integrating: if a unit op genuinely needs a time-resolved profile, say so plainly rather than approximating it.',
   'Split and heat the outflow with `outlets`: one entry per outlet port, { port, share, temperatureC }, both expressions. share is the fraction 0..1 of the outflow leaving by that port; ports without a share split what the others leave; if every port has a share and they sum below 1, the rest is lost (steam off a vent, water off a dryer) and reported as lostGallons. Without temperatureC a port leaves at the inlet temperature. Shares above 1 in total are rejected.',
   'DISCRETE_CYCLE is for equipment that makes or processes whole items on a cycle (a printer, a press, a packer). cycleSeconds and unitsPerCycle are expressions: compute the cycle from the physics (see cycleExample) rather than typing a number, so changing a parameter changes the cycle.',
   'In the line simulation a DISCRETE_CYCLE unit with no inbound item pipe starts each cycle on its own; with one, each cycle takes up to unitsPerCycle items from its queue and waits when it is empty. A cycle unit fed by a liquid pipe (a filler, a moulding press, a dosing station) must say how much each cycle draws: liquidPerCycleGallons, an expression. It then waits for that liquid each cycle, so a slow pump or an empty tank starves it. scrapFraction removes floor(items x fraction) per cycle, so it scraps nothing when that is below one item.',
@@ -228,6 +244,10 @@ export const UNIT_OP_AUTHORING_RULES: readonly string[] = [
   'BATCH is for a vessel that holds a charge of liquid and runs it through steps: a reactor, crystalliser, fermenter, decanter, CIP tank. batchGallons is the working volume (parameters and inlet.* only). phases run in order and then repeat: FILL { gallons?, rateGpm? } takes liquid in (with no feed pipe it charges itself at rateGpm); HOLD { seconds, temperatureC?, dutyKw? } waits, ends at temperatureC, and counts dutyKw as energy; DRAIN { gallons?, rateGpm?, port? } sends liquid out, to one outlet port if named (decant the top to one port, drop the bottoms to another), else by outlets[] shares. Each phase is evaluated when it starts, with batch.gallons, batch.temperatureC, batch.massKg, batch.cpKjPerKgK, batch.densityGPerCm3 and batch.number describing the batch then, so write heat-up times (batch.massKg * batch.cpKjPerKgK * dT / duty) and decant volumes from them (see batchExample). A DRAIN without a rate empties at its pipes\' design flow.',
   'Streams can carry components: mass fractions such as { water: 0.88, sugar: 0.12 }, set on feeds, tanks and pipes (fluid.composition) and mixed by every unit. To use them, list the names you use in `components`, read them as inlet.x.<name> (batch.x.<name> in a BATCH unit), and give designInlet.composition. Components you do not name pass through unchanged.',
   'Change what a stream is made of with `reactions` and per-outlet `recovery`. A reaction is { id, limiting, conversion, coefficients }: coefficients are kg per kg of reaction, negative for what it consumes and positive for what it makes, and must add up to 0, so work them out from molar masses (HCl + NaOH -> NaCl + H2O is -1, -1.09698, +1.60289, +0.49409 per kg HCl; see reactionExample); conversion is an expression, the fraction of the limiting component that reacts. Continuous units react what flows through them; a BATCH unit reacts during HOLD phases marked react: true. A co-reactant that runs out stops the reaction and is reported. recovery on an outlet, { <component>: expression 0..1 }, is the share of that component\'s mass leaving by that port (a separator, filter, evaporator or column): the port\'s flow and composition follow from it; ports that do not name a component split what is left of it; what no port takes is lost. Give each outlet a share or recoveries, not both (see componentsExample).',
+  'A unit with several inlets sees them mixed as inlet.*. To read one inlet on its own (the air into a dryer, the liquor into a scrubber), use port.<portId>.temperatureC, .massFlowKgPerS, .volumetricFlowGpm, .densityGPerCm3, .specificHeatKjPerKgK and port.<portId>.x.<component>, and give designPorts: { <portId>: { ...design values } } to check it at. During a run the engine supplies what reaches each port; a port that gets nothing reads as zero flow. In a BATCH unit, port.<portId>.* describes what that port has charged into the batch in hand when the phase starts (its temperature and composition, port.<portId>.chargedKg, and its average rate over the filling so far), so a hold time or a target temperature can follow from each charge.',
+  'Streams that pass through side by side without mixing (the hot and cold sides of a heat exchanger, shell and tubes) are channels: channels: [{ inlet, outlet }], one per stream, every continuous inlet in one. What enters a channel leaves only by its outlet, at the outlet temperatureC the contract works out (outlets[]: temperatureC only, no share or recovery). Read each side with port.<inlet>.*.',
+  'For any gas or solids flow, call calculate_stream to convert the engineer\'s figure (ACFM, SCFM, Nm3/h, lb/h...) to kg/s, density and composition before writing designInlet; do not convert by hand.',
+  'Give each continuous port its phase when it is not a plain liquid: phase GAS (blown: size it in ACFM/SCFM or kg/s, density from the ideal gas law P M / R T), SOLID (bulk powder, granules or cake: kg/h, bulk density, moisture on a wet or dry basis) or LIQUID (the default). A component carried in another phase than its port goes in dispersed: { dust: \'SOLID\' } on a dirty-air GAS port, { water: \'LIQUID\' } on a damp-powder SOLID port. carries: [names] lists what a port can carry. Every component may only leave in a phase it entered in, or one a phaseChanges entry takes it to: { component, from, to, mechanism (EVAPORATION, CONDENSATION, DRYING, CRYSTALLISATION, MELTING, SOLIDIFICATION, SUBLIMATION, ABSORPTION...), latentHeatKjPerKg }. A change that takes heat needs a heat source (dutyKw, a hot GAS inlet or a UTILITY port) and an energy-balance constraint that shows it is enough; a spray dryer\'s liquid-in, powder-out is legal only because its phaseChanges say so (see phaseChangeExample). Pure separations (a dust collector, a filter, a cyclone) have no phaseChanges (see gasSolidExample).',
   'Test the design where it matters: validate_unit_op checks it at designInlet; a simulation reports, per designed unit, every constraint broken at the conditions it actually saw and for how long (designedUnit.brokenConstraints). An ERROR constraint that fails at designInlet stops the run from starting.',
   'Set provenance.authoredBy to SUB_AGENT and list in engineerConfirmed only the parameters the engineer actually stated. Do not claim confirmation for values you chose.',
   'Draw the unit in `drawing`: a viewBox { width, height } (20-400 each; wide equipment is wide, tall equipment is tall) and `shapes` in viewBox units. Shapes are rect, circle, ellipse, line, polyline, polygon, or path (plain SVG path data: M L H V C S Q T A Z and numbers only). Every shape must lie inside the viewBox.',

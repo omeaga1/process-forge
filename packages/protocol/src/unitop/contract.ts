@@ -1,12 +1,17 @@
 import { z } from 'zod';
 import { UnitOpDrawingSchema } from './drawing.js';
+import { MaterialPhaseSchema, UnitOpPhaseChangeSchema } from './phases.js';
+import { phaseIssues } from './phaseBalance.js';
 import { parseExpression, referencedNames, ExpressionError } from './expression.js';
 import {
   checkDimension,
   DIMENSIONLESS,
   ENGINE_NAME_DIMENSIONS,
   parseUnit,
+  MASS,
+  MASS_FLOW,
   POWER,
+  SPECIFIC_ENERGY,
   TEMPERATURE,
   TIME,
   VOLUME,
@@ -51,7 +56,28 @@ export const UnitOpPortSchema = z.object({
    */
   role: z.enum(['MATERIAL', 'UTILITY', 'ENERGY']).default('MATERIAL'),
   flowDimension: z.enum(['CONTINUOUS_FLUID', 'DISCRETE_CONTAINER']),
-  required: z.boolean().default(true)
+  required: z.boolean().default(true),
+  /**
+   * The physical state of what flows through the port: LIQUID, GAS, SOLID
+   * (bulk powder, granules, cake) or ITEMS. It decides the flow units and the
+   * physics that apply (see phases.ts). Absent: LIQUID for a
+   * CONTINUOUS_FLUID port, ITEMS for a DISCRETE_CONTAINER one.
+   */
+  phase: MaterialPhaseSchema.optional(),
+  /**
+   * Components carried in a different phase than the port's own: the dust in
+   * a dirty-air duct ({ dust: 'SOLID' } on a GAS port), the moisture in a
+   * damp powder ({ water: 'LIQUID' } on a SOLID port).
+   */
+  dispersed: z.record(MaterialPhaseSchema).optional(),
+  /** The components this port carries. Absent: any. */
+  carries: z.array(z.string().min(1)).optional(),
+  /**
+   * kg/m³ of what leaves by this port, for its volume: a SOLID port's bulk
+   * density (600 when absent), a LIQUID port's density. A GAS port's density
+   * comes from the ideal gas law at the temperature it leaves at.
+   */
+  densityKgPerM3: z.number().positive().optional()
 });
 export type UnitOpPort = z.infer<typeof UnitOpPortSchema>;
 
@@ -212,6 +238,12 @@ export const UnitOpBehaviorSchema = z.discriminatedUnion('mode', [
     throughputPerMinute: z.string().min(1),
     /** The most liquid it passes, gal/min. The engine limits the flow through it to this, live. */
     capacityGpm: z.string().optional(),
+    /**
+     * The most it passes as a mass flow, kg/h: how a gas or solids unit states
+     * its capacity (a fan's or a feeder's rating), where gal/min means nothing.
+     * The engine limits the flow through it to this, live, by what arrives.
+     */
+    capacityKgPerHour: z.string().optional(),
     dutyKw: z.string().optional(),
     residenceTimeSeconds: z.string().optional()
   }),
@@ -252,6 +284,8 @@ export const UnitOpDesignStreamSchema = z.object({
   massFlowKgPerS: z.number().nonnegative().optional(),
   volumetricFlowGpm: z.number().nonnegative().optional(),
   piecesPerMinute: z.number().nonnegative().optional(),
+  /** A batch unit's inlet port: kg it has charged into the batch in hand (port.<id>.chargedKg). */
+  chargedKg: z.number().nonnegative().optional(),
   densityGPerCm3: z.number().positive().optional(),
   specificHeatKjPerKgK: z.number().positive().optional(),
   latentHeatKjPerKg: z.number().nonnegative().optional(),
@@ -352,6 +386,13 @@ export const UnitOpContractSchema = z.object({
   designInlet: UnitOpDesignStreamSchema.optional(),
   /** The utility stream's design conditions, for designs that read utility.*. */
   designUtility: UnitOpDesignStreamSchema.optional(),
+  /**
+   * Design conditions per inlet port, for designs that read one inlet on its
+   * own as port.<id>.* (the hot air into a dryer, the liquor into a
+   * scrubber), where inlet.* is everything arriving, mixed. During a run the
+   * engine supplies what reaches each port.
+   */
+  designPorts: z.record(UnitOpDesignStreamSchema).optional(),
   /** Per-outlet share and temperature, for continuous units. */
   outlets: z.array(UnitOpOutletStreamSchema).optional(),
   /**
@@ -361,6 +402,19 @@ export const UnitOpContractSchema = z.object({
    */
   components: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Component names must be valid identifiers')).optional(),
   reactions: z.array(UnitOpReactionSchema).optional(),
+  /**
+   * Components that change phase in the unit: water evaporating in a dryer,
+   * solids drying out of solution, vapour condensing. A component may only
+   * leave in a phase it arrived in unless a change here takes it there.
+   */
+  phaseChanges: z.array(UnitOpPhaseChangeSchema).optional(),
+  /**
+   * Streams that pass through without mixing: what enters `inlet` leaves only
+   * by `outlet` (the hot and cold sides of a heat exchanger, the shell and the
+   * tubes). A CONTINUOUS_RATE unit only; when given, every continuous inlet
+   * is in a channel. Each outlet's temperature comes from outlets[].
+   */
+  channels: z.array(z.object({ inlet: z.string().min(1), outlet: z.string().min(1) })).optional(),
   reliability: UnitOpReliabilitySchema.optional(),
   variability: UnitOpVariabilitySchema.optional(),
   provenance: UnitOpProvenanceSchema,
@@ -405,6 +459,27 @@ export const RESERVED_SCOPE_NAMES = [
  * and which batch it is (1, 2, ...). At validation they describe a full vessel
  * of designInlet liquid.
  */
+/** What an expression can read about one inlet port's own stream: port.<id>.<field>. */
+export const PORT_STREAM_FIELDS = ['temperatureC', 'massFlowKgPerS', 'volumetricFlowGpm', 'densityGPerCm3', 'specificHeatKjPerKgK', 'latentHeatKjPerKg'] as const;
+/** A BATCH unit's port also reads what it has charged into the batch in hand, kg. */
+export const BATCH_PORT_FIELDS = ['chargedKg'] as const;
+
+/** port.<id>.<field> and port.<id>.x.<component> for every continuous inlet port whose id is a plain name. */
+export function portScopeNames(contract: Pick<UnitOpContract, 'ports' | 'components' | 'behavior'>): string[] {
+  const out: string[] = [];
+  // A continuous unit is evaluated live at each port, a batch unit at each phase from what each port charged;
+  // a cycle or storage unit reads the mix (inlet.*).
+  const batch = contract.behavior.mode === 'BATCH';
+  if (contract.behavior.mode !== 'CONTINUOUS_RATE' && !batch) return out;
+  for (const p of contract.ports) {
+    if (p.direction !== 'INLET' || p.flowDimension !== 'CONTINUOUS_FLUID' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(p.id)) continue;
+    for (const f of PORT_STREAM_FIELDS) out.push(`port.${p.id}.${f}`);
+    if (batch) for (const f of BATCH_PORT_FIELDS) out.push(`port.${p.id}.${f}`);
+    for (const c of contract.components ?? []) out.push(`port.${p.id}.x.${c}`);
+  }
+  return out;
+}
+
 export const BATCH_SCOPE_NAMES = ['batch.gallons', 'batch.temperatureC', 'batch.massKg', 'batch.number', 'batch.cpKjPerKgK', 'batch.densityGPerCm3'] as const;
 
 /**
@@ -425,6 +500,12 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   for (const c of components) {
     known.add(`inlet.x.${c}`);
     if (contract.behavior.mode === 'BATCH') known.add(`batch.x.${c}`);
+  }
+  for (const name of portScopeNames(contract)) known.add(name);
+  for (const id of Object.keys(contract.designPorts ?? {})) {
+    if (!contract.ports.some((p) => p.id === id && p.direction === 'INLET' && p.flowDimension === 'CONTINUOUS_FLUID')) {
+      issues.push({ path: `designPorts.${id}`, message: `names "${id}", which is not a continuous INLET port. Inlets: ${contract.ports.filter((p) => p.direction === 'INLET').map((p) => p.id).join(', ') || 'none'}` });
+    }
   }
 
   for (const p of contract.parameters) {
@@ -547,6 +628,7 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   } else {
     checkExpr(b.throughputPerMinute, 'behavior.throughputPerMinute');
     if (b.capacityGpm) checkExpr(b.capacityGpm, 'behavior.capacityGpm');
+    if (b.capacityKgPerHour) checkExpr(b.capacityKgPerHour, 'behavior.capacityKgPerHour');
     if (b.dutyKw) checkExpr(b.dutyKw, 'behavior.dutyKw');
     if (b.residenceTimeSeconds) checkExpr(b.residenceTimeSeconds, 'behavior.residenceTimeSeconds');
   }
@@ -609,6 +691,11 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   if (outletPlan.some((o) => o.recovery) && outletPlan.some((o) => o.share)) {
     issues.push({ path: 'outlets', message: 'split by component recoveries on every outlet, or by shares, not a mix of the two' });
   }
+  (contract.phaseChanges ?? []).forEach((pc, i) => {
+    if (pc.latentHeatKjPerKg) checkExpr(pc.latentHeatKjPerKg, `phaseChanges[${i}].latentHeatKjPerKg`);
+  });
+  issues.push(...phaseIssues(contract));
+  issues.push(...channelIssues(contract));
   if (b.mode === 'BATCH' && b.phases.some((ph) => ph.react) && !(contract.reactions ?? []).length) {
     issues.push({ path: 'behavior.phases', message: 'a phase has react: true but the contract declares no reactions' });
   }
@@ -618,12 +705,22 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   const streamRefs = new Set<string>();
   for (const e of allExprs) {
     try {
-      for (const ref of referencedNames(e)) if (ref.startsWith('inlet.') || ref.startsWith('utility.')) streamRefs.add(ref);
+      for (const ref of referencedNames(e)) if (ref.startsWith('inlet.') || ref.startsWith('utility.') || ref.startsWith('port.')) streamRefs.add(ref);
     } catch {
       // Reported by checkExpr.
     }
   }
   for (const ref of streamRefs) {
+    if (ref.startsWith('port.')) {
+      const [, id, field, component] = ref.split('.') as [string, string, string, string | undefined];
+      const design = contract.designPorts?.[id] as Record<string, unknown> | undefined;
+      if (field === 'x') {
+        if (!design?.composition) issues.push({ path: `designPorts.${id}`, message: `the design reads ${ref}, so give designPorts.${id}.composition (mass fractions${component ? `, including ${component}` : ''}).` });
+      } else if (design?.[field] === undefined) {
+        issues.push({ path: `designPorts.${id}`, message: `the design reads ${ref}, so give designPorts.${id}.${field}: the value to check it at. During a run the engine supplies what reaches port ${id}.` });
+      }
+      continue;
+    }
     const [group, field, component] = ref.split('.') as ['inlet' | 'utility', keyof UnitOpDesignStream, string | undefined];
     const design = group === 'inlet' ? contract.designInlet : contract.designUtility;
     if (field === ('x' as keyof UnitOpDesignStream)) {
@@ -645,6 +742,33 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   return issues;
 }
 
+/** Channels: real ports, each in one channel, every continuous inlet covered, no splitting a channel's outlet. */
+function channelIssues(contract: UnitOpContract): ContractValidationIssue[] {
+  const channels = contract.channels;
+  if (!channels?.length) return [];
+  const issues: ContractValidationIssue[] = [];
+  const port = (id: string, dir: 'INLET' | 'OUTLET') => contract.ports.find((p) => p.id === id && p.direction === dir && p.flowDimension === 'CONTINUOUS_FLUID');
+  if (contract.behavior.mode !== 'CONTINUOUS_RATE') issues.push({ path: 'channels', message: 'channels are for a CONTINUOUS_RATE unit (streams passing through side by side)' });
+  const used = new Set<string>();
+  channels.forEach((c, i) => {
+    const path = `channels[${i}]`;
+    if (!port(c.inlet, 'INLET')) issues.push({ path, message: `inlet "${c.inlet}" is not a continuous INLET port` });
+    if (!port(c.outlet, 'OUTLET')) issues.push({ path, message: `outlet "${c.outlet}" is not a continuous OUTLET port` });
+    for (const id of [c.inlet, c.outlet]) {
+      if (used.has(id)) issues.push({ path, message: `port "${id}" is in more than one channel` });
+      used.add(id);
+    }
+    const plan = (contract.outlets ?? []).find((o) => o.port === c.outlet);
+    if (plan?.share || plan?.recovery) issues.push({ path, message: `outlet "${c.outlet}" carries its channel whole: give it a temperatureC, not a share or recoveries` });
+  });
+  for (const p of contract.ports) {
+    if (p.direction === 'INLET' && p.flowDimension === 'CONTINUOUS_FLUID' && !channels.some((c) => c.inlet === p.id)) {
+      issues.push({ path: 'channels', message: `inlet "${p.id}" is in no channel: with channels, every continuous inlet passes through one` });
+    }
+  }
+  return issues;
+}
+
 /**
  * Units on everything an expression reads: what each one's declared unit
  * reduces to, so the checker can follow an expression's dimension.
@@ -658,7 +782,10 @@ function dimensionEnv(contract: UnitOpContract): DimensionEnv {
   return (name) => {
     const engine = ENGINE_NAME_DIMENSIONS[name];
     if (engine) return { kind: 'dim', dim: engine };
-    if (/^(inlet|utility|batch)\.x\./.test(name)) return { kind: 'dim', dim: DIMENSIONLESS };
+    if (/^(inlet|utility|batch)\.x\./.test(name) || /^port\.[^.]+\.x\./.test(name)) return { kind: 'dim', dim: DIMENSIONLESS };
+    const portField = /^port\.[^.]+\.([A-Za-z]+)$/.exec(name);
+    if (portField?.[1] === 'chargedKg') return { kind: 'dim', dim: MASS };
+    if (portField && ENGINE_NAME_DIMENSIONS[`inlet.${portField[1]}`]) return { kind: 'dim', dim: ENGINE_NAME_DIMENSIONS[`inlet.${portField[1]}`]! };
     return declared.get(name) ?? { kind: 'unknown' };
   };
 }
@@ -706,6 +833,7 @@ export function contractExpressions(contract: UnitOpContract): ContractExpressio
   } else {
     add(b.throughputPerMinute, null, 'behavior.throughputPerMinute', 'throughputPerMinute');
     add(b.capacityGpm, VOLUME_FLOW, 'behavior.capacityGpm', 'capacityGpm');
+    add(b.capacityKgPerHour, MASS_FLOW, 'behavior.capacityKgPerHour', 'capacityKgPerHour');
     add(b.dutyKw, POWER, 'behavior.dutyKw', 'dutyKw');
     add(b.residenceTimeSeconds, TIME, 'behavior.residenceTimeSeconds', 'residenceTimeSeconds');
   }
@@ -715,6 +843,9 @@ export function contractExpressions(contract: UnitOpContract): ContractExpressio
     for (const [c, expr] of Object.entries(o.recovery ?? {})) add(expr, DIMENSIONLESS, `outlets[${i}].recovery.${c}`, 'a recovery');
   });
   (contract.reactions ?? []).forEach((r, i) => add(r.conversion, DIMENSIONLESS, `reactions[${i}].conversion`, 'a conversion'));
+  (contract.phaseChanges ?? []).forEach((pc, i) =>
+    add(pc.latentHeatKjPerKg, SPECIFIC_ENERGY, `phaseChanges[${i}].latentHeatKjPerKg`, 'a latent heat (kJ/kg)')
+  );
   if (contract.reliability) {
     add(contract.reliability.mtbfMinutes, TIME, 'reliability.mtbfMinutes', 'mtbfMinutes');
     add(contract.reliability.mttrMinutes, TIME, 'reliability.mttrMinutes', 'mttrMinutes');

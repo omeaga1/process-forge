@@ -29,6 +29,10 @@ export interface NodeTelemetrySnapshot {
   levelFraction?: number;
   /** Liquid units: gallons per minute leaving right now. */
   flowGpm?: number;
+  /** Continuous units: kg/h leaving right now (an outlet: arriving). Mass is right whatever the phase. */
+  kgPerHour?: number;
+  /** Units that state their phases: what each outlet port is sending right now, in its phase's terms. */
+  portFlows?: Record<string, { phase: 'LIQUID' | 'GAS' | 'SOLID' | 'ITEMS'; kgPerHour: number; temperatureC: number; acfm?: number }>;
   /** Liquid units: °C of what the unit holds (a pass-through unit: what it last sent). */
   temperatureC?: number;
   /** Designed batch units: the name of the phase it is in. */
@@ -102,6 +106,32 @@ export interface DesignedUnitReport {
    * properties; write it from batch.massKg and batch.cpKjPerKgK.
    */
   heatBalance?: { phase: string; deliveredKwh: number; neededKwh: number; batches: number }[];
+  /**
+   * Units that state their phases: what left by each outlet port, in the
+   * units of its phase (gal/min for a liquid, ACFM/SCFM for a gas, kg/h for
+   * a solid).
+   */
+  streams?: PortStreamReport[];
+}
+
+export interface PortStreamReport {
+  port: string;
+  name: string;
+  phase: 'LIQUID' | 'GAS' | 'SOLID' | 'ITEMS';
+  /** Over the run, and averaged over it. */
+  kg: number;
+  kgPerHour: number;
+  temperatureC?: number;
+  componentsKg?: Record<string, number>;
+  /** Components carried in another phase (dust in a gas, moisture in a powder), kg/h. */
+  dispersedKgPerHour?: Record<string, number>;
+  /** LIQUID: average volumetric flow. */
+  gallonsPerMinute?: number;
+  /** GAS: the gas itself (dispersed matter excluded), its mean molar mass, and its volume as an ideal gas at the temperature it left at (actual) and at 68 °F (standard), 1 atm. */
+  gasKgPerHour?: number;
+  molarMass?: number;
+  actualCubicFeetPerMinute?: number;
+  standardCubicFeetPerMinute?: number;
 }
 
 export interface HeatReport {
@@ -120,6 +150,8 @@ export interface TerminalReport {
   role: 'feed' | 'product' | 'byproduct' | 'waste';
   material: string;
   carries: 'liquid' | 'items';
+  /** The phase the arrow says it carries, when it says (a gas feed, a powder product). */
+  phase?: 'LIQUID' | 'GAS' | 'SOLID';
   /** Items supplied (a feed) or received (an outlet). */
   units: number;
   /** Gallons supplied or received. */

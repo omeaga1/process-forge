@@ -52,17 +52,17 @@ const ATOMS: Record<string, Dimension> = {};
 const add = (dim: Dimension, ...names: string[]) => {
   for (const n of names) ATOMS[n] = dim;
 };
-add(MASS, 'kg', 'g', 'mg', 't', 'tonne', 'tonnes', 'lb', 'lbs', 'lbm', 'oz', 'ton', 'tons');
+add(MASS, 'kg', 'g', 'mg', 't', 'tonne', 'tonnes', 'lb', 'lbs', 'lbm', 'oz', 'ton', 'tons', 'gr', 'grain', 'grains');
 add(LENGTH, 'm', 'mm', 'cm', 'km', 'um', 'µm', 'in', 'inch', 'inches', 'ft', 'feet', 'foot');
 add(TIME, 's', 'sec', 'secs', 'second', 'seconds', 'min', 'mins', 'minute', 'minutes', 'h', 'hr', 'hrs', 'hour', 'hours', 'd', 'day', 'days', 'ms');
-add(VOLUME, 'L', 'l', 'mL', 'ml', 'gal', 'gallon', 'gallons', 'bbl', 'cuft');
+add(VOLUME, 'L', 'l', 'mL', 'ml', 'gal', 'gallon', 'gallons', 'bbl', 'cuft', 'Nm3', 'Nm³', 'Sm3', 'scf', 'acf', 'SCF', 'ACF', 'kcf', 'kacf', 'kscf');
 add(TEMPERATURE, 'K', '°C', 'degC', 'C', '°F', 'degF', 'F', 'R', 'delta°C', 'ΔC', 'Δ°C');
 add(ENERGY, 'J', 'kJ', 'MJ', 'GJ', 'Wh', 'kWh', 'MWh', 'BTU', 'Btu', 'btu', 'cal', 'kcal', 'therm');
 add(POWER, 'W', 'kW', 'MW', 'hp', 'HP');
 add(PRESSURE, 'Pa', 'kPa', 'MPa', 'bar', 'barg', 'bara', 'mbar', 'psi', 'psig', 'psia', 'atm', 'mmHg', 'inH2O');
 add(D(1, 1, -2, 0), 'N', 'kN', 'lbf');
 add(RATE, 'Hz', 'rpm', 'RPM');
-add(VOLUME_FLOW, 'gpm', 'GPM', 'lpm', 'cfm', 'CFM');
+add(VOLUME_FLOW, 'gpm', 'GPM', 'lpm', 'cfm', 'CFM', 'acfm', 'ACFM', 'scfm', 'SCFM');
 add(D(1, -1, -1, 0), 'cP', 'cp', 'Pa·s', 'mPa·s');
 /** Counts and ratios: dimensionless. */
 add(
@@ -100,7 +100,7 @@ const times = (a: Dimension, b: Dimension, k = 1): Dimension => D(a[0] + k * b[0
 export function parseUnit(unit: string): Dimension | null {
   const u = unit.trim();
   if (u === '' || u === '-' || u === '1') return DIMENSIONLESS;
-  if (u in ATOMS) return ATOMS[u]!;
+  if (Object.prototype.hasOwnProperty.call(ATOMS, u)) return ATOMS[u]!;
   const slash = u.indexOf('/');
   const num = slash < 0 ? u : u.slice(0, slash);
   const den = slash < 0 ? '' : u.slice(slash + 1).replace(/^\(|\)$/g, '');
@@ -109,10 +109,15 @@ export function parseUnit(unit: string): Dimension | null {
     const factors = part.split(/[\s·*.\-/]+(?![0-9])/).filter(Boolean);
     for (const f of factors) {
       if (/^\d+$/.test(f)) continue; // "1/min"
+      if (Object.prototype.hasOwnProperty.call(ATOMS, f)) {
+        // A symbol that ends in a digit of its own ("Nm3"), not a power.
+        dim = times(dim, ATOMS[f]!, sign);
+        continue;
+      }
       const parsed = parseFactor(f);
       if (!parsed) return null;
       if (parsed.symbol === '' || parsed.symbol === '1') continue;
-      const atom = ATOMS[parsed.symbol];
+      const atom = Object.prototype.hasOwnProperty.call(ATOMS, parsed.symbol) ? ATOMS[parsed.symbol] : undefined;
       if (!atom) return null;
       dim = times(dim, atom, sign * parsed.power);
     }

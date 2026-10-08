@@ -21,10 +21,11 @@ export const EVAPORATOR_CONTRACT: UnitOpContract = {
   description:
     'Concentrates a watery feed with steam. The steam duty first heats the feed to its boiling point, then evaporates what it can; the vapour goes overhead, the concentrate out of the bottom.',
   ports: [
-    { id: 'feed', name: 'Feed', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true },
-    { id: 'vapour', name: 'Vapour', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true },
-    { id: 'concentrate', name: 'Concentrate', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true }
+    { id: 'feed', name: 'Feed', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID' },
+    { id: 'vapour', name: 'Vapour', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS' },
+    { id: 'concentrate', name: 'Concentrate', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID' }
   ],
+  phaseChanges: [{ component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'EVAPORATION', latentHeatKjPerKg: 'latentHeatKjPerKg' }],
   parameters: [
     { name: 'steamDutyKw', label: 'Steam duty', unit: 'kW', value: 1500, min: 0, max: 20000 },
     { name: 'maxFeedGpm', label: 'Tube capacity', unit: 'gal/min', value: 25, min: 1, max: 2000 },
