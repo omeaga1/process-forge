@@ -237,3 +237,58 @@ describe('Sizing gas and solids in their own units', () => {
     assert.ok(Math.abs((fed.kg / 30) * 60 - 8082) < 100, 'the collector is not held back by its drum');
   });
 });
+
+describe('A batch reads what each inlet charged', () => {
+  it('port.<id>.chargedKg and port.<id>.temperatureC describe the batch in hand at each phase', async () => {
+    const { executeValidateUnitOp } = await import('@process-forge/protocol');
+    const kettle = {
+      contractVersion: 1,
+      id: 'two-feed-kettle',
+      name: 'Two-feed kettle',
+      description: 'Charges from two feeds, then holds for a time set by how much of feed A it got.',
+      ports: [
+        { id: 'a', name: 'Feed A', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true },
+        { id: 'b', name: 'Feed B', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true },
+        { id: 'out', name: 'Out', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true }
+      ],
+      parameters: [
+        { name: 'batchGal', label: 'Batch', unit: 'gal', value: 100, min: 1, max: 1000 },
+        { name: 'kgPerSecond', label: 'Hold per kg of A', unit: 'kg/s', value: 10, min: 1, max: 100 }
+      ],
+      derived: [],
+      constraints: [],
+      behavior: {
+        mode: 'BATCH',
+        batchGallons: 'batchGal',
+        phases: [
+          { name: 'Fill', kind: 'FILL', rateGpm: '20' },
+          { name: 'Hold', kind: 'HOLD', seconds: 'port.a.chargedKg / kgPerSecond', temperatureC: 'port.b.temperatureC' },
+          { name: 'Drain', kind: 'DRAIN', rateGpm: '50' }
+        ]
+      },
+      designPorts: { a: { chargedKg: 190 }, b: { temperatureC: 80 } },
+      provenance: { authoredBy: 'TEMPLATE', engineerConfirmed: [] }
+    } as unknown as UnitOpContract;
+    assert.equal(executeValidateUnitOp({ contract: kettle }).verdict, 'ACCEPTED', executeValidateUnitOp({ contract: kettle }).revisionGuidance);
+    const fa = createTerminalNode('feed', { id: 'fa', material: 'A', supplyRate: 5, temperatureC: 20 });
+    const fb = createTerminalNode('feed', { id: 'fb', material: 'B', supplyRate: 5, temperatureC: 80 });
+    let g = {
+      id: 'k',
+      name: 'k',
+      version: '1',
+      metadata: {},
+      nodes: [fa, fb, unit('kettle', kettle), sink('tote')],
+      edges: [pipe('kettle', 'tote', 'out', 'in-0', 1, 20, 50)]
+    } as unknown as ProcessGraph;
+    g = addStreamToGraph(g, pipe('fa', 'kettle', fa.outputs[0]!.id, 'a', 1, 20, 5));
+    g = addStreamToGraph(g, pipe('fb', 'kettle', fb.outputs[0]!.id, 'b', 1, 80, 5));
+    const r = simulateProcess(g, 120);
+    const d = r.nodeReports['kettle']!.designedUnit!;
+    const batches = r.nodeReports['kettle']!.fluid!.batches!;
+    assert.ok(batches >= 2, `${batches} batches`);
+    // Each 100-gal batch takes about half from A: ~189 kg, so ~19 s of hold.
+    const holdPerBatch = d.secondsByPhase!.Hold! / batches;
+    assert.ok(holdPerBatch > 15 && holdPerBatch < 23, `hold ${holdPerBatch} s per batch`);
+    assert.deepEqual(d.brokenConstraints, []);
+  });
+});

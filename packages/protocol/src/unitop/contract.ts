@@ -8,6 +8,7 @@ import {
   DIMENSIONLESS,
   ENGINE_NAME_DIMENSIONS,
   parseUnit,
+  MASS,
   MASS_FLOW,
   POWER,
   SPECIFIC_ENERGY,
@@ -283,6 +284,8 @@ export const UnitOpDesignStreamSchema = z.object({
   massFlowKgPerS: z.number().nonnegative().optional(),
   volumetricFlowGpm: z.number().nonnegative().optional(),
   piecesPerMinute: z.number().nonnegative().optional(),
+  /** A batch unit's inlet port: kg it has charged into the batch in hand (port.<id>.chargedKg). */
+  chargedKg: z.number().nonnegative().optional(),
   densityGPerCm3: z.number().positive().optional(),
   specificHeatKjPerKgK: z.number().positive().optional(),
   latentHeatKjPerKg: z.number().nonnegative().optional(),
@@ -451,15 +454,20 @@ export const RESERVED_SCOPE_NAMES = [
  */
 /** What an expression can read about one inlet port's own stream: port.<id>.<field>. */
 export const PORT_STREAM_FIELDS = ['temperatureC', 'massFlowKgPerS', 'volumetricFlowGpm', 'densityGPerCm3', 'specificHeatKjPerKgK', 'latentHeatKjPerKg'] as const;
+/** A BATCH unit's port also reads what it has charged into the batch in hand, kg. */
+export const BATCH_PORT_FIELDS = ['chargedKg'] as const;
 
 /** port.<id>.<field> and port.<id>.x.<component> for every continuous inlet port whose id is a plain name. */
 export function portScopeNames(contract: Pick<UnitOpContract, 'ports' | 'components' | 'behavior'>): string[] {
   const out: string[] = [];
-  // Only a continuous unit is evaluated live at each port; a batch or cycle unit reads the mix (inlet.*).
-  if (contract.behavior.mode !== 'CONTINUOUS_RATE') return out;
+  // A continuous unit is evaluated live at each port, a batch unit at each phase from what each port charged;
+  // a cycle or storage unit reads the mix (inlet.*).
+  const batch = contract.behavior.mode === 'BATCH';
+  if (contract.behavior.mode !== 'CONTINUOUS_RATE' && !batch) return out;
   for (const p of contract.ports) {
     if (p.direction !== 'INLET' || p.flowDimension !== 'CONTINUOUS_FLUID' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(p.id)) continue;
     for (const f of PORT_STREAM_FIELDS) out.push(`port.${p.id}.${f}`);
+    if (batch) for (const f of BATCH_PORT_FIELDS) out.push(`port.${p.id}.${f}`);
     for (const c of contract.components ?? []) out.push(`port.${p.id}.x.${c}`);
   }
   return out;
@@ -741,6 +749,7 @@ function dimensionEnv(contract: UnitOpContract): DimensionEnv {
     if (engine) return { kind: 'dim', dim: engine };
     if (/^(inlet|utility|batch)\.x\./.test(name) || /^port\.[^.]+\.x\./.test(name)) return { kind: 'dim', dim: DIMENSIONLESS };
     const portField = /^port\.[^.]+\.([A-Za-z]+)$/.exec(name);
+    if (portField?.[1] === 'chargedKg') return { kind: 'dim', dim: MASS };
     if (portField && ENGINE_NAME_DIMENSIONS[`inlet.${portField[1]}`]) return { kind: 'dim', dim: ENGINE_NAME_DIMENSIONS[`inlet.${portField[1]}`]! };
     return declared.get(name) ?? { kind: 'unknown' };
   };

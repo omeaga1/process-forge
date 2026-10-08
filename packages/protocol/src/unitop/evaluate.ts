@@ -20,6 +20,8 @@ export interface StreamState {
   densityGPerCm3?: number;
   specificHeatKjPerKgK?: number;
   latentHeatKjPerKg?: number;
+  /** A batch unit's inlet port: kg charged into the batch in hand. */
+  chargedKg?: number;
   /** Mass fractions by component. */
   composition?: Record<string, number>;
 }

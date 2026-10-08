@@ -194,6 +194,16 @@ During a run, the engine keeps what reaches each inlet port of a
 pass-through unit apart and supplies it. A piped port that gets nothing
 reads as zero flow.
 
+A batch unit reads `port.<id>.*` as what that port has charged into the
+batch in hand when each phase starts:
+
+- its temperature and composition;
+- `port.<id>.chargedKg`;
+- its average rate over the filling so far.
+
+A hold time or a target temperature can then follow from each charge (for
+example, hold `port.a.chargedKg / k` seconds).
+
 The **Venturi scrubber** (standard equipment, and the wet-scrubber
 archetype's example) is built on this:
 

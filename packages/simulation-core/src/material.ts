@@ -21,6 +21,7 @@ import {
   type ProcessGraph,
   type ProcessNode,
   type UnitOpContract,
+  type StreamState,
   type UnitOpEvaluation
 } from '@process-forge/protocol';
 import type { MachineOperationalState } from './types.js';
@@ -204,6 +205,9 @@ export interface MaterialUnit {
   inboxByPort: Record<string, Parcel>;
   /** kg/m³ of what last arrived (the design's until something does): turns a mass capacity into volume. */
   inDensity: number;
+  /** A batch unit: what each inlet port has charged into the batch in hand, and the seconds it has spent filling. */
+  chargedByPort: Record<string, Parcel>;
+  fillSeconds: number;
   /** Mass in and out this tick, kg/s. */
   inKgRate: number;
   outKgRate: number;
@@ -340,6 +344,8 @@ export class MaterialNetwork {
         tickPort: {},
         inboxByPort: {},
         inDensity: (contract?.designInlet?.densityGPerCm3 ?? 1) * 1000,
+        chargedByPort: {},
+        fillSeconds: 0,
         inKgRate: 0,
         outKgRate: 0,
         batches: 0,
@@ -429,7 +435,31 @@ export class MaterialNetwork {
    * amounts and times follow from the physics of this batch.
    */
   private startPhase(u: MaterialUnit, index: number, now: number): void {
+    // A new batch: nothing charged yet.
+    if (index === 0) {
+      u.chargedByPort = {};
+      u.fillSeconds = 0;
+    }
+    // Each inlet port: what it has charged into this batch (mass and its average rate over the filling so far).
+    const ports: Record<string, StreamState> = {};
+    for (const port of u.contract!.ports) {
+      if (port.direction !== 'INLET' || port.flowDimension !== 'CONTINUOUS_FLUID') continue;
+      const q = u.chargedByPort[port.id];
+      ports[port.id] =
+        q && q.kg > 0
+          ? {
+              temperatureC: q.tempC,
+              chargedKg: q.kg,
+              massFlowKgPerS: u.fillSeconds > 0 ? q.kg / u.fillSeconds : 0,
+              volumetricFlowGpm: u.fillSeconds > 0 ? (q.m3 / u.fillSeconds / M3_PER_GALLON) * 60 : 0,
+              densityGPerCm3: densityOf(q) / 1000,
+              specificHeatKjPerKgK: q.cp,
+              ...(Object.keys(q.comp).length ? { composition: q.comp } : {})
+            }
+          : { chargedKg: 0, massFlowKgPerS: 0, volumetricFlowGpm: 0 };
+    }
     const ev = evaluateUnitOp(u.contract!, {
+      ...(Object.keys(ports).length ? { ports } : {}),
       batch: {
         gallons: u.hold.m3 / M3_PER_GALLON,
         temperatureC: u.hold.tempC,
@@ -526,6 +556,7 @@ export class MaterialNetwork {
     const run = u.batchRun!;
     if (u.down) return;
     run.secondsByPhase[run.phase.name] = (run.secondsByPhase[run.phase.name] ?? 0) + dt;
+    if (run.phase.kind === 'FILL') u.fillSeconds += dt;
     for (const b of run.broken) {
       const t = u.run!.broken[b.id] ?? (u.run!.broken[b.id] = { message: b.message, severity: b.severity, seconds: 0 });
       t.seconds += dt;
@@ -791,6 +822,7 @@ export class MaterialNetwork {
   private receive(target: MaterialUnit, parcel: Parcel, dt: number, port?: string): void {
     mixInto(target.received, parcel);
     if (target.role === 'pass' && port) mixInto((target.inboxByPort[port] ??= emptyParcel()), parcel);
+    if (target.role === 'batch' && port) mixInto((target.chargedByPort[port] ??= emptyParcel()), parcel);
     target.inRate += parcel.m3 / dt;
     target.inKgRate += parcel.kg / dt;
     if (target.role === 'pass') mixInto(target.inbox, parcel);
