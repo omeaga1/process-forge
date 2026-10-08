@@ -279,3 +279,22 @@ describe('phase gate: review fixes', () => {
     assert.equal(feedMassSupplyKgPerS(createTerminalNode('feed', { supplyScfm: 1000 })), undefined);
   });
 });
+
+describe('calculate_stream', () => {
+  it('converts a humid gas between ACFM, SCFM, Nm3/h and kg/s, with its dew point', async () => {
+    const { calculateStream } = await import('../index.js');
+    const r = calculateStream({ phase: 'GAS', flow: { value: 4000, unit: 'ACFM' }, temperatureC: 25, relativeHumidity: 0.5 });
+    assert.equal(r.success, true);
+    near(r.humidity!.humidityRatioKgPerKg, 0.00988, 0.0002, 'Y at 25 °C, 50 %');
+    near(r.humidity!.dewPointC, 13.9, 0.2, 'dew point');
+    near(r.volume!.actualCubicFeetPerMinute, 4000, 1e-6, 'round trip');
+    const back = calculateStream({ phase: 'GAS', flow: { value: r.volume!.standardCubicFeetPerMinute!, unit: 'SCFM' }, temperatureC: 25, composition: r.composition! });
+    near(back.mass!.kgPerS, r.mass!.kgPerS, 0.005, 'SCFM back to the same mass');
+  });
+  it('a powder by its bulk density, a liquid in gal/min, and refuses SCFM of a solid', async () => {
+    const { calculateStream } = await import('../index.js');
+    near(calculateStream({ phase: 'SOLID', flow: { value: 75, unit: 'lb/h' }, densityKgPerM3: 250 }).mass!.kgPerHour, 34.02, 0.01, 'lb/h');
+    near(calculateStream({ phase: 'LIQUID', flow: { value: 10, unit: 'gal/min' } }).mass!.kgPerS, 0.6309, 0.001, 'water');
+    assert.equal(calculateStream({ phase: 'SOLID', flow: { value: 1, unit: 'SCFM' } }).success, false);
+  });
+});

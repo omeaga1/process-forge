@@ -4,6 +4,8 @@ import {
   EXAMPLE_LINES,
   STANDARD_EQUIPMENT_CATALOG,
   UnitOpContractSchema,
+  FLOW_UNITS,
+  calculateStream,
   checkDesignCompleteness,
   designChecklist,
   designStateOf,
@@ -260,6 +262,34 @@ export const FORGE_TOOLS: ForgeTool[] = [
       const profile = await host.decider.ask({ message: String(a.description ?? '') }, DESIGN_QUESTIONS);
       return { ...brief, designChecklist: { decidedBy: decidedBy(host.decider), include: designChecklist(profile) } };
     }
+  },
+  {
+    name: 'calculate_stream',
+    title: 'Convert a stream between flow units',
+    access: 'read',
+    idempotent: true,
+    description:
+      "Converts a liquid, gas or solid stream between flow units, with the physics done by the engine rather than in your head: kg/s, kg/h, lb/h, t/h, ACFM, SCFM (68 °F, 1 atm), Nm³/h (0 °C), m³/h, gal/min, L/min. A gas is an ideal gas at its temperature and absolute pressure, with the molar mass of its composition (air if none); give relativeHumidity to make it humid air, and it returns the humidity ratio, relative humidity and dew point. A liquid or solid uses its density (or bulk density). Returns the stream's density, mass flow, volumes and a designInlet to paste into a contract. Use it whenever a design states a gas or solids flow, before writing designInlet.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        phase: { type: 'string', enum: ['GAS', 'LIQUID', 'SOLID'] },
+        flow: {
+          type: 'object',
+          properties: { value: { type: 'number' }, unit: { type: 'string', enum: [...FLOW_UNITS] } },
+          required: ['value', 'unit'],
+          description: 'The flow as the engineer states it, e.g. { "value": 4000, "unit": "ACFM" }.'
+        },
+        temperatureC: { type: 'number', description: 'Default 20 °C.' },
+        pressureKpa: { type: 'number', description: 'Absolute, default 101.325 kPa.' },
+        composition: { type: 'object', description: 'Mass fractions, e.g. { "air": 0.996, "dust": 0.004 }.' },
+        densityKgPerM3: { type: 'number', description: 'A liquid\'s density or a solid\'s bulk density (1000 and 600 when absent).' },
+        relativeHumidity: { type: 'number', description: 'A gas: relative humidity 0..1; sets its water content.' }
+      },
+      required: ['phase', 'flow']
+    },
+    summarize: (a) => `Convert ${a.flow?.value ?? '?'} ${a.flow?.unit ?? ''} of ${String(a.phase ?? 'stream').toLowerCase()}`,
+    run: async (a) => calculateStream(a as never)
   },
   {
     name: 'validate_unit_op',
