@@ -21,7 +21,7 @@ import { executeDesignUnitOp } from './tools/designUnitOp.js';
 import { bridgeHost, executeGetOpenFlowsheet } from './tools/desktopBridge.js';
 import { PROMPTS, renderPrompt } from './prompts.js';
 
-export const SERVER_VERSION = '0.14.0';
+export const SERVER_VERSION = '0.15.0';
 
 /**
  * Sent to every client at connect time (the MCP `instructions` field), so a

@@ -10,6 +10,7 @@
 // Run after `pnpm run build` (the engine packages resolve through dist/).
 import { build } from 'esbuild';
 import { execFileSync, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,10 +24,9 @@ const outFile = path.join(pkgDir, 'build', 'process-forge.mcpb');
 fs.rmSync(stage, { recursive: true, force: true });
 fs.mkdirSync(path.join(stage, 'server'), { recursive: true });
 
-// 1. One file, nothing external.
-await build({
-  entryPoints: [path.join(pkgDir, 'src', 'cli.ts')],
-  outfile: path.join(stage, 'server', 'index.mjs'),
+// 1. Two files, nothing external: the server (one file with every
+// dependency) and the launcher that keeps it up to date (src/launcher.ts).
+const esm = {
   bundle: true,
   platform: 'node',
   format: 'esm',
@@ -35,11 +35,29 @@ await build({
   // Some dependencies still call require(); give the ESM bundle one.
   banner: { js: "import { createRequire as __pfCreateRequire } from 'node:module'; const require = __pfCreateRequire(import.meta.url);" },
   logLevel: 'warning'
-});
+};
+await build({ ...esm, entryPoints: [path.join(pkgDir, 'src', 'cli.ts')], outfile: path.join(stage, 'server', 'server.mjs') });
+await build({ ...esm, entryPoints: [path.join(pkgDir, 'src', 'launcher.ts')], outfile: path.join(stage, 'server', 'index.mjs') });
+
+// What the launcher compares against, and what a release publishes for it to
+// download: the server's version and sha256. LAUNCHER_PROTOCOL in
+// src/launcher.ts must match `launcher` here.
+const serverBuf = fs.readFileSync(path.join(stage, 'server', 'server.mjs'));
+const serverInfo = { version: pkg.version, sha256: createHash('sha256').update(serverBuf).digest('hex') };
+fs.writeFileSync(path.join(stage, 'server', 'server.json'), JSON.stringify(serverInfo, null, 2) + '\n');
+fs.copyFileSync(path.join(stage, 'server', 'server.mjs'), path.join(pkgDir, 'build', 'mcp-server.mjs'));
+fs.writeFileSync(
+  path.join(pkgDir, 'build', 'mcp-server.json'),
+  JSON.stringify({ ...serverInfo, launcher: 1, build: process.env.RELEASE_TAG ?? '' }, null, 2) + '\n'
+);
 
 // 2. Ask the built server what it offers.
 async function listTools() {
-  const child = spawn(process.execPath, [path.join(stage, 'server', 'index.mjs')], { stdio: ['pipe', 'pipe', 'inherit'] });
+  const child = spawn(process.execPath, [path.join(stage, 'server', 'index.mjs')], {
+    stdio: ['pipe', 'pipe', 'inherit'],
+    // The shipped server only: no download, no cached copy from this machine.
+    env: { ...process.env, PROCESS_FORGE_MCP_AUTO_UPDATE: '0' }
+  });
   let buf = '';
   const pending = new Map();
   child.stdout.on('data', (d) => {
@@ -85,7 +103,7 @@ const manifest = {
   version: pkg.version,
   description: 'Design custom unit operations for process flowsheets, checked by the ProcessForge engine, and add them to ProcessForge Desktop.',
   long_description:
-    'Describe equipment in plain words and Claude designs it as a ProcessForge unit operation: its parameters, the equations that connect them, the limits that must hold, and a drawing with a nozzle for every connection. The ProcessForge engine checks every design and returns exactly what fails. With ProcessForge Desktop open, Claude can read your open flowsheet and add the unit to it. Also simulates lines and finds bottlenecks. Runs on this computer; needs no API key.',
+    'Describe equipment in plain words and Claude designs it as a ProcessForge unit operation: its parameters, the equations that connect them, the limits that must hold, and a drawing with a nozzle for every connection. The ProcessForge engine checks every design and returns exactly what fails. With ProcessForge Desktop open, Claude can read your open flowsheet and add the unit to it. Also simulates lines and finds bottlenecks. Runs on this computer; needs no API key. Keeps itself up to date from the ProcessForge releases (set PROCESS_FORGE_MCP_AUTO_UPDATE=0 to turn that off).',
   author: { name: 'omeaga1', url: 'https://github.com/omeaga1' },
   homepage: 'https://process-forge.pages.dev',
   repository: { type: 'git', url: 'https://github.com/omeaga1/process-forge' },
