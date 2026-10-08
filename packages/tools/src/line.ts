@@ -352,9 +352,22 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
   const scenarios = params.scenarios.slice(0, 8).map((s, i) => {
     const { graph: changed, applied, warnings } = applyScenario(graph, s);
     const m = measure(changed, minutes, seed);
-    const touched = [...new Set(applied.map((a) => a.unitId))].map((id) => {
+    // Throughput is not the only thing a change moves: a heater can pass the
+    // same flow and still miss its temperature. Every unit the scenario
+    // touches, and every unit whose checks change, reports both.
+    const checksOf = (r: typeof base.run.nodeReports[string] | undefined) =>
+      Object.fromEntries((r?.designedUnit?.brokenConstraints ?? []).map((c) => [c.id, { severity: c.severity, seconds: c.seconds, message: c.message }]));
+    const checkChanged = Object.keys(m.run.nodeReports).filter((id) => {
+      const a = Object.keys(checksOf(base.run.nodeReports[id])).sort().join();
+      const b = Object.keys(checksOf(m.run.nodeReports[id])).sort().join();
+      return a !== b;
+    });
+    const touched = [...new Set([...applied.map((a) => a.unitId), ...checkChanged])].map((id) => {
       const before = base.run.nodeReports[id];
       const after = m.run.nodeReports[id];
+      const cb = checksOf(before);
+      const ca = checksOf(after);
+      const r1 = (v: number | undefined) => (v === undefined ? undefined : Math.round(v * 10) / 10);
       return {
         unit: changed.nodes.find((n) => n.id === id)?.name ?? id,
         oeeBefore: before?.overallOeePercentage,
@@ -362,7 +375,20 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
         blockedSecondsBefore: before?.blockedTimeSeconds,
         blockedSecondsAfter: after?.blockedTimeSeconds,
         starvedSecondsBefore: before?.starvedTimeSeconds,
-        starvedSecondsAfter: after?.starvedTimeSeconds
+        starvedSecondsAfter: after?.starvedTimeSeconds,
+        ...(before?.fluid?.averageOutletTemperatureC !== undefined || after?.fluid?.averageOutletTemperatureC !== undefined
+          ? { outletTemperatureCBefore: r1(before?.fluid?.averageOutletTemperatureC), outletTemperatureCAfter: r1(after?.fluid?.averageOutletTemperatureC) }
+          : {}),
+        ...(before?.heat?.averageDutyKw !== undefined || after?.heat?.averageDutyKw !== undefined
+          ? { dutyKwBefore: r1(before?.heat?.averageDutyKw), dutyKwAfter: r1(after?.heat?.averageDutyKw) }
+          : {}),
+        ...(Object.keys(cb).length || Object.keys(ca).length
+          ? {
+              checksCleared: Object.keys(cb).filter((k) => !(k in ca)),
+              checksNowFailing: Object.keys(ca).filter((k) => !(k in cb)).map((k) => ({ id: k, ...ca[k]! })),
+              checksStillFailing: Object.keys(ca).filter((k) => k in cb)
+            }
+          : {})
       };
     });
     return {
@@ -377,16 +403,28 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
       staticCapacityPerMinute: m.staticCapacityPerMinute,
       bottleneck: m.bottleneck,
       bottleneckMoved: m.bottleneck?.id !== base.bottleneck?.id,
+      /** Checks failing anywhere on the line in this run (designed units' constraints). */
+      checksFailing: Object.values(m.run.nodeReports).reduce((n, r) => n + (r?.designedUnit?.brokenConstraints.length ?? 0), 0),
       changedUnits: touched
     };
   });
 
-  const best = [...scenarios].sort((a, b) => b.unitsPerMinute - a.unitsPerMinute || b.liquidOutGallons - a.liquidOutGallons)[0]!;
+  // The most output; on a tie, the one that leaves fewest checks failing.
+  const best = [...scenarios].sort((a, b) => b.unitsPerMinute - a.unitsPerMinute || b.liquidOutGallons - a.liquidOutGallons || a.checksFailing - b.checksFailing)[0]!;
   const lines = scenarios.map((s) => {
     const d = s.unitsPerMinuteChangePercent;
     const moved = s.bottleneckMoved && s.bottleneck ? `; the bottleneck moves to ${s.bottleneck.name}` : '';
-    return `${s.name}: ${s.unitsPerMinute}/min (${d === null ? 'new output' : `${d >= 0 ? '+' : ''}${d}%`})${moved}.`;
+    const cleared = s.changedUnits.flatMap((u) => ('checksCleared' in u && u.checksCleared?.length ? [`${u.unit} clears ${u.checksCleared.join(', ')}`] : []));
+    const broke = s.changedUnits.flatMap((u) => ('checksNowFailing' in u && u.checksNowFailing?.length ? [`${u.unit} now fails ${u.checksNowFailing.map((c) => c.id).join(', ')}`] : []));
+    const checks = [...cleared, ...broke].length ? `; ${[...cleared, ...broke].join('; ')}` : '';
+    return `${s.name}: ${s.unitsPerMinute}/min (${d === null ? 'new output' : `${d >= 0 ? '+' : ''}${d}%`})${moved}${checks}.`;
   });
+  // A scenario that changes nothing for the better is not "best", even if it is the only one.
+  const baseChecks = Object.values(base.run.nodeReports).reduce((n, r) => n + (r?.designedUnit?.brokenConstraints.length ?? 0), 0);
+  const beatsBaseline =
+    best.unitsPerMinute > base.unitsPerMinute ||
+    best.liquidOutGallons > base.liquidOutGallons ||
+    (best.unitsPerMinute === base.unitsPerMinute && best.liquidOutGallons === base.liquidOutGallons && best.checksFailing < baseChecks);
   return {
     success: true,
     durationMinutes: minutes,
@@ -397,9 +435,10 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
       unitsScrapped: base.unitsScrapped,
       liquidOutGallons: base.liquidOutGallons,
       staticCapacityPerMinute: base.staticCapacityPerMinute,
-      bottleneck: base.bottleneck
+      bottleneck: base.bottleneck,
+      checksFailing: Object.values(base.run.nodeReports).reduce((n, r) => n + (r?.designedUnit?.brokenConstraints.length ?? 0), 0)
     },
     scenarios,
-    summary: `Baseline: ${base.unitsPerMinute}/min, limited by ${base.bottleneck?.name ?? 'nothing in the static analysis'}. ${lines.join(' ')} Best: ${best.name}. Each run used seed ${seed} over ${minutes} min; nothing on the flowsheet was changed.`
+    summary: `Baseline: ${base.unitsPerMinute}/min, limited by ${base.bottleneck?.name ?? 'nothing in the static analysis'}. ${lines.join(' ')} ${beatsBaseline ? `Best: ${best.name}.` : "None beats the baseline."} Each run used seed ${seed} over ${minutes} min; nothing on the flowsheet was changed.`
   };
 }

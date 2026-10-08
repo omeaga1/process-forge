@@ -274,6 +274,13 @@ export function useMcpBridge(
           } catch (e) {
             result = { added: false, error: (e as Error).message };
           }
+          // Share what the change made before answering, so the client's next
+          // call (a simulation right after an edit) reads the flowsheet as it
+          // is now, not as it was before the debounced share catches up.
+          const changed = item.kind !== 'publish' && !(item.kind === 'project' && item.request.op === 'list') && !(result as { error?: unknown } | null)?.error;
+          if (changed) {
+            await invokeTauriCommand('bridge_set_flowsheet', { flowsheet: { projectName: nameRef.current, graph: graphRef.current } }).catch(() => undefined);
+          }
           await invokeTauriCommand('bridge_report', { id: item.id, result });
         }
       } catch {

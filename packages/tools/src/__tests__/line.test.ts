@@ -123,3 +123,33 @@ describe('simulate_process_line on a powder line', () => {
     assert.ok(r.streams.find((t) => t.nodeId === 'product-powder')!.phase === 'SOLID');
   });
 });
+
+describe('compare_scenarios sees more than throughput', () => {
+  // A heater too small for its stream passes the same flow, but misses its temperature.
+  function heaterLine(): ProcessGraph {
+    const heater = createStandardUnitOp(findStandardUnitOp('heater')!, { name: 'Heater E-101', parameters: { targetC: 90, ratedKw: 200, ratedFlowGpm: 60 } });
+    const nodes: ProcessNode[] = [
+      createTerminalNode('feed', { id: 'F-100', name: 'Juice F-100', material: 'Juice', supplyRate: 40, temperatureC: 25, densityGPerCm3: 1.04, specificHeatKjPerKgK: 3.8 } as never),
+      heater,
+      createTerminalNode('product', { id: 'OUT', name: 'Hot juice', material: 'Juice' })
+    ];
+    let g = { id: 'heat', name: 'Heat', version: '1.0.0', metadata: {}, nodes, edges: [] } as unknown as ProcessGraph;
+    for (const [from, to] of [['F-100', 'E-101'], ['E-101', 'OUT']] as const) {
+      const plan = planStream(g, { from, to });
+      assert.ok(plan.ok, plan.ok ? '' : plan.error);
+      g = addStreamToGraph(g, plan.edge);
+    }
+    return g;
+  }
+
+  it('reports the outlet temperature, the duty and the check a bigger heater clears', async () => {
+    const { compareScenarios } = await import('../line.js');
+    const r = compareScenarios(heaterLine(), { scenarios: [{ name: 'Bigger heater', changes: [{ unit: 'E-101', parameters: { ratedKw: 900 } }] }], durationMinutes: 10 });
+    const u = r.scenarios[0]!.changedUnits.find((x) => x.unit === 'Heater E-101')! as Record<string, unknown>;
+    assert.ok((u.outletTemperatureCAfter as number) > (u.outletTemperatureCBefore as number), JSON.stringify(u));
+    assert.ok((u.dutyKwAfter as number) > (u.dutyKwBefore as number));
+    assert.deepEqual(u.checksCleared, ['reaches-target']);
+    assert.match(r.summary, /clears reaches-target/);
+    assert.ok(r.scenarios[0]!.checksFailing < r.baseline.checksFailing);
+  });
+});

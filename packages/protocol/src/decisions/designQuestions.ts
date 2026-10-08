@@ -71,7 +71,7 @@ export const DESIGN_QUESTIONS = {
     'Does the unit change what the stream is made of, so the components have to be tracked through it?',
     'It reacts material, or sends different components or phases to different outlets (separation, concentration, extraction, absorption).',
     'Every outlet carries the same mix that came in (moving, storing, heating, splitting by volume, filling).',
-    ['react', 'reactor', 'separat', 'concentrat', 'extract', 'absorb', 'strip', 'distil', 'column', 'crystal', 'filter', 'centrifug', 'membrane', 'evaporat', 'drying', 'dries', 'dried', 'dryer', 'neutralis', 'neutraliz', 'ferment'],
+    ['react', 'reactor', 'separat', 'concentrat', 'extract', 'absorb', 'strip', 'distil', 'column', 'crystal', 'filter', 'centrifuge', 'membrane', 'evaporat', 'drying', 'dries', 'dried', 'dryer', 'neutralis', 'neutraliz', 'ferment'],
     ['pump', 'tank', 'splitter', 'conveyor', 'mixer', 'heater', 'cooler']
   ),
   reaction: noul(
@@ -150,6 +150,9 @@ export interface CompletenessWarning {
  * have a reason (a heater with a fixed outlet temperature and no stated duty).
  */
 export function checkDesignCompleteness(contract: UnitOpContract, p: DesignProfile): CompletenessWarning[] {
+  // A contract that declares its archetype is held to that equipment's physics by the
+  // physics-alignment gate, which knows more than these word-based guesses.
+  if (contract.archetype && contract.archetype !== 'custom') return [];
   const w: CompletenessWarning[] = [];
   const b = contract.behavior;
   const outletPorts = contract.ports.filter((x) => x.direction === 'OUTLET' && x.role !== 'UTILITY');
