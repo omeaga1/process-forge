@@ -7,6 +7,8 @@ import { EVAPORATOR_CONTRACT } from './examples/evaporator.js';
 import { CASE_PACKER_CONTRACT } from './examples/casePacker.js';
 import { CRYSTALLISER_CONTRACT } from './examples/crystalliser.js';
 import { JUICE_CONCENTRATOR_CONTRACT, NEUTRALISER_CONTRACT } from './examples/componentUnits.js';
+import { DUST_COLLECTOR_CONTRACT, SPRAY_DRYER_CONTRACT } from './examples/phaseUnits.js';
+import { matchPhaseArchetypes, PHASE_FLOW_BASIS, type MaterialPhase, type PhaseArchetype, type PhaseFlowBasis } from './phases.js';
 import { LITERS_PER_GALLON } from '../thermal.js';
 import type { ProcessGraph } from '../graph.js';
 import type { ProcessNode } from '../nodes.js';
@@ -84,6 +86,18 @@ export interface DesignUnitOpResult {
   componentsExample: unknown;
   /** A complete, valid contract with a mass-balanced reaction: an acid neutraliser. */
   reactionExample: unknown;
+  /**
+   * Which phase each port carries, and so which physics and flow units apply,
+   * decided from the description: the matched equipment archetype (if any),
+   * with its ports, phase changes, governing relations and key checks.
+   */
+  phasePlan: PhasePlan;
+  /** How each phase's flow is stated and the relations that govern it. */
+  phaseFlowBasis: Record<MaterialPhase, PhaseFlowBasis>;
+  /** A complete, valid gas-solid separation (no phase change): a pulse-jet dust collector. */
+  gasSolidExample: unknown;
+  /** A complete, valid unit that takes a liquid in and sends a solid and a gas out: a spray dryer. */
+  phaseChangeExample: unknown;
   /** What the surrounding process looks like, when a graph was supplied. */
   processContext: {
     available: boolean;
@@ -93,6 +107,42 @@ export interface DesignUnitOpResult {
     suggestedDesignInlet?: UnitOpDesignStream;
   };
   nextStep: string;
+}
+
+export interface PhasePlan {
+  /** How the plan was reached. */
+  decidedBy: 'archetype' | 'none';
+  archetype?: Omit<PhaseArchetype, 'keywords'>;
+  /** Other archetypes the description also matched, for the model to rule out. */
+  alternatives: string[];
+  notes: string[];
+}
+
+/** The phase plan for a description: the best-matching archetype, stated for a model to write to. */
+export function phasePlanFor(description: string): PhasePlan {
+  const matches = matchPhaseArchetypes(description);
+  const best = matches[0]?.archetype;
+  if (!best) {
+    return {
+      decidedBy: 'none',
+      alternatives: [],
+      notes: [
+        'No phase-changing or multiphase equipment was recognised in the description. If every stream is a liquid (or items), ports need no phase.',
+        'If a gas or a solid enters or leaves, give each port its phase (LIQUID, GAS, SOLID) and, for a component carried in another phase, dispersed: { component: phase }. Declare any change of phase in phaseChanges.'
+      ]
+    };
+  }
+  const { keywords: _k, ...archetype } = best;
+  return {
+    decidedBy: 'archetype',
+    archetype,
+    alternatives: matches.slice(1, 4).map((m) => m.archetype.name),
+    notes: [
+      `The description reads as a ${best.name}. Write the ports with these phases, state each flow in the units given, and declare these phaseChanges (with latentHeatKjPerKg): the phase gate in validate_unit_op checks that every component leaves only in a phase it entered in or was changed to, and that a change that takes heat has a heat source.`,
+      'Rename ports and components to the engineer\'s words (lubricant rather than dust); keep the phases.',
+      ...(best.example ? [`A complete contract of this kind is in ${best.example === 'DUST_COLLECTOR_CONTRACT' ? 'gasSolidExample' : 'phaseChangeExample'}.`] : [])
+    ]
+  };
 }
 
 function summariseStream(stream: Record<string, unknown>): Record<string, unknown> {
@@ -269,7 +319,15 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     'mass basis. Streams carry named components (mass fractions): read them as',
     'inlet.x.<name> and change them with reactions and recovery. During a run the engine evaluates your design every',
     'second at the stream that actually reaches it, so write the physics in terms',
-    'of inlet.* wherever the feed matters, rather than as fixed parameters.'
+    'of inlet.* wherever the feed matters, rather than as fixed parameters.',
+    '',
+    'Phases decide the physics. phasePlan says which phase each port carries for',
+    'this kind of unit (LIQUID, GAS, SOLID or ITEMS), what is carried in another',
+    'phase (dust in air, moisture in a powder), which phase changes happen, and in',
+    'what units each flow is stated (phaseFlowBasis). gasSolidExample (a dust',
+    'collector) separates a powder from air with no phase change; phaseChangeExample',
+    '(a spray dryer) takes a liquid in and sends a powder and humid air out, with the',
+    'evaporation, its latent heat and the energy balance that pays for it.'
   ].join('\n');
 
   return {
@@ -286,6 +344,10 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     batchNames: BATCH_SCOPE_NAMES,
     componentsExample: JUICE_CONCENTRATOR_CONTRACT,
     reactionExample: NEUTRALISER_CONTRACT,
+    phasePlan: phasePlanFor(description),
+    phaseFlowBasis: PHASE_FLOW_BASIS,
+    gasSolidExample: DUST_COLLECTOR_CONTRACT,
+    phaseChangeExample: SPRAY_DRYER_CONTRACT,
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:
       'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'

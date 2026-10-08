@@ -248,3 +248,49 @@ describe('design_unit_op: designs that read their inlet', () => {
     assert.ok(r.rules.some((x) => x.includes('behavior.inputs')));
   });
 });
+
+describe('design_unit_op: which phase drives each port', () => {
+  it('plans a dust collector as gas with a dispersed solid in, gas and solid out, and no phase change', async () => {
+    const { executeDesignUnitOp } = await import('../tools/designUnitOp.js');
+    const r = executeDesignUnitOp({ description: 'a pulse-jet dust collector catching powdered lubricant off the tablet press' });
+    assert.equal(r.phasePlan.decidedBy, 'archetype');
+    const a = r.phasePlan.archetype!;
+    assert.equal(a.id, 'dust-collector');
+    const byId = Object.fromEntries(a.ports.map((p) => [p.id, p]));
+    assert.equal(byId.dirty_air!.phase, 'GAS');
+    assert.deepEqual(byId.dirty_air!.dispersed, { dust: 'SOLID' });
+    assert.equal(byId.clean_air!.phase, 'GAS');
+    assert.equal(byId.hopper!.phase, 'SOLID');
+    assert.match(byId.dirty_air!.flowUnits, /ACFM/);
+    assert.match(byId.hopper!.flowUnits, /kg\/h/);
+    assert.deepEqual(a.phaseChanges, []);
+    assert.ok(r.phaseFlowBasis.GAS.physics.some((x) => x.includes('Ideal gas')));
+  });
+
+  it('plans a spray chamber as liquid in, solid and gas out, with the evaporation declared', async () => {
+    const { executeDesignUnitOp } = await import('../tools/designUnitOp.js');
+    const r = executeDesignUnitOp({ description: 'spray chamber that dries a milk concentrate to powder' });
+    const a = r.phasePlan.archetype!;
+    assert.equal(a.id, 'spray-dryer');
+    assert.equal(a.ports.find((p) => p.id === 'feed')!.phase, 'LIQUID');
+    assert.equal(a.ports.find((p) => p.id === 'powder')!.phase, 'SOLID');
+    assert.ok(a.phaseChanges.some((pc) => pc.component === 'water' && pc.from === 'LIQUID' && pc.to === 'GAS'));
+    assert.ok(a.phaseChanges.some((pc) => pc.from === 'LIQUID' && pc.to === 'SOLID'));
+  });
+
+  it('ships phase examples the engine accepts, and rejects a liquid-in, solid-out design that does not say how', async () => {
+    const { executeDesignUnitOp } = await import('../tools/designUnitOp.js');
+    const { executeValidateUnitOp } = await import('@process-forge/protocol');
+    const r = executeDesignUnitOp({ description: 'a pump' });
+    assert.equal(r.phasePlan.decidedBy, 'none');
+    assert.equal(executeValidateUnitOp({ contract: r.gasSolidExample }).verdict, 'ACCEPTED');
+    assert.equal(executeValidateUnitOp({ contract: r.phaseChangeExample }).verdict, 'ACCEPTED');
+    const broken = JSON.parse(JSON.stringify(r.phaseChangeExample));
+    delete broken.phaseChanges;
+    const v = executeValidateUnitOp({ contract: broken });
+    assert.equal(v.verdict, 'REJECTED');
+    assert.match(v.gates.staticAnalysis.errors.join('\n'), /leaves by "powder" as SOLID/);
+    assert.match(v.revisionGuidance, /Phases: a component may only leave/);
+    assert.ok(r.rules.some((x) => x.includes('dispersed')));
+  });
+});

@@ -233,7 +233,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     idempotent: true,
     graphSource: true,
     description:
-      "Returns everything needed to author a UnitOpContract for a unit operation described in plain words: the schema, the expression language and its functions, the names the engine supplies, worked examples, the stream conditions at the unit's place in the open flowsheet, and a checklist of what a complete design of this unit carries. You are the model: write the contract from this brief, check it with validate_unit_op, fix what fails, then place it with add_unit_op_to_flowsheet.",
+      "Returns everything needed to author a UnitOpContract for a unit operation described in plain words: the schema, the expression language and its functions, the names the engine supplies, worked examples, the stream conditions at the unit's place in the open flowsheet, a phase plan (which ports carry liquid, gas, solid or items for this kind of equipment, the flow units of each, and the phase changes and governing relations, e.g. ACFM in and kg/h of powder out of a dust collector; liquid in, powder and humid air out of a spray dryer), and a checklist of what a complete design of this unit carries. You are the model: write the contract from this brief, check it with validate_unit_op, fix what fails, then place it with add_unit_op_to_flowsheet.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -267,7 +267,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     access: 'read',
     idempotent: true,
     description:
-      "The engine's verdict on a proposed UnitOpContract: schema; every expression parses, every name resolves and the units agree; every ERROR constraint holds at its own parameter values; and the drawing works (every port has a nozzle, every shape lies inside the viewBox). Returns ACCEPTED or REJECTED with the failures and what to change, plus completeness warnings: what a unit like this usually carries that the design leaves out.",
+      "The engine's verdict on a proposed UnitOpContract: schema; every expression parses, every name resolves and the units agree; every ERROR constraint holds at its own parameter values; phases balance (each component leaves only in a phase it entered in or a declared phase change takes it to, and a change that takes heat has a heat source); and the drawing works (every port has a nozzle, every shape lies inside the viewBox). Returns ACCEPTED or REJECTED with the failures and what to change, plus completeness warnings: what a unit like this usually carries that the design leaves out.",
     inputSchema: {
       type: 'object',
       properties: {
