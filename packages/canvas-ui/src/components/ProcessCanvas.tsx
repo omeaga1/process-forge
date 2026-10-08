@@ -14,7 +14,7 @@ import {
   type IsValidConnection
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
+import { Layers, Play, Pause, RotateCcw, RotateCw, FlipHorizontal2, Maximize2, Route, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
 
 import {
   validateProcessGraph,
@@ -27,6 +27,11 @@ import {
   PAINT_CANNING_LINE,
   STANDARD_EQUIPMENT_CATALOG,
   createStandardUnitOp,
+  flipLayout,
+  resolvedLayout,
+  rotateLayout,
+  scaleLayout,
+  type NodeLayout,
   type ProcessGraph,
   type ProcessNode,
   type ProcessEdge
@@ -263,6 +268,50 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     [commitGraph]
   );
 
+  // Size, turn or mirror a unit, and route a pipe by hand. Drawing only: a run gives the same numbers.
+  const setNodeLayout = useCallback(
+    (nodeId: string, layout: NodeLayout | undefined) => {
+      updateGraph((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) => {
+          if (n.id !== nodeId) return n;
+          const { layout: _old, ...rest } = n;
+          return layout ? { ...rest, layout } : rest;
+        })
+      }));
+    },
+    [updateGraph]
+  );
+  const setNodeLayouts = useCallback(
+    (nodeIds: string[], change: (layout: NodeLayout | undefined, node: ProcessNode) => NodeLayout | undefined) => {
+      if (!nodeIds.length) return;
+      const ids = new Set(nodeIds);
+      updateGraph((prev) => ({
+        ...prev,
+        nodes: prev.nodes.map((n) => {
+          if (!ids.has(n.id)) return n;
+          const { layout: old, ...rest } = n;
+          const layout = change(old, n);
+          return layout ? { ...rest, layout } : rest;
+        })
+      }));
+    },
+    [updateGraph]
+  );
+  const setEdgeRoute = useCallback(
+    (edgeId: string, waypoints: { x: number; y: number }[] | undefined) => {
+      updateGraph((prev) => ({
+        ...prev,
+        edges: prev.edges.map((e) => {
+          if (e.id !== edgeId) return e;
+          const { waypoints: _old, ...rest } = e;
+          return waypoints?.length ? { ...rest, waypoints } : rest;
+        })
+      }));
+    },
+    [updateGraph]
+  );
+
   const undo = useCallback(() => {
     const h = historyRef.current;
     const prev = h.past.pop();
@@ -407,7 +456,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         instantaneousRate: 0,
         activeSubAgentId: pNode.assignedSubAgentId || `subagent-${pNode.id}`,
         subAgentChatHistory: [],
-        onOpenPopOutStudio: (id: string) => setPopOutNodeId(id)
+        onOpenPopOutStudio: (id: string) => setPopOutNodeId(id),
+        onLayoutChange: setNodeLayout
       } satisfies CanvasNodeData
     }))
   );
@@ -425,7 +475,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         ...phaseOfEdge(graph.nodes, pEdge),
         isBackpressureBlocked: false,
         // Nothing flows until the simulation says so; pipes animate on flow.
-        activeFlowRate: 0
+        activeFlowRate: 0,
+        onRouteChange: setEdgeRoute
       } satisfies CanvasEdgeData
     }))
   );
@@ -451,7 +502,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             ...liquidOf(snapshotByNode.get(pNode.id)),
             activeSubAgentId: pNode.assignedSubAgentId || `subagent-${pNode.id}`,
             subAgentChatHistory: [],
-            onOpenPopOutStudio: (id: string) => setPopOutNodeId(id)
+            onOpenPopOutStudio: (id: string) => setPopOutNodeId(id),
+            onLayoutChange: setNodeLayout
           } satisfies CanvasNodeData
         };
       })
@@ -470,7 +522,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           processEdge: pEdge,
           ...phaseOfEdge(graph.nodes, pEdge),
           // Blocked upstream, as the engine reports it.
-          ...pipeState(snapshotByNode.get(pEdge.sourceNodeId), { sourcePortId: pEdge.sourcePortId, ...phaseOfEdge(graph.nodes, pEdge) })
+          ...pipeState(snapshotByNode.get(pEdge.sourceNodeId), { sourcePortId: pEdge.sourcePortId, ...phaseOfEdge(graph.nodes, pEdge) }),
+          onRouteChange: setEdgeRoute
         } satisfies CanvasEdgeData
       }))
     );
@@ -702,11 +755,20 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       } else if (!mod && (e.key === 'Delete' || e.key === 'Backspace') && hasSelection) {
         e.preventDefault();
         deleteSelection();
+      } else if (!mod && !e.altKey && selectedNodeIds.length && (key === 'r' || key === 'f' || e.key === '+' || e.key === '=' || e.key === '-')) {
+        e.preventDefault();
+        if (key === 'r') setNodeLayouts(selectedNodeIds, (l) => rotateLayout(l, e.shiftKey ? -1 : 1));
+        else if (key === 'f') setNodeLayouts(selectedNodeIds, (l) => flipLayout(l));
+        else {
+          const k = e.key === '-' ? 1 / 1.15 : 1.15;
+          // Feeds and outlets keep their size.
+          setNodeLayouts(selectedNodeIds, (l, n) => (n.kind === 'TERMINAL' ? l : scaleLayout(l, resolvedLayout(l).scale * k)));
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo, duplicateNode, deleteSelection, hasSelection, selectedNodeIds, popOutNodeId]);
+  }, [undo, redo, duplicateNode, deleteSelection, hasSelection, selectedNodeIds, popOutNodeId, setNodeLayouts]);
 
   // Keyboard shortcut: Spacebar to toggle simulation
   useEffect(() => {
@@ -1290,7 +1352,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               style={{
                 position: 'fixed',
                 left: Math.min(contextMenu.x, window.innerWidth - 200),
-                top: Math.min(contextMenu.y, window.innerHeight - 140),
+                top: Math.min(contextMenu.y, window.innerHeight - (contextMenu.kind === 'node' ? 330 : 110)),
                 zIndex: 41,
                 minWidth: 184,
                 padding: 4,
@@ -1315,9 +1377,18 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                       }
                     },
                     { label: 'Duplicate', shortcut: 'Ctrl+D', icon: <Copy size={14} />, danger: false, run: () => duplicateNode(contextMenu.id) },
+                    { label: 'Rotate right', shortcut: 'R', icon: <RotateCw size={14} />, danger: false, run: () => setNodeLayouts([contextMenu.id], (l) => rotateLayout(l, 1)) },
+                    { label: 'Rotate left', shortcut: 'Shift+R', icon: <RotateCcw size={14} />, danger: false, run: () => setNodeLayouts([contextMenu.id], (l) => rotateLayout(l, -1)) },
+                    { label: 'Mirror', shortcut: 'F', icon: <FlipHorizontal2 size={14} />, danger: false, run: () => setNodeLayouts([contextMenu.id], (l) => flipLayout(l)) },
+                    ...(graph.nodes.find((n) => n.id === contextMenu.id)?.layout
+                      ? [{ label: 'Natural size and orientation', shortcut: '', icon: <Maximize2 size={14} />, danger: false, run: () => setNodeLayout(contextMenu.id, undefined) }]
+                      : []),
                     { label: 'Delete unit', shortcut: 'Del', icon: <Trash2 size={14} />, danger: true, run: () => deleteElements([contextMenu.id]) }
                   ]
                 : [
+                    ...(graph.edges.find((e) => e.id === contextMenu.id)?.waypoints?.length
+                      ? [{ label: 'Route around equipment', shortcut: '', icon: <Route size={14} />, danger: false, run: () => setEdgeRoute(contextMenu.id, undefined) }]
+                      : []),
                     { label: 'Delete stream', shortcut: 'Del', icon: <Trash2 size={14} />, danger: true, run: () => deleteElements([], [contextMenu.id]) }
                   ]
               ).map((item) => (

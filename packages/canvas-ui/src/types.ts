@@ -3,7 +3,8 @@ import type {
   ProcessEdge,
   GraphDiagnostic,
   BottleneckAnalysis,
-  EquipmentCadDrawing
+  EquipmentCadDrawing,
+  NodeLayout
 } from '@process-forge/protocol';
 import type { MachineOperationalState } from '@process-forge/simulation-core';
 
@@ -51,6 +52,8 @@ export interface CanvasNodeData extends Record<string, unknown> {
   activeSubAgentId: string;
   subAgentChatHistory: ChatMessage[];
   onOpenPopOutStudio?: (nodeId: string) => void;
+  /** Size, turn or mirror the unit on the flowsheet (undefined: natural size, upright). */
+  onLayoutChange?: (nodeId: string, layout: NodeLayout | undefined) => void;
 }
 
 export interface CanvasEdgeData extends Record<string, unknown> {
@@ -64,6 +67,8 @@ export interface CanvasEdgeData extends Record<string, unknown> {
   phase?: 'LIQUID' | 'GAS' | 'SOLID' | 'ITEMS';
   /** A gas or solids pipe while it flows: its figure in its phase's units (ACFM, kg/h). */
   liveText?: string;
+  /** Store the pipe's hand-drawn bends; undefined routes it around the equipment by itself. */
+  onRouteChange?: (edgeId: string, waypoints: { x: number; y: number }[] | undefined) => void;
 }
 
 export interface PlantTelemetryState {

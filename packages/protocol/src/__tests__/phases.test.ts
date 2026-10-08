@@ -164,7 +164,10 @@ describe('phase archetypes', () => {
     assert.equal(matchPhaseArchetype('a co-current spray dryer')?.id, 'spray-dryer');
     assert.equal(matchPhaseArchetype('rotary dryer for sand')?.id, 'fluid-bed-dryer');
     assert.equal(matchPhaseArchetype('rotary tablet press')?.id, 'tablet-press');
-    assert.equal(matchPhaseArchetype('a centrifugal pump'), null);
+    assert.equal(matchPhaseArchetype('a centrifugal pump')?.id, 'pump');
+    assert.equal(matchPhaseArchetype('a 3D printer making brackets'), null);
+    assert.equal(matchPhaseArchetype('steam heater on the syrup line')?.id, 'heater');
+    assert.equal(matchPhaseArchetype('case packer, 12 bottles to a case')?.id, 'case-packer');
   });
   it('every archetype plan passes the phase gate', () => {
     for (const a of PHASE_ARCHETYPES) {

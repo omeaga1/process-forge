@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import {
   calculateStream,
-  evaluateUnitOp,
+  effectiveContract,
   UnitOpContractSchema,
   TERMINAL_ROLE_LABEL,
   terminalCarries,
@@ -12,10 +12,9 @@ import {
   type ProcessNode,
   type UnitOpContract
 } from '@process-forge/protocol';
-import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { ContractParametersPanel } from './ContractParametersPanel.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import { engineKeysOf } from '../../model/unitBehavior.js';
-import { tint } from '@process-forge/theme';
 
 interface UnitParametersPanelProps {
   node: ProcessNode;
@@ -56,25 +55,19 @@ export function describeConfigKey(key: string): { label: string; unit: string } 
   return { label: words.charAt(0).toUpperCase() + words.slice(1), unit };
 }
 
-function formatNumber(v: number): string {
-  if (!Number.isFinite(v)) return String(v);
-  const a = Math.abs(v);
-  if (a !== 0 && (a < 0.01 || a >= 1e6)) return v.toExponential(2);
-  return v.toLocaleString(undefined, { maximumFractionDigits: a < 1 ? 4 : a < 100 ? 2 : 1 });
-}
-
 /**
- * A unit's parameters. For a unit defined by a contract, edits go into the
- * contract itself -- that is what the engine runs -- and the engine's own
- * results and checks are shown as you type. Built-in units show their numeric
- * settings with readable labels and units.
+ * A unit's settings. Every unit the engine runs has a contract -- its own
+ * (a designed unit), or one built from its config (a standard unit) -- and
+ * both are edited in ContractParametersPanel, with the engine's verdict on
+ * every knob. Feeds and outlets have their own settings below.
  */
 export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, onUpdateConfig }) => {
   const { palette, font, radius: r } = useTheme();
   const config = node.config as Record<string, unknown>;
   const parsed = useMemo(() => UnitOpContractSchema.safeParse(config.contract), [config.contract]);
-  const contract: UnitOpContract | null = parsed.success ? parsed.data : null;
-  const evaluation = useMemo(() => (contract ? evaluateUnitOp(contract) : null), [contract]);
+  const own = parsed.success;
+  // A standard unit's contract is built from its config, so the same panel edits it.
+  const contract: UnitOpContract | null = useMemo(() => (parsed.success ? parsed.data : node.kind === 'TERMINAL' ? null : effectiveContract(node) ?? null), [parsed, node]);
 
   const row: React.CSSProperties = {
     display: 'grid',
@@ -127,135 +120,9 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
     margin: '18px 0 2px'
   };
 
-  // ---- a contract-defined unit ------------------------------------------------
-  if (contract && evaluation) {
-    const setParam = (name: string, value: number) => {
-      const next: UnitOpContract = {
-        ...contract,
-        parameters: contract.parameters.map((p) => (p.name === name ? { ...p, value } : p))
-      };
-      // The contract is what the engine runs; the mirrored key is for anything
-      // that reads config directly.
-      onUpdateConfig(node.id, { ...config, contract: next, [name]: value });
-    };
-    const errors = evaluation.constraints.filter((c) => !c.satisfied && c.severity === 'ERROR');
-    const warnings = evaluation.constraints.filter((c) => !c.satisfied && c.severity === 'WARNING');
-
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
-        <div
-          role="status"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 12px',
-            borderRadius: r.md,
-            fontSize: 13,
-            backgroundColor: evaluation.error || errors.length ? tint(palette.status.failed, 0.08) : warnings.length ? tint(palette.status.blocked, 0.1) : tint(palette.jade[500], 0.08),
-            border: `1px solid ${evaluation.error || errors.length ? tint(palette.status.failed, 0.4) : warnings.length ? tint(palette.status.blocked, 0.4) : tint(palette.jade[500], 0.35)}`,
-            color: palette.text.primary
-          }}
-        >
-          {evaluation.error || errors.length ? (
-            <XCircle size={16} color={palette.status.failed} />
-          ) : warnings.length ? (
-            <AlertTriangle size={16} color={palette.status.blocked} />
-          ) : (
-            <CheckCircle2 size={16} color={palette.jade[500]} />
-          )}
-          <span>
-            {evaluation.error
-              ? `The engine cannot evaluate this design: ${evaluation.error.message}`
-              : errors.length
-                ? `${errors.length} check${errors.length > 1 ? 's' : ''} fail: the simulation will refuse to run this unit.`
-                : warnings.length
-                  ? `Runs, with ${warnings.length} warning${warnings.length > 1 ? 's' : ''}.`
-                  : 'Every check passes.'}
-          </span>
-        </div>
-
-        <div style={heading}>Parameters</div>
-        {contract.parameters.map((p) => {
-          const out = (p.min !== undefined && p.value < p.min) || (p.max !== undefined && p.value > p.max);
-          const hasRange = p.min !== undefined && p.max !== undefined && p.max > p.min;
-          return (
-            <div key={p.name} style={row}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>{p.label ?? p.name}</div>
-                {p.description && <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>{p.description}</div>}
-              </div>
-              <label style={numberBox(out)} title={hasRange ? `${p.min} to ${p.max}` : undefined}>
-                <input
-                  type="number"
-                  aria-label={p.label ?? p.name}
-                  value={p.value}
-                  step="any"
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    if (Number.isFinite(v)) setParam(p.name, v);
-                  }}
-                  style={input}
-                />
-                {p.unit && <span style={unitTag}>{p.unit}</span>}
-              </label>
-              {hasRange && (
-                <input
-                  type="range"
-                  aria-hidden="true"
-                  tabIndex={-1}
-                  min={p.min}
-                  max={p.max}
-                  step={(p.max! - p.min!) / 200}
-                  value={Math.min(p.max!, Math.max(p.min!, p.value))}
-                  onChange={(e) => setParam(p.name, parseFloat(e.target.value))}
-                  style={{ gridColumn: '1 / -1', width: '100%', accentColor: palette.jade[500], height: 14, margin: 0 }}
-                />
-              )}
-              {out && (
-                <div style={{ gridColumn: '1 / -1', fontSize: 12, color: palette.status.blocked }}>
-                  Outside its range ({p.min} to {p.max} {p.unit}).
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {contract.derived.length > 0 && (
-          <>
-            <div style={heading}>Computed by the engine</div>
-            {contract.derived.map((d) => (
-              <div key={d.name} style={{ ...row, padding: '7px 0' }}>
-                <span style={{ fontSize: 13, color: palette.text.secondary }}>{d.label ?? d.name}</span>
-                <span style={{ fontFamily: font.mono, fontSize: 13, color: palette.text.primary }}>
-                  {formatNumber(evaluation.derived[d.name] ?? NaN)} <span style={{ color: palette.text.muted }}>{d.unit}</span>
-                </span>
-              </div>
-            ))}
-          </>
-        )}
-
-        {evaluation.constraints.length > 0 && (
-          <>
-            <div style={heading}>Checks</div>
-            {evaluation.constraints.map((c) => {
-              const bad = !c.satisfied;
-              const color = !bad ? palette.jade[500] : c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked;
-              const Icon = !bad ? CheckCircle2 : c.severity === 'ERROR' ? XCircle : AlertTriangle;
-              return (
-                <div key={c.id} style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: `1px solid ${palette.border.subtle}` }}>
-                  <Icon size={15} color={color} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <div style={{ fontSize: 13, color: bad ? palette.text.primary : palette.text.secondary }}>
-                    {c.message}
-                    {bad && c.hint && <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>Try: {c.hint}</div>}
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-    );
+  // ---- a unit run by a contract: designed, or a standard unit built from its config ----
+  if (contract && !terminalRole(node)) {
+    return <ContractParametersPanel node={node} contract={contract} own={own} onUpdateConfig={onUpdateConfig} />;
   }
 
   // ---- a feed or outlet arrow -------------------------------------------------

@@ -130,6 +130,23 @@ export const NodeKindSchema = z.enum([
 ]);
 export type NodeKind = z.infer<typeof NodeKindSchema>;
 
+/**
+ * How a unit is placed on the flowsheet beyond its position: its size and
+ * orientation. Drawing only -- the engine never reads it. Nozzles turn with
+ * the drawing, so a pipe stays on the flange it was attached to.
+ *
+ * scale    -- 1 is the drawing's natural size; 0.5 to 3.
+ * rotation -- clockwise, in quarter turns (0, 90, 180, 270 degrees).
+ * flipX    -- mirrored left to right before it is turned (a pump drawn
+ *             discharging left).
+ */
+export const NodeLayoutSchema = z.object({
+  scale: z.number().min(0.5).max(3).optional(),
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).optional(),
+  flipX: z.boolean().optional()
+});
+export type NodeLayout = z.infer<typeof NodeLayoutSchema>;
+
 export const ProcessNodeSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -147,6 +164,8 @@ export const ProcessNodeSchema = z.object({
     z.record(z.unknown())
   ]),
   assignedSubAgentId: z.string().optional(),
-  dressing: UnitOpDressingSchema.optional()
+  dressing: UnitOpDressingSchema.optional(),
+  /** Size and orientation on the flowsheet (drawing only). */
+  layout: NodeLayoutSchema.optional()
 });
-export type ProcessNode = z.infer<typeof ProcessNodeSchema>;
+export type ProcessNode =z.infer<typeof ProcessNodeSchema>;

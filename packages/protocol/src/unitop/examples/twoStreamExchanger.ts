@@ -15,6 +15,7 @@ import type { UnitOpContract } from '../contract.js';
 export const TWO_STREAM_EXCHANGER_CONTRACT: UnitOpContract = {
   contractVersion: 1,
   id: 'counter-current-exchanger-v1',
+  archetype: 'two-stream-exchanger',
   name: 'Shell-and-tube exchanger (two streams)',
   description: 'A hot stream heats a cold one through the tube wall; the two never mix. Counter-current, rated by UA with effectiveness-NTU, from both live inlets.',
   ports: [
