@@ -145,6 +145,8 @@ export interface BatchRun {
 export interface LiveContract {
   /** m³/s; Infinity when the contract declares no capacity. */
   capacity: number;
+  /** kg/s, from capacityKgPerHour; Infinity when none is declared. */
+  capacityKgPerS: number;
   dutyKw?: number;
   outlets: UnitOpEvaluation['outlets'];
   reactions?: EvaluatedReaction[];
@@ -200,6 +202,8 @@ export interface MaterialUnit {
   tickPort: Record<string, Parcel>;
   /** A pass-through: what reached each inlet port this tick, on its own. */
   inboxByPort: Record<string, Parcel>;
+  /** kg/m³ of what last arrived (the design's until something does): turns a mass capacity into volume. */
+  inDensity: number;
   /** Mass in and out this tick, kg/s. */
   inKgRate: number;
   outKgRate: number;
@@ -335,6 +339,7 @@ export class MaterialNetwork {
         byPort: {},
         tickPort: {},
         inboxByPort: {},
+        inDensity: (contract?.designInlet?.densityGPerCm3 ?? 1) * 1000,
         inKgRate: 0,
         outKgRate: 0,
         batches: 0,
@@ -572,6 +577,7 @@ export class MaterialNetwork {
    */
   private condition(u: MaterialUnit, dt: number): void {
     if (u.inbox.m3 <= EPS_M3) return;
+    u.inDensity = densityOf(u.inbox, u.inDensity);
     if (u.contract) this.evaluateLive(u, dt);
     mixInto(u.hold, u.inbox);
     const reactions = u.live?.reactions;
@@ -836,7 +842,9 @@ export class MaterialNetwork {
             : this.outEdges.has(u.id)
               ? 0 // piped into a unit that takes no liquid
               : Infinity; // nothing downstream: it leaves the line
-          const cap = (u.live?.capacity ?? Infinity) * dt;
+          // A mass capacity limits the volume of what arrives at its density (the last arrivals', else the design's).
+          const massCap = u.live && Number.isFinite(u.live.capacityKgPerS) ? (u.live.capacityKgPerS / u.inDensity) * dt : Infinity;
+          const cap = Math.min((u.live?.capacity ?? Infinity) * dt, massCap);
           u.accept = Math.max(0, Math.min(cap, downstream) - u.hold.m3);
           break;
         }
@@ -889,18 +897,27 @@ export class MaterialNetwork {
           }
         }
       } else {
+        // A port that states its phase sends the volume of that phase; a unit that holds what it
+        // receives (a tank, a batch, a bowl) has room for that volume, not for the volume of this unit's mix.
+        const mixKgPerM3 = densityOf(u.role === 'feed' ? u.feedStock! : u.hold);
+        const holds = (t: MaterialUnit) => t.role === 'storage' || t.role === 'batch' || t.role === 'drawer';
+        const roomFactor = outs.map((o) => {
+          if (!holds(o.target)) return 1;
+          const rho = this.portDensity(u, o.port, o.comp ?? source.comp, o.temp ?? source.tempC);
+          return rho ? mixKgPerM3 / rho : 1;
+        });
         // Largest total that respects every outlet's share and room.
-        let total = Math.min(offer, ...outs.map((o) => (o.share > 0 ? remaining.get(o.target.id)! / o.share : Infinity)));
+        let total = Math.min(offer, ...outs.map((o, i) => (o.share > 0 ? remaining.get(o.target.id)! / (o.share * roomFactor[i]!) : Infinity)));
         // A feed with no supply rate into units with no limit of their own
         // (an unrated mixer, an outlet): the pipes' design flow is the limit.
         if (!Number.isFinite(total)) total = this.pipeDesignRate(u) * dt;
         const parcel = this.take(u, source, total);
         sentKg = parcel.kg;
         const kgPerM3 = parcel.m3 > 0 ? parcel.kg / parcel.m3 : 0;
-        for (const o of outs) {
+        for (const [i, o] of outs.entries()) {
           const v = total * o.share;
           if (v <= 0) continue;
-          remaining.set(o.target.id, remaining.get(o.target.id)! - v);
+          remaining.set(o.target.id, remaining.get(o.target.id)! - v * roomFactor[i]!);
           const tempC = o.temp ?? parcel.tempC;
           const comp = o.comp ?? { ...parcel.comp };
           // Mass splits by the plan; a port that states its phase gets the volume of that phase.
@@ -977,9 +994,10 @@ export class MaterialNetwork {
 /** What a continuous contract evaluates to, in the terms the liquid step uses. */
 function liveOf(ev: UnitOpEvaluation): LiveContract {
   const b = ev.behavior;
-  const live: LiveContract = { capacity: Infinity, outlets: ev.outlets ?? {}, ...(ev.reactions?.length ? { reactions: ev.reactions } : {}) };
+  const live: LiveContract = { capacity: Infinity, capacityKgPerS: Infinity, outlets: ev.outlets ?? {}, ...(ev.reactions?.length ? { reactions: ev.reactions } : {}) };
   if (b.mode === 'CONTINUOUS_RATE') {
     if (b.capacityGpm !== undefined) live.capacity = (Math.max(0, b.capacityGpm) * M3_PER_GALLON) / 60;
+    if (b.capacityKgPerHour !== undefined) live.capacityKgPerS = Math.max(0, b.capacityKgPerHour) / 3600;
     if (b.dutyKw !== undefined) live.dutyKw = b.dutyKw;
   }
   return live;

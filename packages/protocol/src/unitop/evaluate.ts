@@ -107,7 +107,7 @@ export interface UnitOpEvaluation {
         /** Whole items per cycle, per item outlet port; they add up to unitsPerCycle. */
         outputs?: { port: string; perCycle: number; scrap: boolean }[];
       }
-    | { mode: 'CONTINUOUS_RATE'; throughputPerMinute: number; capacityGpm?: number; dutyKw?: number; residenceTimeSeconds?: number }
+    | { mode: 'CONTINUOUS_RATE'; throughputPerMinute: number; capacityGpm?: number; capacityKgPerHour?: number; dutyKw?: number; residenceTimeSeconds?: number }
     | {
         mode: 'BATCH';
         batchGallons: number;
@@ -411,6 +411,7 @@ export function evaluateUnitOp(
         mode: 'CONTINUOUS_RATE',
         throughputPerMinute,
         ...(contract.behavior.capacityGpm ? { capacityGpm: evaluateNumber(contract.behavior.capacityGpm, scope) } : {}),
+        ...(contract.behavior.capacityKgPerHour ? { capacityKgPerHour: evaluateNumber(contract.behavior.capacityKgPerHour, scope) } : {}),
         ...(contract.behavior.dutyKw ? { dutyKw: evaluateNumber(contract.behavior.dutyKw, scope) } : {}),
         ...(contract.behavior.residenceTimeSeconds
           ? { residenceTimeSeconds: evaluateNumber(contract.behavior.residenceTimeSeconds, scope) }

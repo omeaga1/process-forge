@@ -250,6 +250,18 @@ The mass balance closes across all three phases, and the water leaves as
 vapour, not in the hopper. A component that no recovery names goes only to
 ports that can carry it.
 
+## Sizing by mass
+
+A gas or solids unit states its capacity as `behavior.capacityKgPerHour` (a
+fan's, a feeder's or a collector's rating). The engine limits the mass
+through the unit to that figure, live, converting it at the density of what
+actually arrives.
+
+A tank, batch vessel or bowl downstream of a phase-aware port makes room
+for the volume of that port's phase. A drum under a baghouse hopper fills
+at the powder's bulk volume, not at the volume of the air it was separated
+from.
+
 ## What the simulation reports
 
 A designed unit that states its phases reports `designedUnit.streams`, one

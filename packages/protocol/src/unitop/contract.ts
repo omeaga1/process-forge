@@ -8,6 +8,7 @@ import {
   DIMENSIONLESS,
   ENGINE_NAME_DIMENSIONS,
   parseUnit,
+  MASS_FLOW,
   POWER,
   SPECIFIC_ENERGY,
   TEMPERATURE,
@@ -236,6 +237,12 @@ export const UnitOpBehaviorSchema = z.discriminatedUnion('mode', [
     throughputPerMinute: z.string().min(1),
     /** The most liquid it passes, gal/min. The engine limits the flow through it to this, live. */
     capacityGpm: z.string().optional(),
+    /**
+     * The most it passes as a mass flow, kg/h: how a gas or solids unit states
+     * its capacity (a fan's or a feeder's rating), where gal/min means nothing.
+     * The engine limits the flow through it to this, live, by what arrives.
+     */
+    capacityKgPerHour: z.string().optional(),
     dutyKw: z.string().optional(),
     residenceTimeSeconds: z.string().optional()
   }),
@@ -606,6 +613,7 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   } else {
     checkExpr(b.throughputPerMinute, 'behavior.throughputPerMinute');
     if (b.capacityGpm) checkExpr(b.capacityGpm, 'behavior.capacityGpm');
+    if (b.capacityKgPerHour) checkExpr(b.capacityKgPerHour, 'behavior.capacityKgPerHour');
     if (b.dutyKw) checkExpr(b.dutyKw, 'behavior.dutyKw');
     if (b.residenceTimeSeconds) checkExpr(b.residenceTimeSeconds, 'behavior.residenceTimeSeconds');
   }
@@ -781,6 +789,7 @@ export function contractExpressions(contract: UnitOpContract): ContractExpressio
   } else {
     add(b.throughputPerMinute, null, 'behavior.throughputPerMinute', 'throughputPerMinute');
     add(b.capacityGpm, VOLUME_FLOW, 'behavior.capacityGpm', 'capacityGpm');
+    add(b.capacityKgPerHour, MASS_FLOW, 'behavior.capacityKgPerHour', 'capacityKgPerHour');
     add(b.dutyKw, POWER, 'behavior.dutyKw', 'dutyKw');
     add(b.residenceTimeSeconds, TIME, 'behavior.residenceTimeSeconds', 'residenceTimeSeconds');
   }

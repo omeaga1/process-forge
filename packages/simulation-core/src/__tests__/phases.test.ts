@@ -198,3 +198,42 @@ describe('An inlet port with no pipe', () => {
     assert.ok(broken.includes('enough-liquor'), `no water piped, so L/G is 0: ${broken.join(', ')}`);
   });
 });
+
+describe('Sizing gas and solids in their own units', () => {
+  const dustyAir = () => createTerminalNode('feed', { id: 'duct', material: 'Extraction air', phase: 'GAS', temperatureC: 25, supplyKgPerHour: 8082, composition: { air: 0.9958, lubricant: 0.0042 } });
+  const tank = (id: string, gallons: number): ProcessNode =>
+    ({ id, name: id, kind: 'SURGE_TANK', position: { x: 0, y: 0 }, inputs: [{ id: 'in-0', name: 'in', type: 'FLUID_INPUT', flowDimension: L }], outputs: [], config: { capacityGallons: gallons, initialLevelGallons: 0 } }) as unknown as ProcessNode;
+  const line = (contract: UnitOpContract, drumGallons: number) => {
+    const feed = dustyAir();
+    let g = {
+      id: 'g',
+      name: 'g',
+      version: '1',
+      metadata: {},
+      nodes: [feed, unit('collector', contract), sink('stack'), tank('drum', drumGallons)],
+      edges: [pipe('collector', 'stack', 'clean_air', 'in-0', 0.0012, 25, 50), pipe('collector', 'drum', 'hopper', 'in-0', 0.25, 25, 5)]
+    } as unknown as ProcessGraph;
+    g = addStreamToGraph(g, pipe('duct', 'collector', feed.outputs[0]!.id, 'dirty_air', 0.0012, 25, 50));
+    return simulateProcess(g, 30);
+  };
+
+  it('a mass capacity (capacityKgPerHour) limits what a gas unit passes', async () => {
+    const { DUST_COLLECTOR_CONTRACT } = await import('@process-forge/protocol');
+    const limited = JSON.parse(JSON.stringify(DUST_COLLECTOR_CONTRACT)) as UnitOpContract;
+    if (limited.behavior.mode === 'CONTINUOUS_RATE') limited.behavior.capacityKgPerHour = '4000';
+    const r = line(limited, 1000);
+    const fed = r.terminals.find((t) => t.nodeId === 'duct')!;
+    assert.ok(Math.abs((fed.kg / 30) * 60 - 4000) < 80, `fed ${(fed.kg / 30) * 60} kg/h`);
+  });
+
+  it('a drum under a hopper fills by the powder\'s bulk volume, not the air\'s', async () => {
+    const { DUST_COLLECTOR_CONTRACT } = await import('@process-forge/protocol');
+    // 34 kg/h of stearate at 250 kg/m³ is about 36 gal/h: 18 gal in half an hour fits a 30-gal drum.
+    const r = line(DUST_COLLECTOR_CONTRACT, 30);
+    const drum = r.nodeReports['drum']!.fluid!;
+    assert.ok(Math.abs(drum.receivedKg - 17) < 1, `drum got ${drum.receivedKg} kg`);
+    assert.ok(drum.levelGallons < 30, `${drum.levelGallons} gal in a 30-gal drum`);
+    const fed = r.terminals.find((t) => t.nodeId === 'duct')!;
+    assert.ok(Math.abs((fed.kg / 30) * 60 - 8082) < 100, 'the collector is not held back by its drum');
+  });
+});

@@ -204,7 +204,7 @@ export function phaseWarnings(contract: UnitOpContract): ContractValidationIssue
   const b = contract.behavior;
   const gasIn = contract.ports.some((p) => p.direction === 'INLET' && (p.role ?? 'MATERIAL') === 'MATERIAL' && portPhase(p) === 'GAS');
   if (gasIn && b.mode === 'CONTINUOUS_RATE' && b.capacityGpm) {
-    out.push({ path: 'behavior.capacityGpm', message: 'capacityGpm limits the flow in gallons, which means nothing for a gas: size a gas unit in ACFM or kg/s in derived values and constraints' });
+    out.push({ path: 'behavior.capacityGpm', message: 'capacityGpm limits the flow in gallons, which means nothing for a gas: give capacityKgPerHour instead (the engine limits the mass through it), and size it in ACFM in derived values and constraints' });
   }
   return out;
 }
