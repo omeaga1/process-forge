@@ -405,6 +405,28 @@ export const PHASE_ARCHETYPES: readonly PhaseArchetype[] = [
     keyConstraints: ['ERROR steam short of the sensible heat', 'WARNING concentrate too viscous to pump']
   },
   {
+    id: 'two-stream-exchanger',
+    name: 'Two-stream heat exchanger (shell & tube, plate)',
+    keywords: ['heat exchanger', 'shell and tube', 'plate heat exchanger', 'interchanger', 'recuperator', 'cooler', 'economiser', 'economizer'],
+    summary: 'A hot and a cold stream exchange heat through a wall and never mix: each passes through its own channel. Sensible heat only, unless a side condenses or boils.',
+    components: [],
+    ports: [
+      { id: 'hot_in', name: 'Hot in', direction: 'INLET', phase: 'LIQUID', flowUnits: 'gal/min or kg/s; °C' },
+      { id: 'cold_in', name: 'Cold in', direction: 'INLET', phase: 'LIQUID', flowUnits: 'gal/min or kg/s; °C' },
+      { id: 'hot_out', name: 'Hot out', direction: 'OUTLET', phase: 'LIQUID', flowUnits: 'gal/min; °C' },
+      { id: 'cold_out', name: 'Cold out', direction: 'OUTLET', phase: 'LIQUID', flowUnits: 'gal/min; °C' }
+    ],
+    phaseChanges: [],
+    governingPhysics: [
+      'channels: [{ inlet: hot_in, outlet: hot_out }, { inlet: cold_in, outlet: cold_out }] keep the streams apart',
+      'C = m cp per side (read port.hot_in.*, port.cold_in.*); NTU = UA / Cmin; Cr = Cmin / Cmax',
+      'Counter-current: eps = (1 - exp(-NTU(1-Cr))) / (1 - Cr exp(-NTU(1-Cr))); Q = eps Cmin (Th,in - Tc,in)',
+      'Check: Q = UA x LMTD'
+    ],
+    keyConstraints: ['ERROR hot inlet not hotter than cold inlet', 'WARNING approach below the practical minimum', 'WARNING cooling-water outlet above its scaling limit'],
+    example: 'TWO_STREAM_EXCHANGER_CONTRACT'
+  },
+  {
     id: 'condenser',
     name: 'Condenser',
     keywords: ['condenser', 'condense'],

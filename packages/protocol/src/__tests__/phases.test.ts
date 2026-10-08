@@ -336,3 +336,23 @@ describe('second review fixes', () => {
     assert.ok(Math.abs(d.heatGivenKw! - d.heatNeededKw!) / d.heatGivenKw! < 0.05, `${d.heatGivenKw} vs ${d.heatNeededKw}`);
   });
 });
+
+describe('channels', () => {
+  it('the exchanger is accepted, rated consistently, and its channels are checked', async () => {
+    const { TWO_STREAM_EXCHANGER_CONTRACT, executeDesignUnitOp } = await import('../index.js');
+    const r = executeValidateUnitOp({ contract: TWO_STREAM_EXCHANGER_CONTRACT });
+    assert.equal(r.verdict, 'ACCEPTED', r.revisionGuidance);
+    near(r.derived!.dutyKw!, r.derived!.ua! * r.derived!.lmtd!, 1, 'Q = UA x LMTD');
+    const missing = clone(TWO_STREAM_EXCHANGER_CONTRACT);
+    missing.channels = [{ inlet: 'hot_in', outlet: 'hot_out' }];
+    assert.match(validateUnitOpContract(missing).map((i) => i.message).join('\n'), /inlet "cold_in" is in no channel/);
+    const twice = clone(TWO_STREAM_EXCHANGER_CONTRACT);
+    twice.channels = [{ inlet: 'hot_in', outlet: 'hot_out' }, { inlet: 'cold_in', outlet: 'hot_out' }];
+    assert.match(validateUnitOpContract(twice).map((i) => i.message).join('\n'), /"hot_out" is in more than one channel/);
+    const split = clone(TWO_STREAM_EXCHANGER_CONTRACT);
+    split.outlets = [{ port: 'hot_out', share: '0.5' }, { port: 'cold_out', temperatureC: 'coldOutC' }];
+    assert.match(validateUnitOpContract(split).map((i) => i.message).join('\n'), /carries its channel whole/);
+    const brief = executeDesignUnitOp({ description: 'shell and tube heat exchanger' });
+    assert.equal((brief.channelsExample as { id: string }).id, 'counter-current-exchanger-v1');
+  });
+});

@@ -208,6 +208,8 @@ export interface MaterialUnit {
   /** A batch unit: what each inlet port has charged into the batch in hand, and the seconds it has spent filling. */
   chargedByPort: Record<string, Parcel>;
   fillSeconds: number;
+  /** A unit with channels: what each channel holds, by its inlet port, kept apart from the others. */
+  channelHold: Record<string, Parcel>;
   /** Mass in and out this tick, kg/s. */
   inKgRate: number;
   outKgRate: number;
@@ -346,6 +348,7 @@ export class MaterialNetwork {
         inDensity: (contract?.designInlet?.densityGPerCm3 ?? 1) * 1000,
         chargedByPort: {},
         fillSeconds: 0,
+        channelHold: {},
         inKgRate: 0,
         outKgRate: 0,
         batches: 0,
@@ -610,6 +613,14 @@ export class MaterialNetwork {
     if (u.inbox.m3 <= EPS_M3) return;
     u.inDensity = densityOf(u.inbox, u.inDensity);
     if (u.contract) this.evaluateLive(u, dt);
+    if (u.contract?.channels?.length) {
+      // Side by side, not mixed: each inlet's stream waits in its own channel.
+      for (const ch of u.contract.channels) {
+        const q = u.inboxByPort[ch.inlet];
+        if (q && q.m3 > 0) mixInto((u.channelHold[ch.inlet] ??= emptyParcel()), q);
+      }
+      return;
+    }
     mixInto(u.hold, u.inbox);
     const reactions = u.live?.reactions;
     if (reactions?.length) {
@@ -803,6 +814,40 @@ export class MaterialNetwork {
     return port.densityKgPerM3;
   }
 
+  /**
+   * A unit with channels sends each channel's stream out of its own outlet,
+   * at the outlet temperature its contract works out, within what the units
+   * downstream take; what they cannot take waits in the channel.
+   */
+  private sendChannels(u: MaterialUnit, dt: number, remaining: Map<string, number>): { m3: number; kg: number } {
+    let m3 = 0;
+    let kg = 0;
+    for (const ch of u.contract!.channels!) {
+      const held = u.channelHold[ch.inlet];
+      if (!held || held.m3 <= EPS_M3) continue;
+      const temp = u.live?.outlets[ch.outlet]?.temperatureC;
+      const edges = (this.outEdges.get(u.id) ?? []).filter((e) => e.sourcePortId === ch.outlet && this.units.has(e.targetNodeId));
+      const total = edges.length ? Math.min(held.m3, ...edges.map((e) => remaining.get(e.targetNodeId)! * edges.length)) : held.m3;
+      if (total <= EPS_M3) continue;
+      const p = takeFrom(held, total);
+      if (temp !== undefined) p.tempC = temp;
+      if (!edges.length) mixInto(u.leftLine, p);
+      for (const e of edges) {
+        const f = 1 / edges.length;
+        const piece = this.inPhase(u, ch.outlet, { ...p, kg: p.kg * f, m3: p.m3 * f, comp: { ...p.comp } });
+        remaining.set(e.targetNodeId, remaining.get(e.targetNodeId)! - p.m3 * f);
+        this.receive(this.units.get(e.targetNodeId)!, piece, dt, e.targetPortId);
+      }
+      const out = this.inPhase(u, ch.outlet, p);
+      mixInto(u.heat.sent, out);
+      tallyPort(u, ch.outlet, out);
+      mixInto(u.delivered, p);
+      m3 += p.m3;
+      kg += p.kg;
+    }
+    return { m3, kg };
+  }
+
   /** A parcel leaving by a port, with the volume of the port's phase. */
   private inPhase(u: MaterialUnit, port: string, p: Parcel): Parcel {
     const rho = this.portDensity(u, port, p.comp, p.tempC);
@@ -877,7 +922,8 @@ export class MaterialNetwork {
           // A mass capacity limits the volume of what arrives at its density (the last arrivals', else the design's).
           const massCap = u.live && Number.isFinite(u.live.capacityKgPerS) ? (u.live.capacityKgPerS / u.inDensity) * dt : Infinity;
           const cap = Math.min((u.live?.capacity ?? Infinity) * dt, massCap);
-          u.accept = Math.max(0, Math.min(cap, downstream) - u.hold.m3);
+          const inChannels = Object.values(u.channelHold).reduce((a, p) => a + p.m3, 0);
+          u.accept = Math.max(0, Math.min(cap, downstream) - u.hold.m3 - inChannels);
           break;
         }
       }
@@ -897,6 +943,13 @@ export class MaterialNetwork {
         offer = Math.max(0, Math.min(u.hold.m3, run.target - run.moved, rate));
       } else if (u.role === 'storage' && this.outEdges.has(u.id)) {
         offer = Math.min(u.hold.m3, u.maxOut !== undefined ? u.maxOut * dt : Infinity);
+      } else if (u.role === 'pass' && u.contract?.channels?.length) {
+        this.condition(u, dt);
+        const { m3, kg } = this.sendChannels(u, dt, remaining);
+        u.outRate = m3 / dt;
+        u.outKgRate = kg / dt;
+        if (dt > 0) for (const t of Object.values(u.tickPort)) ((t.kg /= dt), (t.m3 /= dt));
+        continue;
       } else if (u.role === 'pass') {
         this.condition(u, dt);
         offer = u.hold.m3;

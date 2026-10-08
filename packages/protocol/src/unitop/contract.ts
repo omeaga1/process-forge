@@ -408,6 +408,13 @@ export const UnitOpContractSchema = z.object({
    * leave in a phase it arrived in unless a change here takes it there.
    */
   phaseChanges: z.array(UnitOpPhaseChangeSchema).optional(),
+  /**
+   * Streams that pass through without mixing: what enters `inlet` leaves only
+   * by `outlet` (the hot and cold sides of a heat exchanger, the shell and the
+   * tubes). A CONTINUOUS_RATE unit only; when given, every continuous inlet
+   * is in a channel. Each outlet's temperature comes from outlets[].
+   */
+  channels: z.array(z.object({ inlet: z.string().min(1), outlet: z.string().min(1) })).optional(),
   reliability: UnitOpReliabilitySchema.optional(),
   variability: UnitOpVariabilitySchema.optional(),
   provenance: UnitOpProvenanceSchema,
@@ -688,6 +695,7 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     if (pc.latentHeatKjPerKg) checkExpr(pc.latentHeatKjPerKg, `phaseChanges[${i}].latentHeatKjPerKg`);
   });
   issues.push(...phaseIssues(contract));
+  issues.push(...channelIssues(contract));
   if (b.mode === 'BATCH' && b.phases.some((ph) => ph.react) && !(contract.reactions ?? []).length) {
     issues.push({ path: 'behavior.phases', message: 'a phase has react: true but the contract declares no reactions' });
   }
@@ -731,6 +739,33 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   }
 
   issues.push(...dimensionIssues(contract));
+  return issues;
+}
+
+/** Channels: real ports, each in one channel, every continuous inlet covered, no splitting a channel's outlet. */
+function channelIssues(contract: UnitOpContract): ContractValidationIssue[] {
+  const channels = contract.channels;
+  if (!channels?.length) return [];
+  const issues: ContractValidationIssue[] = [];
+  const port = (id: string, dir: 'INLET' | 'OUTLET') => contract.ports.find((p) => p.id === id && p.direction === dir && p.flowDimension === 'CONTINUOUS_FLUID');
+  if (contract.behavior.mode !== 'CONTINUOUS_RATE') issues.push({ path: 'channels', message: 'channels are for a CONTINUOUS_RATE unit (streams passing through side by side)' });
+  const used = new Set<string>();
+  channels.forEach((c, i) => {
+    const path = `channels[${i}]`;
+    if (!port(c.inlet, 'INLET')) issues.push({ path, message: `inlet "${c.inlet}" is not a continuous INLET port` });
+    if (!port(c.outlet, 'OUTLET')) issues.push({ path, message: `outlet "${c.outlet}" is not a continuous OUTLET port` });
+    for (const id of [c.inlet, c.outlet]) {
+      if (used.has(id)) issues.push({ path, message: `port "${id}" is in more than one channel` });
+      used.add(id);
+    }
+    const plan = (contract.outlets ?? []).find((o) => o.port === c.outlet);
+    if (plan?.share || plan?.recovery) issues.push({ path, message: `outlet "${c.outlet}" carries its channel whole: give it a temperatureC, not a share or recoveries` });
+  });
+  for (const p of contract.ports) {
+    if (p.direction === 'INLET' && p.flowDimension === 'CONTINUOUS_FLUID' && !channels.some((c) => c.inlet === p.id)) {
+      issues.push({ path: 'channels', message: `inlet "${p.id}" is in no channel: with channels, every continuous inlet passes through one` });
+    }
+  }
   return issues;
 }
 

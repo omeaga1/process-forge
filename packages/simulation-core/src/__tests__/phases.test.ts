@@ -292,3 +292,38 @@ describe('A batch reads what each inlet charged', () => {
     assert.deepEqual(d.brokenConstraints, []);
   });
 });
+
+describe('Channels: two streams through one unit without mixing', () => {
+  it('a two-stream exchanger heats the cold water from the hot, and each leaves by its own outlet', async () => {
+    const { TWO_STREAM_EXCHANGER_CONTRACT, executeValidateUnitOp } = await import('@process-forge/protocol');
+    assert.equal(executeValidateUnitOp({ contract: TWO_STREAM_EXCHANGER_CONTRACT }).verdict, 'ACCEPTED');
+    const hot = createTerminalNode('feed', { id: 'hot', material: 'Hot water', supplyKgPerHour: 7200, temperatureC: 90, specificHeatKjPerKgK: 4.19, composition: { hot_water: 1 } });
+    const cold = createTerminalNode('feed', { id: 'cold', material: 'Cooling water', supplyKgPerHour: 10800, temperatureC: 20, specificHeatKjPerKgK: 4.18, composition: { cold_water: 1 } });
+    const out = (id: string): ProcessNode => createTerminalNode('product', { id, material: id });
+    let g = {
+      id: 'hx',
+      name: 'hx',
+      version: '1',
+      metadata: {},
+      nodes: [hot, cold, unit('hx', TWO_STREAM_EXCHANGER_CONTRACT), out('hot-return'), out('warm-water')],
+      edges: []
+    } as unknown as ProcessGraph;
+    g = addStreamToGraph(g, pipe('hot', 'hx', hot.outputs[0]!.id, 'hot_in', 1, 90, 50));
+    g = addStreamToGraph(g, pipe('cold', 'hx', cold.outputs[0]!.id, 'cold_in', 1, 20, 50));
+    g = addStreamToGraph(g, pipe('hx', 'hot-return', 'hot_out', g.nodes.find((n) => n.id === 'hot-return')!.inputs[0]!.id, 1, 40, 50));
+    g = addStreamToGraph(g, pipe('hx', 'warm-water', 'cold_out', g.nodes.find((n) => n.id === 'warm-water')!.inputs[0]!.id, 1, 50, 50));
+    const r = simulateProcess(g, 30);
+    const t = (id: string) => r.terminals.find((x) => x.nodeId === id)!;
+    // Nothing mixes: each outlet gets only its own water, all of it.
+    assert.deepEqual(Object.keys(t('hot-return').componentsKg!), ['hot_water']);
+    assert.deepEqual(Object.keys(t('warm-water').componentsKg!), ['cold_water']);
+    assert.ok(Math.abs(t('hot-return').kg - t('hot').kg) / t('hot').kg < 0.01);
+    // Effectiveness-NTU at 2 and 3 kg/s: hot leaves near 42 °C, cold near 52 °C.
+    assert.ok(Math.abs(t('hot-return').temperatureC! - 42.2) < 1, `hot out ${t('hot-return').temperatureC}`);
+    assert.ok(Math.abs(t('warm-water').temperatureC! - 51.9) < 1, `cold out ${t('warm-water').temperatureC}`);
+    // The heat balance closes: what the hot side lost, the cold side gained.
+    const lost = (t('hot').kg * 4.19 * (90 - t('hot-return').temperatureC!)) / 3600;
+    const gained = (t('cold').kg * 4.18 * (t('warm-water').temperatureC! - 20)) / 3600;
+    assert.ok(Math.abs(lost - gained) / lost < 0.02, `lost ${lost} kWh, gained ${gained} kWh`);
+  });
+});

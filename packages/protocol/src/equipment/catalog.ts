@@ -11,6 +11,7 @@ import type { UnitOpContract } from '../unitop/contract.js';
 import { contractToProcessNode } from '../unitop/toNode.js';
 import { EVAPORATOR_CONTRACT } from '../unitop/examples/evaporator.js';
 import { DUST_COLLECTOR_CONTRACT, SPRAY_DRYER_CONTRACT, VENTURI_SCRUBBER_CONTRACT } from '../unitop/examples/phaseUnits.js';
+import { TWO_STREAM_EXCHANGER_CONTRACT } from '../unitop/examples/twoStreamExchanger.js';
 import { CRYSTALLISER_CONTRACT } from '../unitop/examples/crystalliser.js';
 import { CASE_PACKER_CONTRACT } from '../unitop/examples/casePacker.js';
 import {
@@ -151,6 +152,7 @@ export const STANDARD_EQUIPMENT_CATALOG: EquipmentPaletteItem[] = [
   },
   designed('heater', PROCESS_HEATER_CONTRACT, 'HEAT_TRANSFER', 'Heater', 'Steam or electric heater to a target', 'Heats toward its target with at most its rated duty: Q = m·cp·ΔT, from the live stream. Short of duty, the stream leaves cooler and it is flagged.', ['heater', 'steam', 'electric', 'preheater', 'heating']),
   designed('evaporator', EVAPORATOR_CONTRACT, 'HEAT_TRANSFER', 'Evaporator', 'Concentrates a feed with steam', 'Heats the live feed to its boiling point, then boils off what the remaining steam can: vapour overhead, concentrate out of the bottom.', ['evaporator', 'concentrate', 'steam', 'boil', 'vapour']),
+  designed('two-stream-exchanger', TWO_STREAM_EXCHANGER_CONTRACT, 'HEAT_TRANSFER', 'Shell & tube', 'Two streams, no mixing', 'A hot stream heats a cold one through the tube wall; each leaves by its own outlet. Counter-current, rated by UA with effectiveness-NTU from both live inlets.', ['heat exchanger', 'shell and tube', 'shell & tube', 'two stream', 'cooler', 'interchanger', 'recuperator']),
 
   // ── Reaction
   {

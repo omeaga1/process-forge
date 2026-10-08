@@ -21,6 +21,7 @@ export * from './unitop/examples/casePacker.js';
 export * from './unitop/examples/crystalliser.js';
 export * from './unitop/examples/componentUnits.js';
 export * from './unitop/examples/phaseUnits.js';
+export * from './unitop/examples/twoStreamExchanger.js';
 export * from './unitop/examples/standardUnits.js';
 export * from './unitop/toNode.js';
 export * from './unitop/standardKinds.js';

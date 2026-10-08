@@ -220,6 +220,30 @@ archetype's example) is built on this:
 The correlation constants carry units, so they are parameters, and the
 dimension checker verifies each formula.
 
+## Streams side by side: channels
+
+The engine normally mixes everything that reaches a unit. With
+`channels: [{ inlet, outlet }]`, a continuous unit instead passes streams
+through side by side: what enters a channel's inlet leaves only by its
+outlet, at the temperature the contract works out (`outlets[].temperatureC`).
+
+- Every continuous inlet must be in a channel, and each port can be in only
+  one.
+- A channel's outlet carries the whole channel: it takes a temperature, not
+  a share or recoveries.
+- A channel whose outlet is full holds its stream until there is room.
+
+The **Shell & tube** exchanger (standard equipment, and the two-stream
+archetype's example) is built on channels:
+
+- it reads `port.hot_in.*` and `port.cold_in.*`;
+- it rates the duty by counter-current effectiveness-NTU,
+  ε = (1 − e^(−NTU(1−Cr))) / (1 − Cr e^(−NTU(1−Cr))), Q = ε Cmin (Th,in − Tc,in);
+- it checks Q = UA × LMTD.
+
+In a run, the heat the hot side loses equals what the cold side gains, and
+neither stream picks up any of the other.
+
 ## Converting a stream: calculate_stream
 
 `calculate_stream` (an MCP and in-app tool) converts a liquid, gas or solid
