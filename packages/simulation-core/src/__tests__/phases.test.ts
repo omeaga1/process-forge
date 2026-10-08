@@ -89,7 +89,7 @@ describe('Phases in the simulation', () => {
     const powder = d.streams!.find((s) => s.port === 'powder')!;
     const exhaust = d.streams!.find((s) => s.port === 'exhaust')!;
     assert.equal(powder.phase, 'SOLID');
-    assert.ok(Math.abs(powder.kgPerHour - 41.7) < 1, `powder ${powder.kgPerHour} kg/h`);
+    assert.ok(Math.abs(powder.kgPerHour - 40.9) < 0.5, `powder ${powder.kgPerHour} kg/h (2 % of the solids leave as fines)`);
     assert.ok(powder.dispersedKgPerHour!.water! > 0, 'its residual moisture is reported apart');
     assert.equal(exhaust.phase, 'GAS');
     assert.ok(exhaust.molarMass! < 28.96, 'water vapour lightens the exhaust');
@@ -123,5 +123,26 @@ describe('Phases in the simulation', () => {
     const fedScfm = byScfm.terminals.find((t) => t.nodeId === 'duct')!;
     // 1000 SCFM of (nearly) air is 0.568 kg/s.
     assert.ok(Math.abs(fedScfm.kg / 1800 - 0.566) < 0.01, `fed ${fedScfm.kg / 1800} kg/s`);
+  });
+});
+
+describe('The spray drying example line', () => {
+  it('runs with every check holding, and closes its mass balance across liquid, gas and solid', async () => {
+    const { SPRAY_DRYING_LINE, EXAMPLE_LINES, executeValidateUnitOp } = await import('@process-forge/protocol');
+    assert.equal(EXAMPLE_LINES['spray-drying-line'], SPRAY_DRYING_LINE);
+    for (const n of SPRAY_DRYING_LINE.nodes) {
+      const contract = (n.config as { contract?: unknown }).contract;
+      if (contract) assert.equal(executeValidateUnitOp({ contract }).verdict, 'ACCEPTED', n.id);
+    }
+    const r = simulateProcess(SPRAY_DRYING_LINE, 60);
+    for (const id of ['spray-dryer-1', 'baghouse-1']) assert.deepEqual(r.nodeReports[id]!.designedUnit!.brokenConstraints, [], id);
+    const kg = (id: string) => r.terminals.find((t) => t.nodeId === id)!.kg;
+    const fed = kg('feed-solution') + kg('feed-air');
+    const out = kg('product-powder') + kg('product-fines') + kg('stack');
+    assert.ok(Math.abs(fed - out) / fed < 0.002, `in ${fed} kg, out ${out} kg`);
+    // The water leaves as vapour up the stack, not in the baghouse hopper.
+    assert.deepEqual(Object.keys(r.terminals.find((t) => t.nodeId === 'product-fines')!.componentsKg!), ['solids']);
+    const exhaust = r.nodeReports['spray-dryer-1']!.designedUnit!.streams!.find((s) => s.port === 'exhaust')!;
+    assert.ok(exhaust.actualCubicFeetPerMinute! > 1000 && exhaust.actualCubicFeetPerMinute! < 1100, `${exhaust.actualCubicFeetPerMinute} ACFM`);
   });
 });

@@ -4,6 +4,7 @@
  * copy, used by every surface.
  */
 import type { ProcessGraph } from '../graph.js';
+import { SPRAY_DRYING_LINE } from './powderLine.js';
 
 export const PAINT_CANNING_LINE: ProcessGraph = {
   id: 'paint-canning-line-01',
@@ -572,8 +573,11 @@ export const BLANK_LINE: ProcessGraph = {
 /** The example lines by the key an MCP client names them with. */
 export const EXAMPLE_LINES: Record<string, ProcessGraph> = {
   'paint-canning-line': PAINT_CANNING_LINE,
-  'beverage-bottling-line': BEVERAGE_BOTTLING_LINE
+  'beverage-bottling-line': BEVERAGE_BOTTLING_LINE,
+  'spray-drying-line': SPRAY_DRYING_LINE
 };
+
+export { SPRAY_DRYING_LINE };
 
 /** Keys earlier versions used, still accepted. */
 export const EXAMPLE_LINE_ALIASES: Record<string, string> = {

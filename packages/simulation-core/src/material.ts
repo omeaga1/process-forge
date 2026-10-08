@@ -680,7 +680,14 @@ export class MaterialNetwork {
       const declared = ports.filter((p) => plan[p]?.recovery?.[c] !== undefined);
       const taken = declared.reduce((a, p) => a + plan[p]!.recovery![c]!, 0);
       for (const p of declared) mass[p]![c] = f * plan[p]!.recovery![c]!;
-      const open = ports.filter((p) => piped.has(p) && plan[p]?.recovery?.[c] === undefined);
+      // What no port names goes to the piped ports that do not name it and can carry it (a port's
+      // `carries`); if none can, to every port that does not name it, so it is not lost.
+      const canCarry = (p: string) => {
+        const carries = u.contract?.ports.find((x) => x.id === p)?.carries;
+        return !carries || carries.includes(c);
+      };
+      const unnamed = ports.filter((p) => piped.has(p) && plan[p]?.recovery?.[c] === undefined);
+      const open = unnamed.some(canCarry) ? unnamed.filter(canCarry) : unnamed;
       for (const p of open) mass[p]![c] = (f * Math.max(0, 1 - taken)) / open.length;
     }
     const outs: Outlet[] = [];

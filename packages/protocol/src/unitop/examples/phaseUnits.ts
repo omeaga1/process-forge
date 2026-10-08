@@ -25,7 +25,8 @@ export const DUST_COLLECTOR_CONTRACT: UnitOpContract = {
     'Baghouse on tablet-press extraction air carrying magnesium stearate. Dusty air in; clean air out; collected powder out of the hopper.',
   ports: [
     { id: 'dirty_air', name: 'Dirty air', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', dispersed: { lubricant: 'SOLID' }, carries: ['air', 'lubricant'] },
-    { id: 'clean_air', name: 'Clean air', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', dispersed: { lubricant: 'SOLID' }, carries: ['air', 'lubricant'] },
+    // No carries: whatever else the gas brings (water vapour, say) leaves with the clean air, not in the hopper.
+    { id: 'clean_air', name: 'Clean air', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', dispersed: { lubricant: 'SOLID' } },
     { id: 'hopper', name: 'Collected powder', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'SOLID', carries: ['lubricant'] }
   ],
   components: ['air', 'lubricant'],
@@ -55,7 +56,7 @@ export const DUST_COLLECTOR_CONTRACT: UnitOpContract = {
       expr: 'pressureKpa * molarMass / (gasConstant * (inlet.temperatureC + 273.15))',
       description: 'rho = P M / (R T), T absolute.'
     },
-    { name: 'airKgPerS', label: 'Air mass flow', unit: 'kg/s', expr: 'inlet.massFlowKgPerS * inlet.x.air' },
+    { name: 'airKgPerS', label: 'Gas mass flow', unit: 'kg/s', expr: 'inlet.massFlowKgPerS * (1 - inlet.x.lubricant)', description: 'Everything but the dust: air and any vapour it carries.' },
     { name: 'actualM3PerS', label: 'Actual gas flow', unit: 'm3/s', expr: 'airKgPerS / gasDensity' },
     { name: 'acfm', label: 'Actual flow', unit: 'ft3/min', expr: 'actualM3PerS * 35.3147 * 60' },
     {
@@ -160,7 +161,7 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
     { id: 'feed', name: 'Liquid feed', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID', carries: ['water', 'solids'] },
     { id: 'air_in', name: 'Process air', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', carries: ['air', 'water'] },
     { id: 'powder', name: 'Powder', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'SOLID', dispersed: { water: 'LIQUID' }, carries: ['solids', 'water'] },
-    { id: 'exhaust', name: 'Exhaust air', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', carries: ['air', 'water'] }
+    { id: 'exhaust', name: 'Exhaust air', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', dispersed: { solids: 'SOLID' }, carries: ['air', 'water', 'solids'] }
   ],
   components: ['water', 'solids', 'air'],
   phaseChanges: [
@@ -174,6 +175,7 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
     { name: 'feedC', label: 'Feed temperature', unit: '°C', value: 25, min: 1, max: 95 },
     { name: 'humidityIn', label: 'Process air humidity', unit: '-', value: 0.008, min: 0, max: 0.05, description: 'kg water per kg dry air.' },
     { name: 'residualMoisture', label: 'Powder moisture (wet basis)', unit: '-', value: 0.04, min: 0.005, max: 0.2 },
+    { name: 'finesToExhaust', label: 'Fines carried out with the exhaust', unit: '-', value: 0.02, min: 0, max: 0.3, description: 'Share of the powder too fine to settle in the chamber: it leaves with the air, for a cyclone or baghouse to catch.' },
     { name: 'cpAir', label: 'Humid air specific heat', unit: 'kJ/kg-K', value: 1.02, min: 1.0, max: 1.1 },
     { name: 'cpWater', label: 'Water specific heat', unit: 'kJ/kg-K', value: 4.18, min: 4.1, max: 4.25 },
     { name: 'cpSolids', label: 'Solids specific heat', unit: 'kJ/kg-K', value: 1.5, min: 0.5, max: 3 },
@@ -221,7 +223,8 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
     { name: 'exhaustRh', label: 'Exhaust relative humidity', unit: '-', expr: 'vapourKpa / saturationKpa' },
     { name: 'thermalEfficiency', label: 'Thermal efficiency', unit: '-', expr: 'if(heaterKw > 0, evaporatedKgPerS * latentKjPerKg / heaterKw, 0)' },
     { name: 'powderShareOfWater', label: 'Share of the water that stays in the powder', unit: '-', expr: 'if(inlet.massFlowKgPerS * inlet.x.water > 0, powderWaterKgPerS / (inlet.massFlowKgPerS * inlet.x.water), 0)' },
-    { name: 'powderKgPerH', label: 'Powder made', unit: 'kg/h', expr: 'powderKgPerS * 3600' }
+    { name: 'powderKgPerH', label: 'Powder made', unit: 'kg/h', expr: 'powderKgPerS * 3600' },
+    { name: 'finesKgPerH', label: 'Fines to the exhaust', unit: 'kg/h', expr: 'solidsKgPerS * finesToExhaust * 3600' }
   ],
   constraints: [
     {
@@ -269,8 +272,8 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
     composition: { water: 0.0421, solids: 0.02308, air: 0.93482 }
   },
   outlets: [
-    { port: 'powder', recovery: { solids: '1', water: 'powderShareOfWater', air: '0' }, temperatureC: 'outletC' },
-    { port: 'exhaust', recovery: { solids: '0', water: '1 - powderShareOfWater', air: '1' }, temperatureC: 'outletC' }
+    { port: 'powder', recovery: { solids: '1 - finesToExhaust', water: 'powderShareOfWater', air: '0' }, temperatureC: 'outletC' },
+    { port: 'exhaust', recovery: { solids: 'finesToExhaust', water: '1 - powderShareOfWater', air: '1' }, temperatureC: 'outletC' }
   ],
   provenance: { authoredBy: 'TEMPLATE', engineerConfirmed: [] },
   drawing: {
