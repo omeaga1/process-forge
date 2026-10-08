@@ -1,4 +1,5 @@
 import { parseExpression, type Ast } from './expression.js';
+import { PROPERTY_FUNCTIONS } from './properties.js';
 
 /**
  * Dimensional analysis for unit-op contracts.
@@ -330,6 +331,19 @@ export function inferDimension(src: string, env: DimensionEnv): { result: Inferr
           case 'log10':
             if (args[0]) mustBeDimensionless(args[0], n.name);
             return LIT;
+          default: {
+            const prop = PROPERTY_FUNCTIONS[n.name];
+            if (!prop) return UNKNOWN;
+            // Each argument must be the kind of quantity the function takes.
+            prop.args.forEach((unit, i) => {
+              const want = parseUnit(unit);
+              const got = args[i];
+              if (!want || !got || got.kind !== 'dim') return;
+              if (!sameDim(got.dim, want)) problems.push(`${n.name}() takes ${prop.argNames[i]} as ${describeDimension(want)} (${unit}), not ${describeDimension(got.dim)}`);
+            });
+            const out = parseUnit(prop.returns);
+            return out ? dimOf(out) : UNKNOWN;
+          }
           case 'interp': {
             const [x, ...pts] = args;
             let xs: Inferred = x ?? UNKNOWN;
@@ -340,8 +354,6 @@ export function inferDimension(src: string, env: DimensionEnv): { result: Inferr
             });
             return ys;
           }
-          default:
-            return UNKNOWN;
         }
       }
     }

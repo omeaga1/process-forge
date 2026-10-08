@@ -33,6 +33,8 @@
  *   call    := identifier '(' ( or ( ',' or )* )? ')'
  */
 
+import { PROPERTY_FUNCTIONS } from './properties.js';
+
 export type ExprValue = number | boolean;
 
 export interface ExprScope {
@@ -285,7 +287,9 @@ export const EXPRESSION_FUNCTIONS: Record<string, { arity: number | [number, num
    * Piecewise-linear lookup: interp(x, x1, y1, x2, y2, ...), with the x values
    * ascending. Clamped at both ends, so a table never extrapolates.
    */
-  interp: { arity: [5, 41], fn: interpolate }
+  interp: { arity: [5, 41], fn: interpolate },
+  // Physical properties (properties.ts): water on the saturation line and as a liquid, ideal gases.
+  ...Object.fromEntries(Object.entries(PROPERTY_FUNCTIONS).map(([name, f]) => [name, { arity: f.args.length, fn: f.fn }]))
 };
 
 /**

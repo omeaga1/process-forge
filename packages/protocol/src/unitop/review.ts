@@ -49,6 +49,8 @@ export interface ValidateUnitOpResult {
       errors: string[];
       warnings: string[];
       checklist: PhysicsAlignment['checklist'];
+      /** The archetype's governing relations, checked in SI at the design point. */
+      relations: PhysicsAlignment['relations'];
     };
   };
   /** Computed quantities, when evaluation got far enough to produce them. */
@@ -96,7 +98,8 @@ function alignmentGate(a: PhysicsAlignment): ValidateUnitOpResult['gates']['phys
     decidedBy: a.decidedBy,
     errors: a.errors.map((f) => `${f.path}: ${f.message} Fix: ${f.fix}`),
     warnings: a.warnings.map((f) => `${f.path}: ${f.message} Fix: ${f.fix}`),
-    checklist: a.checklist
+    checklist: a.checklist,
+    relations: a.relations
   };
 }
 
@@ -121,7 +124,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     staticAnalysis: { passed: false, errors: [] },
     physical: { passed: false, errors: [], warnings: [] },
     drawing: { passed: false, errors: [], warnings: [] },
-    physicsAlignment: { passed: false, decidedBy: 'none', errors: [], warnings: [], checklist: [] }
+    physicsAlignment: { passed: false, decidedBy: 'none', errors: [], warnings: [], checklist: [], relations: [] }
   };
 
   // Gate 1 -- shape.
@@ -374,6 +377,7 @@ export const UNIT_OP_AUTHORING_RULES: readonly string[] = [
   'Give each continuous port its phase when it is not a plain liquid: phase GAS (blown: size it in ACFM/SCFM or kg/s, density from the ideal gas law P M / R T), SOLID (bulk powder, granules or cake: kg/h, bulk density, moisture on a wet or dry basis) or LIQUID (the default). A component carried in another phase than its port goes in dispersed: { dust: \'SOLID\' } on a dirty-air GAS port, { water: \'LIQUID\' } on a damp-powder SOLID port. carries: [names] lists what a port can carry. Every component may only leave in a phase it entered in, or one a phaseChanges entry takes it to: { component, from, to, mechanism (EVAPORATION, CONDENSATION, DRYING, CRYSTALLISATION, MELTING, SOLIDIFICATION, SUBLIMATION, ABSORPTION...), latentHeatKjPerKg }. A change that takes heat needs a heat source (dutyKw, a hot GAS inlet or a UTILITY port) and an energy-balance constraint that shows it is enough; a spray dryer\'s liquid-in, powder-out is legal only because its phaseChanges say so (see phaseChangeExample). Pure separations (a dust collector, a filter, a cyclone) have no phaseChanges (see gasSolidExample).',
   'Test the design where it matters: validate_unit_op checks it at designInlet; a simulation reports, per designed unit, every constraint broken at the conditions it actually saw and for how long (designedUnit.brokenConstraints). An ERROR constraint that fails at designInlet stops the run from starting.',
   "State what the equipment is: archetype: <id> from design_unit_op's phasePlan.archetype.id (pump, fan-blower, heater, two-stream-exchanger, spray-dryer, dust-collector, reactor...). validate_unit_op then holds the contract to that equipment's physics (gates.physicsAlignment): its port phases, phase changes, behavior mode, and the quantities and checks a complete design has (a pump's shaft power and NPSH, a baghouse's air-to-cloth check). A missing ERROR requirement rejects it, with the fix. Use archetype: 'custom' only for equipment that is none of them. It also checks energy at the design point whatever the archetype: an outlet hotter or colder than the feed needs a duty that covers m cp dT, and channels must trade the same heat without a temperature cross. Each rejection comes with revisionPlan (every problem, where, and the fix) and, when your own constraints fail, suggestedFixes: single-parameter values the engine solved for. Take them or argue with them, but address every item.",
+  "Use the property functions instead of typing property values: water_psat(T °C) and water_tsat(P kPa abs) on the saturation line (IAPWS-IF97), water_rho, water_cp, water_hvap (liquid water by temperature), gas_rho(T °C, P kPa abs, M kg/kmol) and air_rho(T, P). Each takes its arguments in the stated unit: pass a parameter declared in that unit (a temperature in K, or a gauge pressure, is an error), or convert inside the call. For the archetypes that have governing relations (pump and fan: power x efficiency = flow x pressure rise; heater: duty = m cp dT; dust collector: air-to-cloth = flow / area; evaporator, condenser, agitated mixer), the engine checks the relation numerically in SI at the design point, so the formulas and their unit factors must be right, not just present. State which of your quantities plays each role in roles: { role: '<name>' } when the names are not obvious.",
   "Make the parameters easy to set right. integer: true for counts (nozzles, stations, passes); options: [{ label, value }] when it is a choice from a list (motor frame sizes, a fabric's temperature rating, a pipe schedule) -- the value must be one of them; ui: { group } to group them as the engineer thinks of them (\"Rating\", \"Suction\", \"Geometry\", \"Operating conditions\"), ui: { advanced: true } for constants and correlation coefficients nobody should touch, ui: { scale: 'log' } for a range spanning decades. The panel shows each knob with the band of values where every check passes, solves a failing check for a knob, and lets the engineer type any unit of the same kind (bar for a psi parameter), so bounds and units have to be the real ones.",
   'Set provenance.authoredBy to SUB_AGENT and list in engineerConfirmed only the parameters the engineer actually stated. Do not claim confirmation for values you chose.',
   'Draw the unit in `drawing`: a viewBox { width, height } (20-400 each; wide equipment is wide, tall equipment is tall) and `shapes` in viewBox units. Shapes are rect, circle, ellipse, line, polyline, polygon, or path (plain SVG path data: M L H V C S Q T A Z and numbers only). Every shape must lie inside the viewBox.',

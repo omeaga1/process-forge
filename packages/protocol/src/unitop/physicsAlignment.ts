@@ -5,6 +5,7 @@ import { matchPhaseArchetypes, PHASE_ARCHETYPES, type MaterialPhase, type PhaseA
 import { isPhaseAware, phaseEnergy, portPhase } from './phaseBalance.js';
 import type { UnitOpEvaluation } from './evaluate.js';
 import type { PhysicsRequirement, RequirementCheck } from './archetypes.js';
+import { checkRelations, describeBindings, type RelationResult } from './relations.js';
 
 /**
  * Does the contract describe the physics of the equipment it says it is?
@@ -55,6 +56,8 @@ export interface PhysicsAlignment {
   checklist: { id: string; what: string; met: boolean; severity: 'ERROR' | 'WARNING' }[];
   errors: AlignmentFinding[];
   warnings: AlignmentFinding[];
+  /** The archetype's governing relations, checked in SI at the design point. */
+  relations: RelationResult[];
   /** The energy balance at the design point, when it could be written. */
   energy?: { neededKw: number; suppliedKw?: number; note: string };
 }
@@ -180,6 +183,7 @@ export function physicsAlignment(contract: UnitOpContract, evaluation?: UnitOpEv
     decidedBy,
     alternatives,
     checklist: [],
+    relations: [],
     errors: [],
     warnings: []
   };
@@ -270,6 +274,31 @@ export function physicsAlignment(contract: UnitOpContract, evaluation?: UnitOpEv
         message: `Read as ${an(what)} from its name and description${alternatives.length ? ` (also possible: ${alternatives.join(', ')})` : ''}.`,
         fix: `State archetype: '${archetype.id}' to be held to its physics, or archetype: 'custom' if it is something else.`
       });
+    }
+  }
+
+  if (evaluation && !evaluation.error && archetype) {
+    // The governing relations: the numbers, not only the names.
+    out.relations = checkRelations(contract, archetype.id, evaluation);
+    const fmt3 = (v: number) => Number(v.toPrecision(3)).toLocaleString('en-US');
+    for (const r of out.relations) {
+      if (r.status === 'fails') {
+        add({
+          path: 'derived',
+          severity: 'ERROR',
+          requirement: r.id,
+          message: `At the design point, ${r.what} does not hold: ${fmt3(r.lhs!)} against ${fmt3(r.rhs!)} in SI (${Math.round(r.deviation! * 1000) / 10} %). Read as ${describeBindings(r)}.`,
+          fix: `${r.fix} If a role is bound to the wrong quantity, say which in roles (e.g. roles: { ${r.bindings[0]?.role ?? 'role'}: '<name>' }).`
+        });
+      } else if (r.status === 'unbound' && (decidedBy === 'declared' || contract.roles)) {
+        out.warnings.push({
+          path: 'roles',
+          severity: 'WARNING',
+          requirement: r.id,
+          message: `Could not check that ${r.what}: ${r.missing!.map((m) => `${m.role} (${m.reason})`).join('; ')}.`,
+          fix: `Name the quantities in roles, e.g. roles: { ${r.missing!.map((m) => `${m.role}: '<name>'`).join(', ')} }.`
+        });
+      }
     }
   }
 
