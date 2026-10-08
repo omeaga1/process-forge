@@ -1,4 +1,5 @@
 import type { ProcessGraph } from './graph.js';
+import { idealGasDensity, mixtureMolarMass, scfmToKgPerS, STD_PRESSURE_KPA } from './unitop/phases.js';
 import type { NodePort, ProcessNode } from './nodes.js';
 import type { ProcessEdge } from './streams.js';
 
@@ -56,6 +57,40 @@ export interface TerminalConfig {
   temperatureC?: number;
   densityGPerCm3?: number;
   specificHeatKjPerKgK?: number;
+  /**
+   * What phase the stream is in: LIQUID (the default), GAS or SOLID. A GAS
+   * feed with no density of its own is an ideal gas at its temperature.
+   */
+  phase?: 'LIQUID' | 'GAS' | 'SOLID';
+  /** Feeds: the most it supplies as a mass flow, kg/h. Wins over supplyRate. */
+  supplyKgPerHour?: number;
+  /** GAS feeds: the most it supplies in standard ft³/min (68 °F, 1 atm). Wins over supplyRate. */
+  supplyScfm?: number;
+}
+
+/** A feed's or outlet's phase, when it states one. */
+export function terminalPhase(node: Pick<ProcessNode, 'config'>): 'LIQUID' | 'GAS' | 'SOLID' | undefined {
+  const p = (node.config as { phase?: unknown }).phase;
+  return p === 'LIQUID' || p === 'GAS' || p === 'SOLID' ? p : undefined;
+}
+
+/**
+ * A feed's supply as a mass flow, kg/s, when it is stated in mass (kg/h) or,
+ * for a gas, in SCFM (converted with the ideal gas law and the mixture's
+ * molar mass). Undefined when the feed states its supply in gal/min or not at all.
+ */
+export function feedMassSupplyKgPerS(node: Pick<ProcessNode, 'config'>): number | undefined {
+  const c = node.config as { supplyKgPerHour?: unknown; supplyScfm?: unknown; composition?: Record<string, number> };
+  if (typeof c.supplyKgPerHour === 'number' && Number.isFinite(c.supplyKgPerHour) && c.supplyKgPerHour > 0) return c.supplyKgPerHour / 3600;
+  if (typeof c.supplyScfm === 'number' && Number.isFinite(c.supplyScfm) && c.supplyScfm > 0) return scfmToKgPerS(c.supplyScfm, mixtureMolarMass(c.composition));
+  return undefined;
+}
+
+/** A GAS feed's density, g/cm³, as an ideal gas at its temperature and 1 atm (unless it states its own). */
+export function feedGasDensityGPerCm3(node: Pick<ProcessNode, 'config'>, temperatureC: number): number | undefined {
+  if (terminalPhase(node) !== 'GAS') return undefined;
+  const c = node.config as { composition?: Record<string, number> };
+  return idealGasDensity(temperatureC, STD_PRESSURE_KPA, mixtureMolarMass(c.composition)) / 1000;
 }
 
 /** The settings that describe the liquid a feed supplies. */
@@ -119,6 +154,9 @@ export interface CreateTerminalOptions {
   temperatureC?: number;
   densityGPerCm3?: number;
   specificHeatKjPerKgK?: number;
+  phase?: 'LIQUID' | 'GAS' | 'SOLID';
+  supplyKgPerHour?: number;
+  supplyScfm?: number;
   position?: { x: number; y: number };
   id?: string;
 }
@@ -131,7 +169,10 @@ export function createTerminalNode(role: TerminalRole, options: CreateTerminalOp
     material,
     ...(role === 'feed' ? { supplyRate: options.supplyRate ?? 0 } : {}),
     ...(role === 'feed' && options.composition ? { composition: options.composition } : {}),
-    ...(role === 'feed' ? feedLiquid({ config: options as Record<string, unknown> }) : {})
+    ...(role === 'feed' ? feedLiquid({ config: options as Record<string, unknown> }) : {}),
+    ...(options.phase ? { phase: options.phase } : {}),
+    ...(role === 'feed' && options.supplyKgPerHour && options.supplyKgPerHour > 0 ? { supplyKgPerHour: options.supplyKgPerHour } : {}),
+    ...(role === 'feed' && options.supplyScfm && options.supplyScfm > 0 ? { supplyScfm: options.supplyScfm } : {})
   };
   return {
     id: options.id ?? `${role}-${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`,

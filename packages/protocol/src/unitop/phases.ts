@@ -166,6 +166,23 @@ export const STD_PRESSURE_KPA = 101.325;
 export const M3_PER_FT3 = 0.028316846592;
 export const G_PER_M3_PER_GRAIN_PER_FT3 = 2.288351839;
 
+/** kg/kmol of components a gas commonly carries, by lower-case name; anything else is taken as air-like. */
+export const COMPONENT_MOLAR_MASS: Record<string, number> = {
+  air: 28.96, water: 18.015, steam: 18.015, vapour: 18.015, vapor: 18.015, h2o: 18.015,
+  nitrogen: 28.013, n2: 28.013, oxygen: 31.999, o2: 31.999, co2: 44.01, carbon_dioxide: 44.01,
+  co: 28.01, hydrogen: 2.016, h2: 2.016, methane: 16.04, ch4: 16.04, ammonia: 17.031, nh3: 17.031,
+  argon: 39.948, hcl: 36.461, so2: 64.066, ethanol: 46.07, helium: 4.003, propane: 44.1
+};
+
+/** Mean molar mass of a gas mixture from mass fractions: M = sum(w) / sum(w / M_i). */
+export function mixtureMolarMass(composition: Record<string, number> | undefined): number {
+  const entries = Object.entries(composition ?? {}).filter(([, w]) => w > 0);
+  if (!entries.length) return MOLAR_MASS_AIR;
+  const total = entries.reduce((a, [, w]) => a + w, 0);
+  const kmol = entries.reduce((a, [c, w]) => a + w / (COMPONENT_MOLAR_MASS[c.toLowerCase()] ?? MOLAR_MASS_AIR), 0);
+  return total / kmol;
+}
+
 /** Ideal-gas density, kg/m³, at T (°C) and absolute P (kPa). */
 export function idealGasDensity(tempC: number, pressureKpa = STD_PRESSURE_KPA, molarMass = MOLAR_MASS_AIR): number {
   return (pressureKpa * molarMass) / (R_KJ_PER_KMOL_K * (tempC + 273.15));

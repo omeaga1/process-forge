@@ -2,6 +2,10 @@ import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import {
   acfmToScfm,
+  createTerminalNode,
+  feedGasDensityGPerCm3,
+  feedMassSupplyKgPerS,
+  mixtureMolarMass,
   executeValidateUnitOp,
   grainsPerFt3ToGPerM3,
   humidityRatio,
@@ -186,5 +190,20 @@ describe('phase archetypes', () => {
       } as unknown as UnitOpContract;
       assert.deepEqual(phaseIssues(contract), [], a.id);
     }
+  });
+});
+
+describe('feeds in their own units', () => {
+  it('mixture molar mass', () => {
+    near(mixtureMolarMass({ air: 1 }), 28.96, 1e-9, 'air');
+    near(mixtureMolarMass({ air: 0.95, water: 0.05 }), 28.106, 0.005, 'humid air is lighter');
+    near(mixtureMolarMass(undefined), 28.96, 0.01, 'unknown is air-like');
+  });
+  it('a feed stated in kg/h or SCFM', () => {
+    near(feedMassSupplyKgPerS(createTerminalNode('feed', { supplyKgPerHour: 3600 }))!, 1, 1e-12, 'kg/h');
+    near(feedMassSupplyKgPerS(createTerminalNode('feed', { phase: 'GAS', supplyScfm: 1000, composition: { air: 1 } }))!, 0.5683, 0.001, 'SCFM');
+    assert.equal(feedMassSupplyKgPerS(createTerminalNode('feed', { supplyRate: 30 })), undefined, 'gal/min stays gal/min');
+    near(feedGasDensityGPerCm3(createTerminalNode('feed', { phase: 'GAS' }), 20)!, 0.001204, 0.000002, 'air at 20 °C');
+    assert.equal(feedGasDensityGPerCm3(createTerminalNode('feed', {}), 20), undefined, 'a liquid feed keeps its density');
   });
 });

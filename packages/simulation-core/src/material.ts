@@ -10,6 +10,8 @@ import {
   react,
   terminalRole,
   terminalSupplyRate,
+  feedGasDensityGPerCm3,
+  feedMassSupplyKgPerS,
   type EvaluatedBatchPhase,
   type EvaluatedReaction,
   type ProcessEdge,
@@ -337,10 +339,16 @@ export class MaterialNetwork {
         if (liquid.temperatureC !== undefined) props.tempC = liquid.temperatureC;
         if (liquid.densityGPerCm3 !== undefined) props.density = liquid.densityGPerCm3;
         if (liquid.specificHeatKjPerKgK !== undefined) props.cp = liquid.specificHeatKjPerKgK;
+        // A gas feed with no density of its own is an ideal gas at its temperature.
+        const gas = liquid.densityGPerCm3 === undefined ? feedGasDensityGPerCm3(node, props.tempC ?? AMBIENT_C) : undefined;
+        if (gas !== undefined) props.density = gas;
+        if (gas !== undefined && liquid.specificHeatKjPerKgK === undefined) props.cp = 1.006;
         u.feedStock = stock(1, props);
         u.hold.tempC = u.feedStock.tempC;
+        // Supply stated as a mass flow (kg/h, or SCFM for a gas) wins over gal/min.
+        const kgPerS = feedMassSupplyKgPerS(node);
         const gpm = terminalSupplyRate(node);
-        u.supply = gpm > 0 ? (gpm * M3_PER_GALLON) / 60 : Infinity;
+        u.supply = kgPerS !== undefined ? kgPerS / densityOf(u.feedStock) : gpm > 0 ? (gpm * M3_PER_GALLON) / 60 : Infinity;
       } else if (b?.mode === 'STORAGE') {
         u.capacity = b.capacityGallons * M3_PER_GALLON;
         const props = { ...fromPipesIn, ...designStock };

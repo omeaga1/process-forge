@@ -56,7 +56,7 @@ function describeEntry(item: EquipmentPaletteItem) {
           note:
             'Its port takes on the kind of the first unit it is piped to (liquid or items). Give "material" to name what it carries' +
             (item.terminalRole === 'feed'
-              ? ', and "supplyRate" (gal/min or items/min) to limit the supply. Say what liquid it supplies with parameters { "temperatureC", "densityGPerCm3", "specificHeatKjPerKgK" }; unset, it supplies the liquid the unit it feeds was designed for.'
+              ? ', and "supplyRate" (gal/min or items/min) to limit the supply (or "supplyKgPerHour" for a mass flow, "supplyScfm" for a gas), and "phase" (LIQUID, GAS or SOLID) for what it carries: a GAS feed is an ideal gas at its temperature unless given a density. Say what liquid it supplies with parameters { "temperatureC", "densityGPerCm3", "specificHeatKjPerKgK" }; unset, it supplies the liquid the unit it feeds was designed for.'
               : '.')
         }
       : {})
@@ -89,6 +89,9 @@ export interface AddStandardParams extends AddUnitOptions {
   supplyRate?: number;
   composition?: Record<string, number>;
   carries?: Carries;
+  phase?: 'LIQUID' | 'GAS' | 'SOLID';
+  supplyKgPerHour?: number;
+  supplyScfm?: number;
 }
 
 export async function addStandardUnitOp(params: AddStandardParams, host: ToolHost): Promise<HostResult> {
@@ -103,7 +106,10 @@ export async function addStandardUnitOp(params: AddStandardParams, host: ToolHos
     ...(params.material ? { material: params.material } : {}),
     ...(typeof params.supplyRate === 'number' ? { supplyRate: params.supplyRate } : {}),
     ...(params.composition && typeof params.composition === 'object' ? { composition: params.composition } : {}),
-    ...(params.carries === 'items' || params.carries === 'liquid' ? { carries: params.carries } : {})
+    ...(params.carries === 'items' || params.carries === 'liquid' ? { carries: params.carries } : {}),
+    ...(params.phase === 'LIQUID' || params.phase === 'GAS' || params.phase === 'SOLID' ? { phase: params.phase } : {}),
+    ...(typeof params.supplyKgPerHour === 'number' ? { supplyKgPerHour: params.supplyKgPerHour } : {}),
+    ...(typeof params.supplyScfm === 'number' ? { supplyScfm: params.supplyScfm } : {})
   });
   // Settings the unit does not have (or, for a designed unit, values outside a
   // parameter's physical range) are reported, not silently dropped.

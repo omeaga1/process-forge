@@ -2,6 +2,7 @@ import type { ProcessGraph, ProcessNode, UnitOpContract, UnitOpEvaluation } from
 import {
   blockingViolations,
   componentPhaseAt,
+  COMPONENT_MOLAR_MASS,
   effectiveContract,
   idealGasDensity,
   isPhaseAware,
@@ -97,14 +98,6 @@ function componentKg(p: Parcel): Record<string, number> | undefined {
   return Object.fromEntries(entries.map(([k, v]) => [k, round1(v * p.kg)]));
 }
 
-/** kg/kmol of components a gas commonly carries; anything else is taken as air-like. */
-const MOLAR_MASS: Record<string, number> = {
-  air: 28.96, water: 18.015, steam: 18.015, vapour: 18.015, vapor: 18.015, h2o: 18.015,
-  nitrogen: 28.013, n2: 28.013, oxygen: 31.999, o2: 31.999, co2: 44.01, carbon_dioxide: 44.01,
-  co: 28.01, hydrogen: 2.016, h2: 2.016, methane: 16.04, ch4: 16.04, ammonia: 17.031, nh3: 17.031,
-  argon: 39.948, hcl: 36.461, so2: 64.066, ethanol: 46.07
-};
-
 /**
  * What a designed unit sent out of each outlet port over the run, in the
  * units of the port's phase: gal/min for a liquid, ACFM and SCFM (ideal gas,
@@ -138,7 +131,7 @@ export function portStreams(contract: UnitOpContract, byPort: Record<string, Par
       if (componentPhaseAt(port, c) !== phase) dispersed[c] = round1(((f * p.kg) / seconds) * 3600);
       else {
         ownFraction += f;
-        kmolPerKg += f / (MOLAR_MASS[c.toLowerCase()] ?? 28.96);
+        kmolPerKg += f / (COMPONENT_MOLAR_MASS[c.toLowerCase()] ?? 28.96);
       }
     }
     if (Object.keys(p.comp).length === 0) {

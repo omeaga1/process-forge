@@ -272,6 +272,11 @@ export interface CreateStandardOptions {
   supplyRate?: number;
   /** Liquid feeds, and the contents of tanks and reactors: mass fractions by component. */
   composition?: Record<string, number>;
+  /** Feeds and outlets: LIQUID, GAS or SOLID. */
+  phase?: 'LIQUID' | 'GAS' | 'SOLID';
+  /** Feeds: supply as a mass flow, kg/h, or (a gas) in SCFM. */
+  supplyKgPerHour?: number;
+  supplyScfm?: number;
 }
 
 /** A new node for a catalog entry, with its default settings and nozzles. */
@@ -283,6 +288,9 @@ export function createStandardUnitOp(item: EquipmentPaletteItem, options: Create
       ...(options.carries ? { carries: options.carries } : {}),
       ...(options.supplyRate !== undefined ? { supplyRate: options.supplyRate } : {}),
       ...(options.composition ? { composition: options.composition } : {}),
+      ...(options.phase ? { phase: options.phase } : {}),
+      ...(options.supplyKgPerHour !== undefined ? { supplyKgPerHour: options.supplyKgPerHour } : {}),
+      ...(options.supplyScfm !== undefined ? { supplyScfm: options.supplyScfm } : {}),
       // A feed's liquid: temperatureC, densityGPerCm3, specificHeatKjPerKgK.
       ...(item.terminalRole === 'feed' ? feedLiquid({ config: options.parameters ?? {} }) : {}),
       ...(options.position ? { position: options.position } : {})

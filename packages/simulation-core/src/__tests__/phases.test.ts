@@ -96,4 +96,32 @@ describe('Phases in the simulation', () => {
     assert.equal(exhaust.temperatureC, 90);
     assert.ok(exhaust.actualCubicFeetPerMinute! > exhaust.standardCubicFeetPerMinute!, 'hot gas takes more room than at standard conditions');
   });
+
+  it('a gas feed is stated in kg/h or SCFM, and is an ideal gas at its temperature', () => {
+    const run = (feedOptions: Record<string, unknown>) => {
+      const feed = createTerminalNode('feed', { id: 'duct', material: 'Extraction air', phase: 'GAS', temperatureC: 25, composition: { air: 0.9958, lubricant: 0.0042 }, ...feedOptions });
+      let g = {
+        id: 'dust',
+        name: 'dust',
+        version: '1',
+        metadata: {},
+        nodes: [feed, unit('collector', DUST_COLLECTOR_CONTRACT), sink('stack'), sink('drum')],
+        // The pipes say water; the feed's own phase decides what it supplies.
+        edges: [pipe('collector', 'stack', 'clean_air', 'in-0', 1, 20, 50), pipe('collector', 'drum', 'hopper', 'in-0', 1, 20, 50)]
+      } as unknown as ProcessGraph;
+      g = addStreamToGraph(g, pipe('duct', 'collector', feed.outputs[0]!.id, 'dirty_air', 1, 20, 50));
+      return simulateProcess(g, 30);
+    };
+    const byMass = run({ supplyKgPerHour: 8082 });
+    const fed = byMass.terminals.find((t) => t.nodeId === 'duct')!;
+    assert.ok(Math.abs(fed.kg / 1800 - 2.245) < 0.01, `fed ${fed.kg / 1800} kg/s`);
+    const clean = byMass.nodeReports['collector']!.designedUnit!.streams!.find((s) => s.port === 'clean_air')!;
+    assert.ok(Math.abs(clean.actualCubicFeetPerMinute! - 4040) < 60, `clean air ${clean.actualCubicFeetPerMinute} ACFM`);
+    assert.deepEqual(byMass.nodeReports['collector']!.designedUnit!.brokenConstraints.filter((c) => c.severity === 'ERROR'), []);
+
+    const byScfm = run({ supplyScfm: 1000 });
+    const fedScfm = byScfm.terminals.find((t) => t.nodeId === 'duct')!;
+    // 1000 SCFM of (nearly) air is 0.568 kg/s.
+    assert.ok(Math.abs(fedScfm.kg / 1800 - 0.566) < 0.01, `fed ${fedScfm.kg / 1800} kg/s`);
+  });
 });

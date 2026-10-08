@@ -309,6 +309,9 @@ export const FORGE_TOOLS: ForgeTool[] = [
         supplyRate: { type: 'number', description: 'Feeds: the most it supplies, gal/min for liquid or items/min. Omit or 0 to supply whatever the line takes.' },
         composition: { type: 'object', description: 'Liquid feeds, tanks and reactors: mass fractions by component, e.g. { "water": 0.88, "sugar": 0.12 }.' },
         carries: { type: 'string', enum: ['liquid', 'items'], description: 'Feeds and outlets: optional; by default it matches the first unit it is piped to.' },
+        phase: { type: 'string', enum: ['LIQUID', 'GAS', 'SOLID'], description: 'Feeds and outlets: the phase of what it carries. A GAS feed is an ideal gas at its temperature (density from its composition\'s molar mass) unless parameters give a density. Use it for extraction air, drying air, powders.' },
+        supplyKgPerHour: { type: 'number', description: 'Feeds: the most it supplies as a mass flow, kg/h (any phase). Wins over supplyRate.' },
+        supplyScfm: { type: 'number', description: 'GAS feeds: the most it supplies in standard ft3/min (68 °F, 1 atm). Wins over supplyRate.' },
         ...connect,
         position
       },
