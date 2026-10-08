@@ -10,8 +10,13 @@ import {
   designChecklist,
   designStateOf,
   executeDesignUnitOp,
+  edgePhase,
   executeValidateUnitOp,
   findStandardUnitOp,
+  parameterInfluence,
+  resolvedLayout,
+  suggestFixes,
+  sweepParameter,
   resolveUnit,
   type ProcessGraph
 } from '@process-forge/protocol';
@@ -95,9 +100,27 @@ function flowsheetSummary(graph: ProcessGraph, projectName?: string) {
       const settings = contract
         ? Object.fromEntries(contract.parameters.map((p) => [p.name, `${p.value} ${p.unit}`]))
         : Object.fromEntries(Object.entries(config).filter(([, v]) => typeof v === 'number' || typeof v === 'string'));
-      return { id: n.id, name: n.name, kind: n.kind, ...(contract ? { designed: true } : {}), settings, ...portsOf(n) };
+      const l = resolvedLayout(n.layout);
+      return {
+        id: n.id,
+        name: n.name,
+        kind: n.kind,
+        ...(contract ? { designed: true } : {}),
+        ...((contract as { archetype?: string } | undefined)?.archetype ? { archetype: (contract as { archetype?: string }).archetype } : {}),
+        settings,
+        ...portsOf(n),
+        position: { x: Math.round(n.position.x), y: Math.round(n.position.y) },
+        ...(n.layout ? { layout: { scale: l.scale, rotation: l.rotation, ...(l.flipX ? { flipX: true } : {}) } } : {})
+      };
     }),
-    streams: graph.edges.map((e) => ({ id: e.id, from: nameOf(graph, e.sourceNodeId), to: nameOf(graph, e.targetNodeId), carries: e.stream.type === 'CONTINUOUS_FLUID' ? 'liquid' : 'items' }))
+    streams: graph.edges.map((e) => ({
+      id: e.id,
+      from: nameOf(graph, e.sourceNodeId),
+      to: nameOf(graph, e.targetNodeId),
+      carries: e.stream.type === 'CONTINUOUS_FLUID' ? 'liquid' : 'items',
+      ...(edgePhase(graph.nodes, e) === 'GAS' || edgePhase(graph.nodes, e) === 'SOLID' ? { phase: edgePhase(graph.nodes, e) } : {}),
+      route: e.waypoints?.length ? { bends: e.waypoints } : 'auto'
+    }))
   };
 }
 
@@ -318,6 +341,54 @@ export const FORGE_TOOLS: ForgeTool[] = [
     }
   },
 
+  {
+    name: 'explore_unit_op',
+    title: 'Explore a design around its point',
+    access: 'read',
+    idempotent: true,
+    description:
+      "Asks the engine, of a UnitOpContract, what its parameters can be: for each parameter asked about (or all), the exact ranges where every check passes, only warns, or fails, the others held where they are; what each parameter changes (derived values, checks, the behavior the engine runs); and, when checks fail, single-parameter values that make them pass. Use it to negotiate a design with the engineer (\"how much filter area do I need?\") instead of guessing values and re-validating.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        contract: { type: 'object', description: 'The UnitOpContract.' },
+        parameters: { type: 'array', items: { type: 'string' }, description: 'Optional: the parameters to sweep. Default: every one that is not a constant.' }
+      },
+      required: ['contract']
+    },
+    summarize: (a) => `Explore the design "${a.contract?.name ?? 'unit'}"`,
+    run: async (a) => {
+      const parsed = UnitOpContractSchema.safeParse(a.contract);
+      if (!parsed.success) return { success: false, error: 'Not a UnitOpContract: call validate_unit_op for the schema errors.' };
+      const c = parsed.data;
+      const asked = Array.isArray(a.parameters) && a.parameters.length ? (a.parameters as string[]) : c.parameters.filter((p) => !(p.min !== undefined && p.max !== undefined && p.max - p.min <= 1e-3 * Math.max(1e-12, Math.abs(p.max)))).map((p) => p.name);
+      const unknown = asked.filter((n) => !c.parameters.some((p) => p.name === n));
+      if (unknown.length) return { success: false, error: `No parameter ${unknown.join(', ')}. Parameters: ${c.parameters.map((p) => p.name).join(', ')}.` };
+      const inf = parameterInfluence(c);
+      const r3 = (v: number) => Number(v.toPrecision(4));
+      const sweeps = Object.fromEntries(
+        asked.map((name) => {
+          const p = c.parameters.find((x) => x.name === name)!;
+          const s = sweepParameter(c, name, 33);
+          // Runs between the bisected edges: where it passes, warns and fails.
+          const runs: { from: number; to: number; verdict: string; failing?: string[] }[] = [];
+          let from = s.range.from;
+          let status = s.points[0]?.status ?? 'invalid';
+          const failingAt = (v: number) => s.points.reduce((best, pt) => (Math.abs(pt.value - v) < Math.abs(best.value - v) ? pt : best), s.points[0]!).failing;
+          for (const t of s.transitions) {
+            runs.push({ from: r3(from), to: r3(t.value), verdict: status, ...(status !== 'ok' ? { failing: failingAt((from + t.value) / 2) } : {}) });
+            from = t.value;
+            status = t.to;
+          }
+          runs.push({ from: r3(from), to: r3(s.range.to), verdict: status, ...(status !== 'ok' ? { failing: failingAt((from + s.range.to) / 2) } : {}) });
+          return [name, { value: p.value, unit: p.unit, explored: { from: r3(s.range.from), to: r3(s.range.to), log: s.range.log }, runs, changes: { derived: inf.derived[name], checks: inf.constraints[name], behavior: inf.behavior[name] } }];
+        })
+      );
+      const fixes = suggestFixes(c, {}, 8);
+      return { success: true, parameters: sweeps, ...(fixes.length ? { suggestedFixes: fixes } : {}), note: 'verdict ok: every check passes; warning: a WARNING check fails; error: an ERROR check fails (the engine refuses to run it); invalid: it cannot be evaluated there.' };
+    }
+  },
+
   // ── Changing the flowsheet
   {
     name: 'add_standard_unit_op',
@@ -440,6 +511,64 @@ export const FORGE_TOOLS: ForgeTool[] = [
     summarize: (a, g) =>
       `Change ${nameOf(g, a.unit)}: ${[...Object.entries(a.parameters ?? {}).map(([k, v]) => `${k} → ${JSON.stringify(v)}`), ...(a.name ? [`rename to "${a.name}"`] : [])].join(', ')}`,
     run: (a, host) => host.edit({ op: 'update-unit', unit: String(a.unit ?? ''), ...(a.parameters ? { parameters: a.parameters } : {}), ...(a.name ? { name: String(a.name) } : {}) })
+  },
+  {
+    name: 'arrange_unit',
+    title: 'Move, size or turn a unit',
+    access: 'write',
+    idempotent: true,
+    description:
+      "Lays a unit out on the open flowsheet: moves it (position, canvas px), sizes it (scale: 1 is its natural size, 0.5 to 3), turns it clockwise (rotation: 0, 90, 180 or 270) or mirrors it left to right (flipX). Its nozzles turn with it, so its pipes stay attached and leave the way the nozzle now faces: turn a pump so its discharge faces the unit it feeds, or a column so its overhead points up. Drawing only: the simulation is unchanged. get_open_flowsheet gives each unit's position and layout.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        unit: unit(),
+        position: { type: 'object', description: 'Optional new top-left corner { x, y } in canvas px.', properties: { x: { type: 'number' }, y: { type: 'number' } } },
+        scale: { type: 'number', description: 'Optional size against the natural drawing, 0.5 to 3.' },
+        rotation: { type: 'number', enum: [0, 90, 180, 270], description: 'Optional orientation, degrees clockwise from upright.' },
+        flipX: { type: 'boolean', description: 'Optional: mirrored left to right.' }
+      },
+      required: ['unit']
+    },
+    summarize: (a, g) =>
+      `Arrange ${nameOf(g, a.unit)}: ${[a.position ? 'move' : '', a.scale !== undefined ? `size ${Math.round(Number(a.scale) * 100)} %` : '', a.rotation !== undefined ? `turn to ${a.rotation}°` : '', a.flipX !== undefined ? (a.flipX ? 'mirror' : 'unmirror') : ''].filter(Boolean).join(', ')}`,
+    run: (a, host) =>
+      host.edit({
+        op: 'arrange-unit',
+        unit: String(a.unit ?? ''),
+        ...(a.position ? { position: a.position } : {}),
+        ...(a.scale !== undefined ? { scale: Number(a.scale) } : {}),
+        ...(a.rotation !== undefined ? { rotation: Number(a.rotation) } : {}),
+        ...(a.flipX !== undefined ? { flipX: Boolean(a.flipX) } : {})
+      })
+  },
+  {
+    name: 'route_stream',
+    title: 'Route a pipe',
+    access: 'write',
+    idempotent: true,
+    description:
+      'Sets the route a stream is drawn along on the open flowsheet. By default every pipe routes itself: the shortest square route that keeps clear of every unit, re-found as units move. Give waypoints ([{ x, y }, ...], canvas px, in order from the outlet) to run it through bends of your own, joined with horizontal and vertical runs, e.g. to send a pipe along a rack above the units; give auto: true to hand it back to the router. Name the stream by id or by the units at its ends. Drawing only: the simulation is unchanged.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        stream: { type: 'string', description: 'The stream id, from get_open_flowsheet.' },
+        from: unit('Or: the unit it leaves...'),
+        to: unit('...and the unit it enters.'),
+        waypoints: { type: 'array', items: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'] }, description: 'The bends, in order.' },
+        auto: { type: 'boolean', description: 'true: route itself around the equipment (clears any bends).' }
+      }
+    },
+    summarize: (a, g) => `Route ${a.stream ? `stream ${a.stream}` : `${nameOf(g, a.from)} → ${nameOf(g, a.to)}`} ${a.auto || !a.waypoints?.length ? 'around the equipment' : `through ${a.waypoints.length} bends`}`,
+    run: (a, host) =>
+      host.edit({
+        op: 'route-stream',
+        ...(a.stream ? { stream: String(a.stream) } : {}),
+        ...(a.from ? { from: String(a.from) } : {}),
+        ...(a.to ? { to: String(a.to) } : {}),
+        ...(Array.isArray(a.waypoints) ? { waypoints: a.waypoints } : {}),
+        ...(a.auto ? { auto: true } : {})
+      })
   },
   {
     name: 'remove_unit',

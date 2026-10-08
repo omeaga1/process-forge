@@ -40,11 +40,13 @@ describe('What any MCP client sees', () => {
       'add_standard_unit_op',
       'add_stream',
       'add_unit_op_to_flowsheet',
+      'arrange_unit',
       'new_flowsheet',
       'open_flowsheet',
       'publish_unit_op',
       'remove_stream',
       'remove_unit',
+      'route_stream',
       'save_flowsheet',
       'update_unit'
     ]);

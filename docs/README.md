@@ -12,6 +12,9 @@
   ports state liquid, gas, solid or items, how the design tool picks the
   physics and flow units for a kind of equipment, the phase gate, and the
   mass, energy, gas and particle relations underneath.
+- [Layout and routing](architecture/07-layout-and-routing.md): sizing, turning
+  and mirroring units, and how pipes route around the equipment or through
+  the bends an engineer draws.
 - [Osaka Jade design](architecture/05-osaka-jade-design.md): the colour tokens
   for dark and light themes and what the status colours mean.
 
@@ -39,6 +42,9 @@ each says so at the top.
   and the in-app assistant.
 - [ADR-0011](adr/0011-phase-aware-contracts.md): phases are part of the
   unit-op contract.
+- [ADR-0012](adr/0012-physics-alignment-and-engine-solved-parameters.md):
+  contracts are held to the physics of the equipment they describe, and the
+  parameter panel shows and solves what the engine accepts.
 
 ADR-0004 was removed along with the tooling it described.
 

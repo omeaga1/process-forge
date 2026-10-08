@@ -69,7 +69,7 @@ export interface DesignUnitOpResult {
   availableFunctions: { name: string; arity: string }[];
   /** Hard rules the contract must satisfy. Stated so the model does not guess. */
   rules: string[];
-  /** A complete, valid steady-flow (CONTINUOUS_RATE) contract to pattern-match against. */
+  /** A complete, valid steady-flow (CONTINUOUS_RATE) contract to pattern-match against. Absent when archetypeExample is given. */
   workedExample: unknown;
   /** A complete, valid cycle (DISCRETE_CYCLE) contract: one part per print. */
   cycleExample: unknown;
@@ -343,6 +343,9 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
   const plannedPorts = phasePlan.archetype?.ports ?? [];
   const changesPhase = (phasePlan.archetype?.phaseChanges.length ?? 0) > 0;
   const multiphase = plannedPorts.some((p) => p.phase === 'GAS' || p.phase === 'SOLID');
+  // The matched equipment's own worked example, when the engine ships one: it stands in for the generic steady-flow one.
+  const archetypeExample =
+    phasePlan.archetype?.example && !multiphase && !changesPhase ? ARCHETYPE_EXAMPLES[phasePlan.archetype.example] : undefined;
 
   const brief = [
     `Design a unit operation from this description: "${description}"`,
@@ -356,8 +359,8 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     '',
     'The drawing is how the unit appears on the flowsheet: draw the actual',
     'equipment (see the rules), and put each nozzle where that stream really',
-    'connects. Four worked examples show the format: workedExample is steady flow',
-    '(CONTINUOUS_RATE, a wax cooling belt); cycleExample makes whole parts on a',
+    'connects. Worked examples show the format: workedExample is steady flow',
+    '(CONTINUOUS_RATE, a wax cooling belt; archetypeExample, the equipment itself, instead when there is one); cycleExample makes whole parts on a',
     'cycle (DISCRETE_CYCLE, a 3D printer); liveInletExample (an evaporator) reads',
     'what flows in (inlet.*, checked at designInlet) and splits and heats its',
     'outflow per outlet port; assemblyExample (a case packer) takes a kit of items',
@@ -406,7 +409,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     engineSuppliedNames: RESERVED_SCOPE_NAMES,
     availableFunctions,
     rules: [...UNIT_OP_AUTHORING_RULES],
-    workedExample: WAX_COOLING_BELT_CONTRACT,
+    workedExample: archetypeExample ? undefined : WAX_COOLING_BELT_CONTRACT,
     cycleExample: FDM_PRINTER_CONTRACT,
     liveInletExample: EVAPORATOR_CONTRACT,
     assemblyExample: CASE_PACKER_CONTRACT,
@@ -418,9 +421,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     phaseFlowBasis: PHASE_FLOW_BASIS,
     // The examples are large, so only the one this unit needs comes back.
     ...(phasePlan.archetype?.example === 'TWO_STREAM_EXCHANGER_CONTRACT' ? { channelsExample: TWO_STREAM_EXCHANGER_CONTRACT } : {}),
-    ...(phasePlan.archetype?.example && ARCHETYPE_EXAMPLES[phasePlan.archetype.example] && !multiphase && !changesPhase
-      ? { archetypeExample: ARCHETYPE_EXAMPLES[phasePlan.archetype.example] }
-      : {}),
+    ...(archetypeExample ? { archetypeExample } : {}),
     ...(multiphase && !changesPhase ? { gasSolidExample: DUST_COLLECTOR_CONTRACT } : {}),
     ...(changesPhase ? { phaseChangeExample: phasePlan.archetype?.example === 'VENTURI_SCRUBBER_CONTRACT' ? VENTURI_SCRUBBER_CONTRACT : SPRAY_DRYER_CONTRACT } : {}),
     processContext: buildProcessContext(graph, targetNodeId),

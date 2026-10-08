@@ -282,7 +282,9 @@ describe('design_unit_op: which phase drives each port', () => {
     const { executeDesignUnitOp } = await import('../tools/designUnitOp.js');
     const { executeValidateUnitOp } = await import('@process-forge/protocol');
     const pump = executeDesignUnitOp({ description: 'a pump' });
-    assert.equal(pump.phasePlan.decidedBy, 'none');
+    // A pump is single-phase equipment: it gets its own archetype and worked example, not a phase example.
+    assert.equal(pump.phasePlan.archetype?.id, 'pump');
+    assert.ok(pump.archetypeExample);
     assert.equal(pump.gasSolidExample, undefined, 'only the example a unit needs comes back');
     assert.equal(pump.phaseChangeExample, undefined);
     assert.ok(JSON.stringify(pump).length < 60000, 'the brief fits the in-app tool-result budget');

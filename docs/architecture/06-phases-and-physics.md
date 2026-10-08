@@ -328,3 +328,23 @@ kg/h. `simulate_process_line` says the same in its diagnosis.
   contract reads the inlets' components (`inlet.x.*`). It cannot read each
   port's temperature separately, so a spray dryer states its air inlet
   temperature as a parameter (the heater setpoint).
+
+## Held to the equipment: physics alignment
+
+The phase gate checks that a contract is consistent. The physics-alignment
+gate checks that it is the equipment it claims to be
+([ADR-0012](../adr/0012-physics-alignment-and-engine-solved-parameters.md),
+`physicsAlignment.ts`):
+
+- Each archetype lists its requirements (`archetypes.ts`): a pump's head,
+  shaft power, efficiency, capacity and NPSH; a baghouse's air-to-cloth
+  check; an exchanger's channels, per-side reads and duty. It also lists the
+  behavior modes the equipment runs in.
+- A contract that declares `archetype` is held to its archetype: what is
+  missing rejects it, with the fix. An inferred archetype only warns.
+- Whatever the archetype, energy is checked at the design point. Outlets
+  that leave hotter or colder than the feed need a duty covering
+  m·cp·ΔT + m·λ. Channels must balance and may not cross temperatures.
+- When the contract's own constraints fail, the verdict includes
+  `suggestedFixes`: single-parameter values the engine solved for. The
+  parameters panel offers the same fixes as one-click buttons.
