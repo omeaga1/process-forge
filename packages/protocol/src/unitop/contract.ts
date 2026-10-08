@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { UnitOpDrawingSchema } from './drawing.js';
+import { MaterialPhaseSchema, UnitOpPhaseChangeSchema } from './phases.js';
+import { phaseIssues } from './phaseBalance.js';
 import { parseExpression, referencedNames, ExpressionError } from './expression.js';
 import {
   checkDimension,
@@ -7,6 +9,7 @@ import {
   ENGINE_NAME_DIMENSIONS,
   parseUnit,
   POWER,
+  SPECIFIC_ENERGY,
   TEMPERATURE,
   TIME,
   VOLUME,
@@ -51,7 +54,22 @@ export const UnitOpPortSchema = z.object({
    */
   role: z.enum(['MATERIAL', 'UTILITY', 'ENERGY']).default('MATERIAL'),
   flowDimension: z.enum(['CONTINUOUS_FLUID', 'DISCRETE_CONTAINER']),
-  required: z.boolean().default(true)
+  required: z.boolean().default(true),
+  /**
+   * The physical state of what flows through the port: LIQUID, GAS, SOLID
+   * (bulk powder, granules, cake) or ITEMS. It decides the flow units and the
+   * physics that apply (see phases.ts). Absent: LIQUID for a
+   * CONTINUOUS_FLUID port, ITEMS for a DISCRETE_CONTAINER one.
+   */
+  phase: MaterialPhaseSchema.optional(),
+  /**
+   * Components carried in a different phase than the port's own: the dust in
+   * a dirty-air duct ({ dust: 'SOLID' } on a GAS port), the moisture in a
+   * damp powder ({ water: 'LIQUID' } on a SOLID port).
+   */
+  dispersed: z.record(MaterialPhaseSchema).optional(),
+  /** The components this port carries. Absent: any. */
+  carries: z.array(z.string().min(1)).optional()
 });
 export type UnitOpPort = z.infer<typeof UnitOpPortSchema>;
 
@@ -361,6 +379,12 @@ export const UnitOpContractSchema = z.object({
    */
   components: z.array(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Component names must be valid identifiers')).optional(),
   reactions: z.array(UnitOpReactionSchema).optional(),
+  /**
+   * Components that change phase in the unit: water evaporating in a dryer,
+   * solids drying out of solution, vapour condensing. A component may only
+   * leave in a phase it arrived in unless a change here takes it there.
+   */
+  phaseChanges: z.array(UnitOpPhaseChangeSchema).optional(),
   reliability: UnitOpReliabilitySchema.optional(),
   variability: UnitOpVariabilitySchema.optional(),
   provenance: UnitOpProvenanceSchema,
@@ -609,6 +633,10 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   if (outletPlan.some((o) => o.recovery) && outletPlan.some((o) => o.share)) {
     issues.push({ path: 'outlets', message: 'split by component recoveries on every outlet, or by shares, not a mix of the two' });
   }
+  (contract.phaseChanges ?? []).forEach((pc, i) => {
+    if (pc.latentHeatKjPerKg) checkExpr(pc.latentHeatKjPerKg, `phaseChanges[${i}].latentHeatKjPerKg`);
+  });
+  issues.push(...phaseIssues(contract));
   if (b.mode === 'BATCH' && b.phases.some((ph) => ph.react) && !(contract.reactions ?? []).length) {
     issues.push({ path: 'behavior.phases', message: 'a phase has react: true but the contract declares no reactions' });
   }
@@ -715,6 +743,9 @@ export function contractExpressions(contract: UnitOpContract): ContractExpressio
     for (const [c, expr] of Object.entries(o.recovery ?? {})) add(expr, DIMENSIONLESS, `outlets[${i}].recovery.${c}`, 'a recovery');
   });
   (contract.reactions ?? []).forEach((r, i) => add(r.conversion, DIMENSIONLESS, `reactions[${i}].conversion`, 'a conversion'));
+  (contract.phaseChanges ?? []).forEach((pc, i) =>
+    add(pc.latentHeatKjPerKg, SPECIFIC_ENERGY, `phaseChanges[${i}].latentHeatKjPerKg`, 'a latent heat (kJ/kg)')
+  );
   if (contract.reliability) {
     add(contract.reliability.mtbfMinutes, TIME, 'reliability.mtbfMinutes', 'mtbfMinutes');
     add(contract.reliability.mttrMinutes, TIME, 'reliability.mttrMinutes', 'mttrMinutes');
