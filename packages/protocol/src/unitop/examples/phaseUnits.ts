@@ -44,7 +44,8 @@ export const DUST_COLLECTOR_CONTRACT: UnitOpContract = {
     { name: 'permitMgPerNm3', label: 'Emission limit', unit: 'mg/Nm3', value: 10, min: 0.1, max: 500 },
     { name: 'fabricMaxC', label: 'Bag fabric temperature rating', unit: '°C', value: 130, min: 60, max: 260, description: 'Polyester felt.' },
     { name: 'dustMeltC', label: 'Dust softening point', unit: '°C', value: 88, min: 20, max: 1000, description: 'Magnesium stearate softens near 88 °C and blinds the bags.' },
-    { name: 'kstBarMPerS', label: 'Dust deflagration index Kst', unit: 'bar-m/s', value: 150, min: 0, max: 600, description: 'Combustible dust: St1 below 200.' }
+    { name: 'kstBarMPerS', label: 'Dust deflagration index Kst', unit: 'bar-m/s', value: 150, min: 0, max: 600, description: 'Combustible dust: St1 below 200.' },
+    { name: 'explosionProtected', label: 'Explosion protection fitted (1 yes, 0 no)', unit: '-', value: 1, min: 0, max: 1, description: 'Venting or suppression on the collector and isolation on its ducts.' }
   ],
   derived: [
     {
@@ -110,10 +111,10 @@ export const DUST_COLLECTOR_CONTRACT: UnitOpContract = {
     },
     {
       id: 'combustible-dust',
-      expr: 'kstBarMPerS <= 0',
+      expr: 'kstBarMPerS <= 0 || explosionProtected >= 1',
       severity: 'WARNING',
-      message: 'The dust is combustible (Kst > 0). The collector needs explosion venting or suppression and isolation on its ducts (NFPA 652/654).',
-      hint: 'Record the protection in the design; set kstBarMPerS to 0 only for a non-combustible dust.'
+      message: 'The dust is combustible (Kst > 0) and the collector has no explosion protection: it needs venting or suppression, and isolation on its ducts (NFPA 652/654).',
+      hint: 'Fit protection and set explosionProtected to 1.'
     }
   ],
   behavior: { mode: 'CONTINUOUS_RATE', throughputPerMinute: 'acfm', dutyKw: 'fanKw' },

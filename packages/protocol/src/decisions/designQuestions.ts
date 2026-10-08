@@ -47,7 +47,7 @@ export const designMode: ChoiceQuestion<DesignMode> = {
     return {
       BATCH: hits(t, ['batch', 'kettle', 'fermenter', 'fermentor', 'charge', 'cycle time per batch']),
       DISCRETE_CYCLE: hits(t, ['bottle', 'bottles', 'can', 'cans', 'case', 'cases', 'carton', 'part', 'parts', 'pallet', 'packer', 'capper', 'labeler', 'labeller', 'press', 'printer', 'items', 'units per']),
-      CONTINUOUS_RATE: hits(t, ['continuous', 'flow', 'gpm', 'per hour', 't/h', 'kg/h', 'exchanger', 'column', 'dryer', 'filter', 'evaporator', 'pump', 'cstr', 'tubular'])
+      CONTINUOUS_RATE: hits(t, ['continuous', 'flow', 'gpm', 'per hour', 't/h', 'kg/h', 'exchanger', 'column', 'dryer', 'filter', 'evaporator', 'pump', 'cstr', 'tubular', 'dust', 'baghouse', 'collector', 'cyclone', 'scrubber', 'acfm', 'scfm', 'spray'])
     };
   }
 };

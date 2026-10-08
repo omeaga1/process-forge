@@ -76,6 +76,10 @@ describe('phase-aware worked examples', () => {
     near(d.airToCloth!, 2.69, 0.02, 'air-to-cloth, ft/min');
     near(d.collectedKgPerH!, 33.9, 0.1, 'powder to the hopper, kg/h');
     assert.ok(d.outletMgPerNm3! < 10, 'emission under the limit');
+    const unprotected = executeValidateUnitOp({ contract: DUST_COLLECTOR_CONTRACT, parameterOverrides: { explosionProtected: 0 } });
+    assert.match(unprotected.gates.physical.warnings.join('\n'), /combustible-dust/);
+    const overloaded = executeValidateUnitOp({ contract: DUST_COLLECTOR_CONTRACT, parameterOverrides: { filterAreaFt2: 1000 } });
+    assert.equal(overloaded.verdict, 'REJECTED', 'air-to-cloth 4 ft/min is too fast for a stearate');
   });
   it('the spray dryer is accepted: liquid in, powder and humid air out, the energy balance closes', () => {
     const r = executeValidateUnitOp({ contract: SPRAY_DRYER_CONTRACT });

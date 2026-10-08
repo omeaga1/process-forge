@@ -10,6 +10,7 @@ import {
 import type { UnitOpContract } from '../unitop/contract.js';
 import { contractToProcessNode } from '../unitop/toNode.js';
 import { EVAPORATOR_CONTRACT } from '../unitop/examples/evaporator.js';
+import { DUST_COLLECTOR_CONTRACT, SPRAY_DRYER_CONTRACT } from '../unitop/examples/phaseUnits.js';
 import { CRYSTALLISER_CONTRACT } from '../unitop/examples/crystalliser.js';
 import { CASE_PACKER_CONTRACT } from '../unitop/examples/casePacker.js';
 import {
@@ -184,7 +185,9 @@ export const STANDARD_EQUIPMENT_CATALOG: EquipmentPaletteItem[] = [
   designed('filter', SOLIDS_FILTER_CONTRACT, 'SEPARATION', 'Filter', 'Solids-liquid filter', 'Takes captured solids out as a cake at its set dryness (a solids mass balance); the rest leaves as filtrate.', ['filter', 'press', 'cake', 'filtrate', 'solids', 'dewatering']),
   designed('centrifuge', DECANTER_CENTRIFUGE_CONTRACT, 'SEPARATION', 'Centrifuge', 'Decanter centrifuge', 'Spins solids out as a paste; recovery falls off above the rated flow, so an overloaded machine sends solids to the centrate.', ['centrifuge', 'decanter', 'solids', 'dewatering', 'centrate']),
   designed('crystalliser', CRYSTALLISER_CONTRACT, 'SEPARATION', 'Crystalliser', 'Batch cooling crystalliser', 'Charges, heats to dissolve, cools at its set rate, then decants liquor and drops slurry. Its phase times follow from the batch.', ['crystalliser', 'crystallizer', 'batch', 'cooling', 'slurry']),
-  designed('dryer', CONTINUOUS_DRYER_CONTRACT, 'SEPARATION', 'Dryer', 'Continuous dryer', 'Drives off water down to the product moisture, as vapour. The duty follows from the live feed; more than the burner can supply is flagged.', ['dryer', 'drier', 'drying', 'moisture', 'rotary', 'spray']),
+  designed('dryer', CONTINUOUS_DRYER_CONTRACT, 'SEPARATION', 'Dryer', 'Continuous dryer', 'Drives off water down to the product moisture, as vapour. The duty follows from the live feed; more than the burner can supply is flagged.', ['dryer', 'drier', 'drying', 'moisture', 'rotary']),
+  designed('spray-dryer', SPRAY_DRYER_CONTRACT, 'SEPARATION', 'Spray dryer', 'Liquid feed to powder in hot air', 'Liquid in, powder and humid air out: the water evaporates (latent heat at the outlet temperature) and the solids dry to their set moisture. The air must carry enough heat and leave unsaturated; both are checked live.', ['spray dryer', 'spray drier', 'spray', 'atomiser', 'atomizer', 'powder', 'drying']),
+  designed('dust-collector', DUST_COLLECTOR_CONTRACT, 'SEPARATION', 'Dust collector', 'Pulse-jet baghouse', 'Dusty air in; clean air out and powder to the hopper. Sized by air-to-cloth ratio in ACFM per ft² of cloth, with the emission in mg/Nm³, pressure drop and fan power from the live gas.', ['dust collector', 'baghouse', 'bag filter', 'cartridge', 'pulse jet', 'dust', 'extraction', 'powder']),
 
   // ── Packaging & items
   {
