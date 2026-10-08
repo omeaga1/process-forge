@@ -150,6 +150,8 @@ export interface TerminalReport {
   role: 'feed' | 'product' | 'byproduct' | 'waste';
   material: string;
   carries: 'liquid' | 'items';
+  /** The phase the arrow says it carries, when it says (a gas feed, a powder product). */
+  phase?: 'LIQUID' | 'GAS' | 'SOLID';
   /** Items supplied (a feed) or received (an outlet). */
   units: number;
   /** Gallons supplied or received. */

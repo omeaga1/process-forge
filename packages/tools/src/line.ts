@@ -163,10 +163,33 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
     if (down / (duration * 60) >= 0.05) notes.push(`"${node.name}" was broken down ${Math.round((down / (duration * 60)) * 100)}% of the run.`);
     return notes;
   });
-  const notes = [...timeNotes, ...contractNotes];
+  // Units that state their phases: what left each port, in its phase's units.
+  const phaseNotes = graph.nodes.flatMap((node) => {
+    const streams = result.nodeReports[node.id]?.designedUnit?.streams;
+    if (!streams?.length) return [];
+    const parts = streams.map((s) =>
+      s.phase === 'GAS'
+        ? `${s.name} ${s.actualCubicFeetPerMinute} ACFM of gas at ${s.temperatureC} °C (${s.gasKgPerHour} kg/h${s.dispersedKgPerHour ? `, carrying ${Object.entries(s.dispersedKgPerHour).map(([c, v]) => `${v} kg/h ${c}`).join(', ')}` : ''})`
+        : s.phase === 'SOLID'
+          ? `${s.name} ${s.kgPerHour} kg/h of solids${s.dispersedKgPerHour ? ` (${Object.entries(s.dispersedKgPerHour).map(([c, v]) => `${v} kg/h ${c}`).join(', ')})` : ''}`
+          : `${s.name} ${s.gallonsPerMinute ?? 0} gal/min of liquid (${s.kgPerHour} kg/h)`
+    );
+    return [`"${node.name}" sent: ${parts.join('; ')}.`];
+  });
+  const notes = [...timeNotes, ...contractNotes, ...phaseNotes];
 
-  const liquid = result.totalFluidDeliveredGallons > 0 ? ` ${result.totalFluidDeliveredGallons} gal (${result.totalFluidDeliveredKg} kg) of liquid product left the line.` : '';
-  const amount = (t: TerminalReport) => (t.carries === 'items' ? `${t.units} items` : `${t.gallons} gal`);
+  // Bulk product in the units of its phase: kg for a powder or a gas, gallons (and kg) for a liquid.
+  const products = result.terminals.filter((t) => t.role === 'product' && t.carries !== 'items');
+  const bulkProduct = products.some((t) => t.phase === 'SOLID' || t.phase === 'GAS');
+  const perHour = (kg: number) => Math.round((kg / duration) * 60 * 10) / 10;
+  const liquid =
+    result.totalFluidDeliveredGallons > 0 || result.totalFluidDeliveredKg > 0
+      ? bulkProduct
+        ? ` ${result.totalFluidDeliveredKg} kg of product left the line (${perHour(result.totalFluidDeliveredKg)} kg/h): ${products.map((t) => `${t.kg} kg of ${t.material}${t.phase ? ` (${t.phase.toLowerCase()})` : ''}`).join('; ')}.`
+        : ` ${result.totalFluidDeliveredGallons} gal (${result.totalFluidDeliveredKg} kg) of liquid product left the line.`
+      : '';
+  const amount = (t: TerminalReport) =>
+    t.carries === 'items' ? `${t.units} items` : t.phase === 'GAS' || t.phase === 'SOLID' ? `${t.kg} kg (${t.phase.toLowerCase()})` : `${t.gallons} gal`;
   const sides = result.terminals.filter((t) => t.role === 'byproduct' || t.role === 'waste');
   const side = sides.length ? ` Also out: ${sides.map((t) => `${amount(t)} of ${t.material} as ${t.role}`).join('; ')}.` : '';
   const feeds = result.terminals.filter((t) => t.role === 'feed');

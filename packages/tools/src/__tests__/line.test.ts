@@ -110,3 +110,16 @@ describe('simulate_process_line on a batch line', () => {
     assert.doesNotMatch(r.engineeringDiagnosis, /units finished/);
   });
 });
+
+describe('simulate_process_line on a powder line', () => {
+  it('reports bulk product in kg and each phase in its own units', async () => {
+    const { SPRAY_DRYING_LINE } = await import('@process-forge/protocol');
+    const r = simulateLine(SPRAY_DRYING_LINE, 60);
+    assert.match(r.engineeringDiagnosis, /kg of product left the line/);
+    assert.match(r.engineeringDiagnosis, /ACFM of gas at 90 °C/);
+    assert.match(r.engineeringDiagnosis, /kg\/h of solids/);
+    assert.match(r.engineeringDiagnosis, /kg \(gas\) of Process air/);
+    assert.doesNotMatch(r.engineeringDiagnosis, /gal \(\d/, 'no gallons of powder or air');
+    assert.ok(r.streams.find((t) => t.nodeId === 'product-powder')!.phase === 'SOLID');
+  });
+});

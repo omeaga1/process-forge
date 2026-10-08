@@ -12,6 +12,7 @@ import {
   evaluateUnitOp,
   terminalCarries,
   terminalMaterial,
+  terminalPhase,
   terminalRole,
   terminalSupplyRate,
   type TerminalRole
@@ -170,7 +171,8 @@ export function portStreams(contract: UnitOpContract, byPort: Record<string, Par
       ...(componentKg(p) ? { componentsKg: componentKg(p) } : {})
     };
     const split = phaseSplit(port, p, phase);
-    const dispersed = Object.fromEntries(Object.entries(split.dispersedKg).map(([c, kg]) => [c, round1((kg / seconds) * 3600)]));
+    // Three significant figures: the trace of dust in clean air is the figure that matters.
+    const dispersed = Object.fromEntries(Object.entries(split.dispersedKg).map(([c, kg]) => [c, Number(((kg / seconds) * 3600).toPrecision(3))]));
     if (Object.keys(dispersed).length) report.dispersedKgPerHour = dispersed;
     if (phase === 'LIQUID') report.gallonsPerMinute = round1((p.m3 / M3_PER_GALLON / seconds) * 60);
     if (phase === 'GAS' && split.ownKg > 0) {
@@ -884,6 +886,7 @@ export class SimulationEngine {
           role: r.terminal,
           material: terminalMaterial(r.node),
           carries: terminalCarries(r.node),
+          ...(terminalPhase(r.node) ? { phase: terminalPhase(r.node)! } : {}),
           units: r.unitsProduced,
           gallons: moved ? round1(gallonsOf(moved)) : 0,
           kg: moved ? round1(moved.kg) : 0,
