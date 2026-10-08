@@ -55,7 +55,7 @@ const add = (dim: Dimension, ...names: string[]) => {
 add(MASS, 'kg', 'g', 'mg', 't', 'tonne', 'tonnes', 'lb', 'lbs', 'lbm', 'oz', 'ton', 'tons', 'gr', 'grain', 'grains');
 add(LENGTH, 'm', 'mm', 'cm', 'km', 'um', 'µm', 'in', 'inch', 'inches', 'ft', 'feet', 'foot');
 add(TIME, 's', 'sec', 'secs', 'second', 'seconds', 'min', 'mins', 'minute', 'minutes', 'h', 'hr', 'hrs', 'hour', 'hours', 'd', 'day', 'days', 'ms');
-add(VOLUME, 'L', 'l', 'mL', 'ml', 'gal', 'gallon', 'gallons', 'bbl', 'cuft', 'Nm3', 'Nm³', 'Sm3', 'scf', 'acf', 'SCF', 'ACF');
+add(VOLUME, 'L', 'l', 'mL', 'ml', 'gal', 'gallon', 'gallons', 'bbl', 'cuft', 'Nm3', 'Nm³', 'Sm3', 'scf', 'acf', 'SCF', 'ACF', 'kcf', 'kacf', 'kscf');
 add(TEMPERATURE, 'K', '°C', 'degC', 'C', '°F', 'degF', 'F', 'R', 'delta°C', 'ΔC', 'Δ°C');
 add(ENERGY, 'J', 'kJ', 'MJ', 'GJ', 'Wh', 'kWh', 'MWh', 'BTU', 'Btu', 'btu', 'cal', 'kcal', 'therm');
 add(POWER, 'W', 'kW', 'MW', 'hp', 'HP');

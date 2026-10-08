@@ -454,20 +454,27 @@ export const PHASE_ARCHETYPES: readonly PhaseArchetype[] = [
     id: 'wet-scrubber',
     name: 'Wet scrubber',
     keywords: ['scrubber', 'venturi scrubber', 'absorber', 'absorption column'],
-    summary: 'Contaminated gas and scrubbing liquid in; clean gas and spent liquid out. Dust or a soluble gas moves into the liquid.',
-    components: ['air', 'pollutant', 'water'],
+    summary: 'Contaminated gas and scrubbing liquid in; clean gas and spent liquid out. Dust (impaction on droplets) or a soluble gas (absorption) moves into the liquid, and the hot gas evaporates some of the water.',
+    components: ['air', 'pollutant', 'water', 'dust'],
     ports: [
-      { id: 'gas_in', name: 'Gas in', direction: 'INLET', phase: 'GAS', carries: ['air', 'pollutant'], flowUnits: 'ACFM' },
+      { id: 'gas_in', name: 'Gas in', direction: 'INLET', phase: 'GAS', dispersed: { dust: 'SOLID' }, carries: ['air', 'pollutant', 'water', 'dust'], flowUnits: 'ACFM; dust loading g/Nm3; pollutant ppmv' },
       { id: 'liquor_in', name: 'Scrubbing liquor', direction: 'INLET', phase: 'LIQUID', carries: ['water'], flowUnits: 'gal/min' },
-      { id: 'gas_out', name: 'Clean gas', direction: 'OUTLET', phase: 'GAS', carries: ['air', 'pollutant', 'water'], flowUnits: 'ACFM' },
-      { id: 'liquor_out', name: 'Spent liquor', direction: 'OUTLET', phase: 'LIQUID', carries: ['water', 'pollutant'], flowUnits: 'gal/min' }
+      { id: 'gas_out', name: 'Clean gas', direction: 'OUTLET', phase: 'GAS', dispersed: { dust: 'SOLID' }, carries: ['air', 'pollutant', 'water', 'dust'], flowUnits: 'ACFM at the saturated outlet temperature' },
+      { id: 'liquor_out', name: 'Spent liquor', direction: 'OUTLET', phase: 'LIQUID', dispersed: { dust: 'SOLID' }, carries: ['water', 'pollutant', 'dust'], flowUnits: 'gal/min' }
     ],
     phaseChanges: [
       { component: 'pollutant', from: 'GAS', to: 'LIQUID', mechanism: 'ABSORPTION' },
       { component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'EVAPORATION' }
     ],
-    governingPhysics: ['L/G ratio (gal per 1000 ACF)', 'Removal from transfer units: eta = 1 - exp(-NTU)', 'Gas leaves near adiabatic saturation'],
-    keyConstraints: ['ERROR L/G below the minimum', 'ERROR outlet concentration above the permit limit']
+    governingPhysics: [
+      'L/G ratio = liquor gal/min per 1000 actual ft3/min of gas (read each inlet on its own: port.<id>.*)',
+      'Particulate: Johnstone eta = 1 - exp(-k (L/G) sqrt(psi)), psi = rho_p v d_p^2 / (18 mu d_d), d_d from Nukiyama-Tanasawa',
+      'Gas absorption: eta = 1 - exp(-NTU)',
+      'Pressure drop (venturi, Calvert): dP = 5e-5 v^2 (L/G), inH2O with v in ft/s',
+      'Gas leaves near adiabatic saturation: m_gas cp (T_in - T_out) = water evaporated x latent heat'
+    ],
+    keyConstraints: ['ERROR L/G below the minimum', 'ERROR pressure drop above what the fan can pull', 'WARNING collection below the requirement', 'WARNING outlet not near adiabatic saturation'],
+    example: 'VENTURI_SCRUBBER_CONTRACT'
   },
   {
     id: 'mill',

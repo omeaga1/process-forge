@@ -198,6 +198,8 @@ export interface MaterialUnit {
   byPort: Record<string, Parcel>;
   /** The same, this tick only: what each port is sending now. */
   tickPort: Record<string, Parcel>;
+  /** A pass-through: what reached each inlet port this tick, on its own. */
+  inboxByPort: Record<string, Parcel>;
   /** Mass in and out this tick, kg/s. */
   inKgRate: number;
   outKgRate: number;
@@ -259,6 +261,8 @@ interface Outlet {
   target: MaterialUnit;
   /** The unit's outlet port it leaves by. */
   port?: string;
+  /** The target's inlet port it arrives at. */
+  targetPort?: string;
   share: number;
   temp?: number;
   comp?: Composition;
@@ -330,6 +334,7 @@ export class MaterialNetwork {
         lost: emptyParcel(),
         byPort: {},
         tickPort: {},
+        inboxByPort: {},
         inKgRate: 0,
         outKgRate: 0,
         batches: 0,
@@ -580,16 +585,21 @@ export class MaterialNetwork {
   private evaluateLive(u: MaterialUnit, dt: number): void {
     const p = u.inbox;
     const run = u.run!;
-    const ev = evaluateUnitOp(u.contract!, {
-      inlet: {
-        temperatureC: p.tempC,
-        volumetricFlowGpm: (p.m3 / dt / M3_PER_GALLON) * 60,
-        massFlowKgPerS: p.kg / dt,
-        densityGPerCm3: densityOf(p) / 1000,
-        specificHeatKjPerKgK: p.cp,
-        ...(Object.keys(p.comp).length ? { composition: p.comp } : {})
-      }
+    const state = (q: Parcel) => ({
+      temperatureC: q.tempC,
+      volumetricFlowGpm: (q.m3 / dt / M3_PER_GALLON) * 60,
+      massFlowKgPerS: q.kg / dt,
+      densityGPerCm3: densityOf(q) / 1000,
+      specificHeatKjPerKgK: q.cp,
+      ...(Object.keys(q.comp).length ? { composition: q.comp } : {})
     });
+    // Each piped inlet port on its own; one that got nothing this tick reads as no flow.
+    const ports: Record<string, ReturnType<typeof state> | { massFlowKgPerS: number; volumetricFlowGpm: number }> = {};
+    for (const e of this.inEdges.get(u.id) ?? []) {
+      const q = u.inboxByPort[e.targetPortId];
+      ports[e.targetPortId] = q && q.kg > 0 ? state(q) : { massFlowKgPerS: 0, volumetricFlowGpm: 0 };
+    }
+    const ev = evaluateUnitOp(u.contract!, { inlet: state(p), ...(Object.keys(ports).length ? { ports } : {}) });
     run.evaluations++;
     if (ev.error) {
       run.errorSeconds += dt;
@@ -656,7 +666,7 @@ export class MaterialNetwork {
     const piped = this.pipedPorts(u);
     if (!this.hasOutletPlan(u)) {
       const edges = [...piped.values()].flat();
-      return { outs: edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, port: e.sourcePortId, share: 1 / edges.length })), unpipedShare: 0, lossShare: 0, unpiped: [] };
+      return { outs: edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, targetPort: e.targetPortId, port: e.sourcePortId, share: 1 / edges.length })), unpipedShare: 0, lossShare: 0, unpiped: [] };
     }
     const plan = u.live!.outlets;
     if (Object.values(plan).some((o) => o.recovery)) return this.recoverySplit(u, piped);
@@ -669,7 +679,7 @@ export class MaterialNetwork {
       const share = plan[port]?.share ?? (open.length ? rest / open.length : 0);
       pipedShare += share;
       const temp = plan[port]?.temperatureC;
-      for (const e of list) outs.push({ target: this.units.get(e.targetNodeId)!, port, share: share / list.length, ...(temp !== undefined ? { temp } : {}) });
+      for (const e of list) outs.push({ target: this.units.get(e.targetNodeId)!, targetPort: e.targetPortId, port, share: share / list.length, ...(temp !== undefined ? { temp } : {}) });
     }
     const unpiped = Object.entries(plan)
       .filter(([port, o]) => !piped.has(port) && (o.share ?? 0) > 0)
@@ -716,7 +726,7 @@ export class MaterialNetwork {
       const list = piped.get(p)!;
       const temp = plan[p]?.temperatureC;
       const comp = normalise(mass[p]);
-      for (const e of list) outs.push({ target: this.units.get(e.targetNodeId)!, port: p, share: share / list.length, comp, ...(temp !== undefined ? { temp } : {}) });
+      for (const e of list) outs.push({ target: this.units.get(e.targetNodeId)!, targetPort: e.targetPortId, port: p, share: share / list.length, comp, ...(temp !== undefined ? { temp } : {}) });
     }
     return { outs, unpipedShare, lossShare: Math.max(0, 1 - pipedShare - unpipedShare), unpiped };
   }
@@ -727,7 +737,7 @@ export class MaterialNetwork {
     if (!port) return this.split(u);
     const edges = (this.outEdges.get(u.id) ?? []).filter((e) => e.sourcePortId === port && this.units.has(e.targetNodeId));
     return {
-      outs: edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, port, share: 1 / edges.length })),
+      outs: edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, targetPort: e.targetPortId, port, share: 1 / edges.length })),
       unpipedShare: edges.length === 0 ? 1 : 0,
       lossShare: 0,
       unpiped: edges.length === 0 ? [{ port, share: 1 }] : []
@@ -771,8 +781,9 @@ export class MaterialNetwork {
   }
 
   /** Delivers a parcel to a unit: into a pass-through's inbox, or mixed into what it holds. */
-  private receive(target: MaterialUnit, parcel: Parcel, dt: number): void {
+  private receive(target: MaterialUnit, parcel: Parcel, dt: number, port?: string): void {
     mixInto(target.received, parcel);
+    if (target.role === 'pass' && port) mixInto((target.inboxByPort[port] ??= emptyParcel()), parcel);
     target.inRate += parcel.m3 / dt;
     target.inKgRate += parcel.kg / dt;
     if (target.role === 'pass') mixInto(target.inbox, parcel);
@@ -789,6 +800,7 @@ export class MaterialNetwork {
       u.inKgRate = 0;
       u.outKgRate = 0;
       u.tickPort = {};
+      u.inboxByPort = {};
       if (u.role === 'batch') this.stepBatch(u, now, dt);
     }
 
@@ -894,7 +906,7 @@ export class MaterialNetwork {
           const kg = v * kgPerM3;
           const rho = this.portDensity(u, o.port, comp, tempC);
           const piece: Parcel = { kg, m3: rho ? kg / rho : v, tempC, cp: parcel.cp, comp };
-          this.receive(o.target, piece, dt);
+          this.receive(o.target, piece, dt, o.targetPort);
           mixInto(u.heat.sent, piece);
           tallyPort(u, o.port, piece);
         }

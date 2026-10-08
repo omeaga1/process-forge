@@ -146,3 +146,36 @@ describe('The spray drying example line', () => {
     assert.ok(exhaust.actualCubicFeetPerMinute! > 1000 && exhaust.actualCubicFeetPerMinute! < 1100, `${exhaust.actualCubicFeetPerMinute} ACFM`);
   });
 });
+
+describe('Each inlet on its own: port.<id>.*', () => {
+  it('a venturi scrubber reads its gas and its water separately, live', async () => {
+    const { VENTURI_SCRUBBER_CONTRACT } = await import('@process-forge/protocol');
+    const run = (waterKgPerHour: number) => {
+      const gas = createTerminalNode('feed', { id: 'flue', material: 'Flue gas', phase: 'GAS', temperatureC: 180, supplyKgPerHour: 7056, composition: { air: 0.988, water: 0.009, dust: 0.003 } });
+      const water = createTerminalNode('feed', { id: 'water', material: 'Scrubbing water', phase: 'LIQUID', temperatureC: 20, supplyKgPerHour: waterKgPerHour, composition: { water: 1 } });
+      let g = {
+        id: 'scrub',
+        name: 'scrub',
+        version: '1',
+        metadata: {},
+        nodes: [gas, water, unit('venturi', VENTURI_SCRUBBER_CONTRACT), sink('stack'), sink('pond')],
+        edges: [pipe('venturi', 'stack', 'gas_out', 'in-0', 0.001, 46, 50), pipe('venturi', 'pond', 'liquor_out', 'in-0', 1, 46, 50)]
+      } as unknown as ProcessGraph;
+      g = addStreamToGraph(g, pipe('flue', 'venturi', gas.outputs[0]!.id, 'gas_in', 0.001, 180, 50));
+      g = addStreamToGraph(g, pipe('water', 'venturi', water.outputs[0]!.id, 'liquor_in', 1, 20, 50));
+      return simulateProcess(g, 20);
+    };
+    const ok = run(11358);
+    const d = ok.nodeReports['venturi']!.designedUnit!;
+    assert.deepEqual(d.brokenConstraints.filter((c) => c.severity === 'ERROR'), [], JSON.stringify(d.brokenConstraints));
+    const liquor = d.streams!.find((s) => s.port === 'liquor_out')!;
+    // 0.3 % of 7056 kg/h is 21.2 kg/h of dust, nearly all caught in the liquor.
+    assert.ok(Math.abs(liquor.dispersedKgPerHour!.dust! - 21.2) < 0.5, JSON.stringify(liquor));
+    const gasOut = d.streams!.find((s) => s.port === 'gas_out')!;
+    assert.ok(gasOut.molarMass! < 28.2, 'the gas leaves humid');
+    // Starve it of water: the L/G check breaks at the conditions it actually got, because it reads the water port itself.
+    const dry = run(1500);
+    assert.ok(dry.nodeReports['venturi']!.designedUnit!.brokenConstraints.some((c) => c.id === 'enough-liquor'), 'L/G read live from port.liquor_in');
+  });
+});
+

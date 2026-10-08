@@ -295,3 +295,141 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
     ]
   }
 };
+
+/**
+ * A venturi scrubber: hot dusty gas and scrubbing water in, cooled clean gas
+ * and dirty liquor out. It reads each inlet on its own (port.gas_in.*,
+ * port.liquor_in.*), because its physics turns on the liquid-to-gas ratio:
+ *
+ *   L/G  = liquor gal/min per 1000 actual ft³/min of gas
+ *   d_d  = 16400 / v_throat(ft/s) + 1.45 (L/G)^1.5          (Nukiyama-Tanasawa, µm)
+ *   ψ    = ρ_p v d_p² / (18 µ d_d)                         (inertial impaction)
+ *   η    = 1 − exp(−k (L/G) √ψ)                           (Johnstone)
+ *   ΔP   = 5e-5 v² (L/G)                                    (Calvert, inH2O, v in ft/s)
+ *
+ * and the hot gas evaporates water until it nears saturation at the outlet
+ * temperature: the heat the gas gives up must cover that evaporation.
+ */
+export const VENTURI_SCRUBBER_CONTRACT: UnitOpContract = {
+  contractVersion: 1,
+  id: 'venturi-scrubber-v1',
+  name: 'Venturi scrubber',
+  description: 'Hot dusty gas and scrubbing water in; cooled, cleaned, humidified gas and dirty liquor out. Collection follows the liquid-to-gas ratio and the throat velocity.',
+  ports: [
+    { id: 'gas_in', name: 'Dirty gas', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', dispersed: { dust: 'SOLID' }, carries: ['air', 'water', 'dust'] },
+    { id: 'liquor_in', name: 'Scrubbing water', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID', carries: ['water'] },
+    { id: 'gas_out', name: 'Clean gas', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', dispersed: { dust: 'SOLID' } },
+    { id: 'liquor_out', name: 'Dirty liquor', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID', dispersed: { dust: 'SOLID' }, densityKgPerM3: 1010 }
+  ],
+  components: ['air', 'water', 'dust'],
+  phaseChanges: [{ component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'EVAPORATION', latentHeatKjPerKg: 'latentKjPerKg' }],
+  parameters: [
+    { name: 'throatAreaM2', label: 'Throat area', unit: 'm2', value: 0.035, min: 0.001, max: 5 },
+    { name: 'johnstoneK', label: 'Johnstone constant', unit: '-', value: 0.15, min: 0.05, max: 0.25, description: '1000 ft³/gal; 0.1 to 0.2 for most venturis.' },
+    { name: 'particleUm', label: 'Particle size (mass median)', unit: 'um', value: 3, min: 0.1, max: 100 },
+    { name: 'particleDensity', label: 'Particle density', unit: 'kg/m3', value: 2200, min: 500, max: 8000 },
+    { name: 'gasViscosity', label: 'Gas viscosity', unit: 'Pa-s', value: 0.000021, min: 0.00001, max: 0.00005 },
+    { name: 'outletC', label: 'Gas outlet temperature', unit: '°C', value: 46, min: 20, max: 100, description: 'Near the adiabatic saturation temperature of the inlet gas.' },
+    { name: 'pressureKpa', label: 'Absolute pressure', unit: 'kPa', value: 99, min: 80, max: 110 },
+    { name: 'molarMass', label: 'Gas molar mass', unit: 'kg/kmol', value: 28.7, min: 2, max: 100 },
+    { name: 'gasConstant', label: 'Gas constant R', unit: 'kJ/kmol-K', value: 8.314, min: 8.314, max: 8.315 },
+    { name: 'cpGas', label: 'Gas specific heat', unit: 'kJ/kg-K', value: 1.03, min: 0.9, max: 1.2 },
+    { name: 'latentKjPerKg', label: 'Latent heat of water', unit: 'kJ/kg', value: 2390, min: 2250, max: 2500 },
+    { name: 'buckP0', label: 'Buck constant', unit: 'kPa', value: 0.61121, min: 0.61121, max: 0.61121 },
+    { name: 'buckA', label: 'Buck constant', unit: '°C', value: 234.5, min: 234.5, max: 234.5 },
+    { name: 'buckB', label: 'Buck constant', unit: '°C', value: 257.14, min: 257.14, max: 257.14 },
+    { name: 'outletRh', label: 'Gas outlet relative humidity', unit: '-', value: 0.95, min: 0.5, max: 1 },
+    { name: 'minRatio', label: 'Lowest L/G', unit: 'gal/kcf', value: 5, min: 1, max: 30, description: 'gal per 1000 actual ft³.' },
+    { name: 'maxDpInH2O', label: 'Highest pressure drop the fan can pull', unit: 'inH2O', value: 40, min: 5, max: 100 },
+    { name: 'ntA', label: 'Nukiyama-Tanasawa velocity term', unit: 'um-ft/s', value: 16400, min: 16400, max: 16400 },
+    { name: 'ntB', label: 'Nukiyama-Tanasawa liquor term', unit: 'um', value: 1.45, min: 1.45, max: 1.45 },
+    { name: 'calvertC', label: 'Calvert pressure-drop coefficient', unit: 'inH2O-s2/ft2', value: 0.00005, min: 0.00003, max: 0.00008 },
+    { name: 'requiredEfficiency', label: 'Required collection efficiency', unit: '-', value: 0.98, min: 0.5, max: 0.9999 }
+  ],
+  derived: [
+    { name: 'gasKgPerS', label: 'Gas in (without dust)', unit: 'kg/s', expr: 'port.gas_in.massFlowKgPerS * (1 - port.gas_in.x.dust)' },
+    { name: 'gasDensity', label: 'Gas density at the inlet', unit: 'kg/m3', expr: 'pressureKpa * molarMass / (gasConstant * (port.gas_in.temperatureC + 273.15))' },
+    { name: 'gasM3PerS', label: 'Actual gas flow', unit: 'm3/s', expr: 'gasKgPerS / gasDensity' },
+    { name: 'acfm', label: 'Actual gas flow', unit: 'ft3/min', expr: 'gasM3PerS * 35.3147 * 60' },
+    { name: 'liquorGpm', label: 'Scrubbing water', unit: 'gal/min', expr: 'port.liquor_in.volumetricFlowGpm' },
+    { name: 'ratio', label: 'L/G', unit: 'gal/kcf', expr: 'if(acfm > 0, liquorGpm / (acfm / 1000), 0)' },
+    { name: 'throatVelocity', label: 'Throat velocity', unit: 'm/s', expr: 'gasM3PerS / throatAreaM2' },
+    { name: 'throatFtPerS', label: 'Throat velocity', unit: 'ft/s', expr: 'throatVelocity * 3.28084' },
+    { name: 'dropletUm', label: 'Mean droplet size (Nukiyama-Tanasawa)', unit: 'um', expr: 'ntA / max(throatFtPerS, 1) + ntB * pow(ratio, 1.5)' },
+    {
+      name: 'impaction',
+      label: 'Inertial impaction parameter',
+      unit: '-',
+      expr: 'particleDensity * throatVelocity * pow(particleUm / 1000000, 2) / (18 * gasViscosity * max(dropletUm, 1) / 1000000)'
+    },
+    { name: 'efficiency', label: 'Collection efficiency (Johnstone)', unit: '-', expr: '1 - exp(0 - johnstoneK * ratio * sqrt(impaction))' },
+    { name: 'dpInH2O', label: 'Pressure drop (Calvert)', unit: 'inH2O', expr: 'calvertC * throatFtPerS * throatFtPerS * ratio' },
+    { name: 'waterInGasKgPerS', label: 'Water in the gas', unit: 'kg/s', expr: 'port.gas_in.massFlowKgPerS * port.gas_in.x.water' },
+    { name: 'dryGasKgPerS', label: 'Dry gas', unit: 'kg/s', expr: 'max(gasKgPerS - waterInGasKgPerS, 0.000001)' },
+    {
+      name: 'saturationKpa',
+      label: 'Saturation pressure at the outlet',
+      unit: 'kPa',
+      expr: 'buckP0 * exp((18.678 - outletC / buckA) * (outletC / (buckB + outletC)))'
+    },
+    { name: 'humidityOut', label: 'Gas outlet humidity', unit: '-', expr: '0.62198 * outletRh * saturationKpa / (pressureKpa - outletRh * saturationKpa)' },
+    { name: 'evaporatedKgPerS', label: 'Water evaporated', unit: 'kg/s', expr: 'max(dryGasKgPerS * humidityOut - waterInGasKgPerS, 0)' },
+    { name: 'heatGivenKw', label: 'Heat the gas gives up', unit: 'kW', expr: 'gasKgPerS * cpGas * (port.gas_in.temperatureC - outletC)' },
+    { name: 'heatToEvaporateKw', label: 'Heat to evaporate the water', unit: 'kW', expr: 'evaporatedKgPerS * latentKjPerKg' },
+    { name: 'waterTotalKgPerS', label: 'Water in', unit: 'kg/s', expr: 'inlet.massFlowKgPerS * inlet.x.water' },
+    { name: 'waterToGas', label: 'Share of the water leaving with the gas', unit: '-', expr: 'if(waterTotalKgPerS > 0, min((waterInGasKgPerS + evaporatedKgPerS) / waterTotalKgPerS, 1), 0)' }
+  ],
+  constraints: [
+    { id: 'enough-liquor', expr: 'ratio >= minRatio', severity: 'ERROR', message: 'Too little scrubbing water for the gas: the throat runs dry.', hint: 'Raise the water flow or lower the gas flow.' },
+    {
+      id: 'water-left',
+      expr: 'evaporatedKgPerS < port.liquor_in.massFlowKgPerS',
+      severity: 'ERROR',
+      message: 'The hot gas would evaporate all the scrubbing water.',
+      hint: 'Raise the water flow, or cool the gas first.'
+    },
+    {
+      id: 'collects',
+      expr: 'efficiency >= requiredEfficiency',
+      severity: 'WARNING',
+      message: 'Collection is below what is required.',
+      hint: 'Narrow the throat (throatAreaM2) for more velocity, or raise L/G; both raise the pressure drop.'
+    },
+    { id: 'fan', expr: 'dpInH2O <= maxDpInH2O', severity: 'ERROR', message: 'The pressure drop is more than the fan can pull.', hint: 'Widen the throat or lower L/G.' },
+    {
+      id: 'adiabatic',
+      expr: 'abs(heatGivenKw - heatToEvaporateKw) <= 0.25 * max(heatGivenKw, 1)',
+      severity: 'WARNING',
+      message: 'The outlet temperature and humidity do not balance the heat the gas gives up (it is not near adiabatic saturation).',
+      hint: 'Adjust outletC toward the inlet gas\'s adiabatic saturation temperature.'
+    },
+    { id: 'velocity', expr: 'throatVelocity >= 40 && throatVelocity <= 150', severity: 'WARNING', message: 'Throat velocity outside 40-150 m/s.', hint: 'Resize the throat.' }
+  ],
+  behavior: { mode: 'CONTINUOUS_RATE', throughputPerMinute: 'acfm' },
+  designInlet: { temperatureC: 41, massFlowKgPerS: 5.115, densityGPerCm3: 0.0019, specificHeatKjPerKgK: 2.97, composition: { air: 0.3786, water: 0.6203, dust: 0.00115 } },
+  designPorts: {
+    gas_in: { temperatureC: 180, massFlowKgPerS: 1.96, composition: { air: 0.988, water: 0.009, dust: 0.003 } },
+    liquor_in: { temperatureC: 20, massFlowKgPerS: 3.155, volumetricFlowGpm: 50, composition: { water: 1 } }
+  },
+  outlets: [
+    { port: 'gas_out', recovery: { air: '1', dust: '1 - efficiency', water: 'waterToGas' }, temperatureC: 'outletC' },
+    { port: 'liquor_out', recovery: { air: '0', dust: 'efficiency', water: '1 - waterToGas' }, temperatureC: 'outletC' }
+  ],
+  provenance: { authoredBy: 'TEMPLATE', engineerConfirmed: [] },
+  drawing: {
+    viewBox: { width: 160, height: 120 },
+    shapes: [
+      { type: 'polygon', points: [[10, 20], [60, 20], [72, 45], [72, 55], [60, 80], [10, 80]], layer: 'body' },
+      { type: 'rect', x: 72, y: 45, width: 18, height: 10, layer: 'body' },
+      { type: 'polygon', points: [[90, 45], [100, 20], [150, 20], [150, 110], [100, 110], [90, 55]], layer: 'body' },
+      { type: 'line', x1: 30, y1: 30, x2: 45, y2: 50, layer: 'detail', dashed: true },
+      { type: 'line', x1: 30, y1: 70, x2: 45, y2: 50, layer: 'detail', dashed: true }
+    ],
+    nozzles: [
+      { portId: 'gas_in', x: 6.25, y: 50, side: 'left', label: 'Gas in' },
+      { portId: 'liquor_in', x: 22, y: 16.7, side: 'top', label: 'Water' },
+      { portId: 'gas_out', x: 78, y: 16.7, side: 'top', label: 'Gas out' },
+      { portId: 'liquor_out', x: 78, y: 91.7, side: 'bottom', label: 'Liquor' }
+    ]
+  }
+};

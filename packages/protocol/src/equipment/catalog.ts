@@ -10,7 +10,7 @@ import {
 import type { UnitOpContract } from '../unitop/contract.js';
 import { contractToProcessNode } from '../unitop/toNode.js';
 import { EVAPORATOR_CONTRACT } from '../unitop/examples/evaporator.js';
-import { DUST_COLLECTOR_CONTRACT, SPRAY_DRYER_CONTRACT } from '../unitop/examples/phaseUnits.js';
+import { DUST_COLLECTOR_CONTRACT, SPRAY_DRYER_CONTRACT, VENTURI_SCRUBBER_CONTRACT } from '../unitop/examples/phaseUnits.js';
 import { CRYSTALLISER_CONTRACT } from '../unitop/examples/crystalliser.js';
 import { CASE_PACKER_CONTRACT } from '../unitop/examples/casePacker.js';
 import {
@@ -188,6 +188,7 @@ export const STANDARD_EQUIPMENT_CATALOG: EquipmentPaletteItem[] = [
   designed('dryer', CONTINUOUS_DRYER_CONTRACT, 'SEPARATION', 'Dryer', 'Continuous dryer', 'Drives off water down to the product moisture, as vapour. The duty follows from the live feed; more than the burner can supply is flagged.', ['dryer', 'drier', 'drying', 'moisture', 'rotary']),
   designed('spray-dryer', SPRAY_DRYER_CONTRACT, 'SEPARATION', 'Spray dryer', 'Liquid feed to powder in hot air', 'Liquid in, powder and humid air out: the water evaporates (latent heat at the outlet temperature) and the solids dry to their set moisture. The air must carry enough heat and leave unsaturated; both are checked live.', ['spray dryer', 'spray drier', 'spray', 'atomiser', 'atomizer', 'powder', 'drying']),
   designed('dust-collector', DUST_COLLECTOR_CONTRACT, 'SEPARATION', 'Dust collector', 'Pulse-jet baghouse', 'Dusty air in; clean air out and powder to the hopper. Sized by air-to-cloth ratio in ACFM per ft² of cloth, with the emission in mg/Nm³, pressure drop and fan power from the live gas.', ['dust collector', 'baghouse', 'bag filter', 'cartridge', 'pulse jet', 'dust', 'extraction', 'powder']),
+  designed('venturi-scrubber', VENTURI_SCRUBBER_CONTRACT, 'SEPARATION', 'Venturi scrubber', 'Wet scrubber for hot dusty gas', 'Hot dusty gas and water in; cooled, saturated, cleaned gas and dirty liquor out. Collection follows L/G and throat velocity (Johnstone); the pressure drop follows Calvert; the gas cools toward adiabatic saturation as it evaporates water.', ['scrubber', 'venturi', 'wet scrubber', 'quench', 'dust', 'gas cleaning']),
 
   // ── Packaging & items
   {

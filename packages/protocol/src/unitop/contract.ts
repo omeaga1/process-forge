@@ -376,6 +376,13 @@ export const UnitOpContractSchema = z.object({
   designInlet: UnitOpDesignStreamSchema.optional(),
   /** The utility stream's design conditions, for designs that read utility.*. */
   designUtility: UnitOpDesignStreamSchema.optional(),
+  /**
+   * Design conditions per inlet port, for designs that read one inlet on its
+   * own as port.<id>.* (the hot air into a dryer, the liquor into a
+   * scrubber), where inlet.* is everything arriving, mixed. During a run the
+   * engine supplies what reaches each port.
+   */
+  designPorts: z.record(UnitOpDesignStreamSchema).optional(),
   /** Per-outlet share and temperature, for continuous units. */
   outlets: z.array(UnitOpOutletStreamSchema).optional(),
   /**
@@ -435,6 +442,20 @@ export const RESERVED_SCOPE_NAMES = [
  * and which batch it is (1, 2, ...). At validation they describe a full vessel
  * of designInlet liquid.
  */
+/** What an expression can read about one inlet port's own stream: port.<id>.<field>. */
+export const PORT_STREAM_FIELDS = ['temperatureC', 'massFlowKgPerS', 'volumetricFlowGpm', 'densityGPerCm3', 'specificHeatKjPerKgK', 'latentHeatKjPerKg'] as const;
+
+/** port.<id>.<field> and port.<id>.x.<component> for every continuous inlet port whose id is a plain name. */
+export function portScopeNames(contract: Pick<UnitOpContract, 'ports' | 'components'>): string[] {
+  const out: string[] = [];
+  for (const p of contract.ports) {
+    if (p.direction !== 'INLET' || p.flowDimension !== 'CONTINUOUS_FLUID' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(p.id)) continue;
+    for (const f of PORT_STREAM_FIELDS) out.push(`port.${p.id}.${f}`);
+    for (const c of contract.components ?? []) out.push(`port.${p.id}.x.${c}`);
+  }
+  return out;
+}
+
 export const BATCH_SCOPE_NAMES = ['batch.gallons', 'batch.temperatureC', 'batch.massKg', 'batch.number', 'batch.cpKjPerKgK', 'batch.densityGPerCm3'] as const;
 
 /**
@@ -456,6 +477,7 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     known.add(`inlet.x.${c}`);
     if (contract.behavior.mode === 'BATCH') known.add(`batch.x.${c}`);
   }
+  for (const name of portScopeNames(contract)) known.add(name);
 
   for (const p of contract.parameters) {
     if (known.has(p.name)) {
@@ -652,12 +674,22 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   const streamRefs = new Set<string>();
   for (const e of allExprs) {
     try {
-      for (const ref of referencedNames(e)) if (ref.startsWith('inlet.') || ref.startsWith('utility.')) streamRefs.add(ref);
+      for (const ref of referencedNames(e)) if (ref.startsWith('inlet.') || ref.startsWith('utility.') || ref.startsWith('port.')) streamRefs.add(ref);
     } catch {
       // Reported by checkExpr.
     }
   }
   for (const ref of streamRefs) {
+    if (ref.startsWith('port.')) {
+      const [, id, field, component] = ref.split('.') as [string, string, string, string | undefined];
+      const design = contract.designPorts?.[id] as Record<string, unknown> | undefined;
+      if (field === 'x') {
+        if (!design?.composition) issues.push({ path: `designPorts.${id}`, message: `the design reads ${ref}, so give designPorts.${id}.composition (mass fractions${component ? `, including ${component}` : ''}).` });
+      } else if (design?.[field] === undefined) {
+        issues.push({ path: `designPorts.${id}`, message: `the design reads ${ref}, so give designPorts.${id}.${field}: the value to check it at. During a run the engine supplies what reaches port ${id}.` });
+      }
+      continue;
+    }
     const [group, field, component] = ref.split('.') as ['inlet' | 'utility', keyof UnitOpDesignStream, string | undefined];
     const design = group === 'inlet' ? contract.designInlet : contract.designUtility;
     if (field === ('x' as keyof UnitOpDesignStream)) {
@@ -692,7 +724,9 @@ function dimensionEnv(contract: UnitOpContract): DimensionEnv {
   return (name) => {
     const engine = ENGINE_NAME_DIMENSIONS[name];
     if (engine) return { kind: 'dim', dim: engine };
-    if (/^(inlet|utility|batch)\.x\./.test(name)) return { kind: 'dim', dim: DIMENSIONLESS };
+    if (/^(inlet|utility|batch)\.x\./.test(name) || /^port\.[^.]+\.x\./.test(name)) return { kind: 'dim', dim: DIMENSIONLESS };
+    const portField = /^port\.[^.]+\.([A-Za-z]+)$/.exec(name);
+    if (portField && ENGINE_NAME_DIMENSIONS[`inlet.${portField[1]}`]) return { kind: 'dim', dim: ENGINE_NAME_DIMENSIONS[`inlet.${portField[1]}`]! };
     return declared.get(name) ?? { kind: 'unknown' };
   };
 }

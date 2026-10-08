@@ -298,3 +298,25 @@ describe('calculate_stream', () => {
     assert.equal(calculateStream({ phase: 'SOLID', flow: { value: 1, unit: 'SCFM' } }).success, false);
   });
 });
+
+describe('port.<id>.* names', () => {
+  it('validate needs a design value for each port a contract reads, and checks their units', async () => {
+    const { VENTURI_SCRUBBER_CONTRACT } = await import('../index.js');
+    assert.equal(executeValidateUnitOp({ contract: VENTURI_SCRUBBER_CONTRACT }).verdict, 'ACCEPTED');
+    const noDesign = clone(VENTURI_SCRUBBER_CONTRACT);
+    delete noDesign.designPorts;
+    assert.match(validateUnitOpContract(noDesign).map((i) => i.message).join('\n'), /give designPorts\.gas_in\.massFlowKgPerS/);
+    const wrongUnit = clone(VENTURI_SCRUBBER_CONTRACT);
+    wrongUnit.derived.push({ name: 'bad', label: 'bad', unit: 'kW', expr: 'port.gas_in.temperatureC' });
+    assert.match(validateUnitOpContract(wrongUnit).map((i) => i.message).join('\n'), /bad/);
+    const unknownPort = clone(VENTURI_SCRUBBER_CONTRACT);
+    unknownPort.derived.push({ name: 'nope', label: 'nope', unit: '°C', expr: 'port.steam.temperatureC' });
+    assert.match(validateUnitOpContract(unknownPort).map((i) => i.message).join('\n'), /port\.steam\.temperatureC/);
+  });
+  it('the brief hands a scrubber the scrubber example', async () => {
+    const { executeDesignUnitOp } = await import('../index.js');
+    const r = executeDesignUnitOp({ description: 'venturi scrubber on a dryer exhaust' });
+    assert.equal((r.phaseChangeExample as { id: string }).id, 'venturi-scrubber-v1');
+    assert.ok(r.rules.some((x) => x.includes('port.<portId>')));
+  });
+});

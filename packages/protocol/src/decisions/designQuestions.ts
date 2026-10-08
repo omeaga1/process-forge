@@ -156,7 +156,9 @@ export function checkDesignCompleteness(contract: UnitOpContract, p: DesignProfi
   const hasDuty =
     (b.mode === 'CONTINUOUS_RATE' && Boolean(b.dutyKw)) ||
     (b.mode === 'BATCH' && b.phases.some((ph) => ph.dutyKw || ph.temperatureC)) ||
-    contract.ports.some((x) => x.role === 'UTILITY' || x.role === 'ENERGY');
+    contract.ports.some((x) => x.role === 'UTILITY' || x.role === 'ENERGY') ||
+    // A hot gas that states its phase carries its own heat in (a dryer's air, a scrubber's flue gas).
+    contract.ports.some((x) => x.direction === 'INLET' && x.phase === 'GAS');
   const hasTemps = (contract.outlets ?? []).some((o) => o.temperatureC) || (b.mode === 'BATCH' && b.phases.some((ph) => ph.temperatureC));
   // A batch that drains to different ports splits its contents, as outlet shares do.
   const drainPorts = new Set(b.mode === 'BATCH' ? b.phases.filter((ph) => ph.kind === 'DRAIN' && ph.port).map((ph) => ph.port) : []);

@@ -7,7 +7,7 @@ import { EVAPORATOR_CONTRACT } from './examples/evaporator.js';
 import { CASE_PACKER_CONTRACT } from './examples/casePacker.js';
 import { CRYSTALLISER_CONTRACT } from './examples/crystalliser.js';
 import { JUICE_CONCENTRATOR_CONTRACT, NEUTRALISER_CONTRACT } from './examples/componentUnits.js';
-import { DUST_COLLECTOR_CONTRACT, SPRAY_DRYER_CONTRACT } from './examples/phaseUnits.js';
+import { DUST_COLLECTOR_CONTRACT, SPRAY_DRYER_CONTRACT, VENTURI_SCRUBBER_CONTRACT } from './examples/phaseUnits.js';
 import { matchPhaseArchetypes, PHASE_FLOW_BASIS, type MaterialPhase, type PhaseArchetype, type PhaseFlowBasis } from './phases.js';
 import { LITERS_PER_GALLON } from '../thermal.js';
 import type { ProcessGraph } from '../graph.js';
@@ -147,7 +147,9 @@ export function phasePlanFor(description: string): PhasePlan {
       `The description reads as a ${best.name}. Write the ports with these phases, state each flow in the units given, and declare these phaseChanges (with latentHeatKjPerKg): the phase gate in validate_unit_op checks that every component leaves only in a phase it entered in or was changed to, and that a change that takes heat has a heat source.`,
       'Rename ports and components to the engineer\'s words (lubricant rather than dust); keep the phases.',
       best.phaseChanges.length
-        ? 'phaseChangeExample (a spray dryer) shows phaseChanges with a latent heat, the energy balance that pays for them, and per-phase recoveries.'
+        ? best.example === 'VENTURI_SCRUBBER_CONTRACT'
+          ? 'phaseChangeExample (a venturi scrubber) reads each inlet on its own (port.gas_in.*, port.liquor_in.*, with designPorts), works out L/G, droplet size, impaction and Johnstone efficiency, and balances the evaporation against the heat the gas gives up.'
+          : 'phaseChangeExample (a spray dryer) shows phaseChanges with a latent heat, the energy balance that pays for them, and per-phase recoveries.'
         : 'gasSolidExample (a dust collector) shows a gas with a dispersed solid separated into gas and solid outlets, sized in ACFM and kg/h.'
     ]
   };
@@ -361,7 +363,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     phaseFlowBasis: PHASE_FLOW_BASIS,
     // The examples are large, so only the one this unit needs comes back.
     ...(multiphase && !changesPhase ? { gasSolidExample: DUST_COLLECTOR_CONTRACT } : {}),
-    ...(changesPhase ? { phaseChangeExample: SPRAY_DRYER_CONTRACT } : {}),
+    ...(changesPhase ? { phaseChangeExample: phasePlan.archetype?.example === 'VENTURI_SCRUBBER_CONTRACT' ? VENTURI_SCRUBBER_CONTRACT : SPRAY_DRYER_CONTRACT } : {}),
     processContext: buildProcessContext(graph, targetNodeId),
     nextStep:
       'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'

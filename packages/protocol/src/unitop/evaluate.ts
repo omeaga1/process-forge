@@ -27,6 +27,8 @@ export interface StreamState {
 export interface UnitOpEvaluationInput {
   inlet?: StreamState;
   utility?: StreamState;
+  /** What reaches each inlet port on its own, by port id (port.<id>.* in expressions). */
+  ports?: Record<string, StreamState>;
   /** Overrides for declared parameter values, by parameter name. */
   parameterOverrides?: Record<string, number>;
   /** A BATCH unit: the batch in hand as a phase starts. Defaults to a full vessel at designInlet temperature. */
@@ -192,11 +194,13 @@ function buildScope(
   derived: Record<string, number>,
   inlet: ExprScope | undefined,
   utility: ExprScope | undefined,
-  batch?: BatchState
+  batch?: BatchState,
+  ports?: ExprScope
 ): ExprScope {
   const scope: ExprScope = { ...parameters, ...derived };
   if (inlet) scope.inlet = inlet;
   if (utility) scope.utility = utility;
+  if (ports) scope.port = ports;
   if (batch) {
     const { composition, ...rest } = batch;
     const cp = rest.cpKjPerKgK ?? (typeof inlet?.specificHeatKjPerKgK === 'number' ? inlet.specificHeatKjPerKgK : DEFAULT_SPECIFIC_HEAT);
@@ -227,12 +231,20 @@ export function evaluateUnitOp(
 
   const inlet = streamScope(contract, contract.designInlet, input.inlet);
   const utility = streamScope(contract, contract.designUtility, input.utility);
+  // Each inlet port's own stream: live where the engine measured it, else its design values.
+  const portIds = contract.ports.filter((p) => p.direction === 'INLET' && p.flowDimension === 'CONTINUOUS_FLUID').map((p) => p.id);
+  const ports: ExprScope = {};
+  for (const id of portIds) {
+    const s = streamScope(contract, contract.designPorts?.[id], input.ports?.[id]);
+    if (s) ports[id] = s;
+  }
+  const portScope = Object.keys(ports).length ? ports : undefined;
   // A BATCH unit's batch: as given, or a full vessel at the design inlet temperature.
   let batch: BatchState | undefined;
   let batchGallons = 0;
   if (contract.behavior.mode === 'BATCH') {
     try {
-      batchGallons = evaluateNumber(contract.behavior.batchGallons, buildScope(contract, parameters, {}, inlet, utility));
+      batchGallons = evaluateNumber(contract.behavior.batchGallons, buildScope(contract, parameters, {}, inlet, utility, undefined, portScope));
     } catch (e) {
       return {
         contractId: contract.id,
@@ -278,13 +290,13 @@ export function evaluateUnitOp(
   // Derived values resolve in declaration order; each sees the ones before it.
   for (const d of contract.derived) {
     try {
-      derived[d.name] = evaluateNumber(d.expr, buildScope(contract, parameters, derived, inlet, utility, batch));
+      derived[d.name] = evaluateNumber(d.expr, buildScope(contract, parameters, derived, inlet, utility, batch, portScope));
     } catch (e) {
       return fail(`derived.${d.name}`, e);
     }
   }
 
-  const scope = buildScope(contract, parameters, derived, inlet, utility, batch);
+  const scope = buildScope(contract, parameters, derived, inlet, utility, batch, portScope);
 
   const constraints: ConstraintResult[] = [];
   for (const c of contract.constraints) {
