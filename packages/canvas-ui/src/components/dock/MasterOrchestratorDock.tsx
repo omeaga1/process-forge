@@ -353,6 +353,9 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           // The unit's tag (P-227) when it has one; its name otherwise.
           const limit = bottlenecks.bottleneckNodeId ? (limitName ? unitTag(limitName) ?? limitName : 'NONE') : 'NONE';
           const rate = telemetry.averageRatePerMin;
+          // A line that makes no items (a powder or liquid line) is read in kg.
+          const bulk = telemetry.totalPackaged === 0 && (telemetry.productKg ?? 0) > 0;
+          const kgPerHour = bulk && telemetry.simulatedTimeSeconds > 0 ? (telemetry.productKg! / telemetry.simulatedTimeSeconds) * 3600 : 0;
           const cell = (label: string, unit: string, flap: React.ReactNode, title?: string) => (
             <div title={title} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
               <span style={{ fontSize: 9, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: font.mono }}>
@@ -366,9 +369,18 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           );
           return (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px' }}>
-              {cell('Line output', 'units', <SplitFlap label="Line output" value={String(telemetry.totalPackaged)} width={5} />)}
-              {cell('Shift average', '/min', <SplitFlap label="Shift average" value={rate > 0 ? rate.toFixed(rate < 100 ? 1 : 0) : '0'} width={5} />)}
-              {cell('Capacity', '/min', <SplitFlap label="Capacity" value={String(Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin))} width={5} color={OsakaJadePalette.text.secondary} />)}
+              {bulk ? (
+                <>
+                  {cell('Line output', 'kg', <SplitFlap label="Line output" value={String(Math.round(telemetry.productKg!))} width={5} />, 'Bulk product delivered over the run, kg')}
+                  {cell('Shift average', 'kg/h', <SplitFlap label="Shift average" value={kgPerHour.toFixed(kgPerHour < 100 ? 1 : 0)} width={5} />)}
+                </>
+              ) : (
+                <>
+                  {cell('Line output', 'units', <SplitFlap label="Line output" value={String(telemetry.totalPackaged)} width={5} />)}
+                  {cell('Shift average', '/min', <SplitFlap label="Shift average" value={rate > 0 ? rate.toFixed(rate < 100 ? 1 : 0) : '0'} width={5} />)}
+                </>
+              )}
+              {cell('Capacity', '/min', <SplitFlap label="Capacity" value={bulk && bottlenecks.maximumSystemThroughputUnitsPerMin === 0 ? '-' : String(Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin))} width={5} color={OsakaJadePalette.text.secondary} />)}
               {cell(
                 'Limited by',
                 '',

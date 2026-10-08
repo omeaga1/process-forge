@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import {
   TERMINAL_ROLE_LABEL,
+  terminalPhase,
   terminalCarries,
   terminalMaterial,
   terminalRole,
@@ -68,22 +69,32 @@ const fmt = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 
  */
 export const TerminalNode: React.FC<NodeProps> = ({ data, selected }) => {
   const { palette, font, size, weight } = useTheme();
-  const { processNode, unitsProduced, levelGallons, flowGpm } = data as unknown as CanvasNodeData;
+  const { processNode, unitsProduced, levelGallons, flowGpm, levelKg, kgPerHour } = data as unknown as CanvasNodeData;
   const [hovered, setHovered] = useState(false);
   const role = terminalRole(processNode) ?? 'product';
   const color = terminalColor(role, palette);
   const material = terminalMaterial(processNode);
   const items = terminalCarries(processNode) === 'items';
+  // A gas or solids arrow is counted in kg, not gallons.
+  const phase = items ? undefined : terminalPhase(processNode);
+  const byMass = phase === 'GAS' || phase === 'SOLID';
+  const carriesWord = items ? 'items' : (phase ?? 'liquid').toLowerCase();
   const port = role === 'feed' ? processNode.outputs[0] : processNode.inputs[0];
-  const total = items ? unitsProduced : levelGallons ?? 0;
+  const total = items ? unitsProduced : byMass ? levelKg ?? 0 : levelGallons ?? 0;
   const running = items ? unitsProduced > 0 : (flowGpm ?? 0) > 0 || (levelGallons ?? 0) > 0;
-  const streamColor = items ? palette.streams.discreteContainer : palette.streams.continuousFluid;
+  const streamColor = items
+    ? palette.streams.discreteContainer
+    : phase === 'GAS'
+      ? palette.streams.gas
+      : phase === 'SOLID'
+        ? palette.streams.solid
+        : palette.streams.continuousFluid;
 
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      title={`${processNode.name}: ${TERMINAL_ROLE_LABEL[role].toLowerCase()} (${items ? 'items' : 'liquid'}). Click to open.`}
+      title={`${processNode.name}: ${TERMINAL_ROLE_LABEL[role].toLowerCase()} (${carriesWord}). Click to open.`}
       style={{ position: 'relative', width: W, height: H, fontFamily: font.sans, cursor: 'pointer', userSelect: 'none' }}
     >
       <div style={{ position: 'absolute', inset: 0 }}>
@@ -104,7 +115,7 @@ export const TerminalNode: React.FC<NodeProps> = ({ data, selected }) => {
         }}
       >
         <div style={{ fontFamily: font.mono, fontSize: size['2xs'], letterSpacing: '0.08em', fontWeight: weight.bold, color, textTransform: 'uppercase' }}>
-          {TERMINAL_ROLE_LABEL[role]} · {items ? 'items' : 'liquid'}
+          {TERMINAL_ROLE_LABEL[role]} · {carriesWord}
         </div>
         <div
           style={{ fontSize: size.sm, fontWeight: weight.semibold, color: palette.text.primary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
@@ -131,8 +142,8 @@ export const TerminalNode: React.FC<NodeProps> = ({ data, selected }) => {
             border: `1px solid ${color}55`
           }}
         >
-          {fmt(total)} {items ? 'items' : 'gal'} {role === 'feed' ? 'in' : 'out'}
-          {!items && (flowGpm ?? 0) > 0 ? ` · ${Math.round(flowGpm!)} gpm` : ''}
+          {fmt(total)} {items ? 'items' : byMass ? 'kg' : 'gal'} {role === 'feed' ? 'in' : 'out'}
+          {byMass ? ((kgPerHour ?? 0) > 0 ? ` · ${fmt(kgPerHour!)} kg/h` : '') : !items && (flowGpm ?? 0) > 0 ? ` · ${fmt(flowGpm!)} gpm` : ''}
         </div>
       )}
 

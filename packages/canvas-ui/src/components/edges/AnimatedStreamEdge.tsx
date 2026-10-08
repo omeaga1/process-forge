@@ -65,7 +65,7 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   // A gas or solids pipe is not sized in gal/min: name what it carries instead.
   const designLabel =
     phase === 'GAS' ? 'gas' : phase === 'SOLID' ? 'solids' : isFluid ? `${stream.designFlowRateGpm} gpm` : stream ? `${stream.targetPiecesPerMinute} cpm` : '';
-  const labelText = isBlocked ? 'BLOCKED' : flowing ? liveLabel(isFluid, rate, temperatureC) : designLabel;
+  const labelText = isBlocked ? 'BLOCKED' : flowing ? (edgeData?.liveText ?? liveLabel(isFluid, rate, temperatureC)) : designLabel;
   const emphasis = selected || hovered;
   const period = flowPeriodSeconds(rate, isFluid ? 120 : 90);
 

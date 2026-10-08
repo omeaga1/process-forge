@@ -28,7 +28,12 @@ const PAD = 18;
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { palette, machineVisuals, font, size, weight, radius: r, motion } = useTheme();
   const nodeData = data as unknown as CanvasNodeData;
-  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, phase, phaseName } = nodeData;
+  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, kgPerHour, phase, phaseName } = nodeData;
+  // A unit with a gas or solid port is read in kg/h: its gallons are not meaningful.
+  const byMass = (processNode.outputs ?? []).concat(processNode.inputs ?? []).some((p) => {
+    const ph = nodePortPhase(processNode, p.id);
+    return ph === 'GAS' || ph === 'SOLID';
+  });
   // A pipe-fed filler has a product bowl, but what matters there is containers.
   const isLiquid = levelGallons !== undefined && processNode.kind !== 'ROTARY_FILLER';
   const [hovered, setHovered] = useState(false);
@@ -228,7 +233,9 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
                 {levelFraction !== undefined && processNode.kind !== 'PUMP' && (
                   <span style={{ fontFamily: font.mono }}>{Math.round(levelFraction * 100)}%</span>
                 )}
-                {(flowGpm ?? 0) > 0 && <span style={{ fontFamily: font.mono }}>{Math.round(flowGpm!)} gpm</span>}
+                {byMass
+                  ? (kgPerHour ?? 0) > 0 && <span style={{ fontFamily: font.mono }}>{Math.round(kgPerHour!).toLocaleString('en-US')} kg/h</span>
+                  : (flowGpm ?? 0) > 0 && <span style={{ fontFamily: font.mono }}>{Math.round(flowGpm!)} gpm</span>}
               </>
             ) : (
               <>

@@ -77,8 +77,8 @@ function buildPowderLine(): ProcessGraph {
   });
   const dryer = place(SPRAY_DRYER_CONTRACT, 'spray-dryer-1', 300, 140);
   const baghouse = place(recoveryBaghouse(), 'baghouse-1', 620, 40);
-  const powder = createTerminalNode('product', { id: 'product-powder', material: 'Maltodextrin powder', phase: 'SOLID', position: { x: 640, y: 380 } });
-  const fines = createTerminalNode('product', { id: 'product-fines', material: 'Recovered fines', phase: 'SOLID', position: { x: 900, y: 260 } });
+  const powder = createTerminalNode('product', { id: 'product-powder', material: 'Maltodextrin powder', phase: 'SOLID', position: { x: 560, y: 560 } });
+  const fines = createTerminalNode('product', { id: 'product-fines', material: 'Recovered fines', phase: 'SOLID', position: { x: 900, y: 420 } });
   const stack = createTerminalNode('waste', { id: 'stack', material: 'Exhaust to stack', phase: 'GAS', position: { x: 900, y: 20 } });
 
   let g: ProcessGraph = {

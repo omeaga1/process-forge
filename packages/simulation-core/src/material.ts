@@ -79,8 +79,8 @@ const emptyParcel = (): Parcel => ({ kg: 0, m3: 0, tempC: AMBIENT_C, cp: DEFAULT
 /** Adds a parcel to what a unit has sent by one port. */
 function tallyPort(u: MaterialUnit, port: string | undefined, p: Parcel): void {
   if (!port || (p.kg <= 0 && p.m3 <= 0)) return;
-  const t = (u.byPort[port] ??= emptyParcel());
-  mixInto(t, p);
+  mixInto((u.byPort[port] ??= emptyParcel()), p);
+  mixInto((u.tickPort[port] ??= emptyParcel()), p);
 }
 
 /** Adds `b` into `a` (in place): mass and volume add, heat and composition mix by mass. */
@@ -193,6 +193,11 @@ export interface MaterialUnit {
   lost: Parcel;
   /** What it sent out of each outlet port (piped or not), over the run. */
   byPort: Record<string, Parcel>;
+  /** The same, this tick only: what each port is sending now. */
+  tickPort: Record<string, Parcel>;
+  /** Mass in and out this tick, kg/s. */
+  inKgRate: number;
+  outKgRate: number;
   batches: number;
   heat: HeatTally;
   /** Per-tick scratch. */
@@ -321,6 +326,9 @@ export class MaterialNetwork {
         leftLine: emptyParcel(),
         lost: emptyParcel(),
         byPort: {},
+        tickPort: {},
+        inKgRate: 0,
+        outKgRate: 0,
         batches: 0,
         heat: { energyKwh: 0, activeSeconds: 0, heatingSeconds: 0, sent: emptyParcel() },
         accept: 0,
@@ -736,6 +744,7 @@ export class MaterialNetwork {
   private receive(target: MaterialUnit, parcel: Parcel, dt: number): void {
     mixInto(target.received, parcel);
     target.inRate += parcel.m3 / dt;
+    target.inKgRate += parcel.kg / dt;
     if (target.role === 'pass') mixInto(target.inbox, parcel);
     else mixInto(target.hold, parcel);
     if (target.role === 'batch') target.batchRun!.moved += parcel.m3;
@@ -747,6 +756,9 @@ export class MaterialNetwork {
       u.inbox = emptyParcel();
       u.inRate = 0;
       u.outRate = 0;
+      u.inKgRate = 0;
+      u.outKgRate = 0;
+      u.tickPort = {};
       if (u.role === 'batch') this.stepBatch(u, now, dt);
     }
 
@@ -814,6 +826,7 @@ export class MaterialNetwork {
       const plan = u.role === 'batch' ? this.batchSplit(u) : this.split(u);
       const outs = plan.outs;
       let sent = 0;
+      let sentKg = 0;
       if (outs.length === 0) {
         // No liquid outlet. A unit at the end of a line sends its liquid out of
         // the line; one piped into a unit that takes no liquid cannot send
@@ -821,6 +834,7 @@ export class MaterialNetwork {
         if (!this.outEdges.has(u.id) || (u.role === 'batch' && plan.unpipedShare > 0)) {
           sent = Number.isFinite(offer) ? offer : 0;
           const parcel = this.take(u, source, sent);
+          sentKg = parcel.kg;
           mixInto(u.leftLine, parcel);
           mixInto(u.heat.sent, parcel);
           mixInto(u.delivered, parcel);
@@ -838,6 +852,7 @@ export class MaterialNetwork {
         // (an unrated mixer, an outlet): the pipes' design flow is the limit.
         if (!Number.isFinite(total)) total = this.pipeDesignRate(u) * dt;
         const parcel = this.take(u, source, total);
+        sentKg = parcel.kg;
         const kgPerM3 = parcel.m3 > 0 ? parcel.kg / parcel.m3 : 0;
         for (const o of outs) {
           const v = total * o.share;
@@ -859,6 +874,8 @@ export class MaterialNetwork {
         sent = total;
       }
       u.outRate = sent / dt;
+      u.outKgRate = sentKg / dt;
+      if (dt > 0) for (const t of Object.values(u.tickPort)) ((t.kg /= dt), (t.m3 /= dt));
       if (u.role === 'batch') u.batchRun!.moved += sent;
     }
 

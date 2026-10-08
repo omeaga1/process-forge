@@ -98,6 +98,53 @@ function componentKg(p: Parcel): Record<string, number> | undefined {
   return Object.fromEntries(entries.map(([k, v]) => [k, round1(v * p.kg)]));
 }
 
+/** A port's parcel split into its own phase (with that part's mean molar mass) and what it carries dispersed. */
+function phaseSplit(port: UnitOpContract['ports'][number], p: Parcel, phase: string): { ownKg: number; molarMass: number; dispersedKg: Record<string, number> } {
+  const dispersedKg: Record<string, number> = {};
+  let ownFraction = 0;
+  let kmolPerKg = 0;
+  for (const [c, f] of Object.entries(p.comp)) {
+    if (f <= 0) continue;
+    if (componentPhaseAt(port, c) !== phase) dispersedKg[c] = f * p.kg;
+    else {
+      ownFraction += f;
+      kmolPerKg += f / (COMPONENT_MOLAR_MASS[c.toLowerCase()] ?? 28.96);
+    }
+  }
+  if (Object.keys(p.comp).length === 0) {
+    ownFraction = 1;
+    kmolPerKg = 1 / 28.96;
+  }
+  return { ownKg: ownFraction * p.kg, molarMass: ownFraction > 0 ? ownFraction / kmolPerKg : 28.96, dispersedKg };
+}
+
+/** ACFM (at T, 1 atm) and SCFM (68 °F, 1 atm) of a gas mass flow. */
+function gasVolumes(kgPerS: number, molarMass: number, tempC: number): { acfm: number; scfm: number } {
+  return {
+    acfm: round1((kgPerS / idealGasDensity(tempC, 101.325, molarMass) / M3_PER_FT3) * 60),
+    scfm: round1((kgPerS / idealGasDensity(SCFM_STD_C, 101.325, molarMass) / M3_PER_FT3) * 60)
+  };
+}
+
+/** What each outlet port of a phase-aware unit is sending right now: kg/h and °C, and ACFM for a gas. */
+function portFlowsNow(contract: UnitOpContract | undefined, tick: Record<string, Parcel>): NodeTelemetrySnapshot['portFlows'] {
+  if (!contract || !isPhaseAware(contract)) return undefined;
+  const out: NonNullable<NodeTelemetrySnapshot['portFlows']> = {};
+  for (const port of contract.ports) {
+    const p = tick[port.id];
+    if (port.direction !== 'OUTLET' || !p || p.kg <= 1e-12) continue;
+    const phase = portPhase(port);
+    const split = phaseSplit(port, p, phase);
+    out[port.id] = {
+      phase,
+      kgPerHour: round1(p.kg * 3600),
+      temperatureC: round1(p.tempC),
+      ...(phase === 'GAS' && split.ownKg > 0 ? { acfm: gasVolumes(split.ownKg, split.molarMass, p.tempC).acfm } : {})
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 /**
  * What a designed unit sent out of each outlet port over the run, in the
  * units of the port's phase: gal/min for a liquid, ACFM and SCFM (ideal gas,
@@ -122,31 +169,16 @@ export function portStreams(contract: UnitOpContract, byPort: Record<string, Par
       temperatureC: round1(p.tempC),
       ...(componentKg(p) ? { componentsKg: componentKg(p) } : {})
     };
-    // Split the port's mass into its own phase and what it carries dispersed.
-    const dispersed: Record<string, number> = {};
-    let ownFraction = 0;
-    let kmolPerKg = 0;
-    for (const [c, f] of Object.entries(p.comp)) {
-      if (f <= 0) continue;
-      if (componentPhaseAt(port, c) !== phase) dispersed[c] = round1(((f * p.kg) / seconds) * 3600);
-      else {
-        ownFraction += f;
-        kmolPerKg += f / (COMPONENT_MOLAR_MASS[c.toLowerCase()] ?? 28.96);
-      }
-    }
-    if (Object.keys(p.comp).length === 0) {
-      ownFraction = 1;
-      kmolPerKg = 1 / 28.96;
-    }
+    const split = phaseSplit(port, p, phase);
+    const dispersed = Object.fromEntries(Object.entries(split.dispersedKg).map(([c, kg]) => [c, round1((kg / seconds) * 3600)]));
     if (Object.keys(dispersed).length) report.dispersedKgPerHour = dispersed;
     if (phase === 'LIQUID') report.gallonsPerMinute = round1((p.m3 / M3_PER_GALLON / seconds) * 60);
-    if (phase === 'GAS' && ownFraction > 0) {
-      const molarMass = ownFraction / kmolPerKg;
-      const kgPerS = (ownFraction * p.kg) / seconds;
-      report.gasKgPerHour = round1(kgPerS * 3600);
-      report.molarMass = round1(molarMass);
-      report.actualCubicFeetPerMinute = round1((kgPerS / idealGasDensity(p.tempC, 101.325, molarMass) / M3_PER_FT3) * 60);
-      report.standardCubicFeetPerMinute = round1((kgPerS / idealGasDensity(SCFM_STD_C, 101.325, molarMass) / M3_PER_FT3) * 60);
+    if (phase === 'GAS' && split.ownKg > 0) {
+      const gas = gasVolumes(split.ownKg / seconds, split.molarMass, p.tempC);
+      report.gasKgPerHour = round1((split.ownKg / seconds) * 3600);
+      report.molarMass = round1(split.molarMass);
+      report.actualCubicFeetPerMinute = gas.acfm;
+      report.standardCubicFeetPerMinute = gas.scfm;
     }
     out.push(report);
   }
@@ -738,6 +770,8 @@ export class SimulationEngine {
       ...(Number.isFinite(u.capacity) ? { levelFraction: Math.min(1, u.hold.m3 / u.capacity) } : {}),
       flowGpm: round1(((u.role === 'sink' ? u.inRate : u.outRate) / M3_PER_GALLON) * 60),
       temperatureC: round1(u.role === 'feed' ? u.feedStock!.tempC : u.hold.tempC),
+      kgPerHour: round1((u.role === 'sink' ? u.inKgRate : u.outKgRate) * 3600),
+      ...(portFlowsNow(u.contract, u.tickPort) ? { portFlows: portFlowsNow(u.contract, u.tickPort)! } : {}),
       ...(phase && REACTOR_PHASES.has(phase) ? { phase: phase as NodeTelemetrySnapshot['phase'] } : {}),
       ...(phaseName ? { phaseName } : {})
     };

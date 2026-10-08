@@ -29,6 +29,10 @@ export interface NodeTelemetrySnapshot {
   levelFraction?: number;
   /** Liquid units: gallons per minute leaving right now. */
   flowGpm?: number;
+  /** Continuous units: kg/h leaving right now (an outlet: arriving). Mass is right whatever the phase. */
+  kgPerHour?: number;
+  /** Units that state their phases: what each outlet port is sending right now, in its phase's terms. */
+  portFlows?: Record<string, { phase: 'LIQUID' | 'GAS' | 'SOLID' | 'ITEMS'; kgPerHour: number; temperatureC: number; acfm?: number }>;
   /** Liquid units: °C of what the unit holds (a pass-through unit: what it last sent). */
   temperatureC?: number;
   /** Designed batch units: the name of the phase it is in. */

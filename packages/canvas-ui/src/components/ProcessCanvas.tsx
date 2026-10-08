@@ -116,11 +116,13 @@ function neighbourContext(graph: ProcessGraph, nodeId: string): { upstreamContex
 /** The liquid part of a unit's telemetry, for its node on the canvas. */
 function liquidOf(t: NodeTelemetrySnapshot | undefined): Partial<CanvasNodeData> {
   if (!t || t.levelGallons === undefined)
-    return { levelFraction: undefined, levelGallons: undefined, flowGpm: undefined, phase: undefined, phaseName: undefined, temperatureC: undefined };
+    return { levelFraction: undefined, levelGallons: undefined, flowGpm: undefined, levelKg: undefined, kgPerHour: undefined, phase: undefined, phaseName: undefined, temperatureC: undefined };
   return {
     levelFraction: t.levelFraction,
     levelGallons: t.levelGallons,
     flowGpm: t.flowGpm,
+    levelKg: t.levelKg,
+    kgPerHour: t.kgPerHour,
     phase: t.phase,
     phaseName: t.phaseName,
     temperatureC: t.temperatureC
@@ -134,13 +136,31 @@ function flowOut(t: NodeTelemetrySnapshot | undefined): number {
 }
 
 /** A pipe's live state, from the unit it leaves, as the engine recorded it. */
-function pipeState(t: NodeTelemetrySnapshot | undefined): Pick<CanvasEdgeData, 'isBackpressureBlocked' | 'activeFlowRate' | 'temperatureC'> {
-  return {
+function pipeState(
+  t: NodeTelemetrySnapshot | undefined,
+  edge?: { sourcePortId: string; phase?: CanvasEdgeData['phase'] }
+): Pick<CanvasEdgeData, 'isBackpressureBlocked' | 'activeFlowRate' | 'temperatureC' | 'liveText'> {
+  const base = {
     isBackpressureBlocked: t?.state === 'BLOCKED',
     activeFlowRate: flowOut(t),
     ...(t?.temperatureC !== undefined ? { temperatureC: t.temperatureC } : {})
   };
+  // A gas or solids pipe is stated in its own units: what its port sends, else the unit's mass flow.
+  if (!t || (edge?.phase !== 'GAS' && edge?.phase !== 'SOLID')) return { ...base, liveText: undefined };
+  const port = t.portFlows?.[edge.sourcePortId];
+  const kgPerHour = port?.kgPerHour ?? t.kgPerHour ?? 0;
+  const temperatureC = port?.temperatureC ?? t.temperatureC;
+  const figure = edge.phase === 'GAS' && port?.acfm !== undefined ? `${fmtFlow(port.acfm)} ACFM` : `${fmtFlow(kgPerHour)} kg/h`;
+  return {
+    ...base,
+    // The pipe animates while mass moves through it.
+    activeFlowRate: kgPerHour > 0 ? Math.max(base.activeFlowRate, 1) : 0,
+    ...(temperatureC !== undefined ? { temperatureC } : {}),
+    liveText: kgPerHour > 0 ? `${figure}${temperatureC !== undefined ? ` · ${Math.round(temperatureC)} °C` : ''}` : undefined
+  };
 }
+
+const fmtFlow = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: v >= 100 ? 0 : 1 });
 
 /** Every toolbar button: one height, one type size, never wrapping. */
 const toolbarButton: React.CSSProperties = {
@@ -449,7 +469,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           processEdge: pEdge,
           ...phaseOfEdge(graph.nodes, pEdge),
           // Blocked upstream, as the engine reports it.
-          ...pipeState(snapshotByNode.get(pEdge.sourceNodeId))
+          ...pipeState(snapshotByNode.get(pEdge.sourceNodeId), { sourcePortId: pEdge.sourcePortId, ...phaseOfEdge(graph.nodes, pEdge) })
         } satisfies CanvasEdgeData
       }))
     );
@@ -481,7 +501,10 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         data: {
           ...e.data,
           temperatureC: undefined,
-          ...pipeState(snapshotByNode.get((e.data as CanvasEdgeData).processEdge.sourceNodeId))
+          ...pipeState(snapshotByNode.get((e.data as CanvasEdgeData).processEdge.sourceNodeId), {
+            sourcePortId: (e.data as CanvasEdgeData).processEdge.sourcePortId,
+            ...((e.data as CanvasEdgeData).phase ? { phase: (e.data as CanvasEdgeData).phase } : {})
+          })
         }
       }))
     );
@@ -730,6 +753,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         simulatedTimeSeconds: res.simulatedTimeSeconds,
         totalPackaged: res.totalUnitsPackaged,
         totalScrapped: res.totalUnitsScrapped,
+        productKg: res.totalFluidDeliveredKg,
         averageRatePerMin: res.averageLineThroughputUnitsPerMin,
         activeBottleneck: validation.bottlenecks.bottleneckNodeId,
         diagnostics: validation.diagnostics,
