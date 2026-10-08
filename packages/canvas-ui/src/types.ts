@@ -57,6 +57,8 @@ export interface CanvasEdgeData extends Record<string, unknown> {
   activeFlowRate: number;
   /** A liquid pipe: °C of what it carries, while the simulation runs. */
   temperatureC?: number;
+  /** What it carries, when the units at its ends say: a gas or bulk solids rather than a liquid. */
+  phase?: 'LIQUID' | 'GAS' | 'SOLID' | 'ITEMS';
 }
 
 export interface PlantTelemetryState {

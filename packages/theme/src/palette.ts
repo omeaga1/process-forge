@@ -75,6 +75,10 @@ export interface ThemeStreamColors {
   cold: string;
   /** Liquid at or above 90 °C: a pipe shades toward this as it carries hotter liquid. */
   hot: string;
+  /** A pipe or nozzle carrying a gas (air, vapour, exhaust). */
+  gas: string;
+  /** A pipe or nozzle carrying bulk solids (powder, granules, cake). */
+  solid: string;
 }
 
 export interface ThemePalette {
@@ -153,7 +157,9 @@ export const OsakaJadeDarkPalette: ThemePalette = {
     discreteContainer: '#8cd3cb', // Ice-cyan wire for conveyors & cans
     backpressureBlocked: '#e5c736', // Pulsing amber warning for blocked conveyors
     cold: '#7aa7ff', // Chilled liquid: glacial blue
-    hot: '#ff8f5a' // Hot liquid: ember orange, apart from amber (blocked) and coral (failed)
+    hot: '#ff8f5a', // Hot liquid: ember orange, apart from amber (blocked) and coral (failed)
+    gas: '#b8b4f0', // Gas and vapour: pale lavender, clear of the jade liquids
+    solid: '#d9b98c' // Bulk solids: sand
   }
 };
 
@@ -224,7 +230,9 @@ export const OsakaJadeLightPalette: ThemePalette = {
     discreteContainer: '#0284c7', // Cyan wire for conveyors & cans
     backpressureBlocked: '#d97706', // High-contrast amber warning for blocked conveyors
     cold: '#2563eb', // Chilled liquid
-    hot: '#c2410c' // Hot liquid
+    hot: '#c2410c', // Hot liquid
+    gas: '#6d28d9', // Gas and vapour
+    solid: '#92400e' // Bulk solids
   }
 };
 

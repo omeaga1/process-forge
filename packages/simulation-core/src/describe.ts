@@ -2,6 +2,8 @@ import {
   effectiveContract,
   evaluateUnitOp,
   hasOwnContract,
+  isPhaseAware,
+  portPhase,
   pipeTemperature,
   terminalCarries,
   terminalMaterial,
@@ -42,6 +44,43 @@ export interface UnitBehavior {
   keyFigures?: { label: string; value: number; unit: string }[];
   /** A unit the engine cannot evaluate. */
   error?: string;
+  /** Units that state their phases: each port's phase, and what changes phase inside. */
+  phases?: {
+    ports: { id: string; name: string; direction: 'INLET' | 'OUTLET'; phase: 'LIQUID' | 'GAS' | 'SOLID' | 'ITEMS'; dispersed?: Record<string, string> }[];
+    changes: string[];
+  };
+}
+
+/** A contract's phases, for the unit panel: per port, and the changes, with latent heats where they are known. */
+export function phasesOf(contract: UnitOpContract, derived: Record<string, number> = {}): UnitBehavior['phases'] | undefined {
+  if (!isPhaseAware(contract)) return undefined;
+  const ports = contract.ports.map((p) => ({
+    id: p.id,
+    name: p.name,
+    direction: p.direction,
+    phase: portPhase(p),
+    ...(p.dispersed && Object.keys(p.dispersed).length ? { dispersed: p.dispersed as Record<string, string> } : {})
+  }));
+  const changes = (contract.phaseChanges ?? []).map((pc) => {
+    const expr = pc.latentHeatKjPerKg?.trim();
+    const latent = expr === undefined ? undefined : /^[0-9.]+$/.test(expr) ? Number(expr) : derived[expr];
+    return `${pc.mechanism.toLowerCase()} of ${pc.component} (${pc.from.toLowerCase()} to ${pc.to.toLowerCase()}${latent !== undefined && latent > 0 ? `, ${round(latent)} kJ/kg` : ''})`;
+  });
+  return { ports, changes };
+}
+
+/** One sentence on what goes in and out, in which phase. */
+function phaseSentence(phases: NonNullable<UnitBehavior['phases']>): string {
+  const side = (dir: 'INLET' | 'OUTLET') =>
+    list(
+      phases.ports
+        .filter((p) => p.direction === dir)
+        .map((p) => {
+          const carried = Object.entries(p.dispersed ?? {}).map(([c, ph]) => `${c} as ${ph.toLowerCase()}`);
+          return `${p.name} (${p.phase.toLowerCase()}${carried.length ? `, carrying ${list(carried)}` : ''})`;
+        })
+    );
+  return `In: ${side('INLET')}. Out: ${side('OUTLET')}.${phases.changes.length ? ` Inside: ${list(phases.changes)}.` : ' Nothing changes phase: it separates or moves what it is given.'}`;
 }
 
 /** 30 -> "30 s", 90 -> "1.5 min", 1800 -> "30 min", 7200 -> "2 h". */
@@ -170,7 +209,8 @@ export function describeUnit(node: ProcessNode, graph: ProcessGraph): UnitBehavi
   const ev = evaluateUnitOp(contract, inletC !== undefined ? { inlet: { temperatureC: inletC } } : {});
   const keys = own ? ['contract'] : contract.parameters.map((p) => p.name);
   const keyFigures = contract.derived.slice(0, 4).map((d) => ({ label: d.label ?? d.name, value: ev.derived[d.name] ?? NaN, unit: d.unit }));
-  const figures = keyFigures.length ? { keyFigures } : {};
+  const phases = phasesOf(contract, { ...Object.fromEntries(contract.parameters.map((p) => [p.name, p.value])), ...ev.derived });
+  const figures = { ...(keyFigures.length ? { keyFigures } : {}), ...(phases ? { phases } : {}) };
   if (ev.error) {
     return {
       simulated: false,
@@ -305,6 +345,7 @@ export function describeUnit(node: ProcessNode, graph: ProcessGraph): UnitBehavi
         headline: contract.description?.trim() || 'A continuous unit, evaluated at the stream that reaches it.',
         details: withBreakdowns([
           ...refusal,
+          ...(phases ? [phaseSentence(phases)] : []),
           feeds.length ? `It passes on what reaches it from ${list(feeds)}.` : 'Nothing feeds it, so nothing flows through it.',
           cap !== undefined ? `Passes at most ${round(cap)} gpm, and only as fast as what is downstream takes it.` : 'It sets no flow limit of its own: what is up- and downstream does.',
           ...(splits.length ? [`It splits its outflow: ${splits.join(', ')}; outlets without a share take the rest.`] : []),
@@ -326,7 +367,12 @@ export function describeUnit(node: ProcessNode, graph: ProcessGraph): UnitBehavi
   return {
     simulated: false,
     headline: contract.description?.trim() || `A ${node.kind.replace(/_/g, ' ').toLowerCase()}.`,
-    details: ['No liquid pipe connects to it, so nothing flows through it in the simulation and its settings do not change the results.'],
+    details: [
+      ...(figures.phases ? [phaseSentence(figures.phases)] : []),
+      figures.phases
+        ? 'No pipe connects to it yet, so nothing flows through it in the simulation and its settings do not change the results.'
+        : 'No liquid pipe connects to it, so nothing flows through it in the simulation and its settings do not change the results.'
+    ],
     capacityPerMin: null,
     engineKeys: own ? ['contract'] : [],
     role,

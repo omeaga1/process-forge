@@ -1,4 +1,6 @@
 import type { UnitOpContract, UnitOpPort, ContractValidationIssue } from './contract.js';
+import type { ProcessNode } from '../nodes.js';
+import type { ProcessEdge } from '../streams.js';
 import { isEndothermic, MECHANISM_TRANSITIONS, type MaterialPhase } from './phases.js';
 
 /**
@@ -205,4 +207,24 @@ function suggestMechanism(from: MaterialPhase, to: MaterialPhase): string {
     if (m !== 'REACTION' && list.some(([f, t]) => f === from && t === to)) return m;
   }
   return 'REACTION';
+}
+
+/**
+ * The phase a node's port carries, when it says: a designed unit's port
+ * phase, or a feed's or outlet's stated phase. Undefined for units that state
+ * none (they carry liquid or items, by their flow dimension).
+ */
+export function nodePortPhase(node: Pick<ProcessNode, 'kind' | 'config'> | undefined, portId: string): MaterialPhase | undefined {
+  if (!node) return undefined;
+  const config = node.config as { phase?: unknown; contract?: { ports?: unknown } };
+  if (node.kind === 'TERMINAL') return config.phase === 'GAS' || config.phase === 'SOLID' || config.phase === 'LIQUID' ? config.phase : undefined;
+  const ports = Array.isArray(config.contract?.ports) ? (config.contract!.ports as Partial<UnitOpPort>[]) : [];
+  const port = ports.find((p) => p?.id === portId);
+  return port?.phase;
+}
+
+/** What a pipe carries, from the port it leaves (or, failing that, the one it enters). */
+export function edgePhase(nodes: readonly Pick<ProcessNode, 'id' | 'kind' | 'config'>[], edge: Pick<ProcessEdge, 'sourceNodeId' | 'sourcePortId' | 'targetNodeId' | 'targetPortId'>): MaterialPhase | undefined {
+  const byId = (id: string) => nodes.find((n) => n.id === id);
+  return nodePortPhase(byId(edge.sourceNodeId), edge.sourcePortId) ?? nodePortPhase(byId(edge.targetNodeId), edge.targetPortId);
 }

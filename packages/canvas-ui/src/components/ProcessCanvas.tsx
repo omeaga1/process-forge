@@ -18,6 +18,7 @@ import { Layers, Play, Pause, RotateCcw, AlertTriangle, Plus, Sparkles, Undo2, R
 
 import {
   validateProcessGraph,
+  edgePhase,
   defaultStreamFor,
   defaultFluidFor,
   addStreamToGraph,
@@ -60,6 +61,12 @@ const nodeTypes = {
 
 const edgeTypes = {
   animatedStreamEdge: AnimatedStreamEdge
+};
+
+/** A pipe's phase, when the units at its ends state one. */
+const phaseOfEdge = (nodes: ProcessGraph['nodes'], e: ProcessGraph['edges'][number]): { phase?: CanvasEdgeData['phase'] } => {
+  const phase = edgePhase(nodes, e);
+  return phase ? { phase } : {};
 };
 
 export interface ProcessCanvasProps {
@@ -394,6 +401,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       type: 'animatedStreamEdge',
       data: {
         processEdge: pEdge,
+        ...phaseOfEdge(graph.nodes, pEdge),
         isBackpressureBlocked: false,
         // Nothing flows until the simulation says so; pipes animate on flow.
         activeFlowRate: 0
@@ -439,6 +447,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         type: 'animatedStreamEdge',
         data: {
           processEdge: pEdge,
+          ...phaseOfEdge(graph.nodes, pEdge),
           // Blocked upstream, as the engine reports it.
           ...pipeState(snapshotByNode.get(pEdge.sourceNodeId))
         } satisfies CanvasEdgeData
