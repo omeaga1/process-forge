@@ -11,8 +11,8 @@ server does no model inference itself: your MCP client is the model.
 
 | Tool | What it does |
 | :--- | :--- |
-| `design_unit_op` | Returns what a model needs to write a unit-op contract: the format, the expression rules, the drawing rules and a worked example. The client writes the contract. |
-| `validate_unit_op` | Checks a contract through the engine's gates: schema, every expression resolves, every ERROR constraint holds, and the drawing gives every port a nozzle. Returns the failures to fix. Accepts parameter overrides to test another operating point. |
+| `design_unit_op` | Returns what a model needs to write a unit-op contract: the format, the expression rules, the drawing rules, worked examples, and a phase plan for the kind of equipment (which ports carry liquid, gas, solid or items, the flow units of each, the phase changes and the governing relations). The client writes the contract. |
+| `validate_unit_op` | Checks a contract through the engine's gates: schema, every expression resolves and the units agree, phases balance (nothing leaves in a phase it never had, and heat-taking changes have a heat source), every ERROR constraint holds, and the drawing gives every port a nozzle. Returns the failures to fix. Accepts parameter overrides to test another operating point. |
 | `get_open_flowsheet` | Reads the flowsheet open in ProcessForge Desktop on this computer. |
 | `add_unit_op_to_flowsheet` | Validates a contract and adds it to the flowsheet open in ProcessForge Desktop, drawn from its contract with pipes attaching at its nozzles. |
 | `add_stream` | Pipes one unit into another on the open flowsheet (by unit id, name or tag), choosing ports that fit: liquid to liquid, items to items. |

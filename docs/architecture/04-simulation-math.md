@@ -282,6 +282,14 @@ to whatever follows it, such as a Product outlet.
 per minute, or for liquid, its gallons per minute divided by the pipe-fed
 filler's container volume.
 
+## Phases
+
+A contract can state the phase of each port (liquid, gas, solid, items), what
+it carries dispersed in another phase, and its phase changes. These are
+checked before a run, and a phase-aware unit reports each outlet in its
+phase's units (`designedUnit.streams`). See
+[phases and physics](06-phases-and-physics.md).
+
 ## Limits
 
 - **Heat:** there are no utility streams (steam, cooling water) and no heat

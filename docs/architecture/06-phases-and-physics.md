@@ -1,0 +1,196 @@
+# Phases, flow units and the physics behind a unit
+
+This note covers how ProcessForge decides which physics apply to a unit, and
+the math, physics and chemistry underneath. The engine formulas are in
+[simulation math](04-simulation-math.md). The decision to make phases part
+of the contract is [ADR-0011](../adr/0011-phase-aware-contracts.md).
+
+## The question
+
+A dust collector catching a powdered lubricant takes dusty air in and sends
+clean air and powder out. A spray dryer takes a liquid in and sends a powder
+and humid air out. Before phases, nothing in a contract said so. A port said
+only `CONTINUOUS_FLUID` or `DISCRETE_CONTAINER`, so the air, the powder, the
+juice and the steam were all a "fluid" counted in gal/min. That had three
+consequences:
+
+- the design tool could not tell a model which units of flow to use (ACFM
+  for the air, kg/h for the powder);
+- the engine could not check that a solid leaving a unit came from
+  somewhere;
+- the spray dryer's "liquid in, solid out" could not be checked at all, so
+  neither could the heat it takes to make it true.
+
+## What a contract says now
+
+```jsonc
+"ports": [
+  { "id": "feed",   "direction": "INLET",  "flowDimension": "CONTINUOUS_FLUID", "phase": "LIQUID", "carries": ["water", "solids"] },
+  { "id": "air_in", "direction": "INLET",  "flowDimension": "CONTINUOUS_FLUID", "phase": "GAS",    "carries": ["air", "water"] },
+  { "id": "powder", "direction": "OUTLET", "flowDimension": "CONTINUOUS_FLUID", "phase": "SOLID",  "dispersed": { "water": "LIQUID" } },
+  { "id": "exhaust","direction": "OUTLET", "flowDimension": "CONTINUOUS_FLUID", "phase": "GAS" }
+],
+"phaseChanges": [
+  { "component": "water",  "from": "LIQUID", "to": "GAS",   "mechanism": "EVAPORATION", "latentHeatKjPerKg": "latentKjPerKg" },
+  { "component": "solids", "from": "LIQUID", "to": "SOLID", "mechanism": "DRYING" }
+]
+```
+
+| Field | Meaning |
+| --- | --- |
+| `phase` | `LIQUID`, `GAS`, `SOLID` (bulk powder, granules, cake) or `ITEMS`. If absent, a continuous port is `LIQUID` and an item port is `ITEMS`, so older contracts behave exactly as before. |
+| `dispersed` | Components carried in a phase other than the port's: dust in air (`{ dust: 'SOLID' }` on a GAS port), moisture in a powder (`{ water: 'LIQUID' }` on a SOLID port), solids in a slurry. |
+| `carries` | The components the port can carry. If absent, it carries any component. |
+| `phaseChanges` | Each change of phase: component, from, to, mechanism, and latent heat (an expression in kJ/kg). |
+
+The answer to "what in the contract says it's a liquid going in and a solid
+coming out" is now explicit. The feed port says `LIQUID`, the powder port
+says `SOLID`, and the `phaseChanges` entry says how the solids get from one
+to the other.
+
+## The phase gate
+
+`validate_unit_op` runs this in its static analysis
+(`protocol/src/unitop/phaseBalance.ts`). It applies to any contract that
+states a phase.
+
+1. **Ports fit their dimension.** `ITEMS` only on an item port; `LIQUID`,
+   `GAS` or `SOLID` only on a continuous one.
+2. **Nothing appears from nowhere.** Every phase that leaves must come in, or
+   be made by a declared change. A `SOLID` outlet on a unit fed only by
+   liquid is rejected until the contract says how the solid forms.
+3. **Each component keeps its phase unless a change moves it.** A component
+   may leave only in a phase it entered in (port phase or `dispersed`), or
+   one a `phaseChanges` entry takes it to. The error names the component, the
+   port and the fix.
+4. **Mechanisms are real.** `EVAPORATION` is LIQUID→GAS, `CONDENSATION`
+   GAS→LIQUID, `CRYSTALLISATION` LIQUID→SOLID, `SUBLIMATION` SOLID→GAS, and
+   so on. A mechanism that cannot make the stated change is rejected.
+5. **Heat-taking changes need a heat source.** A change to a higher-enthalpy
+   phase (solid→liquid→gas) needs `dutyKw`, a hot GAS inlet or a UTILITY
+   port. A missing latent heat is a warning, because without it the energy
+   balance cannot be written.
+
+The gate checks consistency. Whether the heat is *enough* is physics, so it
+goes in the contract's own constraints (`heatAvailableKw >= heatNeededKw`),
+which the engine evaluates at the design point and live during a run.
+
+## How the design tool decides the physics
+
+`design_unit_op` matches the description against equipment archetypes
+(`PHASE_ARCHETYPES` in `phases.ts`). It returns a `phasePlan` with:
+
+- the phase of every port and what each carries dispersed;
+- the flow units for each stream (ACFM and g/Nm³ in, kg/h of powder out);
+- the phase changes, with mechanism;
+- the governing relations and the checks a complete design carries;
+- one worked example: a dust collector (gas-solid separation) or a spray
+  dryer (phase change).
+
+Matching is deterministic and longer phrases win, so "spray dryer" beats
+"dryer". The archetypes cover dust collectors, cyclones, spray dryers,
+fluid-bed/rotary dryers, evaporators, condensers, crystallisers,
+filters/centrifuges, wet scrubbers, mills/blenders, pneumatic conveyors and
+tablet presses. The model writes the contract to the plan, and the phase
+gate checks it. The design questions (`designQuestions.ts`, answered by Jev
+or the heuristics) also flag a design whose description says a gas or solid
+leaves, or that something changes phase, when it states no phases.
+
+`phaseFlowBasis` gives the model the units and relations for each phase:
+
+| Phase | Flow stated in | Density | Governing relations |
+| --- | --- | --- | --- |
+| LIQUID | gal/min, L/min, m³/h, kg/s | ≈ constant | mass and energy balance, Darcy–Weisbach, pump power = Q·ΔP/η |
+| GAS | ACFM, SCFM, Nm³/h, kg/s | ρ = P·M / (R·T) | ideal gas law, psychrometrics, fan power |
+| SOLID | kg/h, lb/h, t/h | bulk density | dry-basis mass balance, moisture, Stokes settling |
+| ITEMS | items/min | — | cycle time, OEE |
+
+## The fundamentals
+
+### Mass
+
+Mass is conserved; volume is not. The engine carries every parcel as kg,
+m³, T, cp and mass fractions (`simulation-core/src/material.ts`). Reactions
+are written on a mass basis, with coefficients in kg per kg of the limiting
+component. They must sum to zero. The validator checks this. For example,
+HCl + NaOH → NaCl + H₂O is −1, −1.097, +1.603, +0.494 (from molar masses
+36.46, 40.00, 58.44, 18.02).
+
+Solids are balanced on a dry basis, because the water moves separately:
+
+- wet basis: w = m_water / m_total
+- dry basis: X = m_water / m_dry = w / (1 − w)
+- dry solids in = dry solids out; water evaporated = water in − water left
+
+### Energy
+
+- Sensible heat: Q = ṁ·cp·ΔT.
+- Latent heat: Q = ṁ·λ. For water, λ falls from 2501 kJ/kg at 0 °C to
+  2256 kJ/kg at 100 °C (linear within 0.2 %). Above 100 °C it follows the
+  Watson form λ = λ₁₀₀·((T_c − T)/(T_c − 373.15 K))^0.33, fitted to the
+  steam tables within 0.5 % up to 250 °C (`waterLatentHeatKjPerKg`).
+- Mixing by heat content: T = Σ(m·cp·T) / Σ(m·cp).
+- A dryer's air gives up ṁ_air·cp_humid·(T_in − T_out). That must cover
+  evaporation plus warming the feed and solids, plus wall losses. The
+  spray-dryer example states this as an ERROR constraint.
+
+### Gases
+
+- Ideal gas: ρ = P·M / (R·T), with R = 8.314 kJ/(kmol·K) and T absolute.
+  Air at 20 °C and 1 atm is 1.204 kg/m³.
+- Actual against standard volume: ACFM = SCFM·(T/T_std)·(P_std/P). A gas at
+  200 °C takes 1.61 times the room it takes at 20 °C. A hot exhaust is
+  therefore sized in ACFM, not SCFM.
+- Mixtures: M = 1 / Σ(w_i / M_i). Humid exhaust is lighter than dry air.
+- Psychrometrics: water's saturation pressure (Buck, 1981),
+  p_sat = 0.61121·exp((18.678 − T/234.5)·(T/(257.14 + T))) kPa. Then the
+  humidity ratio is Y = 0.622·p_v/(P − p_v), and RH = p_v/p_sat. If a dryer's
+  exhaust reaches RH 100 %, water condenses, so the example rejects it.
+
+### Particles and dust
+
+- Stokes settling: v_t = g·d²·(ρ_p − ρ_g) / (18·μ). A 10 µm droplet falls
+  at about 3 mm/s.
+- Baghouse sizing: air-to-cloth = ACFM / cloth area (ft/min), about 2–3.5
+  for fine stearates. Pressure drop ΔP = K₁·V + cake. Fan power = Q·ΔP/η.
+- Emissions in mg/Nm³ (normal conditions: 0 °C and 101.325 kPa). Dust
+  loading in g/Nm³ or gr/ft³ (1 gr/ft³ = 2.288 g/m³).
+- Combustible dust (Kst > 0, e.g. magnesium stearate) needs explosion
+  protection under NFPA 652/654. The example raises this as a warning.
+
+### Units
+
+Every parameter and derived value has a unit. The checker reduces each one
+to powers of mass, length, time and temperature, and rejects an expression
+that adds unlike quantities or does not fit its field. Gas and dust units
+(ACFM, SCFM, Nm3, gr) are known to it. One consequence: a bare number in an
+expression is dimensionless when it multiplies, so a physical constant with
+a unit (a critical temperature in K, a gas constant) has to be a parameter.
+The examples do this.
+
+## What the simulation reports
+
+A designed unit that states its phases reports `designedUnit.streams`, one
+entry per outlet port, in the units of the port's phase:
+
+- `kg`, `kgPerHour`, `temperatureC`, `componentsKg`;
+- `dispersedKgPerHour`: what the port carries in another phase (the trace
+  of dust in the clean air, the moisture in the powder);
+- for a liquid, `gallonsPerMinute`;
+- for a gas, the gas's own mass (dispersed matter excluded), its mean molar
+  mass, and `actualCubicFeetPerMinute` / `standardCubicFeetPerMinute` from
+  the ideal gas law at the temperature it left at.
+
+## Limits
+
+- The engine still moves every continuous stream on one mass-basis network.
+  A gas feed is stated as a volume at the gas's density, and a pipe's volume
+  follows the mixed parcel's density. Mass, energy and composition are
+  right; reported gallons on a gas or solid pipe are not meaningful. Use the
+  per-port streams.
+- Pressure is taken as 1 atm in the stream report's ACFM. A contract that
+  needs another pressure states it as a parameter (the dust collector does).
+- A unit's several inlets arrive at the engine as one mixed stream, so a
+  contract reads the inlets' components (`inlet.x.*`). It cannot read each
+  port's temperature separately, so a spray dryer states its air inlet
+  temperature as a parameter (the heater setpoint).
