@@ -342,7 +342,20 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     'what units each flow is stated (phaseFlowBasis). gasSolidExample (a dust',
     'collector) separates a powder from air with no phase change; phaseChangeExample',
     '(a spray dryer) takes a liquid in and sends a powder and humid air out, with the',
-    'evaporation, its latent heat and the energy balance that pays for it.'
+    'evaporation, its latent heat and the energy balance that pays for it.',
+    ...(phasePlan.archetype
+      ? [
+          '',
+          `This reads as a ${phasePlan.archetype.name}. Its streams, in the units to state them in:`,
+          ...phasePlan.archetype.ports.map(
+            (p) =>
+              `  ${p.direction === 'INLET' ? 'in ' : 'out'} ${p.id}: ${p.phase}${p.dispersed ? ` carrying ${Object.entries(p.dispersed).map(([c, ph]) => `${c} as ${ph}`).join(', ')}` : ''} -- ${p.flowUnits}`
+          ),
+          phasePlan.archetype.phaseChanges.length
+            ? `Phase changes: ${phasePlan.archetype.phaseChanges.map((pc) => `${pc.component} ${pc.from} -> ${pc.to} (${pc.mechanism})`).join('; ')}.`
+            : 'No phase changes: a separation. Every component leaves in the phase it came in.'
+        ]
+      : [])
   ].join('\n');
 
   return {
