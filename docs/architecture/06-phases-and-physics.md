@@ -177,6 +177,53 @@ expression is dimensionless when it multiplies, so a physical constant with
 a unit (a critical temperature in K, a gas constant) has to be a parameter.
 The examples do this.
 
+## Reading each inlet on its own
+
+The engine mixes everything that reaches a unit, and `inlet.*` reads that
+mix. A unit whose physics depends on its inlets separately reads one inlet
+port as `port.<id>.*`:
+
+- the fields are `temperatureC`, `massFlowKgPerS`, `volumetricFlowGpm`,
+  `densityGPerCm3` and `specificHeatKjPerKgK`, plus `port.<id>.x.<component>`;
+- examples are a scrubber's liquid-to-gas ratio and a dryer's hot-air
+  temperature;
+- the values are checked at `designPorts.<id>`, with units checked like
+  `inlet.*`.
+
+During a run, the engine keeps what reaches each inlet port of a
+pass-through unit apart and supplies it. A piped port that gets nothing
+reads as zero flow.
+
+The **Venturi scrubber** (standard equipment, and the wet-scrubber
+archetype's example) is built on this:
+
+- L/G = liquor gal/min per 1000 ACFM, from its own two inlets;
+- droplet size by Nukiyama–Tanasawa,
+  d_d = 16400/v + 1.45 (L/G)^1.5 (µm, v in ft/s);
+- inertial impaction ψ = ρ_p v d_p² / (18 µ d_d);
+- Johnstone efficiency η = 1 − exp(−k (L/G) √ψ);
+- Calvert pressure drop ΔP = 5×10⁻⁵ v² (L/G) inH₂O;
+- the hot gas's heat balanced against the water it evaporates, so the gas
+  leaves near adiabatic saturation.
+
+The correlation constants carry units, so they are parameters, and the
+dimension checker verifies each formula.
+
+## Converting a stream: calculate_stream
+
+`calculate_stream` (an MCP and in-app tool) converts a liquid, gas or solid
+flow between kg/s, kg/h, lb/h, t/h, ACFM, SCFM, Nm³/h, m³/h, gal/min and
+L/min. It uses:
+
+- the ideal gas law at the stated temperature and absolute pressure, with
+  the molar mass of the composition;
+- relative humidity, giving the humidity ratio, relative humidity and dew
+  point;
+- the density or bulk density for liquids and solids.
+
+It returns a `designInlet` ready to paste. The design rules tell models to
+use it instead of converting by hand.
+
 ## Feeds and outlets
 
 A feed or outlet arrow can state its `phase`. A GAS feed with no density of
