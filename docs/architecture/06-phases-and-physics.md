@@ -75,6 +75,15 @@ The gate checks consistency. Whether the heat is *enough* is physics, so it
 goes in the contract's own constraints (`heatAvailableKw >= heatNeededKw`),
 which the engine evaluates at the design point and live during a run.
 
+The physics gate adds one check of its own for continuous units. It costs
+the declared heat-taking changes at the design point: the mass of the
+component that leaves in its new phase, from the design inlet and the
+evaluated outlet plan, times the change's latent heat. `validate_unit_op`
+returns the result as `phaseEnergy` and warns (`phase-energy`) when it is
+more than `behavior.dutyKw`. If some of the component may already arrive in
+its new phase (humid air into a dryer), the figure is only an upper bound,
+so it is reported without a warning.
+
 ## How the design tool decides the physics
 
 `design_unit_op` matches the description against equipment archetypes
@@ -168,6 +177,31 @@ expression is dimensionless when it multiplies, so a physical constant with
 a unit (a critical temperature in K, a gas constant) has to be a parameter.
 The examples do this.
 
+## Feeds and outlets
+
+A feed or outlet arrow can state its `phase`. A GAS feed with no density of
+its own is an ideal gas at its temperature, with the molar mass of its
+composition (`mixtureMolarMass`). A feed's supply can be given as
+`supplyKgPerHour` (any phase) or `supplyScfm` (a gas) instead of gal/min.
+`add_standard_unit_op` takes all three.
+
+## Standard equipment and the example line
+
+The palette has a **Spray dryer** and a **Dust collector**. The evaporator,
+dryer, filter, centrifuge, crystalliser and column state their phases. The
+**Spray drying line** example (`spray-drying-line`) shows the whole chain:
+
+- a 40 % maltodextrin solution (liquid, 100 kg/h) and process air (gas,
+  1633 kg/h) feed a spray dryer;
+- the powder (solid, about 41 kg/h) is the product;
+- the exhaust (about 1050 ACFM at 90 °C, carrying 2 % of the solids as
+  fines) goes to a product-recovery baghouse;
+- the baghouse returns the fines and sends the humid air to the stack.
+
+The mass balance closes across all three phases, and the water leaves as
+vapour, not in the hopper. A component that no recovery names goes only to
+ports that can carry it.
+
 ## What the simulation reports
 
 A designed unit that states its phases reports `designedUnit.streams`, one
@@ -180,6 +214,12 @@ entry per outlet port, in the units of the port's phase:
 - for a gas, the gas's own mass (dispersed matter excluded), its mean molar
   mass, and `actualCubicFeetPerMinute` / `standardCubicFeetPerMinute` from
   the ideal gas law at the temperature it left at.
+
+While a run plays back, the canvas reads phases in their own units. A gas
+pipe shows ACFM and a solids pipe kg/h, from the engine's per-port telemetry
+(`portFlows`). Gas and solids arrows count kg. A unit with gas or solid
+ports shows kg/h. A line whose output is bulk reports its output in kg and
+kg/h. `simulate_process_line` says the same in its diagnosis.
 
 ## Limits
 
