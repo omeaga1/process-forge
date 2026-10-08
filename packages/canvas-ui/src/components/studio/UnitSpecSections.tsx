@@ -417,6 +417,9 @@ export const StreamsSection: React.FC<{
   );
 };
 
+/** "a pump", "an evaporator". */
+const an = (w: string) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
+
 // ------------------------------------------------------------------ physics
 
 export const PhysicsSection: React.FC<{ alignment: PhysicsAlignment; lookup: Lookup }> = ({ alignment, lookup }) => {
@@ -441,9 +444,9 @@ export const PhysicsSection: React.FC<{ alignment: PhysicsAlignment; lookup: Loo
     <div>
       <div style={{ fontSize: 12, color: palette.text.muted, marginBottom: 6 }}>
         {alignment.decidedBy === 'declared'
-          ? `Declared a ${alignment.archetype?.name.toLowerCase()}: the engine holds it to that equipment's physics.`
+          ? `Declared ${an(alignment.archetype?.name.toLowerCase() ?? 'unit')}: the engine holds it to that equipment's physics.`
           : alignment.decidedBy === 'inferred'
-            ? `Reads as a ${alignment.archetype?.name.toLowerCase()}; the design does not declare it, so these are advice.`
+            ? `Reads as ${an(alignment.archetype?.name.toLowerCase() ?? 'unit')}; the design does not declare it, so these are advice.`
             : alignment.decidedBy === 'custom'
               ? 'Custom equipment: checked for units, mass, phases and energy, not against an archetype.'
               : 'No archetype: checked for units, mass, phases and energy.'}
@@ -460,9 +463,11 @@ export const PhysicsSection: React.FC<{ alignment: PhysicsAlignment; lookup: Loo
               ) : (
                 <>
                   <span style={{ fontFamily: font.mono }}>
-                    {Number(rel.lhs!.toPrecision(4)).toLocaleString('en-US')} vs {Number(rel.rhs!.toPrecision(4)).toLocaleString('en-US')} (SI)
+                    {rel.shown
+                      ? `${formatQuantity(rel.shown.lhs)} ${rel.shown.unit} vs ${formatQuantity(rel.shown.rhs)} ${rel.shown.unit}`
+                      : `${Number(rel.lhs!.toPrecision(4)).toLocaleString('en-US')} vs ${Number(rel.rhs!.toPrecision(4)).toLocaleString('en-US')} (SI)`}
                     {' · '}
-                    {rel.deviation !== undefined ? `${Math.abs(rel.deviation) < 0.0005 ? '0' : (rel.deviation * 100).toFixed(1)} %` : ''}
+                    {rel.deviation !== undefined ? `${Math.abs(rel.deviation) < 0.0005 ? '0' : (rel.deviation * 100).toFixed(1)} % apart` : ''}
                   </span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                     {rel.bindings.map((b) => (
