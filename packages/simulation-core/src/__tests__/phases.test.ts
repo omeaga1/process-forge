@@ -327,3 +327,32 @@ describe('Channels: two streams through one unit without mixing', () => {
     assert.ok(Math.abs(lost - gained) / lost < 0.02, `lost ${lost} kWh, gained ${gained} kWh`);
   });
 });
+
+describe('a surface condenser', () => {
+  // Water vapour at 70 °C and cooling water at 25 °C, kept apart in channels; the vapour leaves as condensate.
+  const CONDENSER = {"contractVersion":1,"id":"surface-condenser-c301","name":"Surface Condenser C-301","archetype":"condenser","roles":{"duty":"dutyKw","vapour":"vapourKgPerS","latent":"latentKjPerKg"},"description":"Shell-and-tube surface condenser on the evaporator vapour. The vapour condenses on the shell side at its saturation temperature; the cooling water in the tubes takes the latent heat and leaves warmer. The two streams never mix.","ports":[{"id":"vapour_in","name":"Vapour in","direction":"INLET","role":"MATERIAL","flowDimension":"CONTINUOUS_FLUID","required":true,"phase":"GAS","carries":["water"]},{"id":"cw_in","name":"Cooling water in","direction":"INLET","role":"MATERIAL","flowDimension":"CONTINUOUS_FLUID","required":true,"phase":"LIQUID"},{"id":"condensate","name":"Condensate","direction":"OUTLET","role":"MATERIAL","flowDimension":"CONTINUOUS_FLUID","required":true,"phase":"LIQUID","carries":["water"]},{"id":"cw_out","name":"Cooling water out","direction":"OUTLET","role":"MATERIAL","flowDimension":"CONTINUOUS_FLUID","required":true,"phase":"LIQUID"}],"components":["water"],"channels":[{"inlet":"vapour_in","outlet":"condensate"},{"inlet":"cw_in","outlet":"cw_out"}],"phaseChanges":[{"component":"water","from":"GAS","to":"LIQUID","mechanism":"CONDENSATION","latentHeatKjPerKg":"latentKjPerKg"}],"parameters":[{"name":"minApproachC","label":"Closest the cooling water may come to the condensing temperature","unit":"delta°C","value":5,"min":1,"max":30},{"name":"cwMaxC","label":"Highest cooling-water return","unit":"°C","value":45,"min":25,"max":60,"description":"The cooling tower return limit."}],"derived":[{"name":"vapourKgPerS","label":"Vapour condensed","unit":"kg/s","expr":"port.vapour_in.massFlowKgPerS"},{"name":"condenseC","label":"Condensing temperature","unit":"°C","expr":"port.vapour_in.temperatureC"},{"name":"latentKjPerKg","label":"Latent heat at condensing","unit":"kJ/kg","expr":"water_hvap(condenseC)"},{"name":"dutyKw","label":"Condensing duty","unit":"kW","expr":"vapourKgPerS * latentKjPerKg"},{"name":"cwCapacity","label":"Cooling-water heat capacity","unit":"kW/K","expr":"port.cw_in.massFlowKgPerS * port.cw_in.specificHeatKjPerKgK"},{"name":"cwOutC","label":"Cooling-water return","unit":"°C","expr":"port.cw_in.temperatureC + if(cwCapacity > 0, dutyKw / cwCapacity, 0)"}],"constraints":[{"id":"approach","expr":"cwOutC <= condenseC - minApproachC","severity":"ERROR","message":"The cooling water would come out too close to the condensing temperature: the vapour does not all condense.","hint":"Send more cooling water."},{"id":"return-limit","expr":"cwOutC <= cwMaxC","severity":"WARNING","message":"The cooling-water return is above the tower limit.","hint":"Send more cooling water."}],"behavior":{"mode":"CONTINUOUS_RATE","throughputPerMinute":"vapourKgPerS * 60","dutyKw":"dutyKw"},"designPorts":{"vapour_in":{"temperatureC":70,"massFlowKgPerS":0.9405,"specificHeatKjPerKgK":1.9,"composition":{"water":1}},"cw_in":{"temperatureC":25,"massFlowKgPerS":30.29,"specificHeatKjPerKgK":4.18}},"outlets":[{"port":"condensate","temperatureC":"condenseC"},{"port":"cw_out","temperatureC":"cwOutC"}],"provenance":{"authoredBy":"TEMPLATE","engineerConfirmed":[]}} as unknown as UnitOpContract;
+  it("sends the condensate out as a liquid, by its mass, not the vapour's volume", () => {
+    const vapour = createTerminalNode('feed', { id: 'vap', material: 'Vapour', phase: 'GAS', temperatureC: 70, composition: { water: 1 }, supplyKgPerHour: 3384 } as never);
+    const cw = createTerminalNode('feed', { id: 'cw', material: 'Cooling water', temperatureC: 25, densityGPerCm3: 0.997, specificHeatKjPerKgK: 4.18, supplyRate: 480 } as never);
+    let g = {
+      id: 'cond',
+      name: 'cond',
+      version: '1',
+      metadata: {},
+      nodes: [vapour, cw, unit('cond', CONDENSER), sink('drain'), sink('return')],
+      edges: [pipe('cond', 'drain', 'condensate', 'in-0', 1, 70, 20), pipe('cond', 'return', 'cw_out', 'in-0', 1, 40, 480)]
+    } as unknown as ProcessGraph;
+    g = addStreamToGraph(g, pipe('vap', 'cond', vapour.outputs[0]!.id, 'vapour_in', 0.0002, 70, 20));
+    g = addStreamToGraph(g, pipe('cw', 'cond', cw.outputs[0]!.id, 'cw_in', 0.997, 25, 480));
+    const r = simulateProcess(g, 30);
+    const d = r.nodeReports['cond']!.designedUnit!;
+    const condensate = d.streams!.find((s) => s.port === 'condensate')!;
+    // 3384 kg/h of water is 14.9 gal/min of liquid (it was thousands of ACFM as vapour).
+    assert.ok(Math.abs(condensate.kgPerHour - 3384) < 20, `condensate ${condensate.kgPerHour} kg/h`);
+    assert.ok(Math.abs(condensate.gallonsPerMinute! - 14.9) < 0.3, `condensate ${condensate.gallonsPerMinute} gal/min`);
+    assert.equal(condensate.temperatureC, 70);
+    const ret = d.streams!.find((s) => s.port === 'cw_out')!;
+    // Q = 0.94 kg/s x 2329.8 kJ/kg = 2190 kW into 30.2 kg/s of water: +17.3 °C.
+    assert.ok(Math.abs(ret.temperatureC! - 42.3) < 0.5, `return ${ret.temperatureC} °C`);
+  });
+});

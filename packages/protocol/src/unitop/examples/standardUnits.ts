@@ -102,6 +102,8 @@ export const PROCESS_HEATER_CONTRACT: UnitOpContract = {
   contractVersion: 1,
   id: 'standard-process-heater-v1',
   archetype: 'heater',
+  // The duty it delivers, which the rating can cap below what the stream needs; the outlet follows from it.
+  roles: { duty: 'usedKw', tOut: 'outletC' },
   name: 'Process heater',
   description:
     'Heats a liquid stream toward a target temperature with a steam or electric duty, up to its rated duty. When the stream needs more than that, it leaves cooler than the target and the shortfall is reported. Q = m x cp x (T_target - T_in).',
