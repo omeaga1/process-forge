@@ -1,7 +1,7 @@
 import { UnitOpContractSchema, unitWarnings, validateUnitOpContract, type UnitOpContract } from './contract.js';
 import { evaluateUnitOp, blockingViolations } from './evaluate.js';
 import { checkUnitOpDrawing } from './drawing.js';
-import { phaseWarnings } from './phaseBalance.js';
+import { phaseEnergy, phaseEnergyWarnings, phaseWarnings, type PhaseEnergyCheck } from './phaseBalance.js';
 
 /**
  * The engine's verdict on a proposed unit operation.
@@ -37,6 +37,8 @@ export interface ValidateUnitOpResult {
   };
   /** Computed quantities, when evaluation got far enough to produce them. */
   derived?: Record<string, number>;
+  /** Units that declare phase changes: the latent heat they take at the design point, and the stated duty. */
+  phaseEnergy?: PhaseEnergyCheck;
   behavior?: unknown;
   /** Written to be handed back to the authoring model verbatim. */
   revisionGuidance: string;
@@ -152,6 +154,9 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
   const warnings = evaluation.constraints.filter((c) => !c.satisfied && c.severity === 'WARNING');
 
   gates.physical.warnings = warnings.map((w) => `${w.id}: ${w.message}${w.hint ? ` (${w.hint})` : ''}`);
+  // The latent heat the declared phase changes take at the design point, against the stated duty.
+  const energy = phaseEnergy(contract, evaluation);
+  gates.physical.warnings.push(...phaseEnergyWarnings(energy));
 
   if (blocking.length > 0) {
     gates.physical.errors = blocking.map((c) => `${c.id}: ${c.message}${c.hint ? ` (${c.hint})` : ''}`);
@@ -209,6 +214,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     gates,
     derived: evaluation.derived,
     behavior: evaluation.behavior,
+    ...(energy ? { phaseEnergy: energy } : {}),
     revisionGuidance: guidance
   };
 }

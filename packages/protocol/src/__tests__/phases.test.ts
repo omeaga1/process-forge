@@ -211,3 +211,37 @@ describe('feeds in their own units', () => {
     assert.equal(feedGasDensityGPerCm3(createTerminalNode('feed', {}), 20), undefined, 'a liquid feed keeps its density');
   });
 });
+
+describe('latent heat against the stated duty', () => {
+  const boiler = (dutyKw: string): UnitOpContract =>
+    ({
+      contractVersion: 1,
+      id: 'boiler',
+      name: 'Kettle boiler',
+      description: '',
+      ports: [
+        { id: 'in', name: 'Water', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID' },
+        { id: 'steam', name: 'Steam', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS' },
+        { id: 'blowdown', name: 'Blowdown', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID' }
+      ],
+      phaseChanges: [{ component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'EVAPORATION', latentHeatKjPerKg: 'latent' }],
+      parameters: [{ name: 'latent', label: 'Latent heat', unit: 'kJ/kg', value: 2257, min: 2000, max: 2600 }],
+      derived: [],
+      constraints: [],
+      behavior: { mode: 'CONTINUOUS_RATE', throughputPerMinute: '1', dutyKw },
+      designInlet: { massFlowKgPerS: 1, temperatureC: 100 },
+      outlets: [{ port: 'steam', share: '0.9' }, { port: 'blowdown' }],
+      provenance: { authoredBy: 'TEMPLATE', engineerConfirmed: [] }
+    }) as unknown as UnitOpContract;
+
+  it('warns when the duty cannot pay for the evaporation it declares', () => {
+    const r = executeValidateUnitOp({ contract: boiler('500') });
+    assert.equal(r.verdict, 'ACCEPTED');
+    near(r.phaseEnergy!.latentKw, 2031.3, 0.5, '0.9 kg/s x 2257 kJ/kg');
+    assert.match(r.gates.physical.warnings.join('\n'), /phase-energy: .* 2031 kW .* duty of 500 kW/);
+  });
+  it('is quiet when the duty covers it', () => {
+    const r = executeValidateUnitOp({ contract: boiler('2100') });
+    assert.ok(!r.gates.physical.warnings.some((w) => w.startsWith('phase-energy')));
+  });
+});

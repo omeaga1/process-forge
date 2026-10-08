@@ -2,6 +2,7 @@ import type { UnitOpContract, UnitOpPort, ContractValidationIssue } from './cont
 import type { ProcessNode } from '../nodes.js';
 import type { ProcessEdge } from '../streams.js';
 import { isEndothermic, MECHANISM_TRANSITIONS, type MaterialPhase } from './phases.js';
+import { evaluateNumber } from './expression.js';
 
 /**
  * The phase gate: a component may only leave a unit in a phase it arrived in,
@@ -228,3 +229,73 @@ export function edgePhase(nodes: readonly Pick<ProcessNode, 'id' | 'kind' | 'con
   const byId = (id: string) => nodes.find((n) => n.id === id);
   return nodePortPhase(byId(edge.sourceNodeId), edge.sourcePortId) ?? nodePortPhase(byId(edge.targetNodeId), edge.targetPortId);
 }
+
+/** The latent duty of a contract's phase changes at its design point, against its stated duty. */
+export interface PhaseEnergyCheck {
+  /** Per heat-taking change: kg/s changing phase and kW it takes. */
+  changes: { component: string; from: MaterialPhase; to: MaterialPhase; kgPerS: number; latentKjPerKg: number; kw: number; estimate: boolean }[];
+  latentKw: number;
+  /** behavior.dutyKw at the design point, when the unit states one. */
+  dutyKw?: number;
+}
+
+/**
+ * How much heat the declared phase changes take at the design point, from the
+ * design inlet, the evaluated outlet plan and each change's latent heat: the
+ * mass of the component leaving in its new phase times its latent heat. Set
+ * against behavior.dutyKw, it catches a design whose duty cannot pay for its
+ * own evaporation. Only for continuous units with a design inlet.
+ */
+export function phaseEnergy(
+  contract: UnitOpContract,
+  ev: { parameters: Record<string, number>; derived: Record<string, number>; outlets: Record<string, { share?: number; recovery?: Record<string, number> }>; behavior: { mode: string; dutyKw?: number } }
+): PhaseEnergyCheck | undefined {
+  if (!isPhaseAware(contract) || contract.behavior.mode !== 'CONTINUOUS_RATE') return undefined;
+  const design = contract.designInlet;
+  const m = design?.massFlowKgPerS;
+  if (!m || m <= 0) return undefined;
+  const scope = { ...ev.parameters, ...ev.derived };
+  const total = Object.values(design?.composition ?? {}).reduce((a, v) => a + v, 0);
+  const x = (c: string) => (total > 0 ? (design!.composition![c] ?? 0) / total : 0);
+  const outlets = materialPorts(contract, 'OUTLET');
+  const byRecovery = Object.values(ev.outlets).some((o) => o.recovery);
+  const changes: PhaseEnergyCheck['changes'] = [];
+  for (const pc of contract.phaseChanges ?? []) {
+    if (pc.from === 'ITEMS' || pc.to === 'ITEMS' || !isEndothermic(pc.from, pc.to) || !pc.latentHeatKjPerKg) continue;
+    let latent: number;
+    try {
+      latent = evaluateNumber(pc.latentHeatKjPerKg, scope);
+    } catch {
+      continue;
+    }
+    if (!(latent > 0)) continue;
+    // Mass leaving in the new phase: by recovery, the component's own share; by share, the port's whole share.
+    let kgPerS = 0;
+    for (const p of outlets) {
+      if (componentPhaseAt(p, pc.component) !== pc.to) continue;
+      const o = ev.outlets[p.id];
+      if (byRecovery) kgPerS += m * x(pc.component) * (o?.recovery?.[pc.component] ?? 0);
+      else if (o?.share !== undefined) kgPerS += m * o.share;
+    }
+    // Less what already arrives in the new phase, when the inlets say so; else the figure is an upper bound.
+    const arrivesChanged = materialPorts(contract, 'INLET').some((p) => carries(p, pc.component) && componentPhaseAt(p, pc.component) === pc.to);
+    if (kgPerS <= 0) continue;
+    changes.push({ component: pc.component, from: pc.from, to: pc.to, kgPerS, latentKjPerKg: latent, kw: kgPerS * latent, estimate: arrivesChanged });
+  }
+  if (!changes.length) return undefined;
+  const latentKw = changes.reduce((a, c) => a + c.kw, 0);
+  return { changes, latentKw, ...(ev.behavior.mode === 'CONTINUOUS_RATE' && ev.behavior.dutyKw !== undefined ? { dutyKw: ev.behavior.dutyKw } : {}) };
+}
+
+/** A warning when the latent duty at the design point is more than the unit's stated duty. */
+export function phaseEnergyWarnings(check: PhaseEnergyCheck | undefined): string[] {
+  if (!check || check.dutyKw === undefined) return [];
+  const exact = check.changes.every((c) => !c.estimate);
+  if (exact ? check.latentKw <= Math.abs(check.dutyKw) * 1.001 : true) return [];
+  const what = check.changes.map((c) => `${c.component} ${c.from.toLowerCase()} to ${c.to.toLowerCase()}: ${round3(c.kgPerS)} kg/s x ${Math.round(c.latentKjPerKg)} kJ/kg = ${Math.round(c.kw)} kW`).join('; ');
+  return [
+    `phase-energy: at the design point the phase changes take ${Math.round(check.latentKw)} kW of latent heat (${what}), more than the unit's duty of ${Math.round(Math.abs(check.dutyKw))} kW. The duty cannot make the change it declares: raise the duty, or let less change phase.`
+  ];
+}
+
+const round3 = (v: number) => Number(v.toPrecision(3));
