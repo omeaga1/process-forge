@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import React, { useEffect, useState } from 'react';
+import { Handle, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import {
   TERMINAL_ROLE_LABEL,
+  placePoint,
   terminalPhase,
   terminalCarries,
   terminalMaterial,
@@ -10,6 +11,7 @@ import {
 } from '@process-forge/protocol';
 import { useTheme, type ThemeContextValue } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
+import { LayoutToolbar } from './LayoutToolbar.js';
 
 /** Each role's color, from the theme's status colors so both themes read well. */
 export function terminalColor(role: TerminalRole, palette: ThemeContextValue['palette']): string {
@@ -67,9 +69,10 @@ const fmt = (v: number) => v.toLocaleString(undefined, { maximumFractionDigits: 
  * enters or leaves the flowsheet (protocol/terminals.ts). While a run plays
  * back it shows what has gone through it so far.
  */
-export const TerminalNode: React.FC<NodeProps> = ({ data, selected }) => {
+export const TerminalNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { palette, font, size, weight } = useTheme();
-  const { processNode, unitsProduced, levelGallons, flowGpm, levelKg, kgPerHour } = data as unknown as CanvasNodeData;
+  const { processNode, unitsProduced, levelGallons, flowGpm, levelKg, kgPerHour, onLayoutChange } = data as unknown as CanvasNodeData;
+  const updateNodeInternals = useUpdateNodeInternals();
   const [hovered, setHovered] = useState(false);
   const role = terminalRole(processNode) ?? 'product';
   const color = terminalColor(role, palette);
@@ -90,14 +93,39 @@ export const TerminalNode: React.FC<NodeProps> = ({ data, selected }) => {
         ? palette.streams.solid
         : palette.streams.continuousFluid;
 
+  // Which way the arrow points once turned or mirrored, and where its nozzle ends up.
+  const pointing = placePoint(100, 50, 'right', processNode.layout).side;
+  const vertical = pointing === 'top' || pointing === 'bottom';
+  const boxW = vertical ? H : W;
+  const boxH = vertical ? W : H;
+  const nozzle = role === 'feed' ? placePoint(100, 50, 'right', processNode.layout) : placePoint(0, 50, 'left', processNode.layout);
+  const handlePosition = { left: Position.Left, right: Position.Right, top: Position.Top, bottom: Position.Bottom }[nozzle.side];
+  // Upright and pointing right, the arrow and its words; turned, the whole label turns with it (reading up the page when it points up).
+  const contentTransform = pointing === 'bottom' ? 'rotate(90deg)' : pointing === 'top' ? 'rotate(-90deg)' : undefined;
+  const mirrored = pointing === 'left';
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, pointing, updateNodeInternals]);
+
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       title={`${processNode.name}: ${TERMINAL_ROLE_LABEL[role].toLowerCase()} (${carriesWord}). Click to open.`}
-      style={{ position: 'relative', width: W, height: H, fontFamily: font.sans, cursor: 'pointer', userSelect: 'none' }}
+      style={{ position: 'relative', width: boxW, height: boxH, fontFamily: font.sans, cursor: 'pointer', userSelect: 'none' }}
     >
-      <div style={{ position: 'absolute', inset: 0 }}>
+      <LayoutToolbar nodeId={id} layout={processNode.layout} onLayoutChange={onLayoutChange} sizable={false} />
+      <div
+        style={{
+          position: 'absolute',
+          width: W,
+          height: H,
+          left: (boxW - W) / 2,
+          top: (boxH - H) / 2,
+          ...(contentTransform ? { transform: contentTransform, transformOrigin: 'center center' } : {})
+        }}
+      >
+      <div style={{ position: 'absolute', inset: 0, ...(mirrored ? { transform: 'scaleX(-1)' } : {}) }}>
         <TerminalArrow role={role} color={color} fill={selected || hovered ? `${color}26` : `${color}14`} selected={Boolean(selected)} />
       </div>
       <div
@@ -105,8 +133,8 @@ export const TerminalNode: React.FC<NodeProps> = ({ data, selected }) => {
           position: 'absolute',
           top: 0,
           bottom: 0,
-          left: role === 'feed' ? 12 : 22,
-          right: TIP + 6,
+          left: mirrored ? TIP + 6 : role === 'feed' ? 12 : 22,
+          right: mirrored ? (role === 'feed' ? 12 : 22) : TIP + 6,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
@@ -123,12 +151,13 @@ export const TerminalNode: React.FC<NodeProps> = ({ data, selected }) => {
           {material}
         </div>
       </div>
+      </div>
 
       {running && (
         <div
           style={{
             position: 'absolute',
-            top: H + 4,
+            top: boxH + 4,
             left: '50%',
             transform: 'translateX(-50%)',
             whiteSpace: 'nowrap',
@@ -150,13 +179,13 @@ export const TerminalNode: React.FC<NodeProps> = ({ data, selected }) => {
       {port && (
         <Handle
           type={role === 'feed' ? 'source' : 'target'}
-          position={role === 'feed' ? Position.Right : Position.Left}
+          position={handlePosition}
           id={port.id}
           title={`${role === 'feed' ? 'Outlet' : 'Inlet'}: ${material}`}
           className="pf-nozzle-handle"
           style={{
-            left: role === 'feed' ? W : 0,
-            top: H / 2,
+            left: (nozzle.x / 100) * boxW,
+            top: (nozzle.y / 100) * boxH,
             right: 'auto',
             bottom: 'auto',
             transform: 'translate(-50%, -50%)',

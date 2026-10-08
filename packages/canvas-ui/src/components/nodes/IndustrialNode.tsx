@@ -1,12 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Handle, Position, useEdges, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
+import { Handle, Position, useEdges, useStore, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
-import { EquipmentFigure, flangePoint } from '../../nozzles/EquipmentFigure.js';
+import { EquipmentFigure, flangePoint, STUB_PX } from '../../nozzles/EquipmentFigure.js';
 import { drawingSize, layoutNozzles, type Side } from '../../nozzles/nozzleLayout.js';
-import { effectiveContract, nodePortPhase } from '@process-forge/protocol';
+import {
+  clampScale,
+  effectiveContract,
+  layoutTransform,
+  nodePortPhase,
+  placePoint,
+  placedSize,
+  resolvedLayout,
+  scaleLayout
+} from '@process-forge/protocol';
 import { unitTag } from '../../model/unitTag.js';
 import { PhaseTrack } from './PhaseTrack.js';
+import { LayoutToolbar } from './LayoutToolbar.js';
 
 const POSITION: Record<Side, Position> = {
   left: Position.Left,
@@ -24,11 +34,16 @@ const PAD = 18;
  * face. Inputs are targets and outputs are sources, so a pipe always runs
  * from an outlet to an inlet. Handle ids are the port ids, as before, so
  * existing pipes stay attached.
+ *
+ * The unit can be sized and turned (ProcessNode.layout): the drawing is
+ * scaled and rotated as a picture, and each nozzle's handle is placed where
+ * that nozzle ends up, facing the way it now faces, so pipes stay on their
+ * flanges and leave in the right direction.
  */
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { palette, machineVisuals, font, size, weight, radius: r, motion } = useTheme();
   const nodeData = data as unknown as CanvasNodeData;
-  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, kgPerHour, phase, phaseName } = nodeData;
+  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, kgPerHour, phase, phaseName, onLayoutChange } = nodeData;
   // A unit with a gas or solid port is read in kg/h: its gallons are not meaningful.
   const byMass = (processNode.outputs ?? []).concat(processNode.inputs ?? []).some((p) => {
     const ph = nodePortPhase(processNode, p.id);
@@ -39,18 +54,27 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const [hovered, setHovered] = useState(false);
   const updateNodeInternals = useUpdateNodeInternals();
   const edges = useEdges();
+  const zoom = useStore((st) => st.transform[2]);
 
   const visualState = machineVisuals[state] ?? machineVisuals['IDLE']!;
   const isBlocked = state === 'BLOCKED';
   const isRunning = state === 'BUSY';
 
-  const layout = useMemo(() => layoutNozzles(processNode), [processNode]);
+  const nozzles = useMemo(() => layoutNozzles(processNode), [processNode]);
   // A batch unit's phases, as its contract runs them.
   const phases = useMemo(() => {
     const b = effectiveContract(processNode)?.behavior;
     return b?.mode === 'BATCH' ? b.phases.map((p) => p.name) : [];
   }, [processNode]);
-  const { width, height } = drawingSize(processNode.kind, processNode.dressing);
+
+  // Size and orientation: a live scale while the corner grip is dragged, else the flowsheet's.
+  const [liveScale, setLiveScale] = useState<number | null>(null);
+  const layout = liveScale === null ? processNode.layout : scaleLayout(processNode.layout, liveScale);
+  const { scale, rotation, flipX } = resolvedLayout(layout);
+  const natural = drawingSize(processNode.kind, processNode.dressing);
+  const placed = placedSize(natural.width, natural.height, layout);
+  // The box the unit takes on the sheet, turned.
+  const { width, height } = placed;
 
   const connected = useMemo(() => {
     const s = new Set<string>();
@@ -61,12 +85,12 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
     return s;
   }, [edges, id]);
 
-  // Handles move when nozzles move: React Flow caches handle bounds, so tell
-  // it to measure again, or pipes stay attached to the old positions.
-  const anchorKey = layout.anchors.map((a) => `${a.port.id}:${a.x}:${a.y}:${a.side}`).join('|');
+  // Handles move when nozzles move or the unit turns: React Flow caches handle
+  // bounds, so tell it to measure again, or pipes stay on the old positions.
+  const anchorKey = nozzles.anchors.map((a) => `${a.port.id}:${a.x}:${a.y}:${a.side}`).join('|');
   useEffect(() => {
     updateNodeInternals(id);
-  }, [id, anchorKey, width, height, updateNodeInternals]);
+  }, [id, anchorKey, width, height, rotation, flipX, updateNodeInternals]);
 
   const phaseOf = (portId: string) => nodePortPhase(processNode, portId);
   const streamColor = (dim: string, portId?: string) => {
@@ -79,13 +103,44 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
 
   const outline = isBlocked ? palette.status.blocked : selected ? palette.border.glow : 'transparent';
   const figureStubs = [
-    ...layout.anchors
+    ...nozzles.anchors
       .filter((a) => a.nozzle)
       .map((a) => ({ nozzle: a.nozzle!, color: streamColor(a.port.flowDimension, a.port.id), emphasis: connected.has(a.port.id) })),
-    ...layout.decorative.map((z) => ({ nozzle: z, color: palette.text.muted }))
+    ...nozzles.decorative.map((z) => ({ nozzle: z, color: palette.text.muted }))
   ];
 
-  const hasBottomNozzle = [...layout.anchors.map((a) => a.side), ...layout.decorative.map((z) => z.position)].includes('bottom');
+  // Where each nozzle sits once the drawing is turned and mirrored.
+  const placedAnchors = nozzles.anchors.map((a) => ({ ...a, ...placePoint(a.x, a.y, a.side, layout) }));
+  const hasBottomNozzle = [...placedAnchors.map((a) => a.side), ...nozzles.decorative.map((z) => placePoint(z.x, z.y, z.position, layout).side)].includes('bottom');
+
+  // The corner grip: drag it to size the unit.
+  const onGrip = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!onLayoutChange) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const el = e.currentTarget;
+    el.setPointerCapture(e.pointerId);
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const s0 = scale;
+    const base = (width + height) / 2;
+    let last = s0;
+    const move = (ev: PointerEvent) => {
+      const d = (ev.clientX - x0 + (ev.clientY - y0)) / 2 / (zoom || 1);
+      last = clampScale((s0 * (base + d)) / base);
+      setLiveScale(last);
+    };
+    const up = () => {
+      el.removeEventListener('pointermove', move);
+      el.removeEventListener('pointerup', up);
+      el.removeEventListener('pointercancel', up);
+      setLiveScale(null);
+      if (last !== s0) onLayoutChange(id, scaleLayout(processNode.layout, last));
+    };
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', up);
+  };
 
   const tag = unitTag(processNode.name);
   const title = tag ? processNode.name.replace(tag, '').trim() : processNode.name;
@@ -109,6 +164,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         minWidth: width + PAD * 2
       }}
     >
+      <LayoutToolbar nodeId={id} layout={processNode.layout} onLayoutChange={onLayoutChange} />
       <div
         style={{
           position: 'relative',
@@ -121,15 +177,24 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           transition: `background-color ${motion.fast}, box-shadow ${motion.normal}`
         }}
       >
-        <EquipmentFigure
-          kind={processNode.kind}
-          dressing={processNode.dressing}
-          isRunning={isRunning}
-          stubs={figureStubs}
-          {...(levelFraction !== undefined ? { levelFraction } : {})}
-        >
-          {layout.anchors.map((a) => {
-            const at = a.nozzle ? flangePoint(a.x, a.y, a.side, width, height) : { x: (a.x / 100) * width, y: (a.y / 100) * height };
+        <div style={{ position: 'relative', width, height }}>
+          <EquipmentFigure
+            kind={processNode.kind}
+            dressing={processNode.dressing}
+            isRunning={isRunning}
+            stubs={figureStubs}
+            width={placed.drawnWidth}
+            stubScale={scale}
+            style={{
+              position: 'absolute',
+              left: (width - placed.drawnWidth) / 2,
+              top: (height - placed.drawnHeight) / 2,
+              ...(rotation || flipX ? { transform: layoutTransform(layout), transformOrigin: 'center center' } : {})
+            }}
+            {...(levelFraction !== undefined ? { levelFraction } : {})}
+          />
+          {placedAnchors.map((a) => {
+            const at = a.nozzle ? flangePoint(a.x, a.y, a.side, width, height, STUB_PX * scale) : { x: (a.x / 100) * width, y: (a.y / 100) * height };
             const color = streamColor(a.port.flowDimension, a.port.id);
             const phase = phaseOf(a.port.id);
             const isConnected = connected.has(a.port.id);
@@ -188,7 +253,31 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
               </React.Fragment>
             );
           })}
-        </EquipmentFigure>
+        </div>
+        {selected && onLayoutChange && (
+          <div
+            className="nodrag nopan"
+            role="slider"
+            aria-label="Unit size"
+            aria-valuemin={50}
+            aria-valuemax={300}
+            aria-valuenow={Math.round(scale * 100)}
+            title={`Drag to size the unit (${Math.round(scale * 100)}%)`}
+            onPointerDown={onGrip}
+            style={{
+              position: 'absolute',
+              right: 3,
+              bottom: 3,
+              width: 11,
+              height: 11,
+              borderRight: `2px solid ${palette.border.glow}`,
+              borderBottom: `2px solid ${palette.border.glow}`,
+              borderBottomRightRadius: 3,
+              cursor: 'nwse-resize',
+              zIndex: 5
+            }}
+          />
+        )}
       </div>
 
       {/* Tag, name and state, under the drawing like a P&ID label. Opaque, so a

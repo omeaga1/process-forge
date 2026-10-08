@@ -189,7 +189,7 @@ export function useMcpBridge(
       graphRef.current = r.graph;
       window.dispatchEvent(
         new CustomEvent(MCP_ACTIVITY_EVENT, {
-          detail: { name: r.message.replace(/\.$/, ''), nodeId: request.op === 'update-unit' ? r.unit?.id : undefined, at: Date.now() }
+          detail: { name: r.message.replace(/\.$/, ''), nodeId: request.op === 'update-unit' || request.op === 'arrange-unit' ? r.unit?.id : undefined, at: Date.now() }
         })
       );
       return {

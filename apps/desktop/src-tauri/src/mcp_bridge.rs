@@ -237,18 +237,19 @@ fn handle(mut stream: TcpStream, bridge: Bridge) {
         }
         ("POST", "/v1/edits") => {
             // A change to what is already on the flowsheet: a unit's settings
-            // or name, removing a unit, removing a stream. The web view applies
+            // or name, removing a unit, removing a stream, arranging a unit or
+            // routing a stream on the sheet. The web view applies
             // it with protocol's applyFlowsheetEdit and says what it did.
             let payload: Value = match serde_json::from_slice(&req.body) {
                 Ok(v) => v,
                 Err(e) => return respond(&mut stream, 400, &json!({ "error": format!("body is not JSON: {e}") })),
             };
             let op = payload.get("op").and_then(Value::as_str).unwrap_or("");
-            if !matches!(op, "update-unit" | "remove-unit" | "remove-stream") {
+            if !matches!(op, "update-unit" | "remove-unit" | "remove-stream" | "arrange-unit" | "route-stream") {
                 return respond(
                     &mut stream,
                     400,
-                    &json!({ "error": "expected { \"op\": \"update-unit\" | \"remove-unit\" | \"remove-stream\", ... }" }),
+                    &json!({ "error": "expected { \"op\": \"update-unit\" | \"remove-unit\" | \"remove-stream\" | \"arrange-unit\" | \"route-stream\", ... }" }),
                 );
             }
             let (code, body) = queue_and_wait(&bridge, "edit", payload);

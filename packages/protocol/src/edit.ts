@@ -4,6 +4,7 @@ import { resolveUnit } from './connect.js';
 import { FEED_LIQUID_KEYS, terminalRole } from './terminals.js';
 import type { UnitOpContract } from './unitop/contract.js';
 import { executeValidateUnitOp } from './unitop/review.js';
+import { compactLayout, MAX_SCALE, MIN_SCALE, resolvedLayout, type Rotation } from './layout/placement.js';
 
 /**
  * Edits an MCP client (or anything else) can make to a flowsheet by naming
@@ -15,7 +16,11 @@ import { executeValidateUnitOp } from './unitop/review.js';
 export type FlowsheetEdit =
   | { op: 'update-unit'; unit: string; parameters?: Record<string, unknown>; name?: string }
   | { op: 'remove-unit'; unit: string }
-  | { op: 'remove-stream'; stream?: string; from?: string; to?: string };
+  | { op: 'remove-stream'; stream?: string; from?: string; to?: string }
+  /** Move, size, turn or mirror a unit on the sheet. Drawing only: the simulation is unchanged. */
+  | { op: 'arrange-unit'; unit: string; position?: { x: number; y: number }; scale?: number; rotation?: number; flipX?: boolean }
+  /** Give a stream the bends it runs through, or (auto) let it route itself around the equipment. */
+  | { op: 'route-stream'; stream?: string; from?: string; to?: string; waypoints?: { x: number; y: number }[]; auto?: boolean };
 
 export interface ParameterChange {
   parameter: string;
@@ -177,8 +182,87 @@ function removeStream(graph: ProcessGraph, edit: Extract<FlowsheetEdit, { op: 'r
   };
 }
 
+function arrangeUnit(graph: ProcessGraph, edit: Extract<FlowsheetEdit, { op: 'arrange-unit' }>): EditOutcome {
+  const found = resolveUnit(graph, String(edit.unit ?? ''));
+  if (typeof found === 'string') return { ok: false, error: found };
+  const finite = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
+  if (edit.position !== undefined && !(finite(edit.position?.x) && finite(edit.position?.y))) {
+    return { ok: false, error: 'position is { x, y } in canvas pixels.' };
+  }
+  if (edit.scale !== undefined && !(finite(edit.scale) && edit.scale >= MIN_SCALE && edit.scale <= MAX_SCALE)) {
+    return { ok: false, error: `scale is the size against the drawing's natural size, ${MIN_SCALE} to ${MAX_SCALE} (1 is natural).` };
+  }
+  let rotation: Rotation | undefined;
+  if (edit.rotation !== undefined) {
+    const r = (((Math.round(Number(edit.rotation)) % 360) + 360) % 360);
+    if (!finite(edit.rotation) || r % 90 !== 0) return { ok: false, error: 'rotation is clockwise in quarter turns: 0, 90, 180 or 270 degrees.' };
+    rotation = r as Rotation;
+  }
+  if (edit.position === undefined && edit.scale === undefined && rotation === undefined && edit.flipX === undefined) {
+    return { ok: false, error: 'Nothing to change: give position, scale, rotation or flipX.' };
+  }
+  const was = resolvedLayout(found.layout);
+  const layout = compactLayout({
+    scale: edit.scale ?? was.scale,
+    rotation: rotation ?? was.rotation,
+    flipX: edit.flipX ?? was.flipX
+  });
+  const { layout: _old, ...rest } = found;
+  const updated: ProcessNode = { ...rest, ...(layout ? { layout } : {}), ...(edit.position ? { position: { x: edit.position.x, y: edit.position.y } } : {}) };
+  const now = resolvedLayout(layout);
+  const what = [
+    ...(edit.position ? [`moved to (${Math.round(edit.position.x)}, ${Math.round(edit.position.y)})`] : []),
+    ...(now.scale !== was.scale ? [`sized to ${Math.round(now.scale * 100)} %`] : []),
+    ...(now.rotation !== was.rotation ? [`turned to ${now.rotation}°`] : []),
+    ...(now.flipX !== was.flipX ? [now.flipX ? 'mirrored' : 'unmirrored'] : [])
+  ];
+  return {
+    ok: true,
+    graph: { ...graph, nodes: graph.nodes.map((n) => (n.id === found.id ? updated : n)) },
+    unit: { id: found.id, name: found.name },
+    message: `${found.name}: ${what.join(', ') || 'unchanged'}. Its pipes stay on their nozzles; a pipe with bends of its own keeps them.`
+  };
+}
+
+function routeStream(graph: ProcessGraph, edit: Extract<FlowsheetEdit, { op: 'route-stream' }>): EditOutcome {
+  const name = (id: string) => graph.nodes.find((n) => n.id === id)?.name ?? id;
+  let matches = graph.edges;
+  if (edit.stream) {
+    matches = graph.edges.filter((e) => e.id === edit.stream);
+    if (!matches.length) return { ok: false, error: `No stream "${edit.stream}". get_open_flowsheet lists them.` };
+  } else {
+    if (!edit.from || !edit.to) return { ok: false, error: 'Name the stream: its id as "stream", or the units at its ends as "from" and "to".' };
+    const from = resolveUnit(graph, edit.from);
+    if (typeof from === 'string') return { ok: false, error: from };
+    const to = resolveUnit(graph, edit.to);
+    if (typeof to === 'string') return { ok: false, error: to };
+    matches = graph.edges.filter((e) => e.sourceNodeId === from.id && e.targetNodeId === to.id);
+    if (!matches.length) return { ok: false, error: `No stream from ${from.name} to ${to.name}.` };
+    if (matches.length > 1) return { ok: false, error: `${matches.length} streams run from ${from.name} to ${to.name}: ${matches.map((e) => e.id).join(', ')}. Give one as "stream".` };
+  }
+  const e = matches[0]!;
+  const auto = edit.auto === true || !edit.waypoints?.length;
+  if (!auto) {
+    if (edit.waypoints!.length > 64) return { ok: false, error: 'At most 64 bends.' };
+    if (!edit.waypoints!.every((w) => Number.isFinite(w?.x) && Number.isFinite(w?.y))) return { ok: false, error: 'waypoints are [{ x, y }, ...] in canvas pixels.' };
+  }
+  const { waypoints: _old, ...rest } = e;
+  const updated = auto ? rest : { ...rest, waypoints: edit.waypoints!.map((w) => ({ x: Math.round(w.x), y: Math.round(w.y) })) };
+  return {
+    ok: true,
+    graph: { ...graph, edges: graph.edges.map((x) => (x.id === e.id ? updated : x)) },
+    message: auto
+      ? `The stream from ${name(e.sourceNodeId)} to ${name(e.targetNodeId)} now routes itself around the equipment.`
+      : `The stream from ${name(e.sourceNodeId)} to ${name(e.targetNodeId)} now runs through ${edit.waypoints!.length} bend${edit.waypoints!.length === 1 ? '' : 's'}, joined square.`
+  };
+}
+
 export function applyFlowsheetEdit(graph: ProcessGraph, edit: FlowsheetEdit): EditOutcome {
   switch (edit?.op) {
+    case 'arrange-unit':
+      return arrangeUnit(graph, edit);
+    case 'route-stream':
+      return routeStream(graph, edit);
     case 'update-unit':
       return updateUnit(graph, edit);
     case 'remove-unit':

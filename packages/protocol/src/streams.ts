@@ -27,6 +27,12 @@ export const ProcessEdgeSchema = z.object({
   sourcePortId: z.string().min(1),
   targetNodeId: z.string().min(1),
   targetPortId: z.string().min(1),
-  stream: z.union([ContinuousFluidStreamSchema, DiscreteContainerStreamSchema])
+  stream: z.union([ContinuousFluidStreamSchema, DiscreteContainerStreamSchema]),
+  /**
+   * The pipe's route, drawn by hand: the bends it passes through between its
+   * two nozzles, in flowsheet coordinates. Runs between them are orthogonal.
+   * Absent, the canvas routes it around the equipment by itself. Drawing only.
+   */
+  waypoints: z.array(z.object({ x: z.number(), y: z.number() })).max(64).optional()
 });
 export type ProcessEdge = z.infer<typeof ProcessEdgeSchema>;

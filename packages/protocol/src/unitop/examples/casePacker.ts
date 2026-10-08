@@ -12,6 +12,7 @@ import type { UnitOpContract } from '../contract.js';
 export const CASE_PACKER_CONTRACT: UnitOpContract = {
   contractVersion: 1,
   id: 'wrap-around-case-packer-v1',
+  archetype: 'case-packer',
   name: 'Wrap-around case packer',
   description:
     'Collates bottles into a pack pattern, wraps a carton blank around them and glues it. One case a cycle; a case that fails the check-weigher goes to the reject lane.',

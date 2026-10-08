@@ -125,3 +125,34 @@ describe('Flowsheet edits: designed units', () => {
     assert.match(r.warnings![0]!, /design parameters are: steamDutyKw, maxFeedGpm/);
   });
 });
+
+describe('Arranging the sheet', () => {
+  it('turns, sizes, mirrors and moves a unit, storing only what differs from upright and natural', () => {
+    const g = line();
+    let r = applyFlowsheetEdit(g, { op: 'arrange-unit', unit: 'P-102', rotation: 90, scale: 1.5 });
+    assert.ok(r.ok);
+    assert.deepEqual(r.graph.nodes.find((n) => n.id === 'pump')!.layout, { scale: 1.5, rotation: 90 });
+    assert.match(r.message, /turned to 90°/);
+    r = applyFlowsheetEdit(r.graph, { op: 'arrange-unit', unit: 'pump', rotation: 0, scale: 1, position: { x: 40, y: 60 } });
+    assert.ok(r.ok);
+    const pump = r.graph.nodes.find((n) => n.id === 'pump')!;
+    assert.equal(pump.layout, undefined);
+    assert.deepEqual(pump.position, { x: 40, y: 60 });
+  });
+
+  it('refuses a turn that is not a quarter, and a size out of range', () => {
+    assert.ok(!applyFlowsheetEdit(line(), { op: 'arrange-unit', unit: 'pump', rotation: 45 }).ok);
+    assert.ok(!applyFlowsheetEdit(line(), { op: 'arrange-unit', unit: 'pump', scale: 9 }).ok);
+    assert.ok(!applyFlowsheetEdit(line(), { op: 'arrange-unit', unit: 'pump' }).ok);
+  });
+
+  it('routes a stream through bends, and hands it back to the router', () => {
+    let r = applyFlowsheetEdit(line(), { op: 'route-stream', from: 'pump', to: 'tank', waypoints: [{ x: 10.4, y: 300 }] });
+    assert.ok(r.ok);
+    assert.deepEqual(r.graph.edges.find((e) => e.id === 'e2')!.waypoints, [{ x: 10, y: 300 }]);
+    r = applyFlowsheetEdit(r.graph, { op: 'route-stream', stream: 'e2', auto: true });
+    assert.ok(r.ok);
+    assert.equal(r.graph.edges.find((e) => e.id === 'e2')!.waypoints, undefined);
+    assert.ok(!applyFlowsheetEdit(line(), { op: 'route-stream', stream: 'nope' }).ok);
+  });
+});

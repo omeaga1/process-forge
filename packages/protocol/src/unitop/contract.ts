@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { UnitOpDrawingSchema } from './drawing.js';
-import { MaterialPhaseSchema, UnitOpPhaseChangeSchema } from './phases.js';
+import { MaterialPhaseSchema, PHASE_ARCHETYPES, UnitOpPhaseChangeSchema } from './phases.js';
 import { phaseIssues } from './phaseBalance.js';
 import { parseExpression, referencedNames, ExpressionError } from './expression.js';
 import {
@@ -95,7 +95,33 @@ export const UnitOpParameterSchema = z.object({
   value: z.number(),
   min: z.number().optional(),
   max: z.number().optional(),
-  description: z.string().optional()
+  description: z.string().optional(),
+  /** Whole numbers only: a count of nozzles, stations, passes or trays. */
+  integer: z.boolean().optional(),
+  /**
+   * The values it can take when it is a choice, not a continuum: a bag
+   * fabric's temperature rating, a pipe schedule, a motor size from a
+   * catalogue. The value must be one of them.
+   */
+  options: z.array(z.object({ label: z.string().min(1), value: z.number() })).min(2).max(24).optional(),
+  /**
+   * How the engineer edits it. All optional: the panel picks a control from
+   * the parameter itself (a choice, a count, a bounded value, an open one)
+   * and groups by kind of quantity when no group is given.
+   */
+  ui: z
+    .object({
+      control: z.enum(['slider', 'number', 'stepper', 'select', 'toggle']).optional(),
+      /** The section it is shown in: "Geometry", "Operating conditions", "Performance". */
+      group: z.string().min(1).optional(),
+      /** Increment for steppers and arrow keys, in the parameter's unit. */
+      step: z.number().positive().optional(),
+      /** Log for a range spanning decades (a particle size, a viscosity). */
+      scale: z.enum(['linear', 'log']).optional(),
+      /** Tucked under "Advanced": rarely changed (a correlation constant, a fouling factor). */
+      advanced: z.boolean().optional()
+    })
+    .optional()
 });
 export type UnitOpParameter = z.infer<typeof UnitOpParameterSchema>;
 
@@ -377,6 +403,16 @@ export const UnitOpContractSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().default(''),
+  /**
+   * The kind of equipment this is, by archetype id (design_unit_op's
+   * phasePlan.archetype.id: 'pump', 'spray-dryer', 'two-stream-exchanger'...).
+   * Stated, it holds the contract to that equipment's physics: its port
+   * phases, phase changes, behavior mode and the quantities and checks a
+   * complete design of it has (physicsAlignment.ts). 'custom' says it is none
+   * of them. Absent, the engine infers it from the name and description and
+   * only warns.
+   */
+  archetype: z.string().min(1).optional(),
   ports: z.array(UnitOpPortSchema).min(1),
   parameters: z.array(UnitOpParameterSchema).default([]),
   derived: z.array(UnitOpDerivedSchema).default([]),
@@ -494,6 +530,9 @@ export const BATCH_SCOPE_NAMES = ['batch.gallons', 'batch.temperatureC', 'batch.
  */
 export function validateUnitOpContract(contract: UnitOpContract): ContractValidationIssue[] {
   const issues: ContractValidationIssue[] = [];
+  if (contract.archetype && contract.archetype !== 'custom' && !PHASE_ARCHETYPES.some((a) => a.id === contract.archetype)) {
+    issues.push({ path: 'archetype', message: `"${contract.archetype}" is not an archetype. Use one of ${PHASE_ARCHETYPES.map((a) => a.id).join(', ')}, or 'custom' for equipment that is none of them.` });
+  }
   const known = new Set<string>(RESERVED_SCOPE_NAMES);
   if (contract.behavior.mode === 'BATCH') for (const n of BATCH_SCOPE_NAMES) known.add(n);
   const components = contract.components ?? [];
@@ -528,6 +567,27 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
         path: `parameters.${p.name}`,
         message: `value ${p.value} ${p.unit} is above the declared maximum ${p.max}`
       });
+    }
+    if (p.integer && !Number.isInteger(p.value)) {
+      issues.push({ path: `parameters.${p.name}`, message: `is a whole number (integer: true), but its value is ${p.value}` });
+    }
+    if (p.options) {
+      if (!p.options.some((o) => o.value === p.value)) {
+        issues.push({ path: `parameters.${p.name}`, message: `value ${p.value} is not one of its options (${p.options.map((o) => `${o.label} = ${o.value}`).join(', ')})` });
+      }
+      const out = p.options.filter((o) => (p.min !== undefined && o.value < p.min) || (p.max !== undefined && o.value > p.max));
+      if (out.length) issues.push({ path: `parameters.${p.name}.options`, message: `${out.map((o) => o.label).join(', ')} lie outside min/max` });
+    }
+    // An efficiency over 100 % makes energy; a temperature below absolute zero does not exist.
+    if (/(^|_)(eff|efficiency)$|Efficiency$|Eff$/.test(p.name) || /\befficiency\b/i.test(p.label)) {
+      const cap = p.unit.trim() === '%' ? 100 : ['-', '', 'fraction', 'ratio'].includes(p.unit.trim()) ? 1 : undefined;
+      if (cap !== undefined && (p.value > cap || p.value < 0)) {
+        issues.push({ path: `parameters.${p.name}`, message: `an efficiency of ${p.value} ${p.unit} is not physical: it must lie between 0 and ${cap} ${p.unit}` });
+      }
+    }
+    const absZero = p.unit.trim() === 'K' ? 0 : ['°C', 'degC', 'C'].includes(p.unit.trim()) ? -273.15 : ['°F', 'degF', 'F'].includes(p.unit.trim()) ? -459.67 : undefined;
+    if (absZero !== undefined && p.value < absZero) {
+      issues.push({ path: `parameters.${p.name}`, message: `${p.value} ${p.unit} is below absolute zero` });
     }
   }
 

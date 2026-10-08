@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ARCHETYPE_PHYSICS, EQUIPMENT_ARCHETYPES, type BehaviorMode, type PhysicsRequirement } from './archetypes.js';
 
 /**
  * Phases: what physical state a stream is in, and therefore which physics,
@@ -273,6 +274,8 @@ export interface PhasePortPlan {
   role?: 'MATERIAL' | 'UTILITY';
   /** How its flow is stated. */
   flowUnits: string;
+  /** Not every design has it (a filler fed by hand, a mixer with one feed). */
+  optional?: boolean;
 }
 
 export interface PhaseArchetype {
@@ -289,9 +292,13 @@ export interface PhaseArchetype {
   keyConstraints: string[];
   /** A worked example contract shipped with the engine, by export name. */
   example?: string;
+  /** The behavior modes this equipment runs in. */
+  behaviorModes?: BehaviorMode[];
+  /** What a complete design of it contains, as checks (archetypes.ts). */
+  requirements?: PhysicsRequirement[];
 }
 
-export const PHASE_ARCHETYPES: readonly PhaseArchetype[] = [
+const MULTIPHASE_ARCHETYPES: PhaseArchetype[] = [
   {
     id: 'dust-collector',
     name: 'Dust collector (baghouse / cartridge / pulse-jet)',
@@ -377,7 +384,8 @@ export const PHASE_ARCHETYPES: readonly PhaseArchetype[] = [
     components: ['solids', 'water', 'air'],
     ports: [
       { id: 'wet', name: 'Wet solids', direction: 'INLET', phase: 'SOLID', dispersed: { water: 'LIQUID' }, carries: ['solids', 'water'], flowUnits: 'kg/h; moisture % wet basis' },
-      { id: 'hot_gas', name: 'Hot gas', direction: 'INLET', phase: 'GAS', carries: ['air', 'water'], flowUnits: 'kg/h dry gas or SCFM; °C' },
+      // Optional: an indirect (contact, steam-tube) dryer is heated through a wall, not by a gas stream.
+      { id: 'hot_gas', name: 'Hot gas', direction: 'INLET', phase: 'GAS', carries: ['air', 'water'], flowUnits: 'kg/h dry gas or SCFM; °C', optional: true },
       { id: 'dry', name: 'Dry solids', direction: 'OUTLET', phase: 'SOLID', dispersed: { water: 'LIQUID' }, carries: ['solids', 'water'], flowUnits: 'kg/h' },
       { id: 'exhaust', name: 'Exhaust', direction: 'OUTLET', phase: 'GAS', carries: ['air', 'water'], flowUnits: 'ACFM' }
     ],
@@ -543,6 +551,9 @@ export const PHASE_ARCHETYPES: readonly PhaseArchetype[] = [
     keyConstraints: ['ERROR powder feed below draw', 'WARNING dwell time too short to compact']
   }
 ];
+
+/** Every archetype, with the physics each is held to. */
+export const PHASE_ARCHETYPES: readonly PhaseArchetype[] = [...MULTIPHASE_ARCHETYPES, ...EQUIPMENT_ARCHETYPES].map((a) => ({ ...a, ...(ARCHETYPE_PHYSICS[a.id] ?? {}) }));
 
 function score(text: string, a: PhaseArchetype): number {
   // Whole words only, and a keyword inside a longer one that also matched ("condense" in

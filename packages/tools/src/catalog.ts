@@ -5,6 +5,7 @@ import {
   createStandardUnitOp,
   effectiveContract,
   findStandardUnitOp,
+  nodePortPhase,
   type Carries,
   type EquipmentPaletteItem,
   type ProcessNode
@@ -16,10 +17,14 @@ import type { AddUnitOptions, HostResult, ToolHost } from './host.js';
  * catalog: protocol/equipment/catalog.ts), and the community library.
  */
 
-export const portsOf = (node: ProcessNode) => ({
-  inlets: node.inputs.map((p) => ({ id: p.id, name: p.name, carries: p.flowDimension === 'DISCRETE_CONTAINER' ? 'items' : 'liquid' })),
-  outlets: node.outputs.map((p) => ({ id: p.id, name: p.name, carries: p.flowDimension === 'DISCRETE_CONTAINER' ? 'items' : 'liquid' }))
-});
+/** A node's ports: what each carries, and its phase where it is a gas or bulk solids. */
+export const portsOf = (node: ProcessNode) => {
+  const port = (p: ProcessNode['inputs'][number]) => {
+    const phase = nodePortPhase(node, p.id);
+    return { id: p.id, name: p.name, carries: p.flowDimension === 'DISCRETE_CONTAINER' ? 'items' : 'liquid', ...(phase === 'GAS' || phase === 'SOLID' ? { phase } : {}) };
+  };
+  return { inlets: node.inputs.map(port), outlets: node.outputs.map(port) };
+};
 
 function describeEntry(item: EquipmentPaletteItem) {
   const sample = createStandardUnitOp(item, { position: { x: 0, y: 0 } });

@@ -101,6 +101,7 @@ export const FLOW_SPLITTER_CONTRACT: UnitOpContract = {
 export const PROCESS_HEATER_CONTRACT: UnitOpContract = {
   contractVersion: 1,
   id: 'standard-process-heater-v1',
+  archetype: 'heater',
   name: 'Process heater',
   description:
     'Heats a liquid stream toward a target temperature with a steam or electric duty, up to its rated duty. When the stream needs more than that, it leaves cooler than the target and the shortfall is reported. Q = m x cp x (T_target - T_in).',
@@ -149,6 +150,7 @@ export const PROCESS_HEATER_CONTRACT: UnitOpContract = {
 export const CSTR_CONTRACT: UnitOpContract = {
   contractVersion: 1,
   id: 'standard-cstr-v1',
+  archetype: 'reactor',
   name: 'Continuous stirred-tank reactor',
   description:
     'A well-mixed continuous reactor running a first-order reaction, reactant -> product. Conversion follows from the residence time: X = k·τ / (1 + k·τ), τ = volume / flow, so more flow means less conversion. Name your feed components "reactant" (and "product"), or redesign it for your chemistry.',

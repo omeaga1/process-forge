@@ -2,6 +2,8 @@ import { UnitOpContractSchema, unitWarnings, validateUnitOpContract, type UnitOp
 import { evaluateUnitOp, blockingViolations } from './evaluate.js';
 import { checkUnitOpDrawing } from './drawing.js';
 import { phaseEnergy, phaseEnergyWarnings, phaseWarnings, type PhaseEnergyCheck } from './phaseBalance.js';
+import { physicsAlignment, type PhysicsAlignment } from './physicsAlignment.js';
+import { suggestFixes, type Fix } from './explore.js';
 
 /**
  * The engine's verdict on a proposed unit operation.
@@ -34,6 +36,20 @@ export interface ValidateUnitOpResult {
     physical: { passed: boolean; errors: string[]; warnings: string[] };
     /** Can it be drawn and piped: every port a nozzle on the drawing, every shape inside it? */
     drawing: { passed: boolean; errors: string[]; warnings: string[] };
+    /**
+     * Is it the physics of the equipment it describes: its archetype's ports,
+     * phase changes, mode and required quantities, and energy and the second
+     * law at the design point (physicsAlignment.ts)? Binding when the
+     * contract declares its archetype; warnings when it is inferred.
+     */
+    physicsAlignment: {
+      passed: boolean;
+      archetype?: string;
+      decidedBy: PhysicsAlignment['decidedBy'];
+      errors: string[];
+      warnings: string[];
+      checklist: PhysicsAlignment['checklist'];
+    };
   };
   /** Computed quantities, when evaluation got far enough to produce them. */
   derived?: Record<string, number>;
@@ -42,14 +58,61 @@ export interface ValidateUnitOpResult {
   behavior?: unknown;
   /** Written to be handed back to the authoring model verbatim. */
   revisionGuidance: string;
+  /**
+   * Everything to change, one item per problem across every gate, each with
+   * where it is and what to do: the engine's side of the negotiation, in a
+   * form a model can work through in one revision.
+   */
+  revisionPlan: RevisionItem[];
+  /**
+   * When the contract's own checks fail: values of single parameters that
+   * make them hold, worked out by the engine (the others held where they
+   * are). Counter-offers the engineer or the model can take.
+   */
+  suggestedFixes?: Fix[];
+}
+
+export interface RevisionItem {
+  gate: 'schema' | 'staticAnalysis' | 'physical' | 'physicsAlignment' | 'drawing';
+  severity: 'ERROR' | 'WARNING';
+  path: string;
+  problem: string;
+  fix?: string;
 }
 
 function reject(
   gates: ValidateUnitOpResult['gates'],
   guidance: string,
+  plan: RevisionItem[],
   extra: Partial<ValidateUnitOpResult> = {}
 ): ValidateUnitOpResult {
-  return { success: true, verdict: 'REJECTED', gates, revisionGuidance: guidance, ...extra };
+  return { success: true, verdict: 'REJECTED', gates, revisionGuidance: guidance, revisionPlan: plan, ...extra };
+}
+
+function alignmentGate(a: PhysicsAlignment): ValidateUnitOpResult['gates']['physicsAlignment'] {
+  return {
+    passed: a.errors.length === 0,
+    ...(a.archetype ? { archetype: a.archetype.id } : {}),
+    decidedBy: a.decidedBy,
+    errors: a.errors.map((f) => `${f.path}: ${f.message} Fix: ${f.fix}`),
+    warnings: a.warnings.map((f) => `${f.path}: ${f.message} Fix: ${f.fix}`),
+    checklist: a.checklist
+  };
+}
+
+const alignmentItems = (a: PhysicsAlignment): RevisionItem[] =>
+  [...a.errors, ...a.warnings].map((f) => ({ gate: 'physicsAlignment', severity: f.severity, path: f.path, problem: f.message, fix: f.fix }));
+
+/** The physics-alignment findings, for guidance: what the contract is held to, and what to change. */
+function alignmentLines(a: PhysicsAlignment): string[] {
+  if (!a.errors.length && !a.warnings.length) return [];
+  const head =
+    a.decidedBy === 'declared'
+      ? `Physics alignment, held to the ${a.archetype!.name} archetype:`
+      : a.decidedBy === 'inferred'
+        ? `Physics alignment (read as a ${a.archetype!.name}; warnings only until you state archetype):`
+        : 'Physics alignment:';
+  return ['', head, ...[...a.errors, ...a.warnings].map((f) => `  - [${f.severity}] ${f.message}\n      Fix: ${f.fix}`)];
 }
 
 export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUnitOpResult {
@@ -57,7 +120,8 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     schema: { passed: false, errors: [] },
     staticAnalysis: { passed: false, errors: [] },
     physical: { passed: false, errors: [], warnings: [] },
-    drawing: { passed: false, errors: [], warnings: [] }
+    drawing: { passed: false, errors: [], warnings: [] },
+    physicsAlignment: { passed: false, decidedBy: 'none', errors: [], warnings: [], checklist: [] }
   };
 
   // Gate 1 -- shape.
@@ -73,11 +137,16 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
         ...gates.schema.errors.map((e) => `  - ${e}`),
         '',
         'Call design_unit_op again if you need the worked example.'
-      ].join('\n')
+      ].join('\n'),
+      parsed.error.issues.map((i) => ({ gate: 'schema' as const, severity: 'ERROR' as const, path: i.path.join('.') || '(root)', problem: i.message }))
     );
   }
   gates.schema.passed = true;
   const contract: UnitOpContract = parsed.data;
+  // The archetype's structure does not need the contract to evaluate, so its
+  // findings come back alongside any structural problems: one round, not two.
+  const structural = physicsAlignment(contract);
+  gates.physicsAlignment = alignmentGate(structural);
 
   // Gate 2 -- static coherence: every expression parses, every name resolves.
   const issues = validateUnitOpContract(contract);
@@ -108,8 +177,10 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
               'number that carries a unit (a density of 900, a cp of 4.18) hides that',
               'unit: make it a parameter with its unit instead.'
             ]
-          : [])
-      ].join('\n')
+          : []),
+        ...alignmentLines(structural)
+      ].join('\n'),
+      [...issues.map((i) => ({ gate: 'staticAnalysis' as const, severity: 'ERROR' as const, path: i.path, problem: i.message })), ...alignmentItems(structural)]
     );
   }
   gates.staticAnalysis.passed = true;
@@ -144,11 +215,18 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
         '',
         'This is usually a division by zero or a value that went non-finite. Guard',
         'the divisor with max(x, <small>) or add a constraint that rules out the',
-        'degenerate case.'
+        'degenerate case.',
+        ...alignmentLines(structural)
       ].join('\n'),
+      [
+        { gate: 'physical', severity: 'ERROR', path: evaluation.error.path, problem: evaluation.error.message, fix: 'Guard the divisor with max(x, <small>) or add a constraint that rules out the degenerate case.' },
+        ...alignmentItems(structural)
+      ],
       { derived: evaluation.derived }
     );
   }
+  const alignment = physicsAlignment(contract, evaluation);
+  gates.physicsAlignment = alignmentGate(alignment);
 
   const blocking = blockingViolations(evaluation);
   const warnings = evaluation.constraints.filter((c) => !c.satisfied && c.severity === 'WARNING');
@@ -160,6 +238,8 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
 
   if (blocking.length > 0) {
     gates.physical.errors = blocking.map((c) => `${c.id}: ${c.message}${c.hint ? ` (${c.hint})` : ''}`);
+    const fixes = suggestFixes(contract, params.parameterOverrides ? { parameterOverrides: params.parameterOverrides } : {});
+    const byConstraint = (id: string) => fixes.filter((f) => f.fixes.includes(id));
     return reject(
       gates,
       [
@@ -169,8 +249,46 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
         'These are the contract\'s own constraints, evaluated against its own',
         'parameter values. Either the parameters are wrong, or a constraint is',
         'stated more tightly than the physics requires. Change the design, not the',
-        'constraint, unless the constraint is genuinely mis-stated.'
+        'constraint, unless the constraint is genuinely mis-stated.',
+        ...(fixes.length
+          ? [
+              '',
+              'The engine worked out single changes that make them hold (others held where they are):',
+              ...fixes.map(
+                (f) => `  - set ${f.parameter} to ${f.value}: ${f.fixes.join(', ')} pass${f.allErrorsPass ? (f.allPass ? '; every check passes' : '; every ERROR check passes') : ''}`
+              )
+            ]
+          : []),
+        ...alignmentLines(alignment)
       ].join('\n'),
+      [
+        ...blocking.map((c) => {
+          const f = byConstraint(c.id)[0];
+          return {
+            gate: 'physical' as const,
+            severity: 'ERROR' as const,
+            path: `constraints.${c.id}`,
+            problem: c.message,
+            fix: f ? `set ${f.parameter} to ${f.value}${c.hint ? ` (${c.hint})` : ''}` : c.hint ?? 'Change the parameters it reads.'
+          };
+        }),
+        ...alignmentItems(alignment)
+      ],
+      { derived: evaluation.derived, behavior: evaluation.behavior, ...(fixes.length ? { suggestedFixes: fixes } : {}) }
+    );
+  }
+
+  if (alignment.errors.length > 0) {
+    return reject(
+      gates,
+      [
+        `"${contract.name}" is coherent, but it is not yet the physics of a ${alignment.archetype?.name ?? 'unit of its kind'}. ${alignment.errors.length} problem(s).`,
+        ...alignmentLines(alignment),
+        '',
+        'The archetype is the one the contract declares (archetype). If this equipment is',
+        "genuinely something else, set archetype to the right id, or to 'custom'."
+      ].join('\n'),
+      alignmentItems(alignment),
       { derived: evaluation.derived, behavior: evaluation.behavior }
     );
   }
@@ -188,6 +306,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
         'viewBox (0-100). Every port needs exactly one nozzle, on the wall of the',
         'equipment, facing the way its pipe leaves.'
       ].join('\n'),
+      [...gates.drawing.errors.map((e) => ({ gate: 'drawing' as const, severity: 'ERROR' as const, path: 'drawing', problem: e })), ...alignmentItems(alignment)],
       { derived: evaluation.derived, behavior: evaluation.behavior }
     );
   }
@@ -200,6 +319,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
       : '',
     gates.drawing.warnings.length > 0 ? `\nDrawing:\n` + gates.drawing.warnings.map((w) => `  - ${w}`).join('\n') : '',
     unchecked.length > 0 ? `\nUnits not checked, and phase notes:\n` + unchecked.map((w) => `  - ${w}`).join('\n') : '',
+    alignmentLines(alignment).join('\n'),
     '',
     'Attach it to a node as config.contract (or send it to the desktop app with',
     'add_unit_op_to_flowsheet). The engine re-evaluates it when the simulation',
@@ -215,7 +335,11 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     derived: evaluation.derived,
     behavior: evaluation.behavior,
     ...(energy ? { phaseEnergy: energy } : {}),
-    revisionGuidance: guidance
+    revisionGuidance: guidance,
+    revisionPlan: [
+      ...warnings.map((w) => ({ gate: 'physical' as const, severity: 'WARNING' as const, path: `constraints.${w.id}`, problem: w.message, ...(w.hint ? { fix: w.hint } : {}) })),
+      ...alignmentItems(alignment)
+    ]
   };
 }
 
@@ -249,6 +373,8 @@ export const UNIT_OP_AUTHORING_RULES: readonly string[] = [
   'For any gas or solids flow, call calculate_stream to convert the engineer\'s figure (ACFM, SCFM, Nm3/h, lb/h...) to kg/s, density and composition before writing designInlet; do not convert by hand.',
   'Give each continuous port its phase when it is not a plain liquid: phase GAS (blown: size it in ACFM/SCFM or kg/s, density from the ideal gas law P M / R T), SOLID (bulk powder, granules or cake: kg/h, bulk density, moisture on a wet or dry basis) or LIQUID (the default). A component carried in another phase than its port goes in dispersed: { dust: \'SOLID\' } on a dirty-air GAS port, { water: \'LIQUID\' } on a damp-powder SOLID port. carries: [names] lists what a port can carry. Every component may only leave in a phase it entered in, or one a phaseChanges entry takes it to: { component, from, to, mechanism (EVAPORATION, CONDENSATION, DRYING, CRYSTALLISATION, MELTING, SOLIDIFICATION, SUBLIMATION, ABSORPTION...), latentHeatKjPerKg }. A change that takes heat needs a heat source (dutyKw, a hot GAS inlet or a UTILITY port) and an energy-balance constraint that shows it is enough; a spray dryer\'s liquid-in, powder-out is legal only because its phaseChanges say so (see phaseChangeExample). Pure separations (a dust collector, a filter, a cyclone) have no phaseChanges (see gasSolidExample).',
   'Test the design where it matters: validate_unit_op checks it at designInlet; a simulation reports, per designed unit, every constraint broken at the conditions it actually saw and for how long (designedUnit.brokenConstraints). An ERROR constraint that fails at designInlet stops the run from starting.',
+  "State what the equipment is: archetype: <id> from design_unit_op's phasePlan.archetype.id (pump, fan-blower, heater, two-stream-exchanger, spray-dryer, dust-collector, reactor...). validate_unit_op then holds the contract to that equipment's physics (gates.physicsAlignment): its port phases, phase changes, behavior mode, and the quantities and checks a complete design has (a pump's shaft power and NPSH, a baghouse's air-to-cloth check). A missing ERROR requirement rejects it, with the fix. Use archetype: 'custom' only for equipment that is none of them. It also checks energy at the design point whatever the archetype: an outlet hotter or colder than the feed needs a duty that covers m cp dT, and channels must trade the same heat without a temperature cross. Each rejection comes with revisionPlan (every problem, where, and the fix) and, when your own constraints fail, suggestedFixes: single-parameter values the engine solved for. Take them or argue with them, but address every item.",
+  "Make the parameters easy to set right. integer: true for counts (nozzles, stations, passes); options: [{ label, value }] when it is a choice from a list (motor frame sizes, a fabric's temperature rating, a pipe schedule) -- the value must be one of them; ui: { group } to group them as the engineer thinks of them (\"Rating\", \"Suction\", \"Geometry\", \"Operating conditions\"), ui: { advanced: true } for constants and correlation coefficients nobody should touch, ui: { scale: 'log' } for a range spanning decades. The panel shows each knob with the band of values where every check passes, solves a failing check for a knob, and lets the engineer type any unit of the same kind (bar for a psi parameter), so bounds and units have to be the real ones.",
   'Set provenance.authoredBy to SUB_AGENT and list in engineerConfirmed only the parameters the engineer actually stated. Do not claim confirmation for values you chose.',
   'Draw the unit in `drawing`: a viewBox { width, height } (20-400 each; wide equipment is wide, tall equipment is tall) and `shapes` in viewBox units. Shapes are rect, circle, ellipse, line, polyline, polygon, or path (plain SVG path data: M L H V C S Q T A Z and numbers only). Every shape must lie inside the viewBox.',
   'Use layer "body" for the equipment outline, "detail" for internals (trays, flights, impellers, coils; drawn thinner), and "fill" for a tinted area such as a liquid level or a bed. Set dashed: true for jackets, sprays, and hidden lines. Draw what makes this unit recognisable to an engineer, not a generic box.',

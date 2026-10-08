@@ -20,6 +20,7 @@ import type { UnitOpContract } from '../contract.js';
 export const DUST_COLLECTOR_CONTRACT: UnitOpContract = {
   contractVersion: 1,
   id: 'pulse-jet-dust-collector-v1',
+  archetype: 'dust-collector',
   name: 'Pulse-jet dust collector (powdered lubricant)',
   description:
     'Baghouse on tablet-press extraction air carrying magnesium stearate. Dusty air in; clean air out; collected powder out of the hopper.',
@@ -154,6 +155,7 @@ export const DUST_COLLECTOR_CONTRACT: UnitOpContract = {
 export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
   contractVersion: 1,
   id: 'co-current-spray-dryer-v1',
+  archetype: 'spray-dryer',
   name: 'Co-current spray dryer',
   description:
     'Atomises a 40 % maltodextrin solution into air the dryer heats. Water evaporates into the exhaust; the solids leave as powder. Liquid in, solid and gas out.',
@@ -314,6 +316,7 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
 export const VENTURI_SCRUBBER_CONTRACT: UnitOpContract = {
   contractVersion: 1,
   id: 'venturi-scrubber-v1',
+  archetype: 'wet-scrubber',
   name: 'Venturi scrubber',
   description: 'Hot dusty gas and scrubbing water in; cooled, cleaned, humidified gas and dirty liquor out. Collection follows the liquid-to-gas ratio and the throat velocity.',
   ports: [

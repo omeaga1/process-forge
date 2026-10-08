@@ -9,6 +9,8 @@ import { CRYSTALLISER_CONTRACT } from './examples/crystalliser.js';
 import { JUICE_CONCENTRATOR_CONTRACT, NEUTRALISER_CONTRACT } from './examples/componentUnits.js';
 import { DUST_COLLECTOR_CONTRACT, SPRAY_DRYER_CONTRACT, VENTURI_SCRUBBER_CONTRACT } from './examples/phaseUnits.js';
 import { TWO_STREAM_EXCHANGER_CONTRACT } from './examples/twoStreamExchanger.js';
+import { PUMP_CONTRACT } from './examples/pump.js';
+import { CSTR_CONTRACT, DISTILLATION_COLUMN_CONTRACT, INLINE_MIXER_CONTRACT, PROCESS_HEATER_CONTRACT } from './examples/standardUnits.js';
 import { matchPhaseArchetypes, PHASE_FLOW_BASIS, type MaterialPhase, type PhaseArchetype, type PhaseFlowBasis } from './phases.js';
 import { LITERS_PER_GALLON } from '../thermal.js';
 import type { ProcessGraph } from '../graph.js';
@@ -67,7 +69,7 @@ export interface DesignUnitOpResult {
   availableFunctions: { name: string; arity: string }[];
   /** Hard rules the contract must satisfy. Stated so the model does not guess. */
   rules: string[];
-  /** A complete, valid steady-flow (CONTINUOUS_RATE) contract to pattern-match against. */
+  /** A complete, valid steady-flow (CONTINUOUS_RATE) contract to pattern-match against. Absent when archetypeExample is given. */
   workedExample: unknown;
   /** A complete, valid cycle (DISCRETE_CYCLE) contract: one part per print. */
   cycleExample: unknown;
@@ -107,6 +109,12 @@ export interface DesignUnitOpResult {
   phaseChangeExample?: unknown;
   /** A complete, valid two-stream exchanger: channels keep the streams apart. Included when the plan is one. */
   channelsExample?: unknown;
+  /**
+   * A complete, valid contract of the matched equipment itself, when the
+   * engine ships one (a pump, a heater, a reactor, a column...), already
+   * meeting every requirement in phasePlan.archetype.requirements.
+   */
+  archetypeExample?: unknown;
   /** What the surrounding process looks like, when a graph was supplied. */
   processContext: {
     available: boolean;
@@ -126,6 +134,23 @@ export interface PhasePlan {
   alternatives: string[];
   notes: string[];
 }
+
+/** Worked examples by the name an archetype gives, beyond the ones the brief always carries. */
+const ARCHETYPE_EXAMPLES: Record<string, unknown> = {
+  PUMP_CONTRACT,
+  PROCESS_HEATER_CONTRACT,
+  CSTR_CONTRACT,
+  NEUTRALISER_CONTRACT,
+  DISTILLATION_COLUMN_CONTRACT,
+  INLINE_MIXER_CONTRACT,
+  CASE_PACKER_CONTRACT,
+  EVAPORATOR_CONTRACT,
+  CRYSTALLISER_CONTRACT,
+  DUST_COLLECTOR_CONTRACT,
+  SPRAY_DRYER_CONTRACT,
+  VENTURI_SCRUBBER_CONTRACT,
+  TWO_STREAM_EXCHANGER_CONTRACT
+};
 
 /** The phase plan for a description: the best-matching archetype, stated for a model to write to. */
 export function phasePlanFor(description: string): PhasePlan {
@@ -148,9 +173,14 @@ export function phasePlanFor(description: string): PhasePlan {
     alternatives: matches.slice(1, 4).map((m) => m.archetype.name),
     notes: [
       `The description reads as a ${best.name}. Write the ports with these phases, state each flow in the units given, and declare these phaseChanges (with latentHeatKjPerKg): the phase gate in validate_unit_op checks that every component leaves only in a phase it entered in or was changed to, and that a change that takes heat has a heat source.`,
+      `Set archetype: '${best.id}' in the contract. validate_unit_op then holds it to this equipment's physics (gates.physicsAlignment): every port phase and phase change above, behavior.mode ${(best.behaviorModes ?? []).join(' or ') || 'as fits'}, and each item in requirements (an ERROR one missing rejects the contract). If it is genuinely something else, set the right archetype or 'custom'.`,
       'Rename ports and components to the engineer\'s words (lubricant rather than dust); keep the phases.',
       best.example === 'TWO_STREAM_EXCHANGER_CONTRACT'
         ? 'channelsExample (a counter-current shell-and-tube) keeps the hot and cold streams apart with channels, reads each inlet with port.<id>.*, and rates the duty by effectiveness-NTU.'
+        : !best.ports.some((p) => p.phase === 'GAS' || p.phase === 'SOLID') && !best.phaseChanges.length
+        ? best.example
+          ? `archetypeExample is a complete ${best.name.toLowerCase()} that meets every requirement: pattern-match its physics.`
+          : 'Every stream is a liquid or items: ports need no phase beyond that.'
         : best.phaseChanges.length
         ? best.example === 'VENTURI_SCRUBBER_CONTRACT'
           ? 'phaseChangeExample (a venturi scrubber) reads each inlet on its own (port.gas_in.*, port.liquor_in.*, with designPorts), works out L/G, droplet size, impaction and Johnstone efficiency, and balances the evaporation against the heat the gas gives up.'
@@ -313,6 +343,9 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
   const plannedPorts = phasePlan.archetype?.ports ?? [];
   const changesPhase = (phasePlan.archetype?.phaseChanges.length ?? 0) > 0;
   const multiphase = plannedPorts.some((p) => p.phase === 'GAS' || p.phase === 'SOLID');
+  // The matched equipment's own worked example, when the engine ships one: it stands in for the generic steady-flow one.
+  const archetypeExample =
+    phasePlan.archetype?.example && !multiphase && !changesPhase ? ARCHETYPE_EXAMPLES[phasePlan.archetype.example] : undefined;
 
   const brief = [
     `Design a unit operation from this description: "${description}"`,
@@ -326,8 +359,8 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     '',
     'The drawing is how the unit appears on the flowsheet: draw the actual',
     'equipment (see the rules), and put each nozzle where that stream really',
-    'connects. Four worked examples show the format: workedExample is steady flow',
-    '(CONTINUOUS_RATE, a wax cooling belt); cycleExample makes whole parts on a',
+    'connects. Worked examples show the format: workedExample is steady flow',
+    '(CONTINUOUS_RATE, a wax cooling belt; archetypeExample, the equipment itself, instead when there is one); cycleExample makes whole parts on a',
     'cycle (DISCRETE_CYCLE, a 3D printer); liveInletExample (an evaporator) reads',
     'what flows in (inlet.*, checked at designInlet) and splits and heats its',
     'outflow per outlet port; assemblyExample (a case packer) takes a kit of items',
@@ -358,9 +391,16 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
           ),
           phasePlan.archetype.phaseChanges.length
             ? `Phase changes: ${phasePlan.archetype.phaseChanges.map((pc) => `${pc.component} ${pc.from} -> ${pc.to} (${pc.mechanism})`).join('; ')}.`
-            : 'No phase changes: a separation. Every component leaves in the phase it came in.'
+            : 'No phase changes: every component leaves in the phase it came in.',
+          '',
+          `Declare archetype: '${phasePlan.archetype.id}'. A complete design of it has (validate_unit_op checks each; ERROR ones are required):`,
+          ...(phasePlan.archetype.requirements ?? []).map((r) => `  [${r.severity}] ${r.what}: ${r.fix}`),
+          'The engine also checks energy at the design point: outlets that leave hotter or colder than the feed need a duty that covers m cp dT (plus latent heat), and streams kept apart in channels must trade the same heat without crossing temperatures.'
         ]
-      : [])
+      : [
+          '',
+          "No equipment archetype matched. Set archetype: 'custom' (or one of the archetype ids if it is one of them). The engine still checks energy at the design point: outlets that leave hotter or colder than the feed need a duty that covers it."
+        ])
   ].join('\n');
 
   return {
@@ -369,7 +409,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     engineSuppliedNames: RESERVED_SCOPE_NAMES,
     availableFunctions,
     rules: [...UNIT_OP_AUTHORING_RULES],
-    workedExample: WAX_COOLING_BELT_CONTRACT,
+    workedExample: archetypeExample ? undefined : WAX_COOLING_BELT_CONTRACT,
     cycleExample: FDM_PRINTER_CONTRACT,
     liveInletExample: EVAPORATOR_CONTRACT,
     assemblyExample: CASE_PACKER_CONTRACT,
@@ -381,6 +421,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     phaseFlowBasis: PHASE_FLOW_BASIS,
     // The examples are large, so only the one this unit needs comes back.
     ...(phasePlan.archetype?.example === 'TWO_STREAM_EXCHANGER_CONTRACT' ? { channelsExample: TWO_STREAM_EXCHANGER_CONTRACT } : {}),
+    ...(archetypeExample ? { archetypeExample } : {}),
     ...(multiphase && !changesPhase ? { gasSolidExample: DUST_COLLECTOR_CONTRACT } : {}),
     ...(changesPhase ? { phaseChangeExample: phasePlan.archetype?.example === 'VENTURI_SCRUBBER_CONTRACT' ? VENTURI_SCRUBBER_CONTRACT : SPRAY_DRYER_CONTRACT } : {}),
     processContext: buildProcessContext(graph, targetNodeId),
