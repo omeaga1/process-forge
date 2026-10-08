@@ -193,9 +193,9 @@ export function phaseWarnings(contract: UnitOpContract): ContractValidationIssue
     }
   });
   const b = contract.behavior;
-  const gasOut = contract.ports.some((p) => p.direction === 'OUTLET' && portPhase(p) === 'GAS');
-  if (gasOut && b.mode === 'CONTINUOUS_RATE' && b.capacityGpm) {
-    out.push({ path: 'behavior.capacityGpm', message: 'capacityGpm limits the flow in gallons of liquid; a gas or solid unit is sized by its own figures (ACFM, kg/h) in derived values and constraints' });
+  const gasIn = contract.ports.some((p) => p.direction === 'INLET' && (p.role ?? 'MATERIAL') === 'MATERIAL' && portPhase(p) === 'GAS');
+  if (gasIn && b.mode === 'CONTINUOUS_RATE' && b.capacityGpm) {
+    out.push({ path: 'behavior.capacityGpm', message: 'capacityGpm limits the flow in gallons, which means nothing for a gas: size a gas unit in ACFM or kg/s in derived values and constraints' });
   }
   return out;
 }

@@ -15,10 +15,11 @@ export const CRYSTALLISER_CONTRACT: UnitOpContract = {
   description:
     'Batch crystalliser: charge, heat to dissolve, cool to crystallise, then decant the mother liquor and drop the slurry.',
   ports: [
-    { id: 'feed', name: 'Feed', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true },
-    { id: 'liquor', name: 'Mother liquor', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true },
-    { id: 'slurry', name: 'Crystal slurry', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true }
+    { id: 'feed', name: 'Feed', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID' },
+    { id: 'liquor', name: 'Mother liquor', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID' },
+    { id: 'slurry', name: 'Crystal slurry', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID', dispersed: { crystals: 'SOLID' } }
   ],
+  phaseChanges: [{ component: 'crystals', from: 'LIQUID', to: 'SOLID', mechanism: 'CRYSTALLISATION', description: 'Solute leaves solution as the batch cools below saturation; the heat of crystallisation is small beside the sensible heat the jacket removes.' }],
   parameters: [
     { name: 'workingGallons', label: 'Working volume', unit: 'gal', value: 1200, min: 10, max: 20000 },
     { name: 'chargeGpm', label: 'Charge rate', unit: 'gal/min', value: 60, min: 1, max: 2000 },

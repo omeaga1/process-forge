@@ -12,6 +12,15 @@ import type { UnitOpContract } from '../contract.js';
 const liquid = (id: string, name: string, direction: 'INLET' | 'OUTLET', required = true) =>
   ({ id, name, direction, role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required }) as const;
 
+/** A continuous port that states its phase, and any component it carries in another phase. */
+const phased = (
+  id: string,
+  name: string,
+  direction: 'INLET' | 'OUTLET',
+  phase: 'LIQUID' | 'GAS' | 'SOLID',
+  dispersed?: Record<string, 'LIQUID' | 'GAS' | 'SOLID'>
+) => ({ ...liquid(id, name, direction), phase, ...(dispersed ? { dispersed } : {}) });
+
 const template = (): UnitOpContract['provenance'] => ({ authoredBy: 'TEMPLATE', engineerConfirmed: [] });
 
 /** Water-like feed at 50 gal/min, 20 °C. */
@@ -253,7 +262,11 @@ export const SOLIDS_FILTER_CONTRACT: UnitOpContract = {
   name: 'Solids filter',
   description:
     'Separates suspended solids from a liquid: a filter press, belt or drum filter. It captures a share of the feed solids in a cake at a set dryness; the rest of the liquid leaves as filtrate. Mass balance on solids: cake share = feed solids x capture / cake solids.',
-  ports: [liquid('in', 'Slurry', 'INLET'), liquid('filtrate', 'Filtrate', 'OUTLET'), liquid('cake', 'Cake', 'OUTLET')],
+  ports: [
+    phased('in', 'Slurry', 'INLET', 'LIQUID', { solids: 'SOLID' }),
+    phased('filtrate', 'Filtrate', 'OUTLET', 'LIQUID', { solids: 'SOLID' }),
+    phased('cake', 'Cake', 'OUTLET', 'SOLID', { water: 'LIQUID' })
+  ],
   parameters: [
     { name: 'feedSolidsPct', label: 'Feed solids', unit: '%', value: 8, min: 0.01, max: 60 },
     { name: 'capture', label: 'Solids captured', unit: '-', value: 0.98, min: 0, max: 1 },
@@ -313,7 +326,11 @@ export const DECANTER_CENTRIFUGE_CONTRACT: UnitOpContract = {
   name: 'Decanter centrifuge',
   description:
     'Spins solids out of a liquid continuously. Recovery falls off above the rated flow, as it does in a real bowl: less time under g means more solids carried over in the centrate. Solids leave as a paste at the set dryness.',
-  ports: [liquid('in', 'Feed', 'INLET'), liquid('centrate', 'Centrate', 'OUTLET'), liquid('solids', 'Solids', 'OUTLET')],
+  ports: [
+    phased('in', 'Feed', 'INLET', 'LIQUID', { solids: 'SOLID' }),
+    phased('centrate', 'Centrate', 'OUTLET', 'LIQUID', { solids: 'SOLID' }),
+    phased('solids', 'Solids', 'OUTLET', 'SOLID', { water: 'LIQUID' })
+  ],
   parameters: [
     { name: 'feedSolidsPct', label: 'Feed solids', unit: '%', value: 10, min: 0.01, max: 50 },
     { name: 'ratedRecovery', label: 'Solids recovery at rated flow', unit: '-', value: 0.95, min: 0, max: 1 },
@@ -375,7 +392,8 @@ export const DISTILLATION_COLUMN_CONTRACT: UnitOpContract = {
   name: 'Distillation column',
   description:
     'A shortcut column: a set share of the feed goes overhead as distillate, the rest leaves as bottoms. The reboiler boils up the distillate plus its reflux, so its duty is distillate x (1 + reflux ratio) x latent heat. Split by share, not by vapour-liquid equilibrium; redesign it with component recoveries for a sharper model.',
-  ports: [liquid('feed', 'Feed', 'INLET'), liquid('distillate', 'Distillate', 'OUTLET'), liquid('bottoms', 'Bottoms', 'OUTLET')],
+  // A total condenser and a reboiler: vapour and liquid change places inside the column, and both products leave as liquid.
+  ports: [phased('feed', 'Feed', 'INLET', 'LIQUID'), phased('distillate', 'Distillate', 'OUTLET', 'LIQUID'), phased('bottoms', 'Bottoms', 'OUTLET', 'LIQUID')],
   parameters: [
     { name: 'distillateShare', label: 'Share taken overhead', unit: '-', value: 0.3, min: 0.01, max: 0.99 },
     { name: 'refluxRatio', label: 'Reflux ratio', unit: '-', value: 2, min: 0, max: 50 },
@@ -438,7 +456,12 @@ export const CONTINUOUS_DRYER_CONTRACT: UnitOpContract = {
   name: 'Continuous dryer',
   description:
     'Drives moisture off a wet feed: a rotary, belt or spray dryer. Water removed per kg of feed = (feed moisture - product moisture) / (100 - product moisture); it leaves as vapour, and the heat to evaporate it (with the dryer\'s losses) is the duty. If the burner cannot supply it, that is flagged.',
-  ports: [liquid('in', 'Wet feed', 'INLET'), liquid('product', 'Dry product', 'OUTLET'), liquid('vapour', 'Exhaust vapour', 'OUTLET')],
+  ports: [
+    phased('in', 'Wet feed', 'INLET', 'SOLID', { water: 'LIQUID' }),
+    phased('product', 'Dry product', 'OUTLET', 'SOLID', { water: 'LIQUID' }),
+    phased('vapour', 'Exhaust vapour', 'OUTLET', 'GAS')
+  ],
+  phaseChanges: [{ component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'DRYING', latentHeatKjPerKg: 'heatPerKgWaterKj' }],
   parameters: [
     { name: 'feedMoisturePct', label: 'Feed moisture', unit: '%', value: 40, min: 0, max: 95 },
     { name: 'productMoisturePct', label: 'Product moisture', unit: '%', value: 5, min: 0, max: 90 },

@@ -1,6 +1,7 @@
 import type { AnswersFor, ChoiceQuestion, NoulQuestion } from './types.js';
 import { text } from './heuristic.js';
 import type { UnitOpContract } from '../unitop/contract.js';
+import { isPhaseAware, portPhase } from '../unitop/phaseBalance.js';
 
 /**
  * What a unit operation needs, decided from its description: which physics a
@@ -95,13 +96,13 @@ export const DESIGN_QUESTIONS = {
     'Does a solid (crystals, cake, powder, granules, paste, pellets) leave the unit?',
     'At least one outlet carries mainly solids.',
     'Everything leaves as liquid, gas or discrete items.',
-    ['crystal', 'cake', 'powder', 'granul', 'paste', 'pellet', 'solids', 'dry product', 'dryer', 'drier', 'flake', 'prill', 'sludge']
+    ['crystal', 'cake', 'powder', 'granul', 'paste', 'pellet', 'solids', 'dry product', 'dryer', 'drier', 'flake', 'prill', 'sludge', 'dust collector', 'baghouse', 'cyclone', 'hopper']
   ),
   gasLeaves: noul(
     'Does a gas or vapour leave the unit?',
     'At least one outlet carries vapour, steam, off-gas or exhaust.',
     'Nothing leaves as gas.',
-    ['vapour', 'vapor', 'off-gas', 'offgas', 'exhaust', 'overhead', 'evaporat', 'boil', 'dryer', 'flash', 'vent', 'distil']
+    ['vapour', 'vapor', 'off-gas', 'offgas', 'exhaust', 'overhead', 'evaporat', 'boil', 'dryer', 'flash', 'vent', 'distil', 'clean air', 'dust collector', 'baghouse', 'scrubber', 'cyclone']
   ),
   handlesItems: noul(
     'Does the unit handle discrete items (containers, parts, cases, pallets) rather than a bulk flow?',
@@ -131,6 +132,8 @@ export function designChecklist(p: DesignProfile): string[] {
   if (p.reaction.value >= LIKELY) out.push('components and reactions (mass basis, coefficients summing to 0), with conversion from the design.');
   else if (p.changesComposition.value >= LIKELY) out.push('components, and outlet recoveries or shares that follow the mass balance.');
   if (p.usesUtility.value >= LIKELY) out.push('The utility: a UTILITY port or a duty that states what the utility supplies or removes.');
+  if (p.gasLeaves.value >= LIKELY || p.solidLeaves.value >= LIKELY || p.phaseChange.value >= LIKELY)
+    out.push('Phases on the ports (phase: LIQUID | GAS | SOLID, dispersed for dust or moisture carried in another phase), flows stated in each phase\'s units (ACFM/SCFM or kg/s for gas, kg/h for solids), and phaseChanges for anything that changes phase.');
   return out;
 }
 
@@ -172,6 +175,15 @@ export function checkDesignCompleteness(contract: UnitOpContract, p: DesignProfi
     w.push({ id: 'reaction', message: 'It looks like a reaction happens here, but the design declares no reactions, so the outlet composition does not change.', probability: p.reaction.value });
   else if (p.changesComposition.value >= LIKELY && !tracksComposition)
     w.push({ id: 'composition', message: 'It looks like this unit changes what the stream is made of, but the design has no components, recoveries or shares.', probability: p.changesComposition.value });
+  // A design that states its phases has made the call; these only flag a design that has not.
+  const phases = new Set(contract.ports.map((x) => portPhase(x)));
+  const statesPhases = isPhaseAware(contract);
+  if (!statesPhases && p.gasLeaves.value >= LIKELY && !phases.has('GAS'))
+    w.push({ id: 'phase-gas', message: 'It looks like a gas or vapour leaves this unit, but no port has phase: GAS, so it is treated as a liquid (in gal/min, without the ideal gas law).', probability: p.gasLeaves.value });
+  if (!statesPhases && p.solidLeaves.value >= LIKELY && !phases.has('SOLID'))
+    w.push({ id: 'phase-solid', message: 'It looks like solids leave this unit, but no port has phase: SOLID, so they are treated as a liquid (in gal/min, without a dry-solids balance).', probability: p.solidLeaves.value });
+  if (!statesPhases && p.phaseChange.value >= LIKELY && !contract.phaseChanges?.length)
+    w.push({ id: 'phase-change', message: 'It looks like something changes phase in this unit, but the design declares no phaseChanges (component, from, to, mechanism, latent heat).', probability: p.phaseChange.value });
   if (p.handlesItems.value >= 0.8 && !hasItems)
     w.push({ id: 'items', message: 'It looks like this unit handles discrete items, but it has no item ports.', probability: p.handlesItems.value });
   return w;
