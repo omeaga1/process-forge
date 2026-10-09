@@ -975,7 +975,9 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
         <MobileFieldView
           graph={graph}
-          telemetry={telemetry}
+          telemetry={liveTelemetry}
+          {...(runView ? { run: runView } : {})}
+          bulkLine={bulkLine}
           isRunning={isRunning}
           onToggleSimulation={handleToggleSimulation}
           onResetSimulation={handleResetSimulation}

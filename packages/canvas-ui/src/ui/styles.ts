@@ -56,6 +56,14 @@ export const UI_CSS = `
 .pf-dialog-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px; }
 .pf-dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--pf-border-subtle); }
 
+.pf-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 1001; box-sizing: border-box; display: flex; flex-direction: column;
+  max-height: 88dvh; background: var(--pf-bg-surface); color: var(--pf-text-primary);
+  border-top: 1px solid var(--pf-border-default); border-radius: 14px 14px 0 0; outline: none;
+  box-shadow: 0 -16px 48px -16px rgb(0 0 0 / 0.5); transition: translate 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.pf-sheet[data-starting-style], .pf-sheet[data-ending-style] { translate: 0 100%; }
+
 .pf-tip {
   z-index: 1100; max-width: 280px; padding: 6px 9px; border-radius: 6px;
   background: var(--pf-bg-surface-elevated); color: var(--pf-text-primary); border: 1px solid var(--pf-border-strong);
@@ -138,6 +146,6 @@ select option, select optgroup { background-color: var(--pf-bg-surface-elevated)
 .pf-chip .pf-count { color: var(--pf-text-muted); font-variant-numeric: tabular-nums; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pf-backdrop, .pf-dialog, .pf-tip, .pf-menu, .pf-tabs-indicator, .pf-switch-thumb { transition: none; }
+  .pf-backdrop, .pf-dialog, .pf-sheet, .pf-tip, .pf-menu, .pf-tabs-indicator, .pf-switch-thumb { transition: none; }
 }
 `;
