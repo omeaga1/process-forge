@@ -9,6 +9,13 @@ import { useUnitOpSyncStatus } from '../../library/unitOpCloudSync.js';
 import { contractToProcessNode } from '../../unitop/contractToNode.js';
 import { describeUnitBehavior, formatRate } from '../../model/unitBehavior.js';
 import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
+import { drawingSize } from '../../nozzles/nozzleLayout.js';
+
+/** A figure's width in a tile: as wide as asked, or narrower so a tall drawing (a column, an evaporator) stays inside its 60 px box. */
+function tileWidth(kind: string, dressing: Parameters<typeof drawingSize>[1], widest: number, tallest = 60): number {
+  const d = drawingSize(kind, dressing);
+  return d.width > 0 && d.height > 0 ? Math.min(widest, (tallest * d.width) / d.height) : widest;
+}
 import { Search, Plus, Layers, Check, Trash2, Bookmark, Sparkles } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { Button, Modal } from '../../ui/index.js';
@@ -245,7 +252,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({ is
                     item.id,
                     justAdded === item.id,
                     () => added(item.id, contractToProcessNode(item.contract)),
-                    <EquipmentFigure kind="CUSTOM_UNIT_OP" {...(dressing ? { dressing } : {})} width={64} />,
+                    <EquipmentFigure kind="CUSTOM_UNIT_OP" {...(dressing ? { dressing } : {})} width={tileWidth('CUSTOM_UNIT_OP', dressing, 64)} />,
                     item.contract.name,
                     item.source === 'mcp' ? 'From your MCP client' : item.source === 'studio' ? 'Saved from a flowsheet' : 'Designed here',
                     b.capacityPerMin !== null ? `${rate.value}${rate.per}` : undefined,
@@ -288,7 +295,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({ is
                         role ? (
                           <TerminalArrow role={role} color={terminalColor(role, palette)} fill={`${terminalColor(role, palette)}14`} width={112} height={28} />
                         ) : (
-                          <EquipmentFigure kind={item.kind} {...(dressing ? { dressing } : {})} width={item.contract ? 68 : 60} />
+                          <EquipmentFigure kind={item.kind} {...(dressing ? { dressing } : {})} width={tileWidth(item.kind, dressing, item.contract ? 68 : 60)} />
                         ),
                         item.title,
                         item.subtitle,
