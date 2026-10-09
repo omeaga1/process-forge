@@ -37,7 +37,8 @@ Licence: [Apache-2.0](LICENSE)
   [GitHub Releases](https://github.com/omeaga1/process-forge/releases/latest).
   The app checks for updates on launch. The Windows installer is not
   code-signed yet, so SmartScreen will warn on first run.
-- **Web:** open <https://process-forge.pages.dev>.
+- **Install guide:** step-by-step instructions for the desktop app and the
+  MCP server are at <https://process-forge.pages.dev/#install>.
 
 ## Using AI
 

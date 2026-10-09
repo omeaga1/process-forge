@@ -49,7 +49,7 @@ interface GhAsset {
   browser_download_url: string;
   size: number;
 }
-interface GhRelease {
+export interface GhRelease {
   tag_name: string;
   assets: GhAsset[];
 }
@@ -74,14 +74,10 @@ export function selectAsset(release: GhRelease, os: DesktopOs): ResolvedInstalle
 }
 
 /**
- * Asks GitHub for the latest release and resolves the installer for `os`.
- * Returns null on any failure -- the caller falls back to the releases page,
- * which always works and is never wrong.
+ * Asks GitHub for the latest release. Returns null on any failure, so callers
+ * fall back to the releases page, which always works and is never wrong.
  */
-export async function fetchLatestInstaller(
-  os: DesktopOs,
-  fetchImpl: typeof fetch = fetch
-): Promise<ResolvedInstaller | null> {
+export async function fetchLatestRelease(fetchImpl: typeof fetch = fetch): Promise<GhRelease | null> {
   try {
     const res = await fetchImpl(LATEST_RELEASE_API, {
       headers: { Accept: 'application/vnd.github+json' }
@@ -89,10 +85,22 @@ export async function fetchLatestInstaller(
     if (!res.ok) return null;
     const release = (await res.json()) as GhRelease;
     if (!release?.assets?.length) return null;
-    return selectAsset(release, os);
+    return release;
   } catch {
     return null;
   }
+}
+
+/**
+ * Asks GitHub for the latest release and resolves the installer for `os`.
+ * Returns null on any failure -- the caller falls back to the releases page.
+ */
+export async function fetchLatestInstaller(
+  os: DesktopOs,
+  fetchImpl: typeof fetch = fetch
+): Promise<ResolvedInstaller | null> {
+  const release = await fetchLatestRelease(fetchImpl);
+  return release ? selectAsset(release, os) : null;
 }
 
 /** Human-readable size for the download button. */

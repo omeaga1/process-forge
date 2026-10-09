@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  fetchLatestInstaller,
+  fetchLatestRelease,
+  selectAsset,
   RELEASES_PAGE,
   formatSize,
-  type DesktopOs
+  type DesktopOs,
+  type ResolvedInstaller
 } from '../downloads/latestRelease.js';
 import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
 import { ProcessForgeEmblem, ThemeScope } from '@process-forge/canvas-ui';
@@ -40,6 +42,16 @@ interface PlatformInfo {
 const GUTTER = 'clamp(16px, 4vw, 32px)';
 const REPO = 'https://github.com/omeaga1/process-forge';
 const NPX = 'npx -y @process-forge/mcp-server';
+const MCPB = `${REPO}/releases/latest/download/process-forge.mcpb`;
+const MCP_CONFIG = `{
+  "mcpServers": {
+    "process-forge": {
+      "command": "npx",
+      "args": ["-y", "@process-forge/mcp-server"]
+    }
+  }
+}`;
+const FIRST_PROMPT = 'Build a paint line: batch reactor, tank, filler and labeler at 30 cans/min, then find the bottleneck.';
 
 const mono: React.CSSProperties = { fontFamily: fontFamily.mono, fontVariantNumeric: 'tabular-nums' };
 const sans: React.CSSProperties = { fontFamily: fontFamily.sans };
@@ -61,12 +73,13 @@ function Section({ id, n, kicker, title, note, children }: {
   );
 }
 
-function CopyCommand({ text }: { text: string }) {
+function CopyCommand({ text, prompt = '$' }: { text: string; prompt?: string | null }) {
   const [copied, setCopied] = useState(false);
+  const multiline = text.includes('\n');
   return (
-    <div style={{ display: 'flex', alignItems: 'stretch', border: `1px solid ${D.border.strong}`, borderRadius: 8, overflow: 'hidden', background: D.background.base }}>
-      <code style={{ ...mono, flex: 1, minWidth: 0, padding: '10px 12px', fontSize: 13, color: D.jade.glow, overflowX: 'auto', whiteSpace: 'nowrap' }}>
-        <span style={{ color: D.text.muted }}>$ </span>
+    <div style={{ display: 'flex', alignItems: multiline ? 'flex-start' : 'stretch', border: `1px solid ${D.border.strong}`, borderRadius: 8, overflow: 'hidden', background: D.background.base }}>
+      <code style={{ ...mono, flex: 1, minWidth: 0, padding: '10px 12px', fontSize: 13, color: D.jade.glow, overflowX: 'auto', whiteSpace: multiline ? 'pre' : 'nowrap' }}>
+        {prompt && <span style={{ color: D.text.muted }}>{prompt} </span>}
         {text}
       </code>
       <button
@@ -78,13 +91,42 @@ function CopyCommand({ text }: { text: string }) {
             window.setTimeout(() => setCopied(false), 1600);
           });
         }}
-        style={{ ...sans, fontSize: 12, fontWeight: 600, padding: '0 14px', border: 'none', borderLeft: `1px solid ${D.border.strong}`, background: D.background.surfaceElevated, color: copied ? D.jade.glow : D.text.primary, cursor: 'pointer' }}
+        style={{ ...sans, fontSize: 12, fontWeight: 600, padding: multiline ? '10px 14px' : '0 14px', alignSelf: 'stretch', border: 'none', borderLeft: `1px solid ${D.border.strong}`, background: D.background.surfaceElevated, color: copied ? D.jade.glow : D.text.primary, cursor: 'pointer' }}
       >
         {copied ? 'Copied' : 'Copy'}
       </button>
     </div>
   );
 }
+
+/** One numbered step of the install guide. */
+function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <li style={{ display: 'grid', gridTemplateColumns: '24px 1fr', gap: 10, alignItems: 'start' }}>
+      <span style={{ ...mono, width: 24, height: 24, borderRadius: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: D.jade.glow, border: `1px solid ${D.jade.glow}66` }}>{n}</span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: D.text.primary, lineHeight: '24px' }}>{title}</div>
+        <div style={{ fontSize: 13, lineHeight: 1.6, color: D.text.secondary, marginTop: 2 }}>{children}</div>
+      </div>
+    </li>
+  );
+}
+
+/** A platform's warning on first launch, and the way past it. */
+function FirstRunNote({ os, children }: { os: string; children: React.ReactNode }) {
+  return (
+    <div style={{ borderLeft: `2px solid ${D.border.glowAmber}`, padding: '2px 0 2px 12px' }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: D.text.primary }}>{os}</div>
+      <div style={{ fontSize: 13, lineHeight: 1.6, color: D.text.secondary, marginTop: 2 }}>{children}</div>
+    </div>
+  );
+}
+
+const OS_LABELS: Record<DesktopOs, { name: string; file: string }> = {
+  windows: { name: 'Windows', file: '.exe installer' },
+  macos: { name: 'macOS', file: '.dmg, Apple silicon' },
+  linux: { name: 'Linux', file: '.AppImage' }
+};
 
 export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunchStudio }) => {
   const [platform, setPlatform] = useState<PlatformInfo>({
@@ -108,17 +150,28 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
     }
   }, []);
 
+  // One request to GitHub serves the hero's button and every link in the
+  // install guide.
+  const [installers, setInstallers] = useState<Partial<Record<DesktopOs, ResolvedInstaller>>>({});
   useEffect(() => {
-    if (platform.os === 'unknown') return;
     let cancelled = false;
-    void fetchLatestInstaller(platform.os as DesktopOs).then((found) => {
-      if (cancelled || !found) return;
-      setPlatform((prev) => ({ ...prev, downloadUrl: found.url, fileLabel: `${prev.fileLabel} · ${found.version} · ${formatSize(found.sizeBytes)}` }));
+    void fetchLatestRelease().then((release) => {
+      if (cancelled || !release) return;
+      const found: Partial<Record<DesktopOs, ResolvedInstaller>> = {};
+      for (const os of Object.keys(OS_LABELS) as DesktopOs[]) {
+        const hit = selectAsset(release, os);
+        if (hit) found[os] = hit;
+      }
+      setInstallers(found);
     });
     return () => {
       cancelled = true;
     };
-  }, [platform.os]);
+  }, []);
+
+  const detected = platform.os === 'unknown' ? undefined : installers[platform.os];
+  const downloadUrl = detected?.url ?? platform.downloadUrl;
+  const fileLabel = detected ? `${platform.fileLabel} · ${detected.version} · ${formatSize(detected.sizeBytes)}` : platform.fileLabel;
 
   const navLink: React.CSSProperties = { ...sans, fontSize: 14, color: D.text.secondary, textDecoration: 'none' };
   const card: React.CSSProperties = { border: `1px solid ${D.border.default}`, borderRadius: 14, background: D.background.surface, padding: '20px 22px' };
@@ -126,7 +179,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
   const primary = (
     <a
       className="pf-cta-primary"
-      href={platform.downloadUrl}
+      href={downloadUrl}
       target="_blank"
       rel="noopener noreferrer"
       style={{ ...sans, display: 'inline-flex', alignItems: 'center', padding: '12px 22px', borderRadius: 9, background: D.jade.glow, color: D.text.inverse, fontWeight: 650, fontSize: 16, textDecoration: 'none', boxShadow: `0 0 28px ${D.jade.glow}45` }}
@@ -135,15 +188,17 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
     </a>
   );
   const secondaryStyle: React.CSSProperties = { ...sans, display: 'inline-flex', alignItems: 'center', padding: '12px 22px', borderRadius: 9, background: 'transparent', color: D.text.primary, border: `1px solid ${D.border.strong}`, fontWeight: 600, fontSize: 16, cursor: 'pointer', textDecoration: 'none' };
-  const secondary = onLaunchStudio ? (
+  const secondary = (
+    <a className="pf-cta-secondary" href={MCPB} style={secondaryStyle}>
+      Add to Claude Desktop
+    </a>
+  );
+  const devStudio = onLaunchStudio && (
     <button className="pf-cta-secondary" onClick={onLaunchStudio} style={secondaryStyle}>
       Open the studio (development)
     </button>
-  ) : (
-    <a className="pf-cta-secondary" href={RELEASES_PAGE} target="_blank" rel="noopener noreferrer" style={secondaryStyle}>
-      macOS, Linux and all releases
-    </a>
   );
+  const textLink: React.CSSProperties = { color: D.jade.glow, textDecoration: 'none' };
 
   return (
     // flexShrink 0: the app's frame is a fixed-height flex column, and a
@@ -197,7 +252,8 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
               {[
                 ['Equipment', '#equipment'],
                 ['Design', '#design'],
-                ['AI', '#ai'],
+                ['Claude & MCP', '#ai'],
+                ['Install', '#install'],
                 ['GitHub', REPO]
               ].map(([label, href]) => (
                 <a
@@ -228,8 +284,14 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
           <div style={{ display: 'flex', gap: 10, marginTop: 28, flexWrap: 'wrap', alignItems: 'center' }}>
             {primary}
             {secondary}
+            {devStudio}
           </div>
-          <div style={{ ...mono, fontSize: 11, color: D.text.muted, marginTop: 12 }}>{platform.fileLabel} · free and open source</div>
+          <div style={{ ...mono, fontSize: 11, color: D.text.muted, marginTop: 12 }}>
+            {fileLabel} · free and open source ·{' '}
+            <a href="#install" className="pf-nav-link" style={{ color: D.text.secondary, textDecoration: 'none' }}>
+              other platforms and install steps
+            </a>
+          </div>
 
           <div style={{ marginTop: 'clamp(36px, 6vw, 56px)' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -266,9 +328,9 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         <Section
           id="ai"
           n="03"
-          kicker="YOUR AI"
-          title="Use the model you already pay for."
-          note="The engine does the physics; the AI only writes designs for it to check and drives the studio for you."
+          kicker="CLAUDE & MCP"
+          title="Run your line from Claude."
+          note="The ProcessForge MCP server gives Claude, Cursor or any MCP client the studio's tools: build a flowsheet, place and pipe equipment, design units nobody ships, simulate the shift, find the bottleneck and compare scenarios. The engine does the physics; the AI drives."
         >
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -276,7 +338,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
                 <div style={{ fontSize: 16, fontWeight: 650 }}>From Claude Desktop, Cursor, or any MCP client</div>
                 <p style={{ margin: '8px 0 14px', fontSize: 14, lineHeight: 1.6, color: D.text.secondary }}>
                   On your existing subscription. The client designs units, places standard equipment, pulls units from the community
-                  library, pipes them together and simulates.
+                  library, pipes them together and simulates. With the desktop app open, it works on the flowsheet on your canvas.
                 </p>
                 <a
                   href="https://github.com/omeaga1/process-forge/releases/latest/download/process-forge.mcpb"
@@ -291,6 +353,10 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
                   One click to install, and it keeps itself up to date. For Cursor and other clients, add the server (Node.js 20 or later):
                 </p>
                 <CopyCommand text={NPX} />
+                <p style={{ margin: '10px 0 0', fontSize: 13, color: D.text.muted }}>
+                  Step by step: <a href="#install" style={textLink}>install guide</a> ·{' '}
+                  <a href={`${REPO}/tree/main/packages/mcp-server#readme`} target="_blank" rel="noopener noreferrer" style={textLink}>every tool</a>
+                </p>
               </div>
               <div style={card}>
                 <div style={{ fontSize: 16, fontWeight: 650 }}>In the app, with OpenRouter</div>
@@ -304,7 +370,109 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
           </div>
         </Section>
 
-        <Section id="limits" n="04" kicker="HONESTLY" title="What it does not do yet.">
+        <Section
+          id="install"
+          n="04"
+          kicker="INSTALL"
+          title="Up and running in a few minutes."
+          note="Install the desktop app to build and simulate lines. Add the MCP server to drive it from Claude. Both are free, and both update themselves."
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
+            <div style={card}>
+              <div style={{ ...mono, fontSize: 11, letterSpacing: '0.12em', color: D.jade.glow }}>DESKTOP APP</div>
+              <div style={{ fontSize: 16, fontWeight: 650, marginTop: 6 }}>Windows, macOS and Linux</div>
+              <ol style={{ listStyle: 'none', padding: 0, margin: '16px 0 0', display: 'grid', gap: 14 }}>
+                <Step n={1} title="Download the installer">
+                  <span style={{ display: 'grid', gap: 6, marginTop: 6 }}>
+                    {(Object.keys(OS_LABELS) as DesktopOs[]).map((os) => {
+                      const hit = installers[os];
+                      return (
+                        <a
+                          key={os}
+                          className="pf-cta-secondary"
+                          href={hit?.url ?? RELEASES_PAGE}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderRadius: 8, border: `1px solid ${D.border.strong}`, color: D.text.primary, textDecoration: 'none', fontSize: 13 }}
+                        >
+                          <span style={{ fontWeight: 600 }}>{OS_LABELS[os].name}</span>
+                          <span style={{ ...mono, fontSize: 11, color: D.text.muted }}>
+                            {OS_LABELS[os].file}
+                            {hit ? ` · ${hit.version} · ${formatSize(hit.sizeBytes)}` : ''}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </span>
+                  <span style={{ display: 'block', marginTop: 6 }}>
+                    Every file, including the .msi, .deb and Intel Mac builds, is on the{' '}
+                    <a href={RELEASES_PAGE} target="_blank" rel="noopener noreferrer" style={textLink}>latest release</a>.
+                  </span>
+                </Step>
+                <Step n={2} title="Run it, and get past the first-run warning">
+                  The installers are not code-signed yet, so your system asks once before it opens them.
+                  <span style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+                    <FirstRunNote os="Windows">
+                      SmartScreen shows “Windows protected your PC”. Click <b>More info</b>, then <b>Run anyway</b>. The installer
+                      sets up for your user only and needs no admin rights.{' '}
+                      <a href="/code-signing.html" target="_blank" rel="noopener noreferrer" style={textLink}>Our code signing policy</a>
+                    </FirstRunNote>
+                    <FirstRunNote os="macOS">
+                      Open the .dmg and drag ProcessForge to Applications. If macOS says it cannot check the app, open{' '}
+                      <b>System Settings → Privacy &amp; Security</b> and click <b>Open Anyway</b>.
+                    </FirstRunNote>
+                    <FirstRunNote os="Linux">
+                      Make the AppImage executable (<code style={mono}>chmod +x ProcessForge_*.AppImage</code>) and run it, or install
+                      the .deb.
+                    </FirstRunNote>
+                  </span>
+                </Step>
+                <Step n={3} title="Updates arrive on their own">
+                  The app checks for a new release each time it starts.
+                </Step>
+              </ol>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={card}>
+                <div style={{ ...mono, fontSize: 11, letterSpacing: '0.12em', color: D.jade.glow }}>MCP · CLAUDE DESKTOP</div>
+                <div style={{ fontSize: 16, fontWeight: 650, marginTop: 6 }}>One-click extension</div>
+                <ol style={{ listStyle: 'none', padding: 0, margin: '16px 0 0', display: 'grid', gap: 14 }}>
+                  <Step n={1} title="Download the extension">
+                    <a href={MCPB} style={textLink}>process-forge.mcpb</a>, from the latest release.
+                  </Step>
+                  <Step n={2} title="Open it">
+                    Double-click the file, or drag it onto Claude Desktop, and click <b>Install</b>. Nothing else to set up:
+                    Claude Desktop runs it on its built-in Node.js, and it keeps itself up to date.
+                  </Step>
+                  <Step n={3} title="Ask Claude">
+                    Start a new chat and try:
+                    <span style={{ display: 'block', marginTop: 8 }}>
+                      <CopyCommand text={FIRST_PROMPT} prompt={null} />
+                    </span>
+                    <span style={{ display: 'block', marginTop: 8 }}>
+                      Keep the desktop app open and Claude builds the line on your canvas, where you can watch it run.
+                    </span>
+                  </Step>
+                </ol>
+              </div>
+              <div style={card}>
+                <div style={{ ...mono, fontSize: 11, letterSpacing: '0.12em', color: D.jade.glow }}>MCP · CURSOR AND OTHER CLIENTS</div>
+                <div style={{ fontSize: 16, fontWeight: 650, marginTop: 6 }}>Add the server to your config</div>
+                <p style={{ margin: '8px 0 12px', fontSize: 13, lineHeight: 1.6, color: D.text.secondary }}>
+                  Needs Node.js 20 or later. Add this to your client’s MCP configuration (for Cursor, <code style={mono}>.cursor/mcp.json</code>)
+                  and restart it:
+                </p>
+                <CopyCommand text={MCP_CONFIG} prompt={null} />
+                <p style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.6, color: D.text.muted }}>
+                  The package is <a href="https://www.npmjs.com/package/@process-forge/mcp-server" target="_blank" rel="noopener noreferrer" style={textLink}>@process-forge/mcp-server</a> on npm.
+                </p>
+              </div>
+            </div>
+          </div>
+        </Section>
+
+        <Section id="limits" n="05" kicker="HONESTLY" title="What it does not do yet.">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
             {[
               ['Pressure', 'No pressure network is solved: flow is limited by each unit\'s rated capacity, not worked out from pressure drops and pump curves.'],
