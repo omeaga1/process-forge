@@ -97,10 +97,10 @@ export const PAINT_CANNING_LINE: ProcessGraph = {
       assignedSubAgentId: 'subagent-surge-200',
       dressing: {
         nozzles: [
-          { id: 'N1', name: 'Latex Transfer Infeed', role: 'inlet', x: 30, y: 15, position: 'top', sizeInches: 3, ratingPsi: 150 },
-          { id: 'N2', name: 'Nitrogen Purge Vent', role: 'vent', x: 60, y: 10, position: 'top', sizeInches: 2, ratingPsi: 150 },
-          { id: 'N3', name: 'Transfer Pump Suction', role: 'outlet', x: 50, y: 95, position: 'bottom', sizeInches: 3, ratingPsi: 150 },
-          { id: 'N4', name: 'Level Transmitter Tap', role: 'tap', x: 85, y: 50, position: 'right', sizeInches: 1, ratingPsi: 150 }
+          { id: 'N1', name: 'Latex Transfer Infeed', role: 'inlet', x: 30, y: 14, position: 'top', sizeInches: 3, ratingPsi: 150 },
+          { id: 'N2', name: 'Nitrogen Purge Vent', role: 'vent', x: 60, y: 14, position: 'top', sizeInches: 2, ratingPsi: 150 },
+          { id: 'N3', name: 'Transfer Pump Suction', role: 'outlet', x: 50, y: 82, position: 'bottom', sizeInches: 3, ratingPsi: 150 },
+          { id: 'N4', name: 'Level Transmitter Tap', role: 'tap', x: 78, y: 50, position: 'right', sizeInches: 1, ratingPsi: 150 }
         ],
         internals: {
           agitatorType: 'none',
