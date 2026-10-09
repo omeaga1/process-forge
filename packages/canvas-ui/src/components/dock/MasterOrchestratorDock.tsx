@@ -20,10 +20,10 @@ import { SplitFlap } from './SplitFlap.js';
 import { unitTag } from '../../model/unitTag.js';
 import { AgentChat } from './AgentChat.js';
 import { RunDigest, type RunView } from './RunDigest.js';
-import { Chip } from '../../ui/index.js';
+import { Button, Chip, Tooltip } from '../../ui/index.js';
 import { supportsAgent } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
-import { Cpu, Loader2, ChevronRight, ChevronLeft, Sparkles, KeyRound } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronLeft, Sparkles, KeyRound } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
@@ -169,62 +169,37 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
 
   if (isCollapsed) {
     return (
-      <div
-        style={{
-          width: 42,
-          height: '100%',
-          backgroundColor: OsakaJadePalette.background.surface,
-          borderLeft: `1px solid ${OsakaJadePalette.border.default}`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: '12px 0',
-          gap: 16,
-          flexShrink: 0,
-          zIndex: 10,
-          cursor: 'pointer',
-          userSelect: 'none'
-        }}
-        onClick={onToggleCollapse}
-        title="Expand the assistant (Alt+D)"
-      >
+      <Tooltip content="Open the Process Copilot · Alt+D" side="left">
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleCollapse?.();
-          }}
+          type="button"
+          className="pf-focus pf-dock-rail"
+          onClick={onToggleCollapse}
+          aria-label="Open the Process Copilot"
           style={{
-            backgroundColor: 'transparent',
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            borderRadius: 6,
-            padding: '6px',
-            color: OsakaJadePalette.jade.glow,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-          title="Expand Studio Dock"
-        >
-          <ChevronLeft size={16} />
-        </button>
-        <div
-          style={{
-            writingMode: 'vertical-rl',
-            transform: 'rotate(180deg)',
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: '0.08em',
-            color: OsakaJadePalette.text.secondary,
+            width: 44,
+            height: '100%',
+            backgroundColor: OsakaJadePalette.background.surface,
+            border: 'none',
+            borderLeft: `1px solid ${OsakaJadePalette.border.default}`,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            gap: 8
+            padding: '14px 0',
+            gap: 14,
+            flexShrink: 0,
+            zIndex: 10,
+            cursor: 'pointer',
+            color: OsakaJadePalette.text.secondary,
+            fontFamily: font.sans
           }}
         >
-          <Cpu size={13} color={OsakaJadePalette.jade.glow} />
-          <span>ENGINEER STUDIO</span>
-        </div>
-      </div>
+          <ChevronLeft size={16} color={OsakaJadePalette.jade.glow} />
+          <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Sparkles size={13} color={OsakaJadePalette.jade.glow} />
+            PROCESS COPILOT
+          </span>
+        </button>
+      </Tooltip>
     );
   }
 
@@ -237,7 +212,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         borderLeft: `1px solid ${OsakaJadePalette.border.default}`,
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontFamily: font.sans,
         color: OsakaJadePalette.text.primary,
         zIndex: 10,
         flexShrink: 0
@@ -314,24 +289,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {onToggleCollapse && (
-              <button
-                onClick={onToggleCollapse}
-                title="Collapse Studio Dock"
-                style={{
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: 6,
-                  padding: '5px 7px',
-                  color: OsakaJadePalette.text.secondary,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 11
-                }}
-              >
-                <ChevronRight size={14} />
-              </button>
+              <Button variant="ghost" size="sm" iconOnly icon={<ChevronRight size={15} />} label="Hide the Process Copilot · Alt+D" onClick={onToggleCollapse} />
             )}
           </div>
         </div>
