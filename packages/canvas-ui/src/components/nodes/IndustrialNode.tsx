@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useEdges, useStore, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
+import { useLabelScale } from './labelScale.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
 import { EquipmentFigure, flangePoint, STUB_PX } from '../../nozzles/EquipmentFigure.js';
@@ -42,6 +43,7 @@ const PAD = 18;
  */
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { palette, machineVisuals, font, size, weight, radius: r, motion } = useTheme();
+  const k = useLabelScale();
   const nodeData = data as unknown as CanvasNodeData;
   const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, kgPerHour, phase, phaseName, onLayoutChange } = nodeData;
   // A unit with a gas or solid port is read in kg/h: its gallons are not meaningful.
@@ -233,7 +235,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
                       transform: horizontal
                         ? `translate(${a.side === 'left' ? 'calc(-100% - 10px)' : '10px'}, -50%)`
                         : `translate(-50%, ${a.side === 'top' ? 'calc(-100% - 9px)' : '9px'})`,
-                      fontSize: 10,
+                      fontSize: 10 * k,
                       fontFamily: font.mono,
                       lineHeight: 1.2,
                       whiteSpace: 'nowrap',
@@ -296,10 +298,10 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           zIndex: 2
         }}
       >
-        <div style={{ fontFamily: font.mono, fontSize: size['2xs'], letterSpacing: '0.08em', color: palette.jade[400], fontWeight: weight.bold }}>
+        <div style={{ fontFamily: font.mono, fontSize: size['2xs'] * k, letterSpacing: '0.08em', color: palette.jade[400], fontWeight: weight.bold }}>
           {tag ?? processNode.kind.replace(/_/g, ' ')}
         </div>
-        <div style={{ fontSize: size.sm, fontWeight: weight.semibold, color: palette.text.primary }}>{title}</div>
+        <div style={{ fontSize: size.sm * k, fontWeight: weight.semibold, color: palette.text.primary }}>{title}</div>
         {(state !== 'IDLE' || instantaneousRate > 0 || isLiquid) && (
           <div
             style={{
