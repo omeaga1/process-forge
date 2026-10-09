@@ -452,3 +452,42 @@ export function roundedPath(points: readonly Point[], radius = 10): { d: string;
   }
   return { d, mid, length };
 }
+
+/**
+ * Where to put a label of `width` x `height` on a pipe: the point along the
+ * route nearest its middle where the label (centred on the point) overlaps no
+ * obstacle (a unit, a feed's or outlet's tag) and no label already placed.
+ * Tries every 8 px of the route; falls back to the middle when nothing is clear.
+ */
+export function labelSpot(points: readonly Point[], width: number, height: number, obstacles: readonly Rect[]): Point {
+  const segs: { a: Point; b: Point; l: number }[] = [];
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    const l = Math.hypot(b.x - a.x, b.y - a.y);
+    segs.push({ a, b, l });
+    total += l;
+  }
+  const at = (s: number): Point => {
+    for (const g of segs) {
+      if (s <= g.l && g.l > 0) return { x: g.a.x + ((g.b.x - g.a.x) * s) / g.l, y: g.a.y + ((g.b.y - g.a.y) * s) / g.l };
+      s -= g.l;
+    }
+    return points[points.length - 1] ?? { x: 0, y: 0 };
+  };
+  const clear = (p: Point) =>
+    obstacles.every(
+      (r) => p.x + width / 2 <= r.x || p.x - width / 2 >= r.x + r.width || p.y + height / 2 <= r.y || p.y - height / 2 >= r.y + r.height
+    );
+  const mid = at(total / 2);
+  if (clear(mid)) return mid;
+  // Outward from the middle, alternating sides.
+  for (let k = 8; k <= total / 2; k += 8) {
+    for (const s of [total / 2 - k, total / 2 + k]) {
+      const p = at(s);
+      if (clear(p)) return p;
+    }
+  }
+  return mid;
+}

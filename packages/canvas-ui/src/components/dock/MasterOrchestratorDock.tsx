@@ -19,6 +19,7 @@ import { McpAssistantPanel } from './McpAssistantPanel.js';
 import { SplitFlap } from './SplitFlap.js';
 import { unitTag } from '../../model/unitTag.js';
 import { AgentChat } from './AgentChat.js';
+import { RunDigest, type RunView } from './RunDigest.js';
 import { supportsAgent } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
 import { Cpu, Loader2, ChevronRight, ChevronLeft, Sparkles, KeyRound } from 'lucide-react';
@@ -38,6 +39,8 @@ interface MasterOrchestratorDockProps {
   onToggleCollapse?: () => void;
   /** The open flowsheet, for the assistant's tools. Without it the chat cannot act on the flowsheet. */
   agentHost?: AgentHost;
+  /** The run at the canvas playhead: the board and the run digest follow it. */
+  run?: RunView;
 }
 
 export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
@@ -53,7 +56,8 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   onOpenPopOutStudio,
   isCollapsed = false,
   onToggleCollapse,
-  agentHost
+  agentHost,
+  run
 }) => {
   const { palette, font, size, weight, space, radius: r, motion } = useTheme();
   const OsakaJadePalette = palette;
@@ -354,7 +358,12 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           const limit = bottlenecks.bottleneckNodeId ? (limitName ? unitTag(limitName) ?? limitName : 'NONE') : 'NONE';
           const rate = telemetry.averageRatePerMin;
           // A line that makes no items (a powder or liquid line) is read in kg.
-          const bulk = telemetry.totalPackaged === 0 && (telemetry.productKg ?? 0) > 0;
+          // Decided by the whole run, so the board does not switch from units to kg as the first kg arrive.
+          const bulk = run ? run.result.totalUnitsPackaged === 0 && run.result.totalFluidDeliveredKg > 0 : telemetry.totalPackaged === 0 && (telemetry.productKg ?? 0) > 0;
+          // kg/h reaching the product outlets right now.
+          const kgNow = run
+            ? graph.nodes.reduce((a, n) => a + ((n.kind === 'TERMINAL' && (n.config as { role?: string }).role === 'product' ? run.snapshot.get(n.id)?.kgPerHour : 0) ?? 0), 0)
+            : 0;
           const kgPerHour = bulk && telemetry.simulatedTimeSeconds > 0 ? (telemetry.productKg! / telemetry.simulatedTimeSeconds) * 3600 : 0;
           const cell = (label: string, unit: string, flap: React.ReactNode, title?: string) => (
             <div title={title} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
@@ -371,7 +380,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px' }}>
               {bulk ? (
                 <>
-                  {cell('Line output', 'kg', <SplitFlap label="Line output" value={String(Math.round(telemetry.productKg!))} width={5} />, 'Bulk product delivered over the run, kg')}
+                  {cell('Line output', 'kg', <SplitFlap label="Line output" value={String(Math.round(telemetry.productKg ?? 0))} width={5} />, 'Product delivered so far, kg')}
                   {cell('Shift average', 'kg/h', <SplitFlap label="Shift average" value={kgPerHour.toFixed(kgPerHour < 100 ? 1 : 0)} width={5} />)}
                 </>
               ) : (
@@ -380,7 +389,9 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                   {cell('Shift average', '/min', <SplitFlap label="Shift average" value={rate > 0 ? rate.toFixed(rate < 100 ? 1 : 0) : '0'} width={5} />)}
                 </>
               )}
-              {cell('Capacity', '/min', <SplitFlap label="Capacity" value={bulk && bottlenecks.maximumSystemThroughputUnitsPerMin === 0 ? '-' : String(Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin))} width={5} color={OsakaJadePalette.text.secondary} />)}
+              {bulk
+                ? cell('Product now', 'kg/h', <SplitFlap label="Product now" value={kgNow.toFixed(kgNow < 100 ? 1 : 0)} width={5} color={OsakaJadePalette.text.secondary} />, 'kg/h reaching the product outlets at this moment of the run')
+                : cell('Capacity', '/min', <SplitFlap label="Capacity" value={String(Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin))} width={5} color={OsakaJadePalette.text.secondary} />)}
               {cell(
                 'Limited by',
                 '',
@@ -397,6 +408,8 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           );
         })()}
       </div>
+
+      {run && <RunDigest graph={graph} run={run} />}
 
       {agentMode && agentHost && <AgentChat host={agentHost} modelLabel={agentCreds.modelId} />}
 
