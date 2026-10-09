@@ -17,6 +17,8 @@ interface StreamRow {
   gpm?: number;
   itemsPerMin?: number;
   temperatureC?: number;
+  /** What it carries, largest first: "water 88%, sugar 12%". */
+  mix?: string;
   blocked: boolean;
 }
 
@@ -59,6 +61,8 @@ export const StreamTable: React.FC<{
         const kgPerHour = t ? (t.portFlows ? port?.kgPerHour ?? 0 : t.kgPerHour) : undefined;
         const gpm = t ? (t.portFlows ? port?.gpm : t.flowGpm) : undefined;
         const temperatureC = port?.temperatureC ?? t?.temperatureC;
+        // A unit that reports per port: that port's own mix; otherwise the unit's (what it sends).
+        const comp = t ? (t.portFlows ? port?.composition : t.composition) : undefined;
         return {
           id: e.id,
           number: `S${i + 1}`,
@@ -69,6 +73,7 @@ export const StreamTable: React.FC<{
           ...(gpm !== undefined && phase === 'LIQUID' ? { gpm } : {}),
           ...(t && phase === 'ITEMS' ? { itemsPerMin: t.instantaneousRatePerMin } : {}),
           ...(temperatureC !== undefined && phase !== 'ITEMS' ? { temperatureC } : {}),
+          ...(comp && phase !== 'ITEMS' ? { mix: mixText(comp) } : {}),
           blocked: t?.state === 'BLOCKED'
         };
       }),
@@ -83,10 +88,11 @@ export const StreamTable: React.FC<{
     { key: 'kgPerHour', head: 'Mass flow', unit: 'kg/h', num: true },
     { key: 'gpm', head: 'Volume flow', unit: 'gal/min', num: true },
     { key: 'itemsPerMin', head: 'Items', unit: '/min', num: true },
-    { key: 'temperatureC', head: 'Temperature', unit: '°C', num: true }
+    { key: 'temperatureC', head: 'Temperature', unit: '°C', num: true },
+    { key: 'mix', head: 'Composition (mass)' }
   ];
   // A figure no stream has (items on a liquid line) is not a column.
-  const columns = allColumns.filter((c) => !c.num || rows.some((r) => r[c.key] !== undefined));
+  const columns = allColumns.filter((c) => !(c.num || c.key === 'mix') || rows.some((r) => r[c.key] !== undefined));
   const cellText = (r: StreamRow, k: keyof StreamRow) => {
     const v = r[k];
     return typeof v === 'number' ? formatQuantity(v) : v === undefined ? '—' : String(v);
@@ -197,6 +203,15 @@ export const StreamTable: React.FC<{
     </Modal>
   );
 };
+
+/** A mix as words, largest first, three at most: "water 88%, sugar 12%"; a trace reads "<0.1%". */
+function mixText(comp: Record<string, number>): string {
+  return Object.entries(comp)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([c, x]) => `${c} ${x < 0.001 ? '<0.1' : Math.round(x * 1000) / 10}%`)
+    .join(', ');
+}
 
 const PHASE_WORD: Record<string, string> = { LIQUID: 'liquid', GAS: 'gas', SOLID: 'solids', ITEMS: 'items' };
 
