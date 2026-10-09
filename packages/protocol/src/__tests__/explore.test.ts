@@ -1,7 +1,8 @@
+import { CASE_PACKER_CONTRACT } from '../unitop/examples/casePacker.js';
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { alternativeUnits, convertUnit, parseQuantity } from '../unitop/unitConversion.js';
-import { parameterInfluence, caseStudy, solveForConstraint, solveForTarget, suggestFixes, sweepParameter, sweepRange, niceValue } from '../unitop/explore.js';
+import { parameterInfluence, caseStudy, engineInfluence, engineResults, solveForConstraint, solveForTarget, suggestFixes, sweepParameter, sweepRange, niceValue } from '../unitop/explore.js';
 import { DUST_COLLECTOR_CONTRACT } from '../unitop/examples/phaseUnits.js';
 import { validateUnitOpContract, type UnitOpContract } from '../unitop/contract.js';
 import { evaluateUnitOp } from '../unitop/evaluate.js';
@@ -150,5 +151,30 @@ describe('caseStudy: one setting stepped, every result tabulated', () => {
     const rows = caseStudy(DUST_COLLECTOR_CONTRACT, 'filterAreaFt2', 100, 10000, 3, { log: true });
     rows.forEach((r, i) => close(r.value, [100, 1000, 10000][i]!, 1e-9));
     assert.deepEqual(caseStudy(DUST_COLLECTOR_CONTRACT, 'nope', 1, 2, 3), []);
+  });
+});
+
+describe('engine figures as results: rate, cycle, capacity', () => {
+  it('names a machine its rate, cycle and units per cycle', () => {
+    const r = engineResults(evaluateUnitOp(CASE_PACKER_CONTRACT));
+    assert.deepEqual(r.map((x) => x.name), ['engine.unitsPerMinute', 'engine.cycleSeconds', 'engine.unitsPerCycle']);
+    close(r[0]!.value, 20, 1e-9); // 12 bottles x 0.25 s collation sets a 3 s case cycle
+  });
+
+  it('finds what moves each figure by nudging: collation moves the rate, the reject interval does not', () => {
+    const inf = engineInfluence(CASE_PACKER_CONTRACT);
+    assert.ok(inf.collateSecondsPerBottle!.includes('engine.unitsPerMinute'));
+    assert.ok(!inf.rejectEvery!.includes('engine.unitsPerMinute'));
+    assert.ok(inf.rejectEvery!.includes('engine.unitsPerCycle'));
+  });
+
+  it('solves for a rate: 24 cases/min needs 2.5 s cycles, so collation of at most 0.2083 s per bottle', () => {
+    const s = solveForTarget(CASE_PACKER_CONTRACT, 'engine.unitsPerMinute', 24, 'collateSecondsPerBottle');
+    assert.ok(s && s.reached, JSON.stringify(s));
+    // Below 2.5/12 s the 2.5 s wrap sets the cycle: the rate holds at 24 there.
+    assert.ok(s!.value <= 2.5 / 12 + 1e-6, String(s!.value));
+    close(s!.achieved, 24, 1e-9);
+    const rows = caseStudy(CASE_PACKER_CONTRACT, 'collateSecondsPerBottle', 0.2, 0.3, 3);
+    close(rows[2]!.derived['engine.unitsPerMinute']!, 60 / 3.6, 1e-9);
   });
 });
