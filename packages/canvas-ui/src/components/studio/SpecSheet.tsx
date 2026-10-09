@@ -17,12 +17,19 @@ import {
   type UnitOpEvaluation,
   type UnitOpParameter
 } from '@process-forge/protocol';
-import { Check, Copy, Crosshair, RotateCcw } from 'lucide-react';
+import { Check, Copy, Crosshair, Lock, RotateCcw } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { Button, Chip, Switch } from '../../ui/index.js';
 import { controlFor, displayUnitsFor, feasibleBand, formatQuantity, statusAt, stepFor, type ParameterGroup } from '../../model/parameterUi.js';
 import { QuantityText } from './ParameterControl.js';
+
+/** A design spec: keep `result` at `target` (in its own unit) by varying `vary`. */
+export interface HeldSpec {
+  result: string;
+  target: number;
+  vary: string;
+}
 
 export interface SpecSheetProps {
   contract: UnitOpContract;
@@ -44,6 +51,10 @@ export interface SpecSheetProps {
   onHoverParam: (name: string | null) => void;
   flash: string | null;
   onFlash: (name: string) => void;
+  /** Results held at a target, each by varying one setting; that setting is the solver's, not the engineer's, while it is held. */
+  holds: HeldSpec[];
+  onHold: (h: HeldSpec) => void;
+  onRelease: (vary: string) => void;
   /** What arrives at the design point (a designed unit's feed), edited on the same sheet. */
   feed?: { params: UnitOpParameter[]; baseline: Record<string, number>; onChange: (name: string, value: number) => void };
 }
@@ -286,7 +297,7 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
 };
 
 /** One specification: typed value, unit, the passing range and whether it has been changed. */
-const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps, baselineParams, unitFor, setUnit, setParam, lit, onHoverParam, flash }) => {
+const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps, baselineParams, unitFor, setUnit, setParam, lit, onHoverParam, flash, holds, contract, evaluation, engineMovers }) => {
   const { palette, font } = useTheme();
   const kind = controlFor(p);
   const choices = displayUnitsFor(p);
@@ -315,8 +326,21 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
   const td: React.CSSProperties = { padding: '3px 8px', borderBottom: `1px solid ${palette.border.subtle}`, verticalAlign: 'middle' };
   const range = p.min !== undefined || p.max !== undefined ? `Allowed ${p.min !== undefined ? formatQuantity(toShown(p.min)) : '…'} to ${p.max !== undefined ? formatQuantity(toShown(p.max)) : '…'} ${du !== '-' ? du : ''}` : '';
 
+  const heldBy = holds.find((h) => h.vary === p.name);
+  const heldFor = heldBy ? allResults(contract, evaluation, engineMovers).defs.find((d) => d.name === heldBy.result) : undefined;
+
   let value: React.ReactNode;
-  if (kind === 'fixed') {
+  if (heldBy) {
+    value = (
+      <span
+        title={`Varied to hold ${heldFor?.label ?? heldBy.result} at its target. Release the hold (under Specify a result) to set it by hand.`}
+        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, width: 96, height: 28, padding: '0 8px', boxSizing: 'border-box', borderRadius: 4, border: `1px dashed ${palette.border.default}`, fontFamily: font.mono, color: palette.text.secondary }}
+      >
+        <Lock size={11} aria-hidden />
+        <span aria-label={`${p.label}, held by the solver`}>{formatQuantity(toShown(p.value))}</span>
+      </span>
+    );
+  } else if (kind === 'fixed') {
     value = <span style={{ fontFamily: font.mono, color: palette.text.secondary }}>{formatQuantity(toShown(p.value))}</span>;
   } else if (kind === 'toggle') {
     value = <Switch checked={p.value >= 0.5} onCheckedChange={(on) => commit(on ? (p.max ?? 1) : (p.min ?? 0))} label={p.label} />;
@@ -414,8 +438,9 @@ const UnitCell: React.FC<{ label: string; unit: string; shown: string; choices: 
  */
 const TargetSolver: React.FC<
   SpecSheetProps & { results: ResultDef[]; moversOf: (result: string) => UnitOpParameter[]; picked: string | null; onPick: (name: string) => void; radius: number }
-> = ({ contract, evaluation, unitFor, setParam, onFlash, results, moversOf, picked, onPick, radius }) => {
+> = ({ contract, evaluation, engineMovers, unitFor, setParam, onFlash, results, moversOf, picked, onPick, radius, holds, onHold, onRelease }) => {
   const { palette, font } = useTheme();
+  const [asked, setAsked] = useState<number | null>(null);
   const result = results.find((d) => d.name === picked) ?? results[0]!;
   const choices = displayUnitsFor({ name: result.name, label: result.label, unit: result.unit, value: 0 });
   const du = unitFor(result.unit, choices);
@@ -443,6 +468,7 @@ const TargetSolver: React.FC<
       setBad(true);
       return;
     }
+    setAsked(t);
     setSolution(solveForTarget(contract, result.name, t, varied.name));
   };
 
@@ -458,6 +484,40 @@ const TargetSolver: React.FC<
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: palette.text.muted, marginBottom: 8 }}>
         <Crosshair size={13} /> Specify a result
       </div>
+      {holds.length > 0 && (
+        <ul aria-label="Held results" style={{ listStyle: 'none', margin: '0 0 10px', padding: 0, display: 'grid', gap: 4 }}>
+          {holds.map((h) => {
+            const all = allResults(contract, evaluation, engineMovers);
+            const d = all.defs.find((x) => x.name === h.result);
+            const v = contract.parameters.find((x) => x.name === h.vary);
+            const hu = d ? unitFor(d.unit, displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 })) : '';
+            const show = (x: number) => (d ? convertUnit(x, d.unit, hu, { difference: isTemperatureDifference(d) }) ?? x : x);
+            const now = all.values[h.result];
+            const off = now === undefined || Math.abs(now - h.target) > 1e-6 * Math.max(1, Math.abs(h.target));
+            return (
+              <li key={h.vary} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: palette.text.primary, padding: '4px 8px', borderRadius: 4, background: tint(palette.jade[500], 0.08) }}>
+                <Lock size={12} aria-hidden color={palette.jade[500]} />
+                <span style={{ flex: 1 }}>
+                  Holding <b>{d?.label ?? h.result}</b> at{' '}
+                  <span style={{ fontFamily: font.mono }}>
+                    {formatQuantity(show(h.target))} {hu !== '-' ? hu : ''}
+                  </span>{' '}
+                  by varying <b>{v?.label ?? h.vary}</b>
+                  {off && now !== undefined && (
+                    <span style={{ color: palette.status.failed }}>
+                      {' '}
+                      · out of reach, now {formatQuantity(show(now))}
+                    </span>
+                  )}
+                </span>
+                <Button size="sm" variant="ghost" onClick={() => onRelease(h.vary)} aria-label={`Release the hold on ${d?.label ?? h.result}`}>
+                  Release
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -530,6 +590,19 @@ const TargetSolver: React.FC<
           >
             {solution.value === varied.value ? 'Applied' : 'Apply'}
           </Button>
+          {solution.reached && asked !== null && (
+            <Button
+              size="sm"
+              icon={<Lock size={12} />}
+              onClick={() => {
+                onHold({ result: result.name, target: asked, vary: varied.name });
+                onFlash(varied.name);
+                setSolution(null);
+              }}
+            >
+              Apply and hold
+            </Button>
+          )}
         </div>
       )}
     </section>
