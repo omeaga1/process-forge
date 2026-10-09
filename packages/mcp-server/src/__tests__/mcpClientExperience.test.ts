@@ -41,6 +41,7 @@ describe('What any MCP client sees', () => {
       'add_stream',
       'add_unit_op_to_flowsheet',
       'arrange_unit',
+      'hold_unit_result',
       'new_flowsheet',
       'open_flowsheet',
       'publish_unit_op',
