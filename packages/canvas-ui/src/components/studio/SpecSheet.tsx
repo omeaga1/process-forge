@@ -58,10 +58,15 @@ export interface SpecSheetProps {
 type ResultDef = UnitOpContract['derived'][number];
 
 /** Every result to show and solve for: what the engine runs the unit at, then the contract's own. */
-function allResults(contract: UnitOpContract, evaluation: UnitOpEvaluation): { defs: ResultDef[]; values: Record<string, number> } {
+function allResults(contract: UnitOpContract, evaluation: UnitOpEvaluation, engineMovers: Record<string, string[]>): { defs: ResultDef[]; values: Record<string, number> } {
+  // A figure that only repeats one setting (a tank's capacity, a batch's volume) is not a result worth showing.
+  const echoes = (name: string, value: number) => {
+    const by = contract.parameters.filter((p) => (engineMovers[p.name] ?? []).includes(name));
+    return by.length === 1 && Math.abs(value - by[0]!.value) <= 1e-9 * Math.max(1, Math.abs(value));
+  };
   const engine: ResultDef[] = evaluation.error
     ? []
-    : engineResults(evaluation).map((e) => ({ name: e.name, label: e.label, unit: e.unit, expr: '', description: 'What the engine runs the unit at.' }));
+    : engineResults(evaluation).filter((e) => !echoes(e.name, e.value)).map((e) => ({ name: e.name, label: e.label, unit: e.unit, expr: '', description: 'What the engine runs the unit at.' }));
   return { defs: [...engine, ...contract.derived], values: evaluation.error ? {} : resultsOf(evaluation) };
 }
 
@@ -107,7 +112,7 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
       const k = controlFor(p);
       return k !== 'fixed' && k !== 'toggle' && k !== 'select' && movedBy(props, p.name).includes(result);
     });
-  const { defs, values } = useMemo(() => allResults(contract, evaluation), [contract, evaluation]);
+  const { defs, values } = useMemo(() => allResults(contract, evaluation, props.engineMovers), [contract, evaluation, props.engineMovers]);
   const derivedRows = defs.filter((d) => values[d.name] !== undefined);
   // Settings worth stepping: continuous ones that move at least one result.
   const studyable = contract.parameters.filter((p) => {
@@ -539,7 +544,7 @@ const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius
   const [steps, setSteps] = useState(5);
   const moved = useMemo(() => {
     const by = movedBy({ influence, engineMovers }, p.name);
-    return allResults(contract, evaluation).defs.filter((d) => by.includes(d.name));
+    return allResults(contract, evaluation, engineMovers).defs.filter((d) => by.includes(d.name));
   }, [contract, evaluation, influence, engineMovers, p.name]);
   const [cols, setCols] = useState<string[]>(() => moved.slice(0, 3).map((d) => d.name));
   // A new setting: its own range, and the first results it moves.
