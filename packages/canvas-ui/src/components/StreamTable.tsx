@@ -34,7 +34,9 @@ export const StreamTable: React.FC<{
   /** The run at the playhead, per unit; empty before a run. */
   snapshots: Map<string, NodeTelemetrySnapshot>;
   simulatedSeconds: number;
-}> = ({ open, onOpenChange, graph, snapshots, simulatedSeconds }) => {
+  /** Shows a stream on the flowsheet: selects its pipe and brings its two units into view. */
+  onShow?: (edgeId: string) => void;
+}> = ({ open, onOpenChange, graph, snapshots, simulatedSeconds, onShow }) => {
   const { palette, font } = useTheme();
   const [copied, setCopied] = useState(false);
   const hasRun = snapshots.size > 0;
@@ -155,7 +157,20 @@ export const StreamTable: React.FC<{
                   {columns.map((c, i) =>
                     i === 0 ? (
                       <th key={c.key} scope="row" style={{ ...td, fontFamily: font.mono, fontWeight: 700, textAlign: 'left' }}>
-                        {r.number}
+                        {onShow ? (
+                          <button
+                            type="button"
+                            className="pf-focus"
+                            onClick={() => onShow(r.id)}
+                            aria-label={`Show ${r.number} on the flowsheet`}
+                            title="Show it on the flowsheet"
+                            style={{ all: 'unset', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: palette.border.strong }}
+                          >
+                            {r.number}
+                          </button>
+                        ) : (
+                          r.number
+                        )}
                         {r.blocked && (
                           <span style={{ display: 'block', fontFamily: 'inherit', fontSize: 11, fontWeight: 600, color: palette.text.secondary }}>backed up</span>
                         )}

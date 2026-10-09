@@ -369,6 +369,19 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
   // The flow instance, to bring a newly added unit into view.
   const flowRef = useRef<ReactFlowInstance | null>(null);
+  // A stream picked in the stream table: its pipe selected, its two units in view.
+  const showStream = useCallback(
+    (edgeId: string) => {
+      const e = graph.edges.find((x) => x.id === edgeId);
+      if (!e) return;
+      setIsStreamTableOpen(false);
+      setNodes((ns) => ns.map((n) => (n.selected ? { ...n, selected: false } : n)));
+      setEdges((es) => es.map((x) => ({ ...x, selected: x.id === edgeId })));
+      window.setTimeout(() => flowRef.current?.fitView({ nodes: [{ id: e.sourceNodeId }, { id: e.targetNodeId }], padding: 0.5, duration: 400, maxZoom: 1.2 }), 80);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [graph.edges]
+  );
   const showNewUnit = useCallback(() => {
     // After the node is measured: fit the sheet, gently, without zooming in past 1x.
     window.setTimeout(() => flowRef.current?.fitView({ padding: 0.25, duration: 300, maxZoom: 1 }), 60);
@@ -1460,6 +1473,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         graph={graph}
         snapshots={snapshotByNode}
         simulatedSeconds={runView?.timeSeconds ?? 0}
+        onShow={showStream}
       />
       <EquipmentPaletteModal
         isOpen={isEquipmentPaletteOpen}
