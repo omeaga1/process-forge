@@ -32,3 +32,4 @@ export * from './library/unitOpCloudSync.js';
 export * from './model/unitBehavior.js';
 export * from './components/dock/SplitFlap.js';
 export * from './components/CommandPalette.js';
+export * from './ui/index.js';

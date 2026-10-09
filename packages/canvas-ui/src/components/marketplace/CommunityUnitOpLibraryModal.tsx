@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Modal } from '../../ui/index.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import { ProcessForgeEmblem } from '../brand/ProcessForgeLogo.js';
 import {
@@ -14,7 +15,6 @@ import {
 } from '@process-forge/protocol';
 import { contractToProcessNode } from '../../unitop/contractToNode.js';
 import {
-  X,
   Search,
   Plus,
   Cloud,
@@ -152,111 +152,53 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
     }, 900);
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: palette.background.overlay,
-        backdropFilter: 'blur(8px)',
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24
-      }}
-    >
-      <div
-        style={{
-          width: 880,
-          maxWidth: '100%',
-          maxHeight: '90vh',
-          backgroundColor: OsakaJadePalette.background.surface,
-          border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: draftingRadius.sharp,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '18px 24px',
-            backgroundColor: OsakaJadePalette.background.canvas,
-            borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: r.md,
-                backgroundColor: `${OsakaJadePalette.jade[500]}1a`,
-                border: `1px solid ${OsakaJadePalette.jade[500]}44`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <ProcessForgeEmblem size={26} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h3 style={{ margin: 0, fontSize: size.lg, fontWeight: weight.bold, color: OsakaJadePalette.text.primary, letterSpacing: '-0.02em' }}>
-                  Community library
-                </h3>
-                <span
-                  style={{
-                    fontSize: size['2xs'],
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: space[1],
-                    padding: `2px ${space[2]}px`,
-                    borderRadius: r.full,
-                    backgroundColor: isLiveApi ? `${OsakaJadePalette.jade.glow}26` : tint(palette.text.primary, 0.06),
-                    color: isLiveApi ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.secondary,
-                    border: `1px solid ${isLiveApi ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
-                    fontFamily: font.mono
-                  }}
-                >
-                  {isLiveApi ? <Cloud size={11} /> : <WifiOff size={11} />}
-                  {isLiveApi ? 'Online' : 'Offline'}
-                </span>
-              </div>
-              <span style={{ fontSize: size.xs, color: OsakaJadePalette.text.secondary }}>
-                Unit operations other engineers have published, and worked examples to start from.
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <UserCheck size={14} color={creatorSession ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted} />
-              {creatorSession ? `Publishing as ${creatorSession.displayName}` : 'Sign in with Google to publish'}
-            </span>
-
-            <button
-              onClick={onClose}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: OsakaJadePalette.text.muted,
-                cursor: 'pointer',
-                padding: 4
-              }}
-            >
-              <X size={18} />
-            </button>
-          </div>
+    <Modal
+      open={isOpen}
+      onOpenChange={(o) => !o && onClose()}
+      width={920}
+      flush
+      icon={
+        <div style={{ width: 32, height: 32, borderRadius: 8, display: 'grid', placeItems: 'center', backgroundColor: tint(palette.jade[500], 0.14) }}>
+          <ProcessForgeEmblem size={22} />
         </div>
-
+      }
+      title={
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          Community library
+          <span
+            style={{
+              fontSize: size['2xs'],
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: space[1],
+              padding: `2px ${space[2]}px`,
+              borderRadius: r.full,
+              fontWeight: 600,
+              backgroundColor: isLiveApi ? tint(palette.jade[500], 0.16) : tint(palette.text.primary, 0.06),
+              color: isLiveApi ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.secondary,
+              fontFamily: font.mono
+            }}
+          >
+            {isLiveApi ? <Cloud size={11} /> : <WifiOff size={11} />}
+            {isLiveApi ? 'Online' : 'Offline'}
+          </span>
+        </span>
+      }
+      description="Unit operations other engineers have published, and worked examples to start from."
+      headerExtra={
+        <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'center', whiteSpace: 'nowrap' }}>
+          <UserCheck size={14} color={creatorSession ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted} />
+          {creatorSession ? `Publishing as ${creatorSession.displayName}` : 'Sign in with Google to publish'}
+        </span>
+      }
+      footer={
+        <span style={{ fontSize: 12, color: OsakaJadePalette.text.muted, marginRight: 'auto', lineHeight: 1.5 }}>
+          To publish your own, or a new version of one you published, click the unit on the flowsheet and choose <strong>Publish to community library</strong>. You need to be signed in with Google.
+        </span>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', height: 'min(640px, calc(100dvh - 240px))' }}>
         {insertError && (
           <div role="alert" style={{ padding: '8px 24px', fontSize: 12, color: OsakaJadePalette.text.primary, borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
             {insertError}
@@ -526,36 +468,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
         </div>
 
         {/* Footer */}
-        <div
-          style={{
-            padding: '12px 24px',
-            backgroundColor: OsakaJadePalette.background.canvas,
-            borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: 11,
-            color: OsakaJadePalette.text.muted
-          }}
-        >
-          <span>
-            To publish your own, or a new version of one you published, click the unit on the flowsheet and choose <strong>Publish to community library</strong>. You need to be signed in with Google.
-          </span>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '6px 14px',
-              backgroundColor: 'transparent',
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: draftingRadius.soft,
-              color: OsakaJadePalette.text.secondary,
-              cursor: 'pointer'
-            }}
-          >
-            Close
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };

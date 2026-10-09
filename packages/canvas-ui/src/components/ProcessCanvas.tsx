@@ -1477,13 +1477,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         bottlenecks={telemetry.bottlenecks}
         telemetry={liveTelemetry}
         {...(runView ? { run: runView } : {})}
-        isRunning={isRunning}
         isCollapsed={isDockCollapsed}
         onToggleCollapse={handleToggleDock}
-        onToggleSimulation={handleToggleSimulation}
-        onResetSimulation={handleResetSimulation}
-        onOpenForgeHub={() => setIsForgeHubOpen(true)}
-        onBroadcastContext={() => {}}
         onAddNode={handleAddNode}
         onOpenPopOutStudio={(nodeId) => setPopOutNodeId(nodeId)}
         agentHost={agentHost}

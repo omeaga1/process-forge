@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Cpu, CheckCircle2, AlertCircle, X, Copy, Check, ExternalLink, Info, LogIn, LogOut, RotateCcw, Route, Server, Zap } from 'lucide-react';
+import { Button, Modal } from '../../ui/index.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import {
   getLlmCredentials,
@@ -90,13 +91,6 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
     setSaveFeedback(false);
   }, [isOpen]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -172,7 +166,6 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
 
   // The theme's own tokens, so the dialog matches the rest of the studio in both themes.
   const accent = palette.jade[500];
-  const modalBg = palette.background.surfaceElevated;
   const cardBg = palette.background.surface;
   const inputBg = palette.background.base;
   const borderColor = palette.border.default;
@@ -209,100 +202,34 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
   const linkButton: React.CSSProperties = { background: 'none', border: 'none', padding: 0, color: accent, fontSize: 11, fontWeight: 600, cursor: 'pointer' };
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: palette.background.overlay,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: 680,
-          maxWidth: '100%',
-          maxHeight: '92vh',
-          background: modalBg,
-          border: `1px solid ${borderColor}`,
-          borderRadius: draftingRadius.sharp,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          animation: 'pfModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '20px 24px',
-            borderBottom: `1px solid ${borderColor}`,
-            background: 'transparent'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: draftingRadius.soft,
-                background: tint(accent, 0.15),
-                border: `1px solid ${accent}40`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: accent
-              }}
-            >
-              <Cpu size={20} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: textColor, letterSpacing: '-0.01em' }}>
-                  {firstRun ? 'How do you want to use AI?' : 'AI model'}
-                </h2>
-                <span style={{ fontSize: 11, color: textMuted }} aria-live="polite">
-                  Now: {ROUTE_LABELS[route]}
-                </span>
-              </div>
-              <p style={{ margin: '3px 0 0', fontSize: 12, color: textMuted }}>
-                {firstRun
-                  ? 'Pick one now or later. The engine checks every design either way.'
-                  : 'An MCP client such as Claude Desktop, or OpenRouter in the app.'}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: draftingRadius.soft,
-              background: 'transparent',
-              border: 'none',
-              color: textMuted,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
-            }}
-          >
-            <X size={18} />
-          </button>
+    <Modal
+      open={isOpen}
+      onOpenChange={(o) => !o && onClose()}
+      width={680}
+      flush
+      icon={
+        <div style={{ width: 32, height: 32, borderRadius: 8, display: 'grid', placeItems: 'center', background: tint(accent, 0.15), color: accent }}>
+          <Cpu size={17} />
         </div>
-
+      }
+      title={firstRun ? 'How do you want to use AI?' : 'AI model'}
+      description={
+        <>
+          {firstRun ? 'Pick one now or later. The engine checks every design either way.' : 'An MCP client such as Claude Desktop, or OpenRouter in the app.'}{' '}
+          <span aria-live="polite" style={{ color: textMuted }}>Now: {ROUTE_LABELS[route]}.</span>
+        </>
+      }
+      footer={
+        <>
+          <span style={{ fontSize: 12, color: textDim, marginRight: 'auto' }}>
+            In use:{' '}
+            <strong style={{ color: textColor }}>{route === 'claude-desktop' ? 'MCP client' : route === 'api-key' ? 'OpenRouter' : 'nothing yet'}</strong>
+          </span>
+          <Button onClick={onClose}>{firstRun ? 'Decide later' : 'Done'}</Button>
+        </>
+      }
+    >
+      <div>
         {/* The two choices */}
         <div style={{ padding: '14px 24px', background: palette.background.base }}>
           <div role="tablist" aria-label="How to use AI" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -721,32 +648,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
         </div>
 
         {/* Footer */}
-        <div
-          style={{
-            padding: '14px 24px',
-            backgroundColor: palette.background.base,
-            borderTop: `1px solid ${borderColor}`,
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: 12
-          }}
-        >
-          <span style={{ fontSize: 11, color: textDim }}>
-            In use:{' '}
-            <strong style={{ color: textColor }}>
-              {route === 'claude-desktop' ? 'MCP client' : route === 'api-key' ? 'OpenRouter' : 'nothing yet'}
-            </strong>
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ ...secondaryButton, padding: '7px 16px', backgroundColor: palette.background.surfaceHover }}
-          >
-            {firstRun ? 'Decide later' : 'Done'}
-          </button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };

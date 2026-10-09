@@ -1,7 +1,7 @@
 import React from 'react';
-import { ShieldCheck, Download, ArrowRight, X, Cloud } from 'lucide-react';
-import { useTheme } from '@process-forge/canvas-ui';
-import { draftingRadius, tint } from '@process-forge/theme';
+import { Download, Cloud, ArrowRight } from 'lucide-react';
+import { Button, Modal, useTheme } from '@process-forge/canvas-ui';
+import { tint } from '@process-forge/theme';
 
 interface GuestAcknowledgementModalProps {
   isOpen: boolean;
@@ -10,242 +10,74 @@ interface GuestAcknowledgementModalProps {
   onOpenAccountModal?: () => void;
 }
 
-export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps> = ({
-  isOpen,
-  onClose,
-  onExportFile,
-  onOpenAccountModal
-}) => {
+/** Working without an account: where the work is kept, and the two ways to keep a copy elsewhere. */
+export const GuestAcknowledgementModal: React.FC<GuestAcknowledgementModalProps> = ({ isOpen, onClose, onExportFile, onOpenAccountModal }) => {
   const { palette } = useTheme();
-  const OsakaJadePalette = palette;
-
-  if (!isOpen) return null;
-
-  return (
+  const option = (icon: React.ReactNode, title: React.ReactNode, text: string, action: React.ReactNode, highlight?: boolean) => (
     <div
       style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: palette.background.overlay,
-        backdropFilter: 'blur(8px)',
-        zIndex: 10000,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20
+        gap: 12,
+        padding: 14,
+        borderRadius: 8,
+        border: `1px solid ${highlight ? palette.jade[600] : palette.border.default}`,
+        backgroundColor: highlight ? tint(palette.jade[500], 0.07) : palette.background.canvas
       }}
     >
-      <div
-        style={{
-          width: 580,
-          maxWidth: '100%',
-          maxHeight: 'min(90vh, calc(100vh - 40px))',
-          backgroundColor: OsakaJadePalette.background.surface,
-          border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: draftingRadius.sharp,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '16px 20px',
-            backgroundColor: OsakaJadePalette.background.canvas,
-            borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: draftingRadius.soft,
-                backgroundColor: tint(palette.jade[500], 0.15),
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: OsakaJadePalette.jade[500]
-              }}
-            >
-              <Cloud size={18} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                ProcessForge Cloud &amp; Storage
-              </h3>
-              <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-                Preserve your simulation digital twin
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: OsakaJadePalette.text.muted,
-              cursor: 'pointer',
-              padding: 4
-            }}
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: OsakaJadePalette.text.primary }}>
-            Everything works without an account: the flowsheet canvas, the discrete-event simulation, and unit-op design. Your projects are saved on this device.
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', color: OsakaJadePalette.text.muted }}>
-              Cloud &amp; Storage Options:
-            </span>
-
-            {/* Cloud Storage Card */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: 14,
-                backgroundColor: tint(palette.jade[500], 0.08),
-                border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                borderRadius: draftingRadius.soft
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Cloud size={20} color={OsakaJadePalette.jade[400]} />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    ProcessForge Cloud Storage
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: 700,
-                        padding: '1px 6px',
-                        borderRadius: draftingRadius.soft,
-                        backgroundColor: OsakaJadePalette.jade[500],
-                        color: OsakaJadePalette.text.inverse
-                      }}
-                    >
-                      RECOMMENDED
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>
-                    Sign in with Google to keep a copy in ProcessForge Cloud when you choose Save to Cloud.
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  onClose();
-                  onOpenAccountModal?.();
-                }}
-                style={{
-                  padding: '7px 14px',
-                  backgroundColor: OsakaJadePalette.jade[500],
-                  border: 'none',
-                  borderRadius: draftingRadius.soft,
-                  color: OsakaJadePalette.text.inverse,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Sign In
-              </button>
-            </div>
-
-            {/* Download File */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: 14,
-                backgroundColor: OsakaJadePalette.background.canvas,
-                border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                borderRadius: draftingRadius.soft
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Download size={18} color={OsakaJadePalette.text.secondary} />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
-                    Download Project File (.pfg.json)
-                  </div>
-                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
-                    Export a standalone digital twin JSON file to your disk anytime.
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  onExportFile();
-                  onClose();
-                }}
-                style={{
-                  padding: '6px 12px',
-                  backgroundColor: tint(palette.text.primary, 0.06),
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  borderRadius: draftingRadius.soft,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Download File
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div
-          style={{
-            padding: '14px 20px',
-            backgroundColor: OsakaJadePalette.background.canvas,
-            borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: OsakaJadePalette.text.muted }}>
-            <ShieldCheck size={14} color={OsakaJadePalette.jade[500]} />
-            No account needed
-          </span>
-          <button
-            onClick={onClose}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 16px',
-              backgroundColor: OsakaJadePalette.background.surfaceElevated,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: draftingRadius.soft,
-              color: OsakaJadePalette.text.primary,
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: 'pointer'
-            }}
-          >
-            Continue
-            <ArrowRight size={14} />
-          </button>
-        </div>
+      <div style={{ color: highlight ? palette.jade[400] : palette.text.secondary, flexShrink: 0 }}>{icon}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 650, color: palette.text.primary }}>{title}</div>
+        <div style={{ fontSize: 12, color: palette.text.secondary, marginTop: 2, lineHeight: 1.45 }}>{text}</div>
       </div>
+      {action}
     </div>
+  );
+  return (
+    <Modal
+      open={isOpen}
+      onOpenChange={(o) => !o && onClose()}
+      width={540}
+      title="Working without an account"
+      description="Everything works: the canvas, the simulation and unit-op design. Your projects are saved on this device."
+      footer={
+        <Button variant="primary" onClick={onClose}>
+          Continue <ArrowRight size={14} />
+        </Button>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {option(
+          <Cloud size={20} />,
+          'Keep a copy in ProcessForge Cloud',
+          'Sign in with Google, then use Save to cloud to open your projects on any device.',
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              onClose();
+              onOpenAccountModal?.();
+            }}
+          >
+            Sign in
+          </Button>,
+          true
+        )}
+        {option(
+          <Download size={20} />,
+          'Download the project file',
+          'A .pfg.json file you can keep, share or open again later.',
+          <Button
+            size="sm"
+            onClick={() => {
+              onExportFile();
+              onClose();
+            }}
+          >
+            Download
+          </Button>
+        )}
+      </div>
+    </Modal>
   );
 };

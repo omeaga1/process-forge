@@ -28,11 +28,6 @@ interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
   bottlenecks: BottleneckAnalysis;
   telemetry: PlantTelemetryState;
-  isRunning?: boolean;
-  onToggleSimulation?: () => void;
-  onResetSimulation?: () => void;
-  onOpenForgeHub?: () => void;
-  onBroadcastContext: () => void;
   onAddNode?: (node: ProcessNode) => void;
   onOpenPopOutStudio?: (nodeId: string) => void;
   isCollapsed?: boolean;
@@ -47,11 +42,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   graph,
   bottlenecks,
   telemetry,
-  isRunning: _isRunning,
-  onToggleSimulation: _onToggleSimulation,
-  onResetSimulation: _onResetSimulation,
-  onOpenForgeHub: _onOpenForgeHub,
-  onBroadcastContext,
   onAddNode,
   onOpenPopOutStudio,
   isCollapsed = false,
@@ -115,10 +105,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   const handleSendMessage = async (textToSend?: string) => {
     const text = textToSend || inputText;
     if (!text.trim() || isProcessing) return;
-
-    if (text.toLowerCase().includes('broadcast')) {
-      onBroadcastContext();
-    }
 
     const userMsg: ChatMessage = {
       id: `usr-${Date.now()}`,
