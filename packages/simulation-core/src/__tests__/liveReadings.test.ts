@@ -14,3 +14,17 @@ describe('a unit that sets its outlet temperature reports it', () => {
     assert.ok(out.kgPerHour > 0);
   });
 });
+
+describe("a unit's current rate is what it is doing now, not the run's average", () => {
+  it('the paint filler reads 0/min once its tank has run dry, though it averaged 13/min', async () => {
+    const { PAINT_CANNING_LINE } = await import('@process-forge/protocol');
+    const r = simulateProcess(PAINT_CANNING_LINE, 30);
+    const log = r.telemetryLog.filter((x) => x.nodeId === 'rotary-filler-300');
+    const last = log.at(-1)!;
+    assert.equal(last.state, 'STARVED');
+    assert.ok(last.unitsProduced > 300, String(last.unitsProduced));
+    assert.equal(last.instantaneousRatePerMin, 0);
+    // While it had paint it ran at its full rate.
+    assert.ok(Math.max(...log.map((x) => x.instantaneousRatePerMin)) > 35);
+  });
+});

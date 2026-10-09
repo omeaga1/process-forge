@@ -208,6 +208,8 @@ export class SimulationEngine {
   private currentTimeSeconds = 0;
   private nodes = new Map<string, UnitRuntime>();
   private telemetry: NodeTelemetrySnapshot[] = [];
+  /** Each unit's count at past snapshots, for its rate over the last few minutes. */
+  private countHistory = new Map<string, { t: number; units: number }[]>();
   private eventCounter = 0;
   private lastTelemetrySnapshotMinute = -1;
   /** Round-robin position per node (and port) with more than one outgoing edge. */
@@ -763,10 +765,29 @@ export class SimulationEngine {
         unitsProduced: r.unitsProduced,
         unitsScrapped: r.unitsScrapped,
         bufferLevel: r.queue,
-        instantaneousRatePerMin: this.currentTimeSeconds > 0 ? (r.unitsProduced / this.currentTimeSeconds) * 60 : 0,
+        instantaneousRatePerMin: this.recentRatePerMin(r.node.id, r.unitsProduced),
         ...this.liquidTelemetry(r.node.id)
       });
     }
+  }
+
+  /**
+   * Items a minute over the last few minutes of the run: what the unit is
+   * doing now. The run's average would still read 13/min from a filler that
+   * has been starved for ten minutes.
+   */
+  private recentRatePerMin(nodeId: string, units: number): number {
+    const now = this.currentTimeSeconds;
+    if (now <= 0) return 0;
+    const history = this.countHistory.get(nodeId) ?? [];
+    history.push({ t: now, units });
+    // Keep what the window needs, and one point before it to measure from.
+    const from = now - RATE_WINDOW_SECONDS;
+    while (history.length > 2 && history[1]!.t <= from) history.shift();
+    this.countHistory.set(nodeId, history);
+    const start = history[0]!.t <= from ? history[0]! : { t: 0, units: 0 };
+    const dt = now - start.t;
+    return dt > 0 ? ((units - start.units) / dt) * 60 : 0;
   }
 
   private liquidTelemetry(nodeId: string): Partial<NodeTelemetrySnapshot> {
@@ -948,6 +969,9 @@ export class SimulationEngine {
 }
 
 /** Runs a flowsheet for `durationMinutes` and reports what happened. */
+/** The window a unit's current rate is measured over. Long enough to span a slow machine's cycle. */
+const RATE_WINDOW_SECONDS = 300;
+
 export function simulateProcess(graph: ProcessGraph, durationMinutes: number, options: { seed?: number } = {}): SimulationResult {
   return new SimulationEngine(graph, options).run(durationMinutes);
 }
