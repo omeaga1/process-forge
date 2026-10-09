@@ -105,3 +105,15 @@ export function layoutTransform(layout: NodeLayout | undefined): string {
   if (l.flipX) parts.push('scaleX(-1)');
   return parts.join(' ');
 }
+
+/**
+ * Where a unit added without a position goes: to the right of everything on
+ * the sheet, level with the flowsheet's middle, so units added one after
+ * another line up left to right instead of landing on top of each other.
+ */
+export function placeNextTo(graph: { nodes: readonly { position: { x: number; y: number } }[] }): { x: number; y: number } {
+  if (graph.nodes.length === 0) return { x: 200, y: 200 };
+  const xs = graph.nodes.map((n) => n.position.x);
+  const ys = graph.nodes.map((n) => n.position.y);
+  return { x: Math.max(...xs) + 320, y: Math.round(ys.reduce((a, b) => a + b, 0) / ys.length) };
+}

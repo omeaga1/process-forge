@@ -11,7 +11,8 @@ import {
   type OnEdgesChange,
   type OnConnect,
   type Connection,
-  type IsValidConnection
+  type IsValidConnection,
+  type ReactFlowInstance
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Layers, Play, Pause, RotateCcw, RotateCw, FlipHorizontal2, Maximize2, Route, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
@@ -31,6 +32,7 @@ import {
   resolvedLayout,
   rotateLayout,
   scaleLayout,
+  placeNextTo,
   terminalRole,
   type NodeLayout,
   type ProcessGraph,
@@ -358,8 +360,17 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const [isEquipmentPaletteOpen, setIsEquipmentPaletteOpen] = useState(false);
   const [popOutNodeId, setPopOutNodeId] = useState<string | null>(null);
 
+  // The flow instance, to bring a newly added unit into view.
+  const flowRef = useRef<ReactFlowInstance | null>(null);
+  const showNewUnit = useCallback(() => {
+    // After the node is measured: fit the sheet, gently, without zooming in past 1x.
+    window.setTimeout(() => flowRef.current?.fitView({ padding: 0.25, duration: 300, maxZoom: 1 }), 60);
+  }, []);
+
   const handleAddNode = useCallback(
-    (newNode: ProcessNode) => {
+    (added: ProcessNode) => {
+      // To the right of the line, not on top of the last unit added.
+      const newNode = { ...added, position: placeNextTo(graphRef.current) };
       updateGraph((prev) => {
         const nextGraph = {
           ...prev,
@@ -367,10 +378,11 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         };
         return nextGraph;
       });
+      showNewUnit();
       // Immediately select and open the Unit-Op Pop-Out Studio Drawer!
       setPopOutNodeId(newNode.id);
     },
-    [updateGraph]
+    [updateGraph, showNewUnit]
   );
 
   // Sync external graph changes (from project import, template switcher, etc.)
@@ -868,7 +880,9 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     setPlayheadIndex(0);
   };
 
-  const handleInsertNodeFromForgeHub = (newNode: ProcessNode) => {
+  const handleInsertNodeFromForgeHub = (added: ProcessNode) => {
+    const newNode = { ...added, position: placeNextTo(graphRef.current) };
+    showNewUnit();
     updateGraph((prev) => {
       const nextGraph = {
         ...prev,
@@ -1246,6 +1260,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
+          fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
+          onInit={(instance) => (flowRef.current = instance)}
           minZoom={0.2}
           maxZoom={2.0}
         >
