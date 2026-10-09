@@ -49,8 +49,8 @@ export const PAINT_CANNING_LINE: ProcessGraph = {
           { id: 'N1', name: 'Raw Resin Charge', role: 'inlet', x: 20, y: 15, position: 'top', sizeInches: 4, ratingPsi: 150 },
           { id: 'N2', name: 'Vapor Vent / Scrubber Line', role: 'vent', x: 50, y: 10, position: 'top', sizeInches: 3, ratingPsi: 150 },
           { id: 'N3', name: 'Pigment Slurry Feed', role: 'inlet', x: 80, y: 20, position: 'top', sizeInches: 3, ratingPsi: 150 },
-          { id: 'N4', name: 'Latex Bottom Discharge', role: 'outlet', x: 50, y: 95, position: 'bottom', sizeInches: 3, ratingPsi: 150 },
-          { id: 'N5', name: 'Steam Jacket Infeed', role: 'utility', x: 10, y: 65, position: 'left', sizeInches: 2, ratingPsi: 150 }
+          { id: 'N4', name: 'Latex Bottom Discharge', role: 'outlet', x: 50, y: 81, position: 'bottom', sizeInches: 3, ratingPsi: 150 },
+          { id: 'N5', name: 'Steam Jacket Infeed', role: 'utility', x: 14, y: 65, position: 'left', sizeInches: 2, ratingPsi: 150 }
         ],
         internals: {
           agitatorType: 'rushton',
@@ -351,7 +351,7 @@ export const BEVERAGE_BOTTLING_LINE: ProcessGraph = {
           { id: 'N1', name: 'Treated Water Inlet', role: 'inlet', x: 20, y: 15, position: 'top', sizeInches: 4, ratingPsi: 150 },
           { id: 'N2', name: 'CO2 Gas Injection Header', role: 'utility', x: 50, y: 10, position: 'top', sizeInches: 2, ratingPsi: 300 },
           { id: 'N3', name: 'Syrup Dosing Inlet', role: 'inlet', x: 80, y: 20, position: 'top', sizeInches: 2, ratingPsi: 150 },
-          { id: 'N4', name: 'Product Outfeed', role: 'outlet', x: 50, y: 95, position: 'bottom', sizeInches: 3, ratingPsi: 150 }
+          { id: 'N4', name: 'Product Outfeed', role: 'outlet', x: 50, y: 81, position: 'bottom', sizeInches: 3, ratingPsi: 150 }
         ],
         internals: {
           agitatorType: 'propeller',
@@ -399,9 +399,9 @@ export const BEVERAGE_BOTTLING_LINE: ProcessGraph = {
       assignedSubAgentId: 'subagent-filler-200',
       dressing: {
         nozzles: [
-          { id: 'N1', name: 'Isobaric Fluid Manifold', role: 'inlet', x: 10, y: 50, position: 'left', sizeInches: 3, ratingPsi: 150 },
-          { id: 'N2', name: 'Counterpressure Return Vent', role: 'vent', x: 50, y: 10, position: 'top', sizeInches: 2, ratingPsi: 150 },
-          { id: 'N3', name: 'CIP Sanitation Infeed', role: 'utility', x: 90, y: 30, position: 'right', sizeInches: 2, ratingPsi: 150 }
+          { id: 'N1', name: 'Isobaric Fluid Manifold', role: 'inlet', x: 16, y: 50, position: 'left', sizeInches: 3, ratingPsi: 150 },
+          { id: 'N2', name: 'Counterpressure Return Vent', role: 'vent', x: 50, y: 11, position: 'top', sizeInches: 2, ratingPsi: 150 },
+          { id: 'N3', name: 'CIP Sanitation Infeed', role: 'utility', x: 84, y: 30, position: 'right', sizeInches: 2, ratingPsi: 150 }
         ],
         internals: {
           agitatorType: 'none',
