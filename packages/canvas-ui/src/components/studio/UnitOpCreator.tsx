@@ -21,7 +21,7 @@ import type { AssistantRoute } from '../../ai/assistantRoute.js';
 import { McpDesignGuide } from './McpDesignGuide.js';
 import { ContractParametersPanel } from './ContractParametersPanel.js';
 import { Button } from '../../ui/index.js';
-import { Check, X, Circle, Sparkles } from 'lucide-react';
+import { Check, X, Circle } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 
 /** The active theme's palette and drafting rules, so this screen follows the theme. */
@@ -306,7 +306,7 @@ export function UnitOpCreator({
           aria-label="What is the unit operation?"
         />
         {route === 'api-key' && onPropose ? (
-          <Button variant="primary" icon={<Sparkles size={14} />} onClick={handlePropose} disabled={busy || !description.trim()} style={{ marginTop: 10 }}>
+          <Button variant="primary" onClick={handlePropose} disabled={busy || !description.trim()} style={{ marginTop: 10 }}>
             {busy ? 'Designing it…' : 'Ask AI to design it'}
           </Button>
         ) : (

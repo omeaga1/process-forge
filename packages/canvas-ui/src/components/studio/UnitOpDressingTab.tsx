@@ -11,7 +11,7 @@ import {
 import { TemplateChoice } from './TemplateChoice.js';
 import { NozzlePlacementEditor } from '../../nozzles/NozzlePlacementEditor.js';
 import type { NodeShape } from '../../nozzles/nozzleLayout.js';
-import { Sliders, Sparkles, RotateCcw } from 'lucide-react';
+import { Sliders, PenTool, RotateCcw } from 'lucide-react';
 
 interface UnitOpDressingTabProps {
   node: ProcessNode;
@@ -144,7 +144,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Sparkles size={15} color={OsakaJadePalette.jade[400]} />
+            <PenTool size={15} color={OsakaJadePalette.text.secondary} />
             <span style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary, letterSpacing: '-0.01em' }}>
               Drawing
             </span>
@@ -239,7 +239,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 whiteSpace: 'nowrap'
               }}
             >
-              <Sparkles size={13} />
+              <PenTool size={13} />
               <span>Draw it</span>
             </button>
           </div>

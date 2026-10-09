@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { validateProcessGraph, kindLabel, type ProcessGraph } from '@process-forge/protocol';
-import { AlertTriangle, XCircle, Copy, Check, ExternalLink, Sparkles, ChevronRight } from 'lucide-react';
+import { AlertTriangle, XCircle, Copy, Check, ExternalLink, Plus, ChevronRight } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
 import { claudeDesktopFlowsheetPrompt } from '../../ai/assistantRoute.js';
 import { tint } from '@process-forge/theme';
@@ -253,7 +253,7 @@ export const McpAssistantPanel: React.FC<McpAssistantPanelProps> = ({ graph, bot
               className="pf-dock-row"
               style={listButton}
             >
-              <Sparkles size={13} color={palette.jade[500]} />
+              <Plus size={13} color={palette.text.muted} />
               <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
               <span style={{ fontFamily: font.mono, fontSize: 11, color: palette.text.muted }}>
                 {new Date(a.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

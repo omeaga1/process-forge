@@ -15,7 +15,7 @@ import {
   type ReactFlowInstance
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Rows3, Layers, Play, Pause, RotateCcw, RotateCw, FlipHorizontal2, Maximize2, Route, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
+import { Rows3, Layers, Play, Pause, RotateCcw, RotateCw, FlipHorizontal2, Maximize2, Route, AlertTriangle, Plus, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
 
 import {
   validateProcessGraph,
@@ -1097,7 +1097,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
             {onDesignUnitOp && (
               <Tooltip content="Describe equipment that has no model yet: your AI model writes it and the engine checks the physics">
-                <Button icon={<Sparkles size={15} color={OsakaJadePalette.jade[400]} />} onClick={onDesignUnitOp} aria-label="Design unit op">
+                <Button icon={<SquarePen size={15} />} onClick={onDesignUnitOp} aria-label="Design unit op">
                   {!compactToolbar && 'Design unit op'}
                 </Button>
               </Tooltip>
@@ -1282,7 +1282,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             <div style={{ fontSize: 13, color: OsakaJadePalette.text.secondary, marginTop: 4 }}>Place a feed, the equipment and an outlet, then pipe them together.</div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap', pointerEvents: 'auto' }}>
               {onDesignUnitOp && (
-                <Button icon={<Sparkles size={14} color={OsakaJadePalette.jade[400]} />} onClick={onDesignUnitOp}>
+                <Button icon={<SquarePen size={14} />} onClick={onDesignUnitOp}>
                   Design a unit op
                 </Button>
               )}

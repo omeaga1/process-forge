@@ -23,7 +23,7 @@ import { RunDigest, type RunView } from './RunDigest.js';
 import { Button, Chip, Tooltip } from '../../ui/index.js';
 import { supportsAgent } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
-import { Loader2, ChevronRight, ChevronLeft, Sparkles, KeyRound } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronLeft, MessageSquare, Check, KeyRound } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
@@ -195,7 +195,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         >
           <ChevronLeft size={16} color={OsakaJadePalette.jade.glow} />
           <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={13} color={OsakaJadePalette.jade.glow} />
             PROCESS COPILOT
           </span>
         </button>
@@ -242,7 +241,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                 flexShrink: 0
               }}
             >
-              <Sparkles size={15} />
+              <MessageSquare size={15} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary, lineHeight: 1.2 }}>
@@ -465,7 +464,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: OsakaJadePalette.jade.glow }}>
-                    <Sparkles size={13} />
+                    <Check size={13} />
                     <span>Equipment placed on the flowsheet</span>
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
