@@ -1022,6 +1022,6 @@ export function unitWarnings(contract: UnitOpContract): ContractValidationIssue[
     .filter(({ v }) => parseUnit(v.unit) === null)
     .map(({ v, path }) => ({
       path,
-      message: `unit "${v.unit}" is not one the checker knows, so "${v.name}" is not unit-checked. Use a standard symbol (kg, m, s, min, gal, L, °C, K, kW, kJ, psi, bar, %, -, items...) combined with / and -, e.g. kJ/kg-K or gal/min.`
+      message: `unit "${v.unit}" is not one the checker knows, so "${v.name}" is not unit-checked. Use a standard symbol (kg, m, s, min, gal, L, °C, K, kW, kJ, psi, bar, V, A, ohm, S, %, -, items...) combined with / and -, e.g. kJ/kg-K or gal/min.`
     }));
 }

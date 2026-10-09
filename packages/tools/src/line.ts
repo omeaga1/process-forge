@@ -147,7 +147,12 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
           `its "${h.phase}" phase put in ${h.deliveredKwh} kWh (duty × time) where the batch took ${h.neededKwh} kWh (m·cp·ΔT of what was in the vessel), in ${h.batches} batch${h.batches === 1 ? '' : 'es'}: write that phase's time from batch.massKg * batch.cpKjPerKgK`
       )
     ];
-    const reasons = [...bad.map((c) => `"${c.message}" for ${Math.round((c.seconds / (duration * 60)) * 100)}% of the run`), ...failed];
+    const share = (seconds: number) => {
+      const pct = Math.round((seconds / (duration * 60)) * 100);
+      // A short breach (a start-up transient) rounds to 0%: say how long it was instead.
+      return pct >= 1 ? `${pct}% of the run` : `${seconds} s of the run`;
+    };
+    const reasons = [...bad.map((c) => `"${c.message}" for ${share(c.seconds)}`), ...failed];
     if (!reasons.length) return [];
     const out = result.nodeReports[node.id]?.fluid?.averageOutletTemperatureC;
     return [

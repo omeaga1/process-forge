@@ -41,6 +41,11 @@ type BridgeCall =
 const NOT_RUNNING =
   'The ProcessForge desktop app is not running on this computer (no bridge file). Open ProcessForge Desktop 0.1.18 or later and try again. Without it, give the engineer the contract JSON to paste into Design a unit op.';
 
+/** Says where the server looked, so a mismatch (another user, a sandboxed APPDATA) can be seen. */
+function notRunning(): string {
+  return `${NOT_RUNNING} Looked for ${bridgeFilePath()}.`;
+}
+
 function readBridge(): BridgeInfo | null {
   try {
     const info = JSON.parse(fs.readFileSync(bridgeFilePath(), 'utf8')) as Partial<BridgeInfo>;
@@ -53,7 +58,7 @@ function readBridge(): BridgeInfo | null {
 
 async function call(method: 'GET' | 'POST', route: string, body?: unknown): Promise<BridgeCall> {
   const info = readBridge();
-  if (!info) return { ok: false, reason: NOT_RUNNING };
+  if (!info) return { ok: false, reason: notRunning() };
   try {
     const res = await fetch(`http://127.0.0.1:${info.port}${route}`, {
       method,
@@ -71,7 +76,7 @@ async function call(method: 'GET' | 'POST', route: string, body?: unknown): Prom
     return { ok: true, status: res.status, body: parsed };
   } catch (e) {
     // A stale file from an app that crashed, or the app is closing.
-    return { ok: false, reason: `${NOT_RUNNING} (${(e as Error).message})` };
+    return { ok: false, reason: `${notRunning()} (${(e as Error).message})` };
   }
 }
 

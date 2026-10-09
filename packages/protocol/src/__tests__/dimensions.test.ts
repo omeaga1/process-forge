@@ -24,7 +24,24 @@ import {
   type UnitOpContract
 } from '../index.js';
 
-const same = (a: Dimension | null, b: Dimension) => assert.deepEqual(a?.map((v) => v + 0), [...b]);
+const same = (a: Dimension | null, b: readonly number[]) => assert.deepEqual(a?.map((v) => v + 0), [...b, 0, 0, 0, 0, 0].slice(0, 5));
+
+describe('Electrical units', () => {
+  it('reads volts, amps, ohms and siemens so an ohmic heater is unit-checked', () => {
+    same(parseUnit('V'), [1, 2, -3, 0, -1]);
+    same(parseUnit('ohm'), [1, 2, -3, 0, -2]);
+    same(parseUnit('S/m'), [-1, -3, 3, 0, 2]);
+    assert.equal(describeDimension(parseUnit('V/m')!), 'electric field strength');
+    // Ohm's law and P = V^2 / R come out as a power.
+    const units: Record<string, string> = { v: 'V', i: 'A', r: 'ohm' };
+    const env = (n: string) => ({ kind: 'dim' as const, dim: parseUnit(units[n]!)! });
+    const p = inferDimension('v * i', env).result;
+    assert.equal(p.kind, 'dim');
+    if (p.kind === 'dim') same(p.dim, POWER);
+    const q = inferDimension('v * v / r', env).result;
+    if (q.kind === 'dim') same(q.dim, POWER);
+  });
+});
 
 describe('Unit parsing', () => {
   it('reduces engineering units to mass, length, time and temperature', () => {

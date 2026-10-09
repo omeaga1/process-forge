@@ -75,6 +75,10 @@ def(4184, 'kcal');
 def(1.05505585262e8, 'therm');
 def(1, 'W');
 def(1e3, 'kW');
+def(1, 'A', 'amp', 'amps', 'V', 'volt', 'volts', 'ohm', 'ohms', 'Ω', 'S', 'siemens', 'Wb');
+def(1e-3, 'mA', 'mV', 'mohm', 'mΩ', 'mS');
+def(1e3, 'kA', 'kV', 'kohm', 'kΩ');
+def(1e-6, 'µS', 'uS');
 def(1e6, 'MW');
 def(745.69987158, 'hp', 'HP');
 def(1, 'Pa');
@@ -190,9 +194,9 @@ export function convertUnit(value: number, from: string, to: string, options: { 
   return (value * a.f) / b.f;
 }
 
-const PRESSURE_DIM: Dimension = [1, -1, -2, 0];
+const PRESSURE_DIM: Dimension = [1, -1, -2, 0, 0];
 const sameDim = (a: Dimension, b: Dimension) => a.every((v, i) => Math.abs(v - b[i]!) < 1e-9);
-const isTemperature = (d: Dimension) => sameDim(d, [0, 0, 0, 1]);
+const isTemperature = (d: Dimension) => sameDim(d, [0, 0, 0, 1, 0]);
 
 /** The units an engineer is likely to want for a quantity, by dimension. The declared unit is always offered too. */
 const FAMILIES: string[][] = [
