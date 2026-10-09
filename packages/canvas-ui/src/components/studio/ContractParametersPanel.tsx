@@ -185,6 +185,8 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
   // Results the engineer holds at a target by varying one setting: re-solved on every edit, like a simulator's design spec.
   // The same rules apply to an edit made through MCP (protocol's update-unit).
   const holds = designSpecsOf(config);
+  // A fix that turns a held setting would be undone by its hold at once: offer only the others.
+  const visibleFixes = fixes.filter((f) => !holds.some((h) => h.vary === f.parameter));
   const solveHolds = (values: Record<string, number>, design?: UnitOpDesignStream, list: DesignSpec[] = holds): Record<string, number> => {
     if (!list.length) return values;
     const trial: UnitOpContract = {
@@ -259,7 +261,10 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
     ? []
     : (Object.entries(config).filter(([k, v]) => typeof v === 'number' && !contract.parameters.some((p) => p.name === k)) as [string, number][]);
 
-  const renderParam = (p: UnitOpParameter) => {
+  const renderParam = (asked: UnitOpParameter) => {
+    // A held setting is the solver's: shown as a fixed value, not a knob that would snap back.
+    const heldBy = holds.find((h) => h.vary === asked.name);
+    const p: UnitOpParameter = heldBy ? { ...asked, label: `${asked.label} (held by the solver)`, min: asked.value, max: asked.value } : asked;
     const choices = displayUnitsFor(p);
     const du = unitFor(p.unit, choices);
     const drives = [...(influence.derived[p.name] ?? []).map(labelOf), ...(influence.behavior[p.name] ?? []).map(behaviorLabel)];
@@ -426,12 +431,12 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
           </div>
         )}
         {/* The engine's counter-offers: one knob, the value that clears a check. */}
-        {fixes.length > 0 && (
+        {visibleFixes.length > 0 && (
           <div style={{ margin: '4px 0 6px', padding: '10px 12px', borderRadius: r.md, border: `1px dashed ${tint(palette.jade[500], 0.5)}`, background: tint(palette.jade[500], 0.04) }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: palette.text.secondary, marginBottom: 6 }}>
               <Wand2 size={13} color={palette.jade[500]} /> The engine solved for values that clear the failing checks
             </div>
-            {fixes.slice(0, 4).map((f) => {
+            {visibleFixes.slice(0, 4).map((f) => {
               const p = paramOf(f.parameter)!;
               const du = unitFor(p.unit, displayUnitsFor(p));
               const difference = isTemperatureDifference(p);
