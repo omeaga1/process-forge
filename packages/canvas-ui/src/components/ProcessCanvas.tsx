@@ -1395,6 +1395,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         bottlenecks={telemetry.bottlenecks}
         telemetry={liveTelemetry}
         {...(runView ? { run: runView } : {})}
+        bulkLine={bulkLine}
         isCollapsed={isDockCollapsed}
         onToggleCollapse={handleToggleDock}
         onAddNode={handleAddNode}

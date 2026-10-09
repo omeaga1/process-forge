@@ -1,27 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
-import {
-  Layers,
-  Cpu,
-  ChevronDown,
-  Save,
-  FolderOpen,
-  AlertCircle,
-  Sun,
-  Moon,
-  RotateCw,
-  Sparkles,
-  User,
-  LayoutDashboard,
-  CloudOff,
-  CloudUpload,
-  Check,
-  Loader2
-} from 'lucide-react';
-import { useMobileViewport, useTheme, ProcessForgeLogo } from '@process-forge/canvas-ui';
+import { Layers, Cpu, ChevronDown, FolderOpen, AlertCircle, Sun, Moon, RotateCw, Sparkles, User, LayoutDashboard, CloudOff, CloudUpload, Check, Loader2 } from 'lucide-react';
+import { Button, Tooltip, useMobileViewport, useTheme, ProcessForgeLogo } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
 import { hasCloudSession } from '../auth/accountManager.js';
 import { isTauriEnvironment } from './UpdateNotificationBanner.js';
-import { draftingRadius, tint } from '@process-forge/theme';
+import { tint } from '@process-forge/theme';
 
 /** Where the open project stands against its cloud copy. */
 export type CloudSaveStatus =
@@ -53,12 +36,13 @@ interface HeaderBarProps {
   hasUpdateAvailable?: boolean;
 }
 
+const Divider: React.FC = () => <div aria-hidden style={{ width: 1, height: 18, backgroundColor: 'var(--pf-border-subtle)', margin: '0 4px', flexShrink: 0 }} />;
+
 export const HeaderBar: React.FC<HeaderBarProps> = ({
   projectName,
   onOpenProjects,
   onRenameProject,
   isGuestMode,
-  activeAiProvider: _activeAiProvider = 'mcp',
   onNavigateHome,
   onOpenAiModal,
   onOpenForgeHub,
@@ -86,224 +70,109 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   }, []);
   const { isMobile } = useMobileViewport();
   const { theme, toggleTheme, palette } = useTheme();
-  const OsakaJadePalette = palette;
   const { user, isAuthenticated, openAccountModal } = useAccount();
-
+  const openAccount = () => (onOpenAccountModal ?? openAccountModal)();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       onImportFile(file);
-      e.target.value = ''; // reset so same file can be reopened
+      e.target.value = ''; // so the same file can be opened again
     }
   };
 
+  const header: React.CSSProperties = {
+    height: isMobile ? 48 : 50,
+    backgroundColor: palette.background.surface,
+    borderBottom: `1px solid ${palette.border.default}`,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: isMobile ? '0 10px' : '0 12px 0 10px',
+    zIndex: 100,
+    position: 'relative',
+    minWidth: 0
+  };
+
+  const fileInput = <input ref={fileInputRef} type="file" accept=".json,.pfg,.pfg.json" style={{ display: 'none' }} onChange={handleFileChange} />;
+
+  const brand = onNavigateHome ? (
+    <Tooltip content="Studio Hub: your projects and templates" side="bottom">
+      <button type="button" className="pf-focus" onClick={onNavigateHome} aria-label="ProcessForge home" style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', padding: '4px 6px', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }}>
+        <ProcessForgeLogo size={isMobile ? 24 : 26} wordmarkSize={14} />
+      </button>
+    </Tooltip>
+  ) : (
+    <div style={{ display: 'flex', alignItems: 'center', padding: '4px 6px', flexShrink: 0 }}>
+      <ProcessForgeLogo size={isMobile ? 24 : 26} wordmarkSize={14} />
+    </div>
+  );
+
+  const themeButton = (
+    <Button variant="ghost" iconOnly icon={theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />} label={theme === 'dark' ? 'Light theme' : 'Dark theme'} onClick={toggleTheme} />
+  );
+
+  const accountLabel =
+    isAuthenticated && user ? `${user.name} (${user.email})${hasCloudSession(user) ? ' · saves to ProcessForge Cloud' : ' · this device only'}` : 'Sign in';
+
   if (isMobile) {
     return (
-      <header
-        style={{
-          height: 48,
-          backgroundColor: OsakaJadePalette.background.surface,
-          borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 12px',
-          zIndex: 100,
-          position: 'relative'
-        }}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json,.pfg,.pfg.json"
-          style={{ display: 'none' }}
-          onChange={handleFileChange}
-        />
-
-        {/* Brand */}
-        <div
-          onClick={onNavigateHome}
-          style={{ display: 'flex', alignItems: 'center', cursor: onNavigateHome ? 'pointer' : 'default' }}
-          title={onNavigateHome ? 'Return to Studio Dashboard & Projects Hub' : undefined}
-        >
-          <ProcessForgeLogo size={24} wordmarkSize={14} />
-        </div>
-
-        {/* Mobile Right Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button
-            onClick={() => (onOpenAccountModal ?? openAccountModal)()}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 32,
-              height: 32,
-              borderRadius: draftingRadius.soft,
-              backgroundColor: isAuthenticated ? tint(palette.jade[500], 0.15) : tint(palette.text.primary, 0.04),
-              border: `1px solid ${isAuthenticated ? OsakaJadePalette.jade[600] : OsakaJadePalette.border.default}`,
-              color: isAuthenticated ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.secondary,
-              cursor: 'pointer'
-            }}
-            title={isAuthenticated ? `Account: ${user?.name}` : 'Sign In'}
-          >
-            <User size={15} />
-          </button>
-
-          <button
-            onClick={onOpenSaveModal}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 32,
-              height: 32,
-              borderRadius: draftingRadius.soft,
-              backgroundColor: tint(palette.jade[500], 0.15),
-              border: `1px solid ${OsakaJadePalette.jade[600]}`,
-              color: OsakaJadePalette.text.accent,
-              cursor: 'pointer'
-            }}
-            title="Save Simulation to Cloud"
-          >
-            <Save size={15} />
-          </button>
-
-          <button
-            onClick={onOpenAiModal}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 32,
-              height: 32,
-              borderRadius: draftingRadius.soft,
-              backgroundColor: tint(palette.jade[500], 0.15),
-              border: `1px solid ${OsakaJadePalette.jade.glow}`,
-              color: OsakaJadePalette.jade.glow,
-              cursor: 'pointer'
-            }}
-            title="AI & MCP Engineering Tools"
-          >
-            <Cpu size={15} />
-          </button>
-
+      <header style={header}>
+        {fileInput}
+        {brand}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Button variant="ghost" iconOnly icon={<User size={15} />} label={accountLabel} onClick={openAccount} />
+          <Button variant="ghost" iconOnly icon={<CloudUpload size={15} />} label="Save" onClick={onOpenSaveModal} />
+          <Button variant="ghost" iconOnly icon={<Cpu size={15} />} label="AI model" onClick={onOpenAiModal} />
           {onCheckForUpdates && (
-            <button
+            <Button
+              variant="ghost"
+              iconOnly
+              icon={<RotateCw size={14} className={isCheckingUpdates ? 'animate-spin' : ''} />}
+              label={hasUpdateAvailable ? 'Install the update' : 'Check for updates'}
               onClick={onCheckForUpdates}
               disabled={isCheckingUpdates}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 32,
-                height: 32,
-                borderRadius: draftingRadius.soft,
-                backgroundColor: hasUpdateAvailable ? tint(palette.jade[500], 0.2) : tint(palette.text.primary, 0.04),
-                border: `1px solid ${hasUpdateAvailable ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
-                color: hasUpdateAvailable ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.primary,
-                cursor: 'pointer'
-              }}
-              title={hasUpdateAvailable ? 'Update Available — Click to Apply' : 'Check for Updates'}
-            >
-              <RotateCw size={14} className={isCheckingUpdates ? 'animate-spin' : ''} />
-            </button>
+            />
           )}
-
-          <button
-            onClick={toggleTheme}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 32,
-              height: 32,
-              borderRadius: draftingRadius.soft,
-              backgroundColor: tint(palette.text.primary, 0.04),
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              color: theme === 'dark' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.primary,
-              cursor: 'pointer'
-            }}
-            title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
-          >
-            {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
+          {themeButton}
         </div>
       </header>
     );
   }
 
+  // Save to cloud in one click, and the full save options beside it.
+  const st = cloudSaveStatus;
+  const time = st.kind === 'saved' ? new Date(st.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  const save =
+    st.kind === 'signed-out'
+      ? { icon: <CloudOff size={14} />, label: 'Save to cloud', hint: 'Sign in with Google to save this project to ProcessForge Cloud. It is already saved on this device.' }
+      : st.kind === 'saving'
+        ? { icon: <Loader2 size={14} className="animate-spin" />, label: 'Saving…', hint: 'Saving to ProcessForge Cloud' }
+        : st.kind === 'saved'
+          ? { icon: <Check size={14} color={palette.jade[400]} />, label: 'Saved', hint: `Saved to ProcessForge Cloud at ${time}. No changes since.` }
+          : st.kind === 'error'
+            ? { icon: <CloudOff size={14} color={palette.status.blocked} />, label: 'Retry save', hint: st.message }
+            : { icon: <CloudUpload size={14} color={palette.jade[400]} />, label: 'Save to cloud', hint: 'Save this project to ProcessForge Cloud · Ctrl+S' };
+
   return (
-    <header
-      style={{
-        height: 50,
-        backgroundColor: OsakaJadePalette.background.surface,
-        borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 16px',
-        zIndex: 100,
-        position: 'relative',
-        flexWrap: 'nowrap',
-        minWidth: 0,
-        gap: 12
-      }}
-    >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json,.pfg,.pfg.json"
-        style={{ display: 'none' }}
-        onChange={handleFileChange}
-      />
+    <header style={header}>
+      {fileInput}
 
-      {/* Left: Brand, Navigation, Flowsheet Selector, and Core Status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0, overflow: 'hidden' }}>
-        <div
-          onClick={onNavigateHome}
-          style={{ display: 'flex', alignItems: 'center', cursor: onNavigateHome ? 'pointer' : 'default', flexShrink: 0 }}
-          title={onNavigateHome ? 'Return to Studio Dashboard & Projects Hub' : undefined}
-        >
-          <ProcessForgeLogo size={26} wordmarkSize={14} />
-        </div>
-
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 0, overflow: 'hidden' }}>
+        {brand}
         {onNavigateHome && (
-          <button
-            onClick={onNavigateHome}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              height: 32,
-              padding: '0 9px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: tint(palette.text.primary, 0.04),
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              color: OsakaJadePalette.text.secondary,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              boxSizing: 'border-box',
-              flexShrink: 0
-            }}
-            title="Studio Hub, Cloud Projects & Templates"
-          >
-            <LayoutDashboard size={13} color={OsakaJadePalette.jade[400]} />
-            <span>Studio Hub</span>
-          </button>
+          <Button variant="ghost" icon={<LayoutDashboard size={14} />} onClick={onNavigateHome}>
+            Studio Hub
+          </Button>
         )}
+        <Divider />
 
-        {/* Subtle separator */}
-        <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px', flexShrink: 0 }} />
-
-        {/* The open project: click for every project, templates and files
-            (Ctrl+O); double-click to rename it. */}
+        {/* The open project: click for every project, templates and files (Ctrl+O); double-click to rename. */}
         {renaming !== null && onRenameProject ? (
           <input
             autoFocus
+            className="pf-input"
             value={renaming}
             aria-label="Project name"
             onChange={(e) => setRenaming(e.target.value)}
@@ -317,315 +186,109 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               if (name && name !== projectName) onRenameProject(name);
               setRenaming(null);
             }}
-            style={{
-              height: 32,
-              width: 260,
-              boxSizing: 'border-box',
-              padding: '0 10px',
-              borderRadius: draftingRadius.soft,
-              border: `1px solid ${OsakaJadePalette.jade[500]}`,
-              backgroundColor: OsakaJadePalette.background.surface,
-              color: OsakaJadePalette.text.primary,
-              fontSize: 13,
-              fontWeight: 600,
-              outline: 'none'
-            }}
+            style={{ width: 260, height: 32, fontWeight: 600 }}
           />
         ) : (
-        <button
-          onDoubleClick={(e) => {
-            if (!onRenameProject) return;
-            e.preventDefault();
-            if (clickTimer.current) window.clearTimeout(clickTimer.current);
-            setRenaming(projectName);
-          }}
-          type="button"
-          onClick={() => {
-            // Wait a moment: the first click of a double-click (rename) must not open the browser.
-            if (clickTimer.current) window.clearTimeout(clickTimer.current);
-            clickTimer.current = window.setTimeout(onOpenProjects, onRenameProject ? 220 : 0);
-          }}
-          title="Projects: open another, start a new one, or open a file (Ctrl+O). Double-click to rename."
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 7,
-            height: 32,
-            maxWidth: 300,
-            minWidth: 120,
-            flexShrink: 1,
-            boxSizing: 'border-box',
-            padding: '0 8px 0 10px',
-            borderRadius: draftingRadius.soft,
-            backgroundColor: OsakaJadePalette.background.canvas,
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            color: OsakaJadePalette.text.primary,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
-        >
-          <FolderOpen size={14} color={OsakaJadePalette.jade[400]} style={{ flexShrink: 0 }} />
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{projectName}</span>
-          <ChevronDown size={13} color={OsakaJadePalette.text.secondary} style={{ flexShrink: 0 }} />
-        </button>
+          <Tooltip content={`Projects: open another, start one, or open a file · Ctrl+O${onRenameProject ? '. Double-click to rename.' : ''}`} side="bottom">
+            <button
+              type="button"
+              className="pf-btn"
+              data-variant="default"
+              data-size="md"
+              onDoubleClick={(e) => {
+                if (!onRenameProject) return;
+                e.preventDefault();
+                if (clickTimer.current) window.clearTimeout(clickTimer.current);
+                setRenaming(projectName);
+              }}
+              onClick={() => {
+                // The first click of a double-click (rename) must not open the browser.
+                if (clickTimer.current) window.clearTimeout(clickTimer.current);
+                clickTimer.current = window.setTimeout(onOpenProjects, onRenameProject ? 220 : 0);
+              }}
+              style={{ maxWidth: 300, minWidth: 120, flexShrink: 1, justifyContent: 'flex-start' }}
+            >
+              <FolderOpen size={14} color={palette.jade[400]} style={{ flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1, textAlign: 'left' }}>{projectName}</span>
+              <ChevronDown size={13} color={palette.text.muted} style={{ flexShrink: 0 }} />
+            </button>
+          </Tooltip>
         )}
 
-        {/* Subtle separator */}
-        <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px', flexShrink: 0 }} />
-
-        {/* Guest Mode Indicator */}
         {isGuestMode && (
-          <button
-            onClick={onOpenGuestModal}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              height: 32,
-              padding: '0 8px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: tint(palette.status.blocked, 0.10),
-              border: `1px solid ${tint(palette.status.blocked, 0.35)}`,
-              fontSize: 11,
-              color: OsakaJadePalette.border.glowAmber,
-              fontWeight: 600,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              boxSizing: 'border-box',
-              flexShrink: 0
-            }}
-            title="Guest Mode: Storage is local to this browser session. Click to view backup options."
-          >
-            <AlertCircle size={12} />
-            <span>Guest</span>
-          </button>
+          <Tooltip content="Projects are kept in this browser only. Click for ways to keep a copy." side="bottom">
+            <button
+              type="button"
+              className="pf-chip"
+              onClick={onOpenGuestModal}
+              style={{ color: palette.status.blocked, borderColor: tint(palette.status.blocked, 0.4), backgroundColor: tint(palette.status.blocked, 0.08), flexShrink: 0 }}
+            >
+              <AlertCircle size={12} />
+              Guest
+            </button>
+          </Tooltip>
         )}
       </div>
 
-      {/* Right: Actions, User Account, Tools */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-        {/* Save to cloud in one click, and the full save options beside it. */}
-        {(() => {
-          const st = cloudSaveStatus;
-          const time = st.kind === 'saved' ? new Date(st.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-          const view =
-            st.kind === 'signed-out'
-              ? { icon: <CloudOff size={14} />, label: 'Save to cloud', hint: 'Sign in with Google to save this project to ProcessForge Cloud. It is already saved on this device.' }
-              : st.kind === 'saving'
-                ? { icon: <Loader2 size={14} className="animate-spin" />, label: 'Saving…', hint: 'Saving to ProcessForge Cloud' }
-                : st.kind === 'saved'
-                  ? { icon: <Check size={14} />, label: 'Saved', hint: `Saved to ProcessForge Cloud at ${time}. No changes since.` }
-                  : st.kind === 'error'
-                    ? { icon: <CloudOff size={14} />, label: 'Retry save', hint: st.message }
-                    : { icon: <CloudUpload size={14} />, label: 'Save to cloud', hint: 'Save this project to ProcessForge Cloud (Ctrl+S)' };
-          const quiet = st.kind === 'saved';
-          const segment: React.CSSProperties = {
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            height: 32,
-            boxSizing: 'border-box',
-            backgroundColor: quiet ? 'transparent' : tint(palette.jade[500], 0.15),
-            border: `1px solid ${st.kind === 'error' ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[600]}`,
-            color: quiet ? OsakaJadePalette.text.secondary : OsakaJadePalette.text.accent,
-            fontSize: 12,
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            cursor: 'pointer'
-          };
-          return (
-            <div style={{ display: 'inline-flex' }}>
-              <button
-                type="button"
-                onClick={onQuickCloudSave ?? onOpenSaveModal}
-                disabled={st.kind === 'saving'}
-                title={view.hint}
-                aria-label={view.label}
-                style={{
-                  ...segment,
-                  padding: '0 10px',
-                  borderRadius: `${draftingRadius.soft} 0 0 ${draftingRadius.soft}`
-                }}
-              >
-                {view.icon}
-                {!compact && <span>{view.label}</span>}
-              </button>
-              <button
-                type="button"
-                onClick={onOpenSaveModal}
-                title="More save options: rename, save on this device, download a file"
-                aria-label="More save options"
-                style={{
-                  ...segment,
-                  padding: '0 6px',
-                  borderLeft: 'none',
-                  borderRadius: `0 ${draftingRadius.soft} ${draftingRadius.soft} 0`
-                }}
-              >
-                <ChevronDown size={13} />
-              </button>
-            </div>
-          );
-        })()}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <div className="pf-split">
+          <Tooltip content={save.hint} side="bottom">
+            <Button icon={save.icon} onClick={onQuickCloudSave ?? onOpenSaveModal} disabled={st.kind === 'saving'} aria-label={save.label}>
+              {!compact && save.label}
+            </Button>
+          </Tooltip>
+          <Button iconOnly icon={<ChevronDown size={13} />} label="More save options: rename, save on this device, download a file" onClick={onOpenSaveModal} />
+        </div>
 
-        {/* Subtle separator */}
-        <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px' }} />
+        <Divider />
 
-        {/* AI & MCP Connection Button */}
-        <button
-          onClick={onOpenAiModal}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            height: 32,
-            backgroundColor: tint(palette.jade[500], 0.10),
-            border: `1px solid ${OsakaJadePalette.jade[600]}`,
-            borderRadius: draftingRadius.soft,
-            padding: '0 10px',
-            color: OsakaJadePalette.text.accent,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            boxSizing: 'border-box'
-          }}
-          title="AI model: an MCP client such as Claude Desktop, or OpenRouter in the app"
-        >
-          <Cpu size={14} color={OsakaJadePalette.jade.glow} />
-          {!compact && <span>AI Tools</span>}
-        </button>
+        <Tooltip content="AI model: an MCP client such as Claude Desktop, or OpenRouter in the app" side="bottom">
+          <Button variant="ghost" icon={<Cpu size={14} color={palette.jade[400]} />} onClick={onOpenAiModal} aria-label="AI model">
+            {!compact && 'AI model'}
+          </Button>
+        </Tooltip>
+        <Tooltip content="Unit ops other engineers have published, and worked examples" side="bottom">
+          <Button variant="ghost" icon={<Layers size={14} />} onClick={onOpenForgeHub} aria-label="Community library">
+            {!compact && 'Community library'}
+          </Button>
+        </Tooltip>
 
-        {/* Community UnitOp Library */}
-        <button
-          onClick={onOpenForgeHub}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            height: 32,
-            backgroundColor: tint(palette.text.primary, 0.04),
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            borderRadius: draftingRadius.soft,
-            padding: '0 10px',
-            color: OsakaJadePalette.text.secondary,
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            boxSizing: 'border-box'
-          }}
-          title="Community UnitOp Library — Browse & publish unit-op plugins"
-        >
-          <Layers size={14} />
-          {!compact && <span>Community library</span>}
-        </button>
+        <Divider />
 
-        {/* Subtle separator */}
-        <div style={{ width: 1, height: 16, backgroundColor: OsakaJadePalette.border.subtle, margin: '0 2px' }} />
-
-        {/* User Account & Cloud Sync Button */}
-        <button
-          onClick={() => (onOpenAccountModal ?? openAccountModal)()}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            height: 32,
-            backgroundColor: isAuthenticated ? tint(palette.jade[500], 0.10) : tint(palette.text.primary, 0.04),
-            border: `1px solid ${isAuthenticated ? OsakaJadePalette.jade[600] : OsakaJadePalette.border.default}`,
-            borderRadius: draftingRadius.soft,
-            padding: '0 10px',
-            color: isAuthenticated ? OsakaJadePalette.text.primary : OsakaJadePalette.text.secondary,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            boxSizing: 'border-box'
-          }}
-          title={
-            isAuthenticated && user
-              ? `Account: ${user.name} (${user.email})${hasCloudSession(user) ? ' · can save to ProcessForge Cloud' : ' · this device only'}`
-              : 'Sign in'
-          }
-        >
-          {user?.avatarUrl ? (
-            <img src={user.avatarUrl} alt={user.name} style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover' }} />
-          ) : (
-            <User size={13} color={isAuthenticated ? OsakaJadePalette.jade[400] : OsakaJadePalette.text.muted} />
-          )}
-          <span>{isAuthenticated && user ? user.name.split(' ')[0] : 'Sign In'}</span>
-          {hasCloudSession(user) && (
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 0,
-                backgroundColor: OsakaJadePalette.jade[400]
-              }}
-              title="Signed in to ProcessForge Cloud"
-            />
-          )}
-        </button>
-
-        {/* Check for Updates Action (Desktop Tauri only) */}
-        {isTauriEnvironment() && onCheckForUpdates && (
-          <button
-            onClick={onCheckForUpdates}
-            disabled={isCheckingUpdates}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 5,
-              height: 32,
-              padding: hasUpdateAvailable ? '0 10px' : '0',
-              width: hasUpdateAvailable ? 'auto' : 32,
-              backgroundColor: hasUpdateAvailable ? tint(palette.jade[500], 0.15) : tint(palette.text.primary, 0.04),
-              border: `1px solid ${hasUpdateAvailable ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
-              borderRadius: draftingRadius.soft,
-              color: hasUpdateAvailable ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.secondary,
-              fontSize: 12,
-              fontWeight: hasUpdateAvailable ? 600 : 500,
-              cursor: isCheckingUpdates ? 'wait' : 'pointer',
-              whiteSpace: 'nowrap',
-              boxSizing: 'border-box',
-              borderColor: hasUpdateAvailable
-                ? OsakaJadePalette.jade[400]
-                : OsakaJadePalette.border.default
-            }}
-            title={hasUpdateAvailable ? 'Update Available — Click to Apply' : 'Check for Updates'}
+        <Tooltip content={accountLabel} side="bottom">
+          <Button
+            variant={isAuthenticated ? 'default' : 'ghost'}
+            onClick={openAccount}
+            icon={
+              user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                <User size={14} color={isAuthenticated ? palette.jade[400] : undefined} />
+              )
+            }
           >
-            {hasUpdateAvailable ? (
-              <Sparkles size={14} color={OsakaJadePalette.jade.glow} />
-            ) : (
-              <RotateCw size={14} className={isCheckingUpdates ? 'animate-spin' : ''} />
-            )}
-            {hasUpdateAvailable && <span>Update Ready</span>}
-          </button>
-        )}
+            {isAuthenticated && user ? user.name.split(' ')[0] : 'Sign in'}
+            {hasCloudSession(user) && <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: palette.jade[400] }} />}
+          </Button>
+        </Tooltip>
 
-        {/* Theme Toggle Button (Osaka Jade Dark / Bamboo Ivory Light) */}
-        <button
-          onClick={toggleTheme}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 32,
-            height: 32,
-            backgroundColor: tint(palette.text.primary, 0.04),
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            borderRadius: draftingRadius.soft,
-            color: theme === 'dark' ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.accent,
-            cursor: 'pointer',
-            boxSizing: 'border-box'
-          }}
-          title={theme === 'dark' ? 'Switch to Light Theme (Bamboo Ivory)' : 'Switch to Dark Theme (Osaka Jade)'}
-        >
-          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-        </button>
+        {isTauriEnvironment() && onCheckForUpdates &&
+          (hasUpdateAvailable ? (
+            <Button variant="primary" icon={<Sparkles size={14} />} onClick={onCheckForUpdates}>
+              Update ready
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              iconOnly
+              icon={<RotateCw size={14} className={isCheckingUpdates ? 'animate-spin' : ''} />}
+              label="Check for updates"
+              onClick={onCheckForUpdates}
+              disabled={isCheckingUpdates}
+            />
+          ))}
+
+        {themeButton}
       </div>
     </header>
   );

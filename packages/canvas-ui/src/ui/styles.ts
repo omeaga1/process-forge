@@ -28,6 +28,9 @@ export const UI_CSS = `
 .pf-btn[data-variant="ghost"]:hover:not(:disabled) { background: var(--pf-bg-surface-hover); border-color: transparent; color: var(--pf-text-primary); }
 .pf-btn[data-variant="danger"] { background: transparent; border-color: color-mix(in srgb, var(--pf-status-failed) 45%, transparent); color: var(--pf-status-failed); }
 .pf-btn[data-variant="danger"]:hover:not(:disabled) { background: color-mix(in srgb, var(--pf-status-failed) 12%, transparent); border-color: var(--pf-status-failed); }
+.pf-split { display: inline-flex; }
+.pf-split > .pf-btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.pf-split > .pf-btn + .pf-btn { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: -1px; width: 28px; }
 .pf-btn[data-icon-only] { width: 32px; padding: 0; }
 .pf-btn[data-icon-only][data-size="sm"] { width: 26px; }
 
