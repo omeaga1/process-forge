@@ -207,6 +207,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
 
   return (
     <div
+      data-unit-panel=""
       style={{
         position: 'absolute',
         top: 0,

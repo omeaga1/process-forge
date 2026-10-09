@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import {
   ReactFlow,
   Background,
@@ -690,13 +690,28 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   // word and the unit count too; the dock shows both. An open unit panel lies
   // over the canvas's right side, so the toolbar has that much less room.
   const [canvasWidth, setCanvasWidth] = useState(1200);
-  const toolbarRoom = canvasWidth - (popOutNodeId ? Math.min(620, canvasWidth) : 0);
+  // How much of the canvas's right side the open unit panel covers, measured: the panel sits in the window, not the canvas.
+  const [panelOverlap, setPanelOverlap] = useState(0);
+  const canvasElRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const canvasEl = canvasElRef.current;
+    const panel = popOutNodeId ? document.querySelector<HTMLElement>('[data-unit-panel]') : null;
+    if (!canvasEl || !panel) {
+      setPanelOverlap(0);
+      return;
+    }
+    setPanelOverlap(Math.max(0, Math.round(canvasEl.getBoundingClientRect().right - panel.getBoundingClientRect().left)));
+  }, [popOutNodeId, canvasWidth]);
+  const toolbarRoom = canvasWidth - panelOverlap;
   const compactToolbar = toolbarRoom < 1060;
   const tightToolbar = toolbarRoom < 820;
+  // Narrowest (a small window with a unit open): the shortcut hint and playback speed go too; the command palette has both.
+  const crampedToolbar = toolbarRoom < 700;
   const observerRef = useRef<ResizeObserver | null>(null);
   const canvasAreaRef = useCallback((el: HTMLDivElement | null) => {
     observerRef.current?.disconnect();
     observerRef.current = null;
+    canvasElRef.current = el;
     if (!el) return;
     // Measure now, so the first paint is right without waiting for the observer.
     setCanvasWidth(el.getBoundingClientRect().width);
@@ -1019,7 +1034,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             position: 'absolute',
             top: 12,
             left: 12,
-            right: 12,
+            // Centred in what is visible: an open unit panel covers the canvas's right side.
+            right: panelOverlap + 12,
             zIndex: 10,
             display: 'flex',
             justifyContent: 'center',
@@ -1072,11 +1088,13 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               </Button>
             </Tooltip>
 
-            <Tooltip content="Every action from the keyboard">
-              <Button variant="ghost" size="sm" onClick={() => setIsPaletteOpen(true)} aria-label="Open the command palette" style={{ fontFamily: font.mono, fontSize: 11 }}>
-                Ctrl K
-              </Button>
-            </Tooltip>
+            {!crampedToolbar && (
+              <Tooltip content="Every action from the keyboard">
+                <Button variant="ghost" size="sm" onClick={() => setIsPaletteOpen(true)} aria-label="Open the command palette" style={{ fontFamily: font.mono, fontSize: 11 }}>
+                  Ctrl K
+                </Button>
+              </Tooltip>
+            )}
 
             <div style={{ width: 1, height: 20, backgroundColor: OsakaJadePalette.border.subtle, flexShrink: 0 }} />
 
@@ -1099,7 +1117,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               role="group"
               aria-label="Playback speed"
               style={{
-                display: 'flex',
+                display: crampedToolbar ? 'none' : 'flex',
                 alignItems: 'center',
                 gap: 2,
                 height: 32,
