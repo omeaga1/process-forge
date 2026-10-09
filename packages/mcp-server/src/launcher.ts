@@ -22,7 +22,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 /** Bumped only if the launcher/server handshake changes; a release that needs a newer launcher is skipped. */
 export const LAUNCHER_PROTOCOL = 1;
 const RELEASE = process.env.PROCESS_FORGE_MCP_RELEASE_URL ?? 'https://github.com/omeaga1/process-forge/releases/latest/download/';
-const CHECK_EVERY_MS = 6 * 3600 * 1000;
+// A check is one small request; hourly keeps a fresh release from waiting the better part of a day.
+const CHECK_EVERY_MS = 3600 * 1000;
 
 interface ServerInfo {
   version: string;
@@ -128,12 +129,13 @@ async function checkForUpdate(running: ServerInfo | undefined): Promise<void> {
   const last = readJson<{ at: number }>(stampFile)?.at ?? 0;
   if (Date.now() - last < CHECK_EVERY_MS) return;
   fs.mkdirSync(home, { recursive: true });
-  fs.writeFileSync(stampFile, JSON.stringify({ at: Date.now() }));
 
   const res = await fetch(RELEASE + 'mcp-server.json', { signal: AbortSignal.timeout(15000) });
+  // Not there yet (a release still uploading its files, or offline): try again next start, not in an hour.
   if (!res.ok) return;
   const remote = (await res.json()) as ServerInfo;
   if (!remote?.sha256 || !remote.version) return;
+  fs.writeFileSync(stampFile, JSON.stringify({ at: Date.now() }));
   if ((remote.launcher ?? 1) > LAUNCHER_PROTOCOL) return log(`release ${remote.build ?? remote.version} needs a newer extension; reinstall it from the release page`);
   if (remote.sha256 === running?.sha256) return;
   if (shipped.info && compareVersions(remote.version, shipped.info.version) < 0) return;
