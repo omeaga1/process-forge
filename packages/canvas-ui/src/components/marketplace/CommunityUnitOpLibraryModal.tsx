@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, TabStrip } from '../../ui/index.js';
+import { Button, Modal, TabStrip } from '../../ui/index.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import { ProcessForgeEmblem } from '../brand/ProcessForgeLogo.js';
 import {
@@ -334,6 +334,14 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                 : tab === 'community' && !searchQuery && selectedCategory === 'ALL'
                   ? 'Nothing has been published yet. Be the first: click a unit on the flowsheet and choose Publish to community library, or start from an example.'
                   : 'Nothing matches your filter. Try a different word or category.'}
+              {/* An empty community is not a dead end: the worked examples are one click away. */}
+              {tab === 'community' && !searchQuery && selectedCategory === 'ALL' && examples.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <Button variant="primary" onClick={() => setTab('examples')}>
+                    Browse the {examples.length} examples
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             (tab === 'community' ? plugins : tab === 'examples' ? examples : mine).map((plugin) => (
@@ -443,7 +451,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                   }}
                 >
                   {insertedId === plugin.id ? <Check size={15} /> : <Plus size={15} />}
-                  {insertedId === plugin.id ? 'Inserted' : 'Insert into Canvas'}
+                  {insertedId === plugin.id ? 'Added' : 'Add to flowsheet'}
                 </button>
               </div>
             ))
