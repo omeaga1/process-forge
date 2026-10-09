@@ -287,3 +287,92 @@ export function suggestFixes(contract: UnitOpContract, input: UnitOpEvaluationIn
     .slice(0, limit)
     .map(({ move: _m, severity: _s, ...f }) => f);
 }
+
+/** What solveForTarget found: the parameter value and the result it gives. */
+export interface TargetSolution {
+  parameter: string;
+  value: number;
+  /** The result's value there (the target, when reached). */
+  achieved: number;
+  /** The target lies inside what the parameter can reach in its range. */
+  reached: boolean;
+  /** Every ERROR check passes at that value. */
+  allErrorsPass: boolean;
+}
+
+/**
+ * The value of one parameter that brings a calculated result to a target,
+ * the others held where they are ("Concentrate Brix = 45 % by varying the
+ * steam duty", as a process simulator specifies a result rather than an
+ * input). Scans the parameter's range for where the result crosses the
+ * target, nearest the current value, and bisects it. When no value in range
+ * reaches the target, returns the value that comes closest, reached false.
+ * Null when the result cannot be evaluated anywhere in the range.
+ */
+export function solveForTarget(
+  contract: UnitOpContract,
+  result: string,
+  target: number,
+  parameter: string,
+  input: UnitOpEvaluationInput = {}
+): TargetSolution | null {
+  const p = contract.parameters.find((x) => x.name === parameter);
+  if (!p || !Number.isFinite(target)) return null;
+  const r = sweepRange(p);
+  const whole = isWholeNumberParameter(p);
+  const at = (raw: number) => {
+    const v = whole ? Math.round(raw) : raw;
+    const ev = evaluateUnitOp(contract, { ...input, parameterOverrides: { ...(input.parameterOverrides ?? {}), [parameter]: v } });
+    const y = ev.error ? undefined : ev.derived[result];
+    return { v, y: y !== undefined && Number.isFinite(y) ? y : undefined, ev };
+  };
+  const finish = (v: number, reached: boolean): TargetSolution | null => {
+    let value = whole ? Math.round(v) : v;
+    if (p.min !== undefined) value = Math.max(p.min, value);
+    if (p.max !== undefined) value = Math.min(p.max, value);
+    const s = at(value);
+    if (s.y === undefined) return null;
+    return {
+      parameter,
+      value,
+      achieved: s.y,
+      reached,
+      allErrorsPass: !s.ev.error && s.ev.constraints.every((c) => c.satisfied || c.severity !== 'ERROR')
+    };
+  };
+
+  const N = 96;
+  const samples = Array.from({ length: N }, (_, i) => at(atFraction(r, i / (N - 1))));
+  const valid = samples.filter((s) => s.y !== undefined) as { v: number; y: number }[];
+  if (!valid.length) return null;
+
+  // Brackets where the result crosses the target, nearest the current value first.
+  const brackets: { a: { v: number; y: number }; b: { v: number; y: number } }[] = [];
+  for (let i = 0; i + 1 < samples.length; i++) {
+    const a = samples[i]!;
+    const b = samples[i + 1]!;
+    if (a.y === undefined || b.y === undefined) continue;
+    if (a.y === target) brackets.push({ a: { v: a.v, y: a.y }, b: { v: a.v, y: a.y } });
+    else if ((a.y - target) * (b.y - target) < 0) brackets.push({ a: { v: a.v, y: a.y }, b: { v: b.v, y: b.y } });
+  }
+  if (!brackets.length) {
+    // Out of reach: the closest the parameter gets.
+    const best = [...valid].sort((x, y) => Math.abs(x.y - target) - Math.abs(y.y - target))[0]!;
+    return finish(best.v, false);
+  }
+  brackets.sort((x, y) => Math.abs((x.a.v + x.b.v) / 2 - p.value) - Math.abs((y.a.v + y.b.v) / 2 - p.value));
+  let { a, b } = brackets[0]!;
+  for (let i = 0; i < 60 && a.v !== b.v; i++) {
+    const mid = r.log && a.v > 0 && b.v > 0 ? Math.sqrt(a.v * b.v) : (a.v + b.v) / 2;
+    const m = at(mid);
+    if (m.y === undefined) break;
+    if ((a.y - target) * (m.y - target) <= 0) b = { v: mid, y: m.y };
+    else a = { v: mid, y: m.y };
+    if (Math.abs(m.y - target) <= Math.abs(target) * 1e-9) {
+      a = b = { v: mid, y: m.y };
+      break;
+    }
+  }
+  const pick = Math.abs(a.y - target) <= Math.abs(b.y - target) ? a : b;
+  return finish(pick.v, true);
+}

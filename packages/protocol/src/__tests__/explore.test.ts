@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { alternativeUnits, convertUnit, parseQuantity } from '../unitop/unitConversion.js';
-import { parameterInfluence, solveForConstraint, suggestFixes, sweepParameter, sweepRange, niceValue } from '../unitop/explore.js';
+import { parameterInfluence, solveForConstraint, solveForTarget, suggestFixes, sweepParameter, sweepRange, niceValue } from '../unitop/explore.js';
 import { DUST_COLLECTOR_CONTRACT } from '../unitop/examples/phaseUnits.js';
 import { validateUnitOpContract, type UnitOpContract } from '../unitop/contract.js';
 import { evaluateUnitOp } from '../unitop/evaluate.js';
@@ -110,5 +110,27 @@ describe('exploring a design', () => {
     assert.ok(withParam({ name: 'motorEfficiency', label: 'Motor efficiency', unit: '%', value: 104 }).some((i) => /not physical/.test(i.message)));
     assert.ok(withParam({ name: 'coldK', label: 'Cold', unit: 'K', value: -3 }).some((i) => /absolute zero/.test(i.message)));
     assert.equal(withParam({ name: 'motorEfficiency', label: 'Motor efficiency', unit: '%', value: 94 }).length, 0);
+  });
+});
+
+describe('solveForTarget: specify a result, vary an input', () => {
+  it('finds the filter area that gives an air-to-cloth ratio of 2 ft/min (area = ACFM / 2)', () => {
+    const acfm = evaluateUnitOp(DUST_COLLECTOR_CONTRACT).derived.acfm!;
+    const s = solveForTarget(DUST_COLLECTOR_CONTRACT, 'airToCloth', 2, 'filterAreaFt2');
+    assert.ok(s && s.reached, JSON.stringify(s));
+    close(s!.value, acfm / 2, 1e-6);
+    close(s!.achieved, 2, 1e-9);
+  });
+
+  it('says when the target is out of reach, and gives the closest value in range', () => {
+    // Even the largest filter in range cannot get the ratio down to 0.01 ft/min.
+    const s = solveForTarget(DUST_COLLECTOR_CONTRACT, 'airToCloth', 0.01, 'filterAreaFt2');
+    assert.ok(s && !s.reached, JSON.stringify(s));
+    close(s!.value, 100000, 1e-6);
+    assert.ok(s!.achieved > 0.01);
+  });
+
+  it('refuses an unknown parameter', () => {
+    assert.equal(solveForTarget(DUST_COLLECTOR_CONTRACT, 'airToCloth', 2, 'nope'), null);
   });
 });

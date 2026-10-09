@@ -391,7 +391,7 @@ function bandCaption(band: ReturnType<typeof feasibleBand> | undefined, fmt: (v:
 }
 
 /** A value field that takes a number in the shown unit, or a number with any unit of the same kind. */
-const QuantityText: React.FC<{
+export const QuantityText: React.FC<{
   value: number;
   unit: string;
   displayUnit: string;
