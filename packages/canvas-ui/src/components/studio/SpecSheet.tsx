@@ -147,8 +147,38 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
   });
   const specifiable = derivedRows.filter((d) => Number.isFinite(values[d.name]!) && moversOf(d.name).length > 0);
 
+  // The sheet as a table for a datasheet or a review: every specification, the feed, and what the engine calculates, in the shown units.
+  const [sheetCopied, setSheetCopied] = useState(false);
+  const copySheet = async () => {
+    const line = (section: string, name: string, v: number, unit: string, du: string, difference: boolean) => {
+      const shown = convertUnit(v, unit, du, { difference }) ?? v;
+      return [section, name, String(Number(shown.toPrecision(6))), du === '-' ? '' : du].join('\t');
+    };
+    const lines = ['Section\tItem\tValue\tUnit'];
+    for (const g of groups) for (const p of g.params) lines.push(line(`Specification: ${g.name}`, p.label, p.value, p.unit, paramUnit(unitFor, p), isTemperatureDifference(p)));
+    for (const p of props.feed?.params ?? []) lines.push(line('Feed at the design point', p.label, p.value, p.unit, paramUnit(unitFor, p), isTemperatureDifference(p)));
+    for (const d of defs) {
+      const v = values[d.name];
+      if (v === undefined || !Number.isFinite(v)) continue;
+      const du = unitFor(d.unit, displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 }));
+      lines.push(line('Calculated', d.label ?? d.name, v, d.unit, du, isTemperatureDifference(d)));
+    }
+    try {
+      await navigator.clipboard.writeText(`${contract.name}\n${lines.join('\n')}`);
+      setSheetCopied(true);
+      setTimeout(() => setSheetCopied(false), 1500);
+    } catch {
+      // Clipboard refused: the button simply does not change.
+    }
+  };
+
   return (
     <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '-34px 0 6px' }}>
+        <Button size="sm" variant="ghost" icon={sheetCopied ? <Check size={13} /> : <Copy size={13} />} onClick={copySheet}>
+          {sheetCopied ? 'Copied' : 'Copy sheet'}
+        </Button>
+      </div>
       {contract.parameters.length > 0 && (
         <table style={table} onKeyDown={nextOnEnter}>
           <caption style={hidden}>Specifications</caption>
