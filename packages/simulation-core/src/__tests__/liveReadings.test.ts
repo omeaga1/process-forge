@@ -28,3 +28,16 @@ describe("a unit's current rate is what it is doing now, not the run's average",
     assert.ok(Math.max(...log.map((x) => x.instantaneousRatePerMin)) > 35);
   });
 });
+
+describe('a stream reports what it is made of', () => {
+  it("the evaporator's concentrate is about 41.5 % sugar, its vapour pure water", () => {
+    const r = simulateProcess(JUICE_CONCENTRATION_LINE, 10);
+    const evap = JUICE_CONCENTRATION_LINE.nodes.find((n) => /EV-201/.test(n.name))!;
+    const last = r.telemetryLog.filter((x) => x.nodeId === evap.id).at(-1)!;
+    const flows = Object.values(last.portFlows ?? {});
+    const vapour = flows.find((f) => f.phase === 'GAS')!;
+    const concentrate = flows.find((f) => f.phase === 'LIQUID')!;
+    assert.deepEqual(vapour.composition, { water: 1 });
+    assert.ok(Math.abs(concentrate.composition!.sugar! - 0.415) < 0.005, JSON.stringify(concentrate.composition));
+  });
+});

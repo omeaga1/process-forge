@@ -150,7 +150,8 @@ function portFlowsNow(contract: UnitOpContract | undefined, tick: Record<string,
       temperatureC: round1(p.tempC),
       ...(phase === 'GAS' && split.ownKg > 0 ? { acfm: gasVolumes(split.ownKg, split.molarMass, p.tempC).acfm } : {}),
       // A liquid port's own volume flow: a pipe shows its own stream, not the unit's total.
-      ...(phase === 'LIQUID' ? { gpm: round1((p.m3 / M3_PER_GALLON) * 60) } : {})
+      ...(phase === 'LIQUID' ? { gpm: round1((p.m3 / M3_PER_GALLON) * 60) } : {}),
+      ...(fractions(p.comp) ? { composition: fractions(p.comp)! } : {})
     };
   }
   return Object.keys(out).length ? out : undefined;
@@ -804,6 +805,7 @@ export class SimulationEngine {
       flowGpm: round1(((u.role === 'sink' ? u.inRate : u.outRate) / M3_PER_GALLON) * 60),
       temperatureC: round1(u.role === 'feed' ? u.feedStock!.tempC : u.hold.tempC),
       kgPerHour: round1((u.role === 'sink' ? u.inKgRate : u.outKgRate) * 3600),
+      ...(fractions(u.role === 'feed' ? u.feedStock!.comp : level.comp) ? { composition: fractions(u.role === 'feed' ? u.feedStock!.comp : level.comp)! } : {}),
       ...(portFlowsNow(u.contract, u.tickPort) ? { portFlows: portFlowsNow(u.contract, u.tickPort)! } : {}),
       ...(phase && REACTOR_PHASES.has(phase) ? { phase: phase as NodeTelemetrySnapshot['phase'] } : {}),
       ...(phaseName ? { phaseName } : {})
