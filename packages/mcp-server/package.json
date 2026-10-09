@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "bundle": "node scripts/bundle.mjs",
-    "build:deps": "turbo run build --filter=@process-forge/mcp-server...",
+    "build:deps": "pnpm --filter \"@process-forge/mcp-server...\" run build",
     "prepublishOnly": "npm run build:deps && npm run bundle && node scripts/smoke.mjs",
     "pack:mcpb": "node scripts/pack-mcpb.mjs"
   },
