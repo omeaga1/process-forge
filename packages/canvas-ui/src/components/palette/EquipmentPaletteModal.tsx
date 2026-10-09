@@ -46,7 +46,10 @@ const matches = (item: EquipmentPaletteItem, q: string) =>
  * category, searchable. A tile is the add button; the dialog closes once the
  * unit is on the flowsheet.
  */
-export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({ isOpen, onClose, onInsertNode, onDesignNew }) => {
+/** Closed, it renders nothing: the canvas re-renders on every edit, and a closed palette has nothing to show. */
+export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = (props) => (props.isOpen ? <OpenPalette {...props} /> : null);
+
+const OpenPalette: React.FC<EquipmentPaletteModalProps> = ({ isOpen, onClose, onInsertNode, onDesignNew }) => {
   const { palette, font } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState<Category>('ALL');

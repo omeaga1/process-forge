@@ -111,12 +111,20 @@ export function groupParameters(params: readonly UnitOpParameter[]): ParameterGr
   return groups;
 }
 
+// toLocaleString builds a formatter on every call; a sheet formats hundreds of numbers per edit.
+const formatters = new Map<number, Intl.NumberFormat>();
+const formatterFor = (digits: number) => {
+  let f = formatters.get(digits);
+  if (!f) formatters.set(digits, (f = new Intl.NumberFormat('en-US', { maximumFractionDigits: digits })));
+  return f;
+};
+
 /** A number for a panel: enough figures to read, no more. */
 export function formatQuantity(v: number): string {
   if (!Number.isFinite(v)) return String(v);
   const a = Math.abs(v);
   if (a !== 0 && (a < 0.001 || a >= 1e7)) return v.toExponential(2);
-  return v.toLocaleString('en-US', { maximumFractionDigits: a < 1 ? 4 : a < 10 ? 3 : a < 100 ? 2 : a < 10000 ? 1 : 0 });
+  return formatterFor(a < 1 ? 4 : a < 10 ? 3 : a < 100 ? 2 : a < 10000 ? 1 : 0).format(v);
 }
 
 /** The step for a stepper or the arrow keys: the contract's, else a tidy fraction of the value or range. */
