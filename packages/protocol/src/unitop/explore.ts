@@ -1,6 +1,6 @@
 import { referencedNames } from './expression.js';
 import { contractExpressions, type UnitOpContract, type UnitOpParameter } from './contract.js';
-import { evaluateUnitOp, type UnitOpEvaluationInput } from './evaluate.js';
+import { evaluateUnitOp, type UnitOpEvaluation, type UnitOpEvaluationInput } from './evaluate.js';
 import { parseUnit } from './dimensions.js';
 
 /**
@@ -323,7 +323,7 @@ export function solveForTarget(
   const at = (raw: number) => {
     const v = whole ? Math.round(raw) : raw;
     const ev = evaluateUnitOp(contract, { ...input, parameterOverrides: { ...(input.parameterOverrides ?? {}), [parameter]: v } });
-    const y = ev.error ? undefined : ev.derived[result];
+    const y = ev.error ? undefined : resultsOf(ev)[result];
     return { v, y: y !== undefined && Number.isFinite(y) ? y : undefined, ev };
   };
   const finish = (v: number, reached: boolean): TargetSolution | null => {
@@ -418,10 +418,77 @@ export function caseStudy(
     const failing = ev.constraints.filter((c) => !c.satisfied);
     rows.push({
       value,
-      derived: ev.derived,
+      derived: resultsOf(ev),
       status: failing.some((c) => c.severity === 'ERROR') ? 'error' : failing.length ? 'warning' : 'ok',
       failing: failing.map((c) => c.id)
     });
   }
   return rows;
+}
+
+/** A figure the engine runs the unit on (rate, cycle, capacity, duty), offered alongside the contract's own results. */
+export interface EngineResult {
+  /** "engine.<field>", never a derived value's name. */
+  name: string;
+  label: string;
+  unit: string;
+  value: number;
+}
+
+/** What the engine will run, as results: the rate and cycle of a machine, the capacity and duty of a continuous unit. */
+export function engineResults(ev: UnitOpEvaluation): EngineResult[] {
+  const b = ev.behavior;
+  const r = (field: string, label: string, unit: string, value: number | undefined): EngineResult[] =>
+    value !== undefined && Number.isFinite(value) ? [{ name: `engine.${field}`, label, unit, value }] : [];
+  switch (b.mode) {
+    case 'DISCRETE_CYCLE':
+      return [...r('unitsPerMinute', 'Rate', 'items/min', b.unitsPerMinute), ...r('cycleSeconds', 'Cycle time', 's', b.cycleSeconds), ...r('unitsPerCycle', 'Units per cycle', 'items', b.unitsPerCycle)];
+    case 'CONTINUOUS_RATE':
+      return [
+        ...r('capacityGpm', 'Capacity', 'gal/min', b.capacityGpm),
+        ...r('capacityKgPerHour', 'Capacity (mass)', 'kg/h', b.capacityKgPerHour),
+        ...r('dutyKw', 'Duty', 'kW', b.dutyKw),
+        ...r('residenceTimeSeconds', 'Residence time', 's', b.residenceTimeSeconds)
+      ];
+    case 'BATCH':
+      return [...r('batchGallons', 'Batch size', 'gal', b.batchGallons), ...r('cycleSecondsEstimate', 'Batch cycle', 's', b.cycleSecondsEstimate), ...r('gallonsPerMinute', 'Average throughput', 'gal/min', b.gallonsPerMinute)];
+    case 'STORAGE':
+      return [...r('capacityGallons', 'Capacity', 'gal', b.capacityGallons), ...r('maxOutflowGpm', 'Most outflow', 'gal/min', b.maxOutflowGpm)];
+  }
+}
+
+/** Every result of an evaluation by name: the contract's derived values and the engine's figures. */
+export function resultsOf(ev: UnitOpEvaluation): Record<string, number> {
+  const out: Record<string, number> = { ...ev.derived };
+  for (const e of engineResults(ev)) out[e.name] = e.value;
+  return out;
+}
+
+/**
+ * Parameter -> the engine figures it moves, found by nudging each one: the
+ * figures are worked out from several fields, so reading expressions is not
+ * enough.
+ */
+export function engineInfluence(contract: UnitOpContract, input: UnitOpEvaluationInput = {}): Record<string, string[]> {
+  const base = evaluateUnitOp(contract, input);
+  const before = base.error ? [] : engineResults(base);
+  const out: Record<string, string[]> = {};
+  for (const p of contract.parameters) {
+    out[p.name] = [];
+    if (!before.length) continue;
+    const whole = isWholeNumberParameter(p);
+    let v = p.value === 0 ? (p.max !== undefined && p.max > 0 ? Math.min(1, p.max) : 1) : p.value * 1.1;
+    if (whole) v = Math.max(Math.round(v), Math.round(p.value) + 1);
+    if (p.max !== undefined && v > p.max) v = p.value === 0 ? p.max : p.value * 0.9;
+    if (whole) v = Math.round(v);
+    if (v === p.value) continue;
+    const ev = evaluateUnitOp(contract, { ...input, parameterOverrides: { ...(input.parameterOverrides ?? {}), [p.name]: v } });
+    if (ev.error) continue;
+    const after = resultsOf(ev);
+    for (const e of before) {
+      const a = after[e.name];
+      if (a !== undefined && Math.abs(a - e.value) > 1e-9 * Math.max(1, Math.abs(e.value))) out[p.name]!.push(e.name);
+    }
+  }
+  return out;
 }

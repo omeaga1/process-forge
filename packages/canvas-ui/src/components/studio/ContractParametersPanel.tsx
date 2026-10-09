@@ -1,7 +1,9 @@
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   convertUnit,
+  engineInfluence,
   isTemperatureDifference,
+  resultsOf,
   evaluateUnitOp,
   parameterInfluence,
   physicsAlignment,
@@ -114,7 +116,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
     baseline.current = {
       nodeId: node.id,
       params: Object.fromEntries(contract.parameters.map((p) => [p.name, p.value])),
-      derived: ev0.derived,
+      derived: ev0.error ? ev0.derived : resultsOf(ev0),
       ...(contract.designInlet ? { design: contract.designInlet } : {})
     };
   }
@@ -132,6 +134,8 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
     return out;
   }, [deferred]);
   const influence = useMemo(() => parameterInfluence(contract), [contract]);
+  // The engine's figures are worked out from several fields: what moves them is found by nudging.
+  const engineMovers = useMemo(() => engineInfluence(deferred), [deferred]);
   const failing = evaluation.constraints.filter((c) => !c.satisfied);
   const fixes = useMemo<Fix[]>(() => (deferred === contract && failing.length ? suggestFixes(deferred, {}, 8) : []), [deferred, contract, failing.length]);
   // Standard units are checked against the equipment they are too (inferred, so advice only).
@@ -454,6 +458,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
             groups={groups}
             sweeps={sweeps}
             influence={influence}
+            engineMovers={engineMovers}
             baselineParams={baseline.current!.params}
             baselineDerived={baseline.current!.derived}
             unitFor={unitFor}

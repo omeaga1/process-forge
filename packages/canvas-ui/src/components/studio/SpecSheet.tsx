@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   caseStudy,
   convertUnit,
+  engineResults,
+  resultsOf,
   niceValue,
   sweepRange,
   isTemperatureDifference,
@@ -28,6 +30,8 @@ export interface SpecSheetProps {
   groups: ParameterGroup[];
   sweeps: Record<string, Sweep>;
   influence: Influence;
+  /** Parameter -> the engine figures (rate, cycle, capacity, duty) it moves. */
+  engineMovers: Record<string, string[]>;
   /** Values when the unit was opened: what has been changed, and what to put back. */
   baselineParams: Record<string, number>;
   baselineDerived: Record<string, number>;
@@ -51,6 +55,19 @@ export interface SpecSheetProps {
  * moved; and a specification solver -- name the result you want and the
  * setting to vary, and the engine finds the value.
  */
+type ResultDef = UnitOpContract['derived'][number];
+
+/** Every result to show and solve for: what the engine runs the unit at, then the contract's own. */
+function allResults(contract: UnitOpContract, evaluation: UnitOpEvaluation): { defs: ResultDef[]; values: Record<string, number> } {
+  const engine: ResultDef[] = evaluation.error
+    ? []
+    : engineResults(evaluation).map((e) => ({ name: e.name, label: e.label, unit: e.unit, expr: '', description: 'What the engine runs the unit at.' }));
+  return { defs: [...engine, ...contract.derived], values: evaluation.error ? {} : resultsOf(evaluation) };
+}
+
+/** The results a setting moves: through the contract's equations, and through the engine's figures. */
+const movedBy = (props: Pick<SpecSheetProps, 'influence' | 'engineMovers'>, param: string) => [...(props.influence.derived[param] ?? []), ...(props.engineMovers[param] ?? [])];
+
 export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
   const { contract, evaluation, groups, baselineDerived, unitFor, setUnit } = props;
   const { palette, font, radius: r } = useTheme();
@@ -88,15 +105,16 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
   const moversOf = (result: string) =>
     contract.parameters.filter((p) => {
       const k = controlFor(p);
-      return k !== 'fixed' && k !== 'toggle' && k !== 'select' && (props.influence.derived[p.name] ?? []).includes(result);
+      return k !== 'fixed' && k !== 'toggle' && k !== 'select' && movedBy(props, p.name).includes(result);
     });
-  const derivedRows = contract.derived.filter((d) => evaluation.derived[d.name] !== undefined);
+  const { defs, values } = useMemo(() => allResults(contract, evaluation), [contract, evaluation]);
+  const derivedRows = defs.filter((d) => values[d.name] !== undefined);
   // Settings worth stepping: continuous ones that move at least one result.
   const studyable = contract.parameters.filter((p) => {
     const k = controlFor(p);
-    return k !== 'fixed' && k !== 'toggle' && k !== 'select' && (props.influence.derived[p.name] ?? []).length > 0;
+    return k !== 'fixed' && k !== 'toggle' && k !== 'select' && movedBy(props, p.name).length > 0;
   });
-  const specifiable = derivedRows.filter((d) => Number.isFinite(evaluation.derived[d.name]!) && moversOf(d.name).length > 0);
+  const specifiable = derivedRows.filter((d) => Number.isFinite(values[d.name]!) && moversOf(d.name).length > 0);
 
   return (
     <div>
@@ -190,7 +208,7 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
           </thead>
           <tbody>
             {derivedRows.map((d) => {
-              const v = evaluation.derived[d.name]!;
+              const v = values[d.name]!;
               const choices = displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 });
               const du = unitFor(d.unit, choices);
               const difference = isTemperatureDifference(d);
@@ -372,7 +390,7 @@ const UnitCell: React.FC<{ label: string; unit: string; shown: string; choices: 
  * by bisection where the result crosses the target; applied only when asked.
  */
 const TargetSolver: React.FC<
-  SpecSheetProps & { results: UnitOpContract['derived']; moversOf: (result: string) => UnitOpParameter[]; picked: string | null; onPick: (name: string) => void; radius: number }
+  SpecSheetProps & { results: ResultDef[]; moversOf: (result: string) => UnitOpParameter[]; picked: string | null; onPick: (name: string) => void; radius: number }
 > = ({ contract, evaluation, unitFor, setParam, onFlash, results, moversOf, picked, onPick, radius }) => {
   const { palette, font } = useTheme();
   const result = results.find((d) => d.name === picked) ?? results[0]!;
@@ -394,7 +412,7 @@ const TargetSolver: React.FC<
     setBad(false);
   }, [result.name, varied?.name, contract]);
 
-  const now = evaluation.derived[result.name]!;
+  const now = resultsOf(evaluation)[result.name]!;
   const solve = () => {
     if (!varied) return;
     const t = parseQuantity(target.trim() || formatQuantity(toShown(now)).replace(/,/g, ''), result.unit, du, { difference });
@@ -501,7 +519,7 @@ const srOnly: React.CSSProperties = { position: 'absolute', width: 1, height: 1,
  * A sensitivity study: one setting stepped across a range, the chosen results
  * tabulated against it with the verdict at each step. Any row can be taken.
  */
-const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius: number }> = ({ contract, influence, unitFor, setParam, onFlash, settings, radius }) => {
+const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius: number }> = ({ contract, evaluation, influence, engineMovers, unitFor, setParam, onFlash, settings, radius }) => {
   const { palette, font } = useTheme();
   const [name, setName] = useState(settings[0]!.name);
   const p = settings.find((x) => x.name === name) ?? settings[0]!;
@@ -519,7 +537,10 @@ const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius
   const [fromText, setFromText] = useState('');
   const [toText, setToText] = useState('');
   const [steps, setSteps] = useState(5);
-  const moved = useMemo(() => contract.derived.filter((d) => (influence.derived[p.name] ?? []).includes(d.name)), [contract.derived, influence, p.name]);
+  const moved = useMemo(() => {
+    const by = movedBy({ influence, engineMovers }, p.name);
+    return allResults(contract, evaluation).defs.filter((d) => by.includes(d.name));
+  }, [contract, evaluation, influence, engineMovers, p.name]);
   const [cols, setCols] = useState<string[]>(() => moved.slice(0, 3).map((d) => d.name));
   // A new setting: its own range, and the first results it moves.
   const shownFor = useRef(p.name);
@@ -541,7 +562,7 @@ const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius
   const [plotName, setPlotName] = useState<string | null>(null);
   const plotted = shownCols.find((d) => d.name === plotName) ?? shownCols[0];
   const curve = useMemo(() => (plotted && from !== null && to !== null && from !== to ? caseStudy(contract, p.name, from, to, 61, { log }) : []), [plotted, contract, p.name, from, to, log]);
-  const unitOf = (d: UnitOpContract['derived'][number]) => unitFor(d.unit, displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 }));
+  const unitOf = (d: ResultDef) => unitFor(d.unit, displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 }));
   const statusColor = (st: string) => (st === 'ok' ? palette.jade[500] : st === 'warning' ? palette.status.blocked : st === 'error' ? palette.status.failed : palette.text.muted);
   const label: React.CSSProperties = { fontSize: 12, color: palette.text.secondary };
   const cell: React.CSSProperties = {
