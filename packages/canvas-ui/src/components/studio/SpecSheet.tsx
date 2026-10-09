@@ -537,6 +537,10 @@ const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius
   const log = range.log && !fromText.trim() && !toText.trim();
   const rows = useMemo(() => (from !== null && to !== null && from !== to ? caseStudy(contract, p.name, from, to, steps, { log }) : []), [contract, p.name, from, to, steps, log]);
   const shownCols = moved.filter((d) => cols.includes(d.name));
+  // The plot: one result against the setting, sampled finely over the same range.
+  const [plotName, setPlotName] = useState<string | null>(null);
+  const plotted = shownCols.find((d) => d.name === plotName) ?? shownCols[0];
+  const curve = useMemo(() => (plotted && from !== null && to !== null && from !== to ? caseStudy(contract, p.name, from, to, 61, { log }) : []), [plotted, contract, p.name, from, to, log]);
   const unitOf = (d: UnitOpContract['derived'][number]) => unitFor(d.unit, displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 }));
   const statusColor = (st: string) => (st === 'ok' ? palette.jade[500] : st === 'warning' ? palette.status.blocked : st === 'error' ? palette.status.failed : palette.text.muted);
   const label: React.CSSProperties = { fontSize: 12, color: palette.text.secondary };
@@ -679,6 +683,129 @@ const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius
           </table>
         </div>
       )}
+      {plotted && curve.length > 1 && (
+        <div style={{ marginTop: 10 }}>
+          {shownCols.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={label}>Plot</span>
+              <select className="pf-select" aria-label="Result to plot" value={plotted.name} onChange={(e) => setPlotName(e.target.value)} style={{ width: 'auto', height: 28, fontSize: 12 }}>
+                {shownCols.map((d) => (
+                  <option key={d.name} value={d.name}>
+                    {d.label ?? d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <StudyPlot
+            rows={curve}
+            result={plotted.name}
+            current={p.value}
+            xLabel={`${p.label}${du !== '-' ? ` (${du})` : ''}`}
+            yLabel={`${plotted.label ?? plotted.name}${unitOf(plotted) !== '-' ? ` (${unitOf(plotted)})` : ''}`}
+            x={toShown}
+            y={(v) => convertUnit(v, plotted.unit, unitOf(plotted), { difference: isTemperatureDifference(plotted) }) ?? v}
+            log={log}
+          />
+        </div>
+      )}
     </section>
+  );
+};
+
+/**
+ * A result against the setting it was stepped by: the line coloured by the
+ * verdict along it (green passes, amber warns, red fails), the current value
+ * marked. Drawn in shown units.
+ */
+const StudyPlot: React.FC<{
+  rows: ReturnType<typeof caseStudy>;
+  result: string;
+  current: number;
+  xLabel: string;
+  yLabel: string;
+  x: (v: number) => number;
+  y: (v: number) => number;
+  log: boolean;
+}> = ({ rows, result, current, xLabel, yLabel, x, y, log }) => {
+  const { palette, font } = useTheme();
+  const W = 560;
+  const H = 180;
+  const pad = { l: 56, r: 12, t: 10, b: 34 };
+  const pts = rows.filter((r) => r.derived[result] !== undefined && Number.isFinite(r.derived[result]!)).map((r) => ({ xv: x(r.value), yv: y(r.derived[result]!), raw: r.value, status: r.status }));
+  if (pts.length < 2) return null;
+  const xs = pts.map((q) => q.xv);
+  const ys = pts.map((q) => q.yv);
+  const [x0, x1] = [Math.min(...xs), Math.max(...xs)];
+  let [y0, y1] = [Math.min(...ys), Math.max(...ys)];
+  if (y1 - y0 < 1e-12 * Math.max(1, Math.abs(y1))) {
+    y0 -= Math.abs(y0) * 0.05 || 1;
+    y1 += Math.abs(y1) * 0.05 || 1;
+  }
+  const useLog = log && x0 > 0;
+  const fx = (v: number) => (useLog ? (Math.log(v) - Math.log(x0)) / (Math.log(x1) - Math.log(x0)) : (v - x0) / (x1 - x0));
+  const px = (v: number) => pad.l + fx(v) * (W - pad.l - pad.r);
+  const py = (v: number) => pad.t + (1 - (v - y0) / (y1 - y0)) * (H - pad.t - pad.b);
+  const color = (st: string) => (st === 'ok' ? palette.jade[500] : st === 'warning' ? palette.status.blocked : st === 'error' ? palette.status.failed : palette.text.muted);
+  // Runs of one verdict, each drawn in its colour, joined end to end.
+  const runs: { status: string; d: string }[] = [];
+  pts.forEach((q, i) => {
+    const xy = `${px(q.xv).toFixed(1)},${py(q.yv).toFixed(1)}`;
+    const last = runs[runs.length - 1];
+    if (last && last.status === q.status) last.d += ` L${xy}`;
+    else {
+      const prev = pts[i - 1];
+      runs.push({ status: q.status, d: prev ? `M${px(prev.xv).toFixed(1)},${py(prev.yv).toFixed(1)} L${xy}` : `M${xy}` });
+    }
+  });
+  const cx = x(current);
+  const inRange = cx >= x0 && cx <= x1;
+  const tick: React.CSSProperties = { fontFamily: font.mono, fontSize: 10, fill: palette.text.secondary };
+  const first = pts[0]!;
+  const lastPt = pts[pts.length - 1]!;
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      width="100%"
+      role="img"
+      aria-label={`${yLabel} against ${xLabel}: from ${formatQuantity(first.yv)} at ${formatQuantity(first.xv)} to ${formatQuantity(lastPt.yv)} at ${formatQuantity(lastPt.xv)}`}
+      style={{ display: 'block', maxWidth: W }}
+    >
+      <rect x={pad.l} y={pad.t} width={W - pad.l - pad.r} height={H - pad.t - pad.b} fill="none" stroke={palette.border.default} />
+      {[0, 0.5, 1].map((t) => {
+        const v = y0 + (y1 - y0) * t;
+        return (
+          <g key={t}>
+            {t > 0 && t < 1 && <line x1={pad.l} x2={W - pad.r} y1={py(v)} y2={py(v)} stroke={palette.border.subtle} strokeDasharray="3 3" />}
+            <text x={pad.l - 6} y={py(v) + 3} textAnchor="end" style={tick}>
+              {formatQuantity(v)}
+            </text>
+          </g>
+        );
+      })}
+      <text x={pad.l} y={H - pad.b + 14} textAnchor="start" style={tick}>
+        {formatQuantity(x0)}
+      </text>
+      <text x={W - pad.r} y={H - pad.b + 14} textAnchor="end" style={tick}>
+        {formatQuantity(x1)}
+      </text>
+      <text x={(pad.l + W - pad.r) / 2} y={H - 4} textAnchor="middle" style={{ ...tick, fontFamily: 'inherit', fontSize: 11 }}>
+        {xLabel}
+      </text>
+      <text x={pad.l + 6} y={pad.t + 12} style={{ ...tick, fontFamily: 'inherit', fontSize: 11 }}>
+        {yLabel}
+      </text>
+      {inRange && (
+        <g>
+          <line x1={px(cx)} x2={px(cx)} y1={pad.t} y2={H - pad.b} stroke={palette.text.secondary} strokeDasharray="2 3" />
+          <text x={px(cx)} y={H - pad.b + 14} textAnchor="middle" style={{ ...tick, fill: palette.text.primary, fontWeight: 700 }}>
+            now
+          </text>
+        </g>
+      )}
+      {runs.map((r, i) => (
+        <path key={i} d={r.d} fill="none" stroke={color(r.status)} strokeWidth={2.25} strokeLinejoin="round" strokeLinecap="round" />
+      ))}
+    </svg>
   );
 };
