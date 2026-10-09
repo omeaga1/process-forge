@@ -282,3 +282,54 @@ export const Sheet: React.FC<{ open: boolean; onOpenChange: (open: boolean) => v
     </Dialog.Portal>
   </Dialog.Root>
 );
+
+// ---------------------------------------------------------------- PointMenu
+
+export interface PointMenuItem extends MenuItem {
+  /** Shown at the right, muted: the key that does the same. */
+  shortcut?: string;
+}
+
+/**
+ * A menu at a point on the screen (a right-click): arrow keys, type-ahead,
+ * Escape, and it stays inside the window. Open while `at` is set.
+ */
+export const PointMenu: React.FC<{ at: { x: number; y: number } | null; onClose: () => void; items: readonly PointMenuItem[]; label?: string }> = ({
+  at,
+  onClose,
+  items,
+  label
+}) => {
+  const anchor = React.useMemo(
+    () => (at ? { getBoundingClientRect: () => DOMRect.fromRect({ x: at.x, y: at.y, width: 0, height: 0 }) } : null),
+    [at]
+  );
+  return (
+    <BaseMenu.Root open={at !== null} onOpenChange={(o) => !o && onClose()}>
+      <BaseMenu.Portal>
+        <BaseMenu.Positioner anchor={anchor} side="bottom" align="start" sideOffset={2} collisionPadding={8}>
+          <BaseMenu.Popup className="pf-menu" aria-label={label}>
+            {items.map((it, i) => (
+              <React.Fragment key={i}>
+                {it.separatorBefore && <BaseMenu.Separator className="pf-menu-sep" />}
+                <BaseMenu.Item
+                  className="pf-menu-item"
+                  disabled={it.disabled}
+                  {...(it.danger ? { 'data-danger': '' } : {})}
+                  onClick={() => {
+                    onClose();
+                    it.onSelect();
+                  }}
+                >
+                  {it.icon}
+                  <span style={{ flex: 1 }}>{it.label}</span>
+                  {it.shortcut && <span style={{ fontSize: 11, color: 'var(--pf-text-muted)', marginLeft: 16 }}>{it.shortcut}</span>}
+                </BaseMenu.Item>
+              </React.Fragment>
+            ))}
+          </BaseMenu.Popup>
+        </BaseMenu.Positioner>
+      </BaseMenu.Portal>
+    </BaseMenu.Root>
+  );
+};
