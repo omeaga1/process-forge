@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { fontFamily } from '@process-forge/theme';
 import { AlertTriangle, RotateCcw, Home, Download } from 'lucide-react';
 
 interface Props {
@@ -69,7 +70,7 @@ export class StudioErrorBoundary extends Component<Props, State> {
             height: '100vh',
             backgroundColor: 'var(--pf-bg-canvas)',
             color: 'var(--pf-text-primary)',
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: fontFamily.sans,
             padding: 24,
             boxSizing: 'border-box',
             textAlign: 'center'
@@ -123,7 +124,7 @@ export class StudioErrorBoundary extends Component<Props, State> {
                   borderRadius: 6,
                   padding: '10px 14px',
                   fontSize: 12,
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: fontFamily.mono,
                   color: 'var(--pf-status-failed)',
                   overflowX: 'auto',
                   maxHeight: 120,

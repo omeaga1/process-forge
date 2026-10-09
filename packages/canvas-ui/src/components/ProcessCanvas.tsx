@@ -39,7 +39,7 @@ import {
 } from '@process-forge/protocol';
 import { SimulationEngine, type SimulationResult, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import type { RunView } from './dock/RunDigest.js';
-import { Button, Tooltip } from '../ui/index.js';
+import { Button, PointMenu, Tooltip } from '../ui/index.js';
 
 import { IndustrialNode } from './nodes/IndustrialNode.js';
 import { TerminalNode } from './nodes/TerminalNode.js';
@@ -761,19 +761,6 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
   // Right-click menu on a unit or a stream.
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; kind: 'node' | 'edge'; id: string } | null>(null);
-  useEffect(() => {
-    if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('resize', close);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', close);
-    };
-  }, [contextMenu]);
 
   // Editing shortcuts: undo, redo, delete, duplicate. Left alone while typing,
   // so a text box keeps its own undo and Backspace.
@@ -1300,95 +1287,41 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           />
         </ReactFlow>
 
-        {contextMenu && (
-          <>
-            <div
-              onClick={() => setContextMenu(null)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setContextMenu(null);
-              }}
-              style={{ position: 'fixed', inset: 0, zIndex: 40 }}
-            />
-            <div
-              role="menu"
-              style={{
-                position: 'fixed',
-                left: Math.min(contextMenu.x, window.innerWidth - 200),
-                top: Math.min(contextMenu.y, window.innerHeight - (contextMenu.kind === 'node' ? 330 : 110)),
-                zIndex: 41,
-                minWidth: 184,
-                padding: 4,
-                borderRadius: draftingRadius.soft,
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.18)',
-                fontFamily: font.sans
-              }}
-            >
-              {(contextMenu.kind === 'node'
+        <PointMenu
+          at={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : null}
+          onClose={() => setContextMenu(null)}
+          label={contextMenu?.kind === 'edge' ? 'Stream' : 'Unit'}
+          items={
+            !contextMenu
+              ? []
+              : contextMenu.kind === 'node'
                 ? [
-                    { label: 'Open in studio', shortcut: '', icon: <SquarePen size={14} />, danger: false, run: () => setPopOutNodeId(contextMenu.id) },
+                    { label: 'Open in studio', icon: <SquarePen size={14} />, onSelect: () => setPopOutNodeId(contextMenu.id) },
                     {
                       label: 'Rename',
-                      shortcut: '',
                       icon: <Pencil size={14} />,
-                      danger: false,
-                      run: () => {
+                      onSelect: () => {
                         setPopOutNodeId(contextMenu.id);
                         setRenamingNodeId(contextMenu.id);
                       }
                     },
-                    { label: 'Duplicate', shortcut: 'Ctrl+D', icon: <Copy size={14} />, danger: false, run: () => duplicateNode(contextMenu.id) },
-                    { label: 'Rotate right', shortcut: 'R', icon: <RotateCw size={14} />, danger: false, run: () => setNodeLayouts([contextMenu.id], (l) => rotateLayout(l, 1)) },
-                    { label: 'Rotate left', shortcut: 'Shift+R', icon: <RotateCcw size={14} />, danger: false, run: () => setNodeLayouts([contextMenu.id], (l) => rotateLayout(l, -1)) },
-                    { label: 'Mirror', shortcut: 'F', icon: <FlipHorizontal2 size={14} />, danger: false, run: () => setNodeLayouts([contextMenu.id], (l) => flipLayout(l)) },
+                    { label: 'Duplicate', shortcut: 'Ctrl+D', icon: <Copy size={14} />, onSelect: () => duplicateNode(contextMenu.id) },
+                    { label: 'Rotate right', shortcut: 'R', icon: <RotateCw size={14} />, onSelect: () => setNodeLayouts([contextMenu.id], (l) => rotateLayout(l, 1)), separatorBefore: true },
+                    { label: 'Rotate left', shortcut: 'Shift+R', icon: <RotateCcw size={14} />, onSelect: () => setNodeLayouts([contextMenu.id], (l) => rotateLayout(l, -1)) },
+                    { label: 'Mirror', shortcut: 'F', icon: <FlipHorizontal2 size={14} />, onSelect: () => setNodeLayouts([contextMenu.id], (l) => flipLayout(l)) },
                     ...(graph.nodes.find((n) => n.id === contextMenu.id)?.layout
-                      ? [{ label: 'Natural size and orientation', shortcut: '', icon: <Maximize2 size={14} />, danger: false, run: () => setNodeLayout(contextMenu.id, undefined) }]
+                      ? [{ label: 'Natural size and orientation', icon: <Maximize2 size={14} />, onSelect: () => setNodeLayout(contextMenu.id, undefined) }]
                       : []),
-                    { label: 'Delete unit', shortcut: 'Del', icon: <Trash2 size={14} />, danger: true, run: () => deleteElements([contextMenu.id]) }
+                    { label: 'Delete unit', shortcut: 'Del', icon: <Trash2 size={14} />, danger: true, separatorBefore: true, onSelect: () => deleteElements([contextMenu.id]) }
                   ]
                 : [
                     ...(graph.edges.find((e) => e.id === contextMenu.id)?.waypoints?.length
-                      ? [{ label: 'Route around equipment', shortcut: '', icon: <Route size={14} />, danger: false, run: () => setEdgeRoute(contextMenu.id, undefined) }]
+                      ? [{ label: 'Route around equipment', icon: <Route size={14} />, onSelect: () => setEdgeRoute(contextMenu.id, undefined) }]
                       : []),
-                    { label: 'Delete stream', shortcut: 'Del', icon: <Trash2 size={14} />, danger: true, run: () => deleteElements([], [contextMenu.id]) }
+                    { label: 'Delete stream', shortcut: 'Del', icon: <Trash2 size={14} />, danger: true, onSelect: () => deleteElements([], [contextMenu.id]) }
                   ]
-              ).map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setContextMenu(null);
-                    item.run();
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = OsakaJadePalette.background.surface)}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    width: '100%',
-                    height: 32,
-                    padding: '0 10px',
-                    border: 'none',
-                    borderRadius: draftingRadius.soft,
-                    backgroundColor: 'transparent',
-                    color: item.danger ? palette.status.failed : OsakaJadePalette.text.primary,
-                    fontSize: 13,
-                    textAlign: 'left',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {item.icon}
-                  <span style={{ flex: 1 }}>{item.label}</span>
-                  {item.shortcut && <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>{item.shortcut}</span>}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+          }
+        />
       </div>
 
       {/* Persistent Master Orchestrator Dock */}
