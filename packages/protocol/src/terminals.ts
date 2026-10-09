@@ -1,5 +1,5 @@
 import type { ProcessGraph } from './graph.js';
-import { idealGasDensity, mixtureMolarMass, scfmToKgPerS, STD_PRESSURE_KPA } from './unitop/phases.js';
+import { idealGasDensity, mixtureMolarMass, PHASE_ARCHETYPES, scfmToKgPerS, STD_PRESSURE_KPA } from './unitop/phases.js';
 import type { NodePort, ProcessNode } from './nodes.js';
 import type { ProcessEdge } from './streams.js';
 
@@ -274,5 +274,12 @@ export function addStreamToGraph(graph: ProcessGraph, edge: ProcessEdge): Proces
 export function kindLabel(node: Pick<ProcessNode, 'kind' | 'config'>): string {
   const role = terminalRole(node);
   if (role) return role === 'feed' ? 'feed' : `${role} outlet`;
+  // A designed unit: the kind of equipment its contract declares (an evaporator, a pump), not 'custom unit op'.
+  const contract = (node.config as { contract?: { archetype?: unknown } } | undefined)?.contract;
+  if (contract) {
+    const id = typeof contract.archetype === 'string' ? contract.archetype : undefined;
+    const name = id ? PHASE_ARCHETYPES.find((a) => a.id === id)?.name : undefined;
+    return name ? name.toLowerCase() : 'designed unit';
+  }
   return node.kind.replace(/_/g, ' ').toLowerCase();
 }
