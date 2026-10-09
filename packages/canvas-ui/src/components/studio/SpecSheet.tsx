@@ -36,6 +36,8 @@ export interface SpecSheetProps {
   onHoverParam: (name: string | null) => void;
   flash: string | null;
   onFlash: (name: string) => void;
+  /** What arrives at the design point (a designed unit's feed), edited on the same sheet. */
+  feed?: { params: UnitOpParameter[]; baseline: Record<string, number>; onChange: (name: string, value: number) => void };
 }
 
 /**
@@ -140,6 +142,18 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
               </tbody>
             );
           })}
+          {props.feed && props.feed.params.length > 0 && (
+            <tbody>
+              <tr>
+                <th scope="colgroup" colSpan={5} style={groupHead}>
+                  Feed at the design point
+                </th>
+              </tr>
+              {props.feed.params.map((p) => (
+                <SpecRow key={p.name} p={p} {...props} sweeps={{}} baselineParams={props.feed!.baseline} setParam={props.feed!.onChange} />
+              ))}
+            </tbody>
+          )}
         </table>
       )}
 
