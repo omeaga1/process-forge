@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { ProcessGraph } from '@process-forge/protocol';
-import { streamStates, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
+import { averageStreamStates, streamStates, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import { Check, Copy, Rows3 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.js';
 import { Button, Modal } from '../ui/index.js';
@@ -36,17 +36,22 @@ export const StreamTable: React.FC<{
   /** The run at the playhead, per unit; empty before a run. */
   snapshots: Map<string, NodeTelemetrySnapshot>;
   simulatedSeconds: number;
+  /** The whole run's telemetry, for averages up to the playhead. */
+  log?: readonly NodeTelemetrySnapshot[];
   /** Shows a stream on the flowsheet: selects its pipe and brings its two units into view. */
   onShow?: (edgeId: string) => void;
-}> = ({ open, onOpenChange, graph, snapshots, simulatedSeconds, onShow }) => {
+}> = ({ open, onOpenChange, graph, snapshots, simulatedSeconds, log, onShow }) => {
   const { palette, font } = useTheme();
   const [copied, setCopied] = useState(false);
   const hasRun = snapshots.size > 0;
+  // At the playhead, or averaged over the run so far: a line between batches can read zero at a moment.
+  const [view, setView] = useState<'now' | 'average'>('now');
+  const averaging = view === 'average' && hasRun && !!log?.length;
 
   // The same rows the MCP tools report (simulation-core's streamStates), put in words for the table.
   const rows = useMemo<StreamRow[]>(
     () =>
-      streamStates(graph, snapshots).map((r) => ({
+      (averaging ? averageStreamStates(graph, log!, simulatedSeconds) : streamStates(graph, snapshots)).map((r) => ({
         id: r.id,
         number: r.number,
         from: `${unitTag(r.from.unit) ?? r.from.unit}${r.from.port ? ` · ${r.from.port}` : ''}`,
@@ -59,7 +64,7 @@ export const StreamTable: React.FC<{
         ...(r.composition ? { mix: mixText(r.composition) } : {}),
         blocked: r.blocked
       })),
-    [graph, snapshots]
+    [graph, snapshots, averaging, log, simulatedSeconds]
   );
 
   const allColumns: { key: keyof StreamRow; head: string; unit?: string; num?: boolean }[] = [
@@ -113,7 +118,31 @@ export const StreamTable: React.FC<{
       open={open}
       onOpenChange={onOpenChange}
       title="Stream table"
-      description={hasRun ? `Every stream, at ${formatTime(simulatedSeconds)} into the run (the playhead).` : 'Every stream on the flowsheet. Run the line (Space) to fill in what each one carries.'}
+      description={
+        !hasRun
+          ? 'Every stream on the flowsheet. Run the line (Space) to fill in what each one carries.'
+          : averaging
+            ? `Every stream, averaged over the first ${formatTime(simulatedSeconds)} of the run (temperature and mix weighted by what flowed).`
+            : `Every stream, at ${formatTime(simulatedSeconds)} into the run (the playhead).`
+      }
+      headerExtra={
+        hasRun && log?.length ? (
+          <div role="group" aria-label="Show streams" style={{ display: 'inline-flex', gap: 2, padding: 2, borderRadius: 6, border: `1px solid ${palette.border.default}` }}>
+            {(['now', 'average'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                className="pf-focus"
+                aria-pressed={view === v}
+                onClick={() => setView(v)}
+                style={{ border: 'none', borderRadius: 4, padding: '3px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: view === v ? palette.background.surface : 'transparent', color: view === v ? palette.text.primary : palette.text.secondary }}
+              >
+                {v === 'now' ? 'At playhead' : 'Run average'}
+              </button>
+            ))}
+          </div>
+        ) : undefined
+      }
       icon={<Rows3 size={16} />}
       width={980}
       flush

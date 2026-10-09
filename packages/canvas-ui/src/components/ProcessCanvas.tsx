@@ -1479,6 +1479,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         graph={graph}
         snapshots={snapshotByNode}
         simulatedSeconds={runView?.timeSeconds ?? 0}
+        {...(simResult ? { log: simResult.telemetryLog } : {})}
         onShow={showStream}
       />
       <EquipmentPaletteModal

@@ -75,3 +75,68 @@ export function finalSnapshots(log: readonly NodeTelemetrySnapshot[]): Map<strin
   }
   return out;
 }
+
+/**
+ * Every stream averaged over a run up to a moment: flows over the time, the
+ * temperature and mix weighted by the mass that moved (so an idle stretch does
+ * not drag the temperature to the unit's resting state). What an engineer
+ * reads from a stream report; the snapshot at one moment can catch a line
+ * between batches with everything at zero.
+ */
+export function averageStreamStates(graph: ProcessGraph, log: readonly NodeTelemetrySnapshot[], untilSeconds = Infinity): StreamState[] {
+  const times = [...new Set(log.filter((s) => s.timeSeconds <= untilSeconds).map((s) => s.timeSeconds))].sort((a, b) => a - b);
+  if (!times.length) return streamStates(graph, new Map());
+  const byTime = new Map<number, Map<string, NodeTelemetrySnapshot>>();
+  for (const s of log) {
+    if (s.timeSeconds > untilSeconds) continue;
+    let m = byTime.get(s.timeSeconds);
+    if (!m) byTime.set(s.timeSeconds, (m = new Map()));
+    m.set(s.nodeId, s);
+  }
+  type Acc = { kg: number; gal: number; items: number; heat: number; comp: Record<string, number>; seconds: number; any: boolean };
+  const acc = new Map<string, Acc>();
+  let prev = 0;
+  let last: StreamState[] = [];
+  for (const t of times) {
+    const dt = t - prev;
+    prev = t;
+    last = streamStates(graph, byTime.get(t)!);
+    if (dt <= 0) continue;
+    for (const s of last) {
+      const a = acc.get(s.id) ?? { kg: 0, gal: 0, items: 0, heat: 0, comp: {}, seconds: 0, any: false };
+      a.seconds += dt;
+      const kg = ((s.kgPerHour ?? 0) * dt) / 3600;
+      a.kg += kg;
+      a.gal += ((s.gpm ?? 0) * dt) / 60;
+      a.items += ((s.itemsPerMin ?? 0) * dt) / 60;
+      if (kg > 0 && s.temperatureC !== undefined) a.heat += kg * s.temperatureC;
+      if (kg > 0 && s.composition) for (const [c, x] of Object.entries(s.composition)) a.comp[c] = (a.comp[c] ?? 0) + kg * x;
+      a.any ||= s.kgPerHour !== undefined || s.itemsPerMin !== undefined;
+      acc.set(s.id, a);
+    }
+  }
+  const round1 = (x: number) => Math.round(x * 10) / 10;
+  const lastSnaps = byTime.get(times[times.length - 1]!)!;
+  return last.map((s) => {
+    const a = acc.get(s.id);
+    if (!a || !a.any || a.seconds <= 0) return s;
+    const kgWeighted = a.kg > 0;
+    const compTotal = Object.values(a.comp).reduce((x, y) => x + y, 0);
+    const { kgPerHour: _k, gpm: _g, itemsPerMin: _i, temperatureC: _t, composition: _c, ...rest } = s;
+    return {
+      ...rest,
+      ...(s.kgPerHour !== undefined ? { kgPerHour: round1((a.kg / a.seconds) * 3600) } : {}),
+      ...(s.gpm !== undefined ? { gpm: round1((a.gal / a.seconds) * 60) } : {}),
+      // Items: what the unit it leaves has made, over the time (a windowed rate would smear its bursts).
+      ...(s.itemsPerMin !== undefined ? { itemsPerMin: round1(((lastSnaps.get(s.from.unitId)?.unitsProduced ?? 0) / a.seconds) * 60) } : {}),
+      // Temperature and mix of what flowed; with nothing flowed, the snapshot's own.
+      ...(kgWeighted ? { temperatureC: round1(a.heat / a.kg) } : s.temperatureC !== undefined ? { temperatureC: s.temperatureC } : {}),
+      ...(compTotal > 0
+        ? { composition: Object.fromEntries(Object.entries(a.comp).map(([c, v]) => [c, Math.round((v / compTotal) * 1e4) / 1e4] as [string, number]).sort((x, y) => y[1] - x[1])) }
+        : s.composition
+          ? { composition: s.composition }
+          : {}),
+      blocked: false
+    };
+  });
+}
