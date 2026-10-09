@@ -53,7 +53,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   run,
   bulkLine
 }) => {
-  const { palette, font, size, weight, space, radius: r, motion } = useTheme();
+  const { palette, font, size, space, radius: r } = useTheme();
   const OsakaJadePalette = palette;
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
@@ -96,7 +96,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       {
         id: `mst-${Date.now()}`,
         sender: 'master_orchestrator',
-        senderTitle: 'Equipment Specialist',
+        senderTitle: 'Copilot',
         text: `Added ${option.label}.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         modelBadge: 'Engineer choice',
@@ -113,7 +113,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
     const userMsg: ChatMessage = {
       id: `usr-${Date.now()}`,
       sender: 'user',
-      senderTitle: 'Lead Process Engineer',
+      senderTitle: 'You',
       text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
@@ -150,7 +150,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       const agentMsg: ChatMessage = {
         id: `mst-${Date.now() + 1}`,
         sender: 'master_orchestrator',
-        senderTitle: 'Equipment Specialist',
+        senderTitle: 'Copilot',
         text: res.text,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         modelBadge: res.senderBadge,
@@ -409,20 +409,10 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             >
               <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, marginBottom: 4, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>{msg.senderTitle}</span>
-                <span
-                  style={{
-                    padding: '1px 5px',
-                    borderRadius: 3,
-                    fontSize: 8,
-                    fontWeight: 700,
-                    backgroundColor: msg.isOffline ? tint(palette.text.primary, 0.06) : tint(palette.jade[500], 0.15),
-                    color: msg.isOffline ? OsakaJadePalette.text.muted : OsakaJadePalette.jade.glow,
-                    border: `1px solid ${msg.isOffline ? OsakaJadePalette.border.default : OsakaJadePalette.jade[600]}`
-                  }}
-                >
-                  {msg.modelBadge || (isUser ? 'Operator' : 'AI Orchestrator')}
-                </span>
-                <span>• {msg.timestamp}</span>
+                {!isUser && msg.modelBadge && (
+                  <span style={{ padding: '1px 6px', borderRadius: 999, fontSize: 9.5, fontWeight: 600, backgroundColor: tint(palette.text.primary, 0.06), color: OsakaJadePalette.text.muted }}>{msg.modelBadge}</span>
+                )}
+                <span>{msg.timestamp}</span>
               </div>
               <div>{msg.text}</div>
 
@@ -576,7 +566,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             color: OsakaJadePalette.text.secondary
           }}
         >
-          <span>No assistant: standard equipment from plain requests</span>
+          <span>Answers from the line itself. No AI model connected.</span>
           <button
             onClick={() => setIsAiModalOpen(true)}
             style={{
@@ -620,41 +610,18 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       >
         <input
           type="text"
-          placeholder={isProcessing ? 'Calculating...' : 'Query plant solver, ask bottleneck, or type "add pump"...'}
+          placeholder={isProcessing ? 'Working…' : 'Ask about the line, or "add a pump"'}
           value={inputText}
           disabled={isProcessing}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
-          style={{
-            flex: 1,
-            backgroundColor: OsakaJadePalette.background.surfaceElevated,
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            borderRadius: r.md,
-            padding: `${space[2]}px ${space[2.5]}px`,
-            color: OsakaJadePalette.text.primary,
-            fontSize: size.sm,
-            fontFamily: font.sans,
-            outline: 'none',
-            opacity: isProcessing ? 0.6 : 1
-          }}
+          className="pf-input"
+          aria-label="Ask the Process Copilot"
+          style={{ flex: 1, opacity: isProcessing ? 0.6 : 1 }}
         />
-        <button
-          onClick={() => handleSendMessage()}
-          disabled={isProcessing || !inputText.trim()}
-          style={{
-            backgroundColor: isProcessing || !inputText.trim() ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
-            color: isProcessing || !inputText.trim() ? OsakaJadePalette.text.muted : OsakaJadePalette.text.inverse,
-            border: 'none',
-            borderRadius: r.md,
-            padding: `${space[2]}px ${space[3]}px`,
-            fontWeight: weight.bold,
-            fontSize: size.xs,
-            cursor: isProcessing || !inputText.trim() ? 'not-allowed' : 'pointer',
-            transition: `all ${motion.fast}`
-          }}
-        >
+        <Button variant="primary" onClick={() => handleSendMessage()} disabled={isProcessing || !inputText.trim()}>
           Send
-        </button>
+        </Button>
       </div>
       )}
 
