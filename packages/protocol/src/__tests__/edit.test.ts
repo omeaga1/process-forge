@@ -156,3 +156,57 @@ describe('Arranging the sheet', () => {
     assert.ok(!applyFlowsheetEdit(line(), { op: 'route-stream', stream: 'nope' }).ok);
   });
 });
+
+describe('Flowsheet edits: design specs (held results)', () => {
+  const held = async (): Promise<ProcessGraph> => {
+    const { DUST_COLLECTOR_CONTRACT } = await import('../unitop/examples/phaseUnits.js');
+    const bag = {
+      id: 'bag',
+      name: 'Baghouse D-401',
+      kind: 'CUSTOM_UNIT_OP',
+      position: { x: 0, y: 0 },
+      inputs: [],
+      outputs: [],
+      config: { contract: DUST_COLLECTOR_CONTRACT, designSpecs: [{ result: 'airToCloth', target: 2, vary: 'filterAreaFt2' }] }
+    } as unknown as ProcessGraph['nodes'][number];
+    return { id: 'g', name: 'g', version: '1.0.0', metadata: {}, nodes: [bag], edges: [] };
+  };
+  const contractOf = (g: ProcessGraph) => (g.nodes[0]!.config as { contract: import('../index.js').UnitOpContract }).contract;
+
+  it('re-solves a held setting when another one changes, so the result stays on target', async () => {
+    const { evaluateUnitOp } = await import('../index.js');
+    const g = await held();
+    const r = applyFlowsheetEdit(g, { op: 'update-unit', unit: 'D-401', parameters: { pressureKpa: 90 } });
+    assert.ok(r.ok, JSON.stringify(r));
+    const c = contractOf(r.graph);
+    const ev = evaluateUnitOp(c);
+    assert.ok(Math.abs(ev.derived.airToCloth! - 2) < 1e-6, String(ev.derived.airToCloth));
+    const moved = r.changes!.find((x) => x.parameter === 'filterAreaFt2');
+    assert.ok(moved && moved.heldFor === 'airToCloth', JSON.stringify(r.changes));
+    assert.equal((r.graph.nodes[0]!.config as { filterAreaFt2: number }).filterAreaFt2, c.parameters.find((p) => p.name === 'filterAreaFt2')!.value);
+  });
+
+  it('setting a held parameter by hand releases its hold, and says so', async () => {
+    const g = await held();
+    const r = applyFlowsheetEdit(g, { op: 'update-unit', unit: 'D-401', parameters: { filterAreaFt2: 3000 } });
+    assert.ok(r.ok, JSON.stringify(r));
+    assert.equal(contractOf(r.graph).parameters.find((p) => p.name === 'filterAreaFt2')!.value, 3000);
+    assert.deepEqual((r.graph.nodes[0]!.config as { designSpecs: unknown[] }).designSpecs, []);
+    assert.ok(r.warnings?.some((w) => /released that hold/.test(w)), JSON.stringify(r.warnings));
+  });
+
+  it('holds an engine figure on a standard unit: a filler kept at 60/min as its index time changes', async () => {
+    const { effectiveContract, evaluateUnitOp, resultsOf } = await import('../index.js');
+    const filler = createDefaultProcessNode('ROTARY_FILLER', { name: 'Filler F-1' });
+    filler.id = 'f';
+    // 8 nozzles: 60/min needs an 8 s cycle.
+    (filler.config as Record<string, unknown>).designSpecs = [{ result: 'engine.unitsPerMinute', target: 60, vary: 'fillTimePerCycleSeconds' }];
+    const g: ProcessGraph = { id: 'g', name: 'g', version: '1.0.0', metadata: {}, nodes: [filler], edges: [] };
+    const r = applyFlowsheetEdit(g, { op: 'update-unit', unit: 'F-1', parameters: { indexTimePerCycleSeconds: 3 } });
+    assert.ok(r.ok, JSON.stringify(r));
+    const n = r.graph.nodes[0]!;
+    const c = n.config as { fillTimePerCycleSeconds: number; indexTimePerCycleSeconds: number };
+    assert.ok(Math.abs(c.fillTimePerCycleSeconds - 5) < 1e-6, String(c.fillTimePerCycleSeconds));
+    assert.ok(Math.abs(resultsOf(evaluateUnitOp(effectiveContract(n)!))['engine.unitsPerMinute']! - 60) < 1e-6);
+  });
+});

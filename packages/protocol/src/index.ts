@@ -15,6 +15,7 @@ export * from './unitop/drawing.js';
 export * from './unitop/evaluate.js';
 export * from './unitop/unitConversion.js';
 export * from './unitop/explore.js';
+export * from './unitop/designSpecs.js';
 export * from './unitop/archetypes.js';
 export * from './unitop/physicsAlignment.js';
 export * from './unitop/relations.js';

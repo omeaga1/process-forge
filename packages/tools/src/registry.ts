@@ -498,7 +498,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     access: 'write',
     idempotent: true,
     description:
-      "Changes settings of one unit on the open flowsheet, or renames it. Name the unit by id, name or tag; settings by the names get_open_flowsheet shows (dotted names reach nested ones, e.g. \"fluid.temperatureCelsius\"). For a unit with its own contract, a name that matches one of its parameters sets that parameter: it must lie in its declared range, and the change is refused if the design would then fail validate_unit_op. Returns each change with its old and new value. Test a change with compare_scenarios first when its effect matters.",
+      "Changes settings of one unit on the open flowsheet, or renames it. Name the unit by id, name or tag; settings by the names get_open_flowsheet shows (dotted names reach nested ones, e.g. \"fluid.temperatureCelsius\"). For a unit with its own contract, a name that matches one of its parameters sets that parameter: it must lie in its declared range, and the change is refused if the design would then fail validate_unit_op. A unit can hold results at targets (design specs the engineer set in the app, in its config as designSpecs): the settings they vary are re-solved after your change and reported with heldFor, and setting a held one yourself releases its hold (a warning says so). Returns each change with its old and new value. Test a change with compare_scenarios first when its effect matters.",
     inputSchema: {
       type: 'object',
       properties: {

@@ -4,6 +4,8 @@ import { resolveUnit } from './connect.js';
 import { FEED_LIQUID_KEYS, terminalRole } from './terminals.js';
 import type { UnitOpContract } from './unitop/contract.js';
 import { executeValidateUnitOp } from './unitop/review.js';
+import { designSpecsOf, resolveDesignSpecs } from './unitop/designSpecs.js';
+import { effectiveContract } from './unitop/standardKinds.js';
 import { compactLayout, MAX_SCALE, MIN_SCALE, resolvedLayout, type Rotation } from './layout/placement.js';
 
 /**
@@ -28,6 +30,8 @@ export interface ParameterChange {
   to: unknown;
   /** True when it is one of a designed unit's own parameters (contract.parameters). */
   designParameter?: boolean;
+  /** Set by a design spec, re-solved to keep this result at its target. */
+  heldFor?: string;
 }
 
 export type EditOutcome =
@@ -111,6 +115,30 @@ function updateUnit(graph: ProcessGraph, edit: Extract<FlowsheetEdit, { op: 'upd
     }
     config = withSetting(config, path, value);
     changes.push({ parameter: path, from: before, to: value });
+  }
+  // Design specs: a setting the engineer (or the AI) set by hand is no longer
+  // held; every other hold is re-solved for the unit as it now stands.
+  const specs = designSpecsOf(config);
+  if (specs.length && changes.length) {
+    const edited = new Set(changes.map((c) => c.parameter));
+    const kept = specs.filter((h) => !edited.has(h.vary));
+    for (const h of specs.filter((x) => edited.has(x.vary))) {
+      warnings.push(`${h.vary} was held to keep ${h.result} at ${h.target}; setting it by hand released that hold.`);
+    }
+    if (kept.length !== specs.length) config.designSpecs = kept;
+    const current = contract ?? effectiveContract({ ...found, config } as ProcessNode);
+    if (current && kept.length) {
+      for (const [name, value] of Object.entries(resolveDesignSpecs(current, kept))) {
+        const before = contract?.parameters.find((p) => p.name === name)?.value ?? getSetting(config, name);
+        if (before === value) continue;
+        if (contract && contract.parameters.some((p) => p.name === name)) {
+          contract = { ...contract, parameters: contract.parameters.map((p) => (p.name === name ? { ...p, value } : p)) };
+          config.contract = contract;
+        }
+        config[name] = value;
+        changes.push({ parameter: name, from: before, to: value, heldFor: kept.find((h) => h.vary === name)!.result, ...(contract ? { designParameter: true } : {}) });
+      }
+    }
   }
   if (contract && changes.some((c) => c.designParameter)) {
     const verdict = executeValidateUnitOp({ contract });
