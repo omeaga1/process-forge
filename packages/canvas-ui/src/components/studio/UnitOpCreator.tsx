@@ -343,6 +343,15 @@ export function UnitOpCreator({
             setDraft(e.target.value);
             setOverrides({});
           }}
+          // A contract pasted on one line (as clients and tools emit it) is laid out to read and edit; never while typing.
+          onBlur={() => {
+            if (!draft.trim() || draft.includes('\n  ')) return;
+            try {
+              setDraft(JSON.stringify(JSON.parse(draft), null, 2));
+            } catch {
+              // Not valid JSON yet: leave it as typed.
+            }
+          }}
           placeholder='{ "contractVersion": 1, "id": "...", ... }'
           rows={8}
           spellCheck={false}
