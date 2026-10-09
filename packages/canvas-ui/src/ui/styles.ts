@@ -22,6 +22,9 @@ export const UI_CSS = `
 .pf-btn[data-size="lg"] { height: 38px; padding: 0 16px; font-size: 14px; }
 .pf-btn[data-variant="primary"] { background: var(--pf-jade-500); border-color: var(--pf-jade-500); color: var(--pf-text-inverse); }
 .pf-btn[data-variant="primary"]:hover:not(:disabled) { background: var(--pf-jade-400); border-color: var(--pf-jade-400); }
+/* Light theme: light text needs the deeper jade to read (WCAG AA). */
+[data-theme="light"] .pf-btn[data-variant="primary"], .theme-light .pf-btn[data-variant="primary"] { background: var(--pf-jade-600); border-color: var(--pf-jade-600); }
+[data-theme="light"] .pf-btn[data-variant="primary"]:hover:not(:disabled), .theme-light .pf-btn[data-variant="primary"]:hover:not(:disabled) { background: var(--pf-jade-600); border-color: var(--pf-jade-600); filter: brightness(0.88); }
 .pf-btn[data-variant="warning"] { background: var(--pf-status-blocked); border-color: var(--pf-status-blocked); color: var(--pf-text-inverse); }
 .pf-btn[data-variant="warning"]:hover:not(:disabled) { filter: brightness(1.08); background: var(--pf-status-blocked); }
 .pf-btn[data-variant="ghost"] { background: transparent; border-color: transparent; color: var(--pf-text-secondary); }
