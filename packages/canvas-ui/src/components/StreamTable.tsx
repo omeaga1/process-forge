@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { edgePhase, type ProcessGraph } from '@process-forge/protocol';
-import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
+import type { ProcessGraph } from '@process-forge/protocol';
+import { streamStates, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import { Check, Copy, Rows3 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.js';
 import { Button, Modal } from '../ui/index.js';
@@ -43,40 +43,22 @@ export const StreamTable: React.FC<{
   const [copied, setCopied] = useState(false);
   const hasRun = snapshots.size > 0;
 
+  // The same rows the MCP tools report (simulation-core's streamStates), put in words for the table.
   const rows = useMemo<StreamRow[]>(
     () =>
-      graph.edges.map((e, i) => {
-        const src = graph.nodes.find((n) => n.id === e.sourceNodeId);
-        const dst = graph.nodes.find((n) => n.id === e.targetNodeId);
-        const label = (n: typeof src, portId: string, ports: 'inputs' | 'outputs') => {
-          if (!n) return '?';
-          const port = n[ports].find((p) => p.id === portId)?.name;
-          const tag = unitTag(n.name);
-          return `${tag ?? n.name}${port ? ` · ${port}` : ''}`;
-        };
-        const phase = edgePhase(graph.nodes, e) ?? (e.stream?.type === 'DISCRETE_CONTAINER_STREAM' ? 'ITEMS' : 'LIQUID');
-        const t = snapshots.get(e.sourceNodeId);
-        const port = t?.portFlows?.[e.sourcePortId];
-        // A unit that reports per port sends nothing from a port it does not list.
-        const kgPerHour = t ? (t.portFlows ? port?.kgPerHour ?? 0 : t.kgPerHour) : undefined;
-        const gpm = t ? (t.portFlows ? port?.gpm : t.flowGpm) : undefined;
-        const temperatureC = port?.temperatureC ?? t?.temperatureC;
-        // A unit that reports per port: that port's own mix; otherwise the unit's (what it sends).
-        const comp = t ? (t.portFlows ? port?.composition : t.composition) : undefined;
-        return {
-          id: e.id,
-          number: `S${i + 1}`,
-          from: label(src, e.sourcePortId, 'outputs'),
-          to: label(dst, e.targetPortId, 'inputs'),
-          phase: PHASE_WORD[phase] ?? phase.toLowerCase(),
-          ...(kgPerHour !== undefined && phase !== 'ITEMS' ? { kgPerHour } : {}),
-          ...(gpm !== undefined && phase === 'LIQUID' ? { gpm } : {}),
-          ...(t && phase === 'ITEMS' ? { itemsPerMin: t.instantaneousRatePerMin } : {}),
-          ...(temperatureC !== undefined && phase !== 'ITEMS' ? { temperatureC } : {}),
-          ...(comp && phase !== 'ITEMS' ? { mix: mixText(comp) } : {}),
-          blocked: t?.state === 'BLOCKED'
-        };
-      }),
+      streamStates(graph, snapshots).map((r) => ({
+        id: r.id,
+        number: r.number,
+        from: `${unitTag(r.from.unit) ?? r.from.unit}${r.from.port ? ` · ${r.from.port}` : ''}`,
+        to: `${unitTag(r.to.unit) ?? r.to.unit}${r.to.port ? ` · ${r.to.port}` : ''}`,
+        phase: PHASE_WORD[r.phase] ?? r.phase.toLowerCase(),
+        ...(r.kgPerHour !== undefined ? { kgPerHour: r.kgPerHour } : {}),
+        ...(r.gpm !== undefined ? { gpm: r.gpm } : {}),
+        ...(r.itemsPerMin !== undefined ? { itemsPerMin: r.itemsPerMin } : {}),
+        ...(r.temperatureC !== undefined ? { temperatureC: r.temperatureC } : {}),
+        ...(r.composition ? { mix: mixText(r.composition) } : {}),
+        blocked: r.blocked
+      })),
     [graph, snapshots]
   );
 

@@ -5,3 +5,4 @@ export * from './rng.js';
 export * from './material.js';
 export * from './roles.js';
 export * from './describe.js';
+export * from './streams.js';
