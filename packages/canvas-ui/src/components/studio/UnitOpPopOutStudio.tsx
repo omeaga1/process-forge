@@ -369,6 +369,23 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       {shownTab === 'CHAT' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {chatHistory.length === 0 && (
+              <div style={{ margin: 'auto 0', display: 'flex', flexDirection: 'column', gap: 10, padding: '0 4px' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: OsakaJadePalette.text.primary }}>Ask about {node.name}</div>
+                <div style={{ fontSize: 13, lineHeight: 1.55, color: OsakaJadePalette.text.secondary }}>
+                  {lockStatus.unlocked
+                    ? 'Ask your AI model to explain this unit, change its design or redraw it. What it changes still has to pass the engine\'s checks.'
+                    : 'With an AI model connected you can ask it to explain this unit, change its design or redraw it, and the engine checks every change. Without one, edit the unit on the Design and Drawing tabs.'}
+                </div>
+                {!lockStatus.unlocked && (
+                  <div>
+                    <Button variant="primary" onClick={() => setIsAiModalOpen(true)}>
+                      Connect an AI model
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
             {chatHistory.map((msg) => {
               const isUser = msg.sender === 'user';
               return (
@@ -599,7 +616,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                 }}
               >
                 <KeyRound size={11} />
-                <span>Connect AI Key</span>
+                <span>Connect an AI model</span>
               </button>
             </div>
           )}
@@ -617,11 +634,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           >
             <input
               type="text"
-              placeholder={
-                isProcessing
-                  ? 'Calculating...'
-                  : `Specify mechanical parameters or CAD geometry for ${node.name.split(' ')[0]}...`
-              }
+              placeholder={isProcessing ? 'Working…' : `Ask about ${node.name}…`}
               value={inputText}
               disabled={isProcessing}
               onChange={(e) => setInputText(e.target.value)}
