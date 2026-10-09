@@ -283,7 +283,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
   // ---- a unit -------------------------------------------------------------------
   const rate = formatRate(behavior.capacityPerMin, behavior.rateUnit);
   const unitTiles = [
-    ...(behavior.capacityPerMin !== null ? [{ label: behavior.rateUnit === 'gal' ? 'Most it moves' : 'Top rate', value: rate.value, unit: rate.per.trim().startsWith('/') ? `items${rate.per.trim()}` : rate.per.trim() || 'items/min' }] : []),
+    ...(behavior.capacityPerMin !== null ? [{ label: `${behavior.rateUnit === 'gal' ? 'Most it moves' : 'Top rate'}${behavior.uptime !== undefined ? `, after breakdowns (${formatQuantity(behavior.uptime * 100)}% up)` : ''}`, value: rate.value, unit: rate.per.trim().startsWith('/') ? `items${rate.per.trim()}` : rate.per.trim() || 'items/min' }] : []),
     ...(behavior.keyFigures ?? []).slice(0, 5).map((f) => {
       // A dimensionless share (0..1) reads as a percentage.
       const share = (!f.unit || f.unit === '-') && Number.isFinite(f.value) && f.value >= 0 && f.value <= 1 && /share|fraction|efficien|ratio|yield|recovery/i.test(f.label);
