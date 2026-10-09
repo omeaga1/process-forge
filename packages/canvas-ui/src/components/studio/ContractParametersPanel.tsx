@@ -617,7 +617,17 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                 <Icon size={15} color={color} style={{ flexShrink: 0, marginTop: 1 }} />
                 <div style={{ fontSize: 13, color: bad ? palette.text.primary : palette.text.secondary, minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                    <span style={{ flex: 1 }}>{c.message}</span>
+                    {/* A message says what goes wrong; when the check holds, it is what the check guards against. */}
+                    <span style={{ flex: 1 }}>
+                      {bad ? (
+                        c.message
+                      ) : (
+                        <>
+                          <span style={{ color: palette.text.muted }}>Guards against: </span>
+                          {c.message.replace(/^./, (ch) => ch.toLowerCase())}
+                        </>
+                      )}
+                    </span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked, opacity: bad ? 1 : 0.6 }}>
                       {c.severity === 'ERROR' ? 'must' : 'should'}
                     </span>
