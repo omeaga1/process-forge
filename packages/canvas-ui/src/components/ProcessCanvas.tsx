@@ -15,7 +15,7 @@ import {
   type ReactFlowInstance
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Layers, Play, Pause, RotateCcw, RotateCw, FlipHorizontal2, Maximize2, Route, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
+import { Rows3, Layers, Play, Pause, RotateCcw, RotateCw, FlipHorizontal2, Maximize2, Route, AlertTriangle, Plus, Sparkles, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
 
 import {
   validateProcessGraph,
@@ -54,6 +54,7 @@ import { CommunityUnitOpLibraryModal } from './marketplace/CommunityUnitOpLibrar
 import { PublishUnitOpDialog, type PublishSuggestion } from './marketplace/PublishUnitOpDialog.js';
 import type { AgentHost } from '../ai/agent/agentTools.js';
 import { EquipmentPaletteModal } from './palette/EquipmentPaletteModal.js';
+import { StreamTable } from './StreamTable.js';
 import { MobileFieldView } from './mobile/MobileFieldView.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
 import { useTheme } from '../hooks/useTheme.js';
@@ -894,6 +895,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
   // Ctrl+K: every action from the keyboard.
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isStreamTableOpen, setIsStreamTableOpen] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -1085,6 +1087,12 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             <Tooltip content="Pumps, tanks, reactors, fillers, conveyors, and your own designs">
               <Button icon={<Plus size={15} color={OsakaJadePalette.jade[400]} />} onClick={() => setIsEquipmentPaletteOpen(true)} aria-label="Add equipment">
                 {!compactToolbar && 'Add equipment'}
+              </Button>
+            </Tooltip>
+
+            <Tooltip content="Every stream: where it runs, its phase, flow and temperature">
+              <Button variant="ghost" size="sm" icon={<Rows3 size={15} />} onClick={() => setIsStreamTableOpen(true)} aria-label="Stream table">
+                {!compactToolbar && 'Streams'}
               </Button>
             </Tooltip>
 
@@ -1424,6 +1432,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         commands={[
           { id: 'run', group: 'Line', title: isRunning ? 'Pause the simulation' : 'Run the simulation', hint: 'Space', keywords: 'simulate start play stop', run: handleToggleSimulation },
           { id: 'reset', group: 'Line', title: 'Reset the simulation', keywords: 'restart clear', run: handleResetSimulation },
+          { id: 'streams', group: 'Line', title: 'Show the stream table', keywords: 'streams flows report table temperatures', run: () => setIsStreamTableOpen(true) },
           ...[1, 2, 5].map((x): PaletteCommand => ({ id: `speed-${x}`, group: 'Line', title: `Play back at ${x}×`, keywords: 'speed fast slow', run: () => setSimSpeed(x) })),
           ...(onDesignUnitOp ? [{ id: 'design', group: 'Equipment', title: 'Design a unit op…', keywords: 'new custom ai contract create', run: onDesignUnitOp }] : []),
           { id: 'palette', group: 'Equipment', title: 'Browse standard equipment…', keywords: 'add catalog library', run: () => setIsEquipmentPaletteOpen(true) },
@@ -1445,6 +1454,13 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         ]}
       />
 
+      <StreamTable
+        open={isStreamTableOpen}
+        onOpenChange={setIsStreamTableOpen}
+        graph={graph}
+        snapshots={snapshotByNode}
+        simulatedSeconds={runView?.timeSeconds ?? 0}
+      />
       <EquipmentPaletteModal
         isOpen={isEquipmentPaletteOpen}
         onClose={() => setIsEquipmentPaletteOpen(false)}
