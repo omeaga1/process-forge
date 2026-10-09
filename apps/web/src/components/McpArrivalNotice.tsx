@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useTheme } from '@process-forge/canvas-ui';
+import { Button, useTheme } from '@process-forge/canvas-ui';
 import { Sparkles, X } from 'lucide-react';
 import type { BridgeArrival } from '../hooks/useMcpBridge.js';
 
@@ -43,21 +43,7 @@ export const McpArrivalNotice: React.FC<{ arrival: BridgeArrival | null; onDismi
       <span>
         <strong>{arrival.name}</strong> added by your MCP client
       </span>
-      <button
-        type="button"
-        aria-label="Dismiss"
-        onClick={onDismiss}
-        style={{
-          display: 'inline-flex',
-          background: 'none',
-          border: 'none',
-          color: palette.text.muted,
-          cursor: 'pointer',
-          padding: 4
-        }}
-      >
-        <X size={14} />
-      </button>
+      <Button variant="ghost" size="sm" iconOnly icon={<X size={14} />} label="Dismiss" onClick={onDismiss} />
     </div>
   );
 };

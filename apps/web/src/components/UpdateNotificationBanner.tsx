@@ -10,7 +10,7 @@ import {
   AlertTriangle,
   RotateCcw
 } from 'lucide-react';
-import { useTheme } from '@process-forge/canvas-ui';
+import { useTheme, Button } from '@process-forge/canvas-ui';
 import { draftingRadius, tint } from '@process-forge/theme';
 
 export interface UpdateInfo {
@@ -235,12 +235,12 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
                 whiteSpace: 'nowrap'
               }}
             >
-              {status === 'checking' && 'Checking for updates...'}
-              {status === 'installing' && 'Downloading & Installing Update...'}
-              {status === 'restarting' && 'Restarting ProcessForge...'}
-              {status === 'available' && `Update Available: v${updateInfo?.latest_version || 'Latest'}`}
-              {status === 'up-to-date' && 'You are running the latest version'}
-              {status === 'error' && 'Update Check Notice'}
+              {status === 'checking' && 'Checking for updates…'}
+              {status === 'installing' && 'Downloading the update…'}
+              {status === 'restarting' && 'Restarting ProcessForge…'}
+              {status === 'available' && `ProcessForge ${updateInfo?.latest_version ? `v${updateInfo.latest_version}` : 'update'} is ready`}
+              {status === 'up-to-date' && 'ProcessForge is up to date'}
+              {status === 'error' && 'Could not check for updates'}
             </span>
 
             {updateInfo?.current_version && (
@@ -282,115 +282,29 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
       </div>
 
       {/* Right: Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         {status === 'available' && (
-          <button
-            onClick={handleApplyUpdate}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '6px 14px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.jade[500],
-              color: OsakaJadePalette.text.inverse,
-              border: 'none',
-              fontSize: '0.8rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-            title="Download, install, and restart ProcessForge"
-          >
-            <RotateCcw size={13} />
-            <span>Restart & Apply Update</span>
-          </button>
+          <Button variant="primary" size="sm" icon={<RotateCcw size={13} />} onClick={handleApplyUpdate}>
+            Restart to update
+          </Button>
         )}
-
-        {(status === 'up-to-date' || status === 'error') && (
-          <button
-            onClick={handleHardReload}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 12px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: tint(palette.text.primary, 0.05),
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              color: OsakaJadePalette.text.primary,
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-            title="Hard reload application and refresh cached scripts"
-          >
-            <RotateCcw size={12} />
-            <span>Hard Reload</span>
-          </button>
-        )}
-
-        {status === 'error' && onCheckForUpdates && (
-          <button
-            onClick={() => onCheckForUpdates()}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 12px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.jade[500],
-              color: OsakaJadePalette.text.inverse,
-              border: 'none',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            <RefreshCw size={12} />
-            <span>Retry Check</span>
-          </button>
-        )}
-
         {updateInfo?.release_url && status === 'available' && (
-          <a
-            href={updateInfo.release_url}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '6px 10px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.background.surface,
-              color: OsakaJadePalette.text.secondary,
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              fontSize: '0.8rem',
-              textDecoration: 'none',
-              cursor: 'pointer'
-            }}
-          >
+          <a href={updateInfo.release_url} target="_blank" rel="noreferrer" className="pf-btn" data-variant="ghost" data-size="sm" style={{ textDecoration: 'none' }}>
             <ExternalLink size={12} />
-            <span>Notes</span>
+            What's new
           </a>
         )}
-
-        <button
-          onClick={handleDismiss}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: OsakaJadePalette.text.muted,
-            cursor: 'pointer',
-            padding: 4,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
-          title="Dismiss notification"
-        >
-          <X size={16} />
-        </button>
+        {status === 'error' && onCheckForUpdates && (
+          <Button size="sm" icon={<RefreshCw size={12} />} onClick={() => onCheckForUpdates()}>
+            Try again
+          </Button>
+        )}
+        {status === 'error' && (
+          <Button variant="ghost" size="sm" onClick={handleHardReload}>
+            Reload
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" iconOnly icon={<X size={14} />} label="Dismiss" onClick={handleDismiss} />
       </div>
     </aside>
   );
