@@ -5,6 +5,7 @@ import {
   planStream,
   addStreamToGraph,
   applyFlowsheetEdit,
+  placeNextTo,
   resolveUnit,
   type FlowsheetEdit,
   ProcessNodeSchema,
@@ -72,13 +73,6 @@ export interface PublishRequest {
 /** Fired on window when an MCP client asks to publish a unit: { nodeId, request }. The canvas opens its publish dialog. */
 export const MCP_PUBLISH_REQUEST_EVENT = 'pf-mcp-publish-request';
 
-/** To the right of everything on the canvas, level with the flowsheet's middle. */
-function placeNextTo(graph: ProcessGraph): { x: number; y: number } {
-  if (graph.nodes.length === 0) return { x: 200, y: 200 };
-  const xs = graph.nodes.map((n) => n.position.x);
-  const ys = graph.nodes.map((n) => n.position.y);
-  return { x: Math.max(...xs) + 320, y: Math.round(ys.reduce((a, b) => a + b, 0) / ys.length) };
-}
 
 export interface BridgeArrival {
   name: string;
