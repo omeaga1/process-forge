@@ -212,7 +212,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                     This device
                   </div>
                   <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
-                    Kept in this browser (or this desktop app)
+                    Kept on this computer
                   </div>
                 </div>
               </div>

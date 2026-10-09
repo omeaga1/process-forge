@@ -216,7 +216,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         )}
 
         {isGuestMode && (
-          <Tooltip content="Projects are kept in this browser only. Click for ways to keep a copy." side="bottom">
+          <Tooltip content="Projects are kept on this computer only. Click for ways to keep a copy." side="bottom">
             <button
               type="button"
               className="pf-chip"

@@ -519,9 +519,8 @@ const AppInner: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', maxWidth: '100vw', maxHeight: '100vh', overflow: viewMode === 'landing' ? 'auto' : 'hidden', position: 'relative' }}>
       {viewMode === 'landing' && !isDesktopRuntime() ? (
-        <ProductLandingPage
-          onLaunchStudio={handleLaunchStudioFromLanding}
-        />
+        // The public site only hands out the desktop app; the studio opens from it in development.
+        <ProductLandingPage {...(import.meta.env.DEV ? { onLaunchStudio: handleLaunchStudioFromLanding } : {})} />
       ) : viewMode === 'portal' || viewMode === 'landing' ? (
         <LandingPageHub
           currentProject={project}
