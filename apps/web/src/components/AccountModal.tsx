@@ -13,7 +13,7 @@ import {
   KeyRound,
   CheckCircle2
 } from 'lucide-react';
-import { Modal, useTheme } from '@process-forge/canvas-ui';
+import { Modal, TabStrip, useTheme } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
 import { getInitials, hasCloudSession } from '../auth/accountManager.js';
 import { isDesktopRuntime } from '../runtime/desktop.js';
@@ -337,65 +337,19 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             /* ── UNAUTHENTICATED SIGN IN / REGISTER VIEW ── */
             <div>
               {/* Provider Tabs: Email/Password vs Google */}
-              <div
-                style={{
-                  display: 'flex',
-                  backgroundColor: OsakaJadePalette.background.canvas,
-                  borderRadius: draftingRadius.soft,
-                  padding: 3,
-                  marginBottom: 16
+              <TabStrip
+                label="How to sign in"
+                value={activeTab}
+                onValueChange={(t) => {
+                  setActiveTab(t);
+                  setErrorMessage(null);
                 }}
-              >
-                <button
-                  onClick={() => {
-                    setActiveTab('email');
-                    setErrorMessage(null);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: draftingRadius.soft,
-                    border: 'none',
-                    backgroundColor: activeTab === 'email' ? OsakaJadePalette.background.surface : 'transparent',
-                    color: activeTab === 'email' ? OsakaJadePalette.text.primary : OsakaJadePalette.text.secondary,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6
-                  }}
-                >
-                  <Mail size={14} />
-                  <span>Email & Password</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setActiveTab('google');
-                    setErrorMessage(null);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '8px 12px',
-                    borderRadius: draftingRadius.soft,
-                    border: 'none',
-                    backgroundColor: activeTab === 'google' ? OsakaJadePalette.background.surface : 'transparent',
-                    color: activeTab === 'google' ? OsakaJadePalette.text.primary : OsakaJadePalette.text.secondary,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6
-                  }}
-                >
-                  <KeyRound size={14} />
-                  <span>Google Account</span>
-                </button>
-              </div>
+                style={{ marginBottom: 16 }}
+                items={[
+                  { value: 'google' as const, icon: <KeyRound size={14} />, label: 'Google account' },
+                  { value: 'email' as const, icon: <Mail size={14} />, label: 'Email profile (this device)' }
+                ]}
+              />
 
               {/* Feedback Alerts */}
               {errorMessage && (

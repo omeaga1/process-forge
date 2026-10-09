@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal } from '../../ui/index.js';
+import { Modal, TabStrip } from '../../ui/index.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import { ProcessForgeEmblem } from '../brand/ProcessForgeLogo.js';
 import {
@@ -206,37 +206,20 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
         )}
 
         {/* Which library */}
-        <div role="tablist" style={{ display: 'flex', gap: 4, padding: '10px 24px 0', borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
-          {(
-            [
-              ['community', 'Community'],
-              ['examples', 'Examples by ProcessForge'],
-              ['mine', 'Published by me']
-            ] as [LibraryTab, string][]
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              role="tab"
-              aria-selected={tab === id}
-              onClick={() => {
-                setTab(id);
-                setNotice(null);
-              }}
-              style={{
-                padding: '8px 12px',
-                background: 'none',
-                border: 'none',
-                borderBottom: `2px solid ${tab === id ? OsakaJadePalette.jade[500] : 'transparent'}`,
-                color: tab === id ? OsakaJadePalette.text.primary : OsakaJadePalette.text.secondary,
-                fontSize: 13,
-                fontWeight: tab === id ? 700 : 500,
-                cursor: 'pointer'
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <TabStrip
+          label="Which library"
+          value={tab}
+          onValueChange={(id) => {
+            setTab(id);
+            setNotice(null);
+          }}
+          style={{ padding: '0 16px' }}
+          items={[
+            { value: 'community' as LibraryTab, label: 'Community' },
+            { value: 'examples' as LibraryTab, label: 'Examples by ProcessForge' },
+            { value: 'mine' as LibraryTab, label: 'Published by me' }
+          ]}
+        />
 
         {notice && (
           <div role="status" style={{ padding: '8px 24px', fontSize: 12, color: OsakaJadePalette.text.primary, borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
