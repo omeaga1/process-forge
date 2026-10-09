@@ -112,7 +112,7 @@ export const CommandPalette: React.FC<{ open: boolean; onClose(): void; commands
           />
           <kbd style={{ fontFamily: font.mono, fontSize: 10, color: palette.text.muted, border: `1px solid ${palette.border.default}`, padding: '1px 5px', borderRadius: 2 }}>Esc</kbd>
         </div>
-        <div ref={list} id="pf-command-list" role="listbox" style={{ maxHeight: '46vh', overflowY: 'auto', padding: '6px 0' }}>
+        <div ref={list} id="pf-command-list" role="listbox" aria-label="Commands" tabIndex={0} style={{ maxHeight: '46vh', overflowY: 'auto', padding: '6px 0' }}>
           {shown.length === 0 && <div style={{ padding: '14px 16px', color: palette.text.muted, fontSize: 13 }}>Nothing matches “{query}”.</div>}
           {shown.map((c, i) => {
             const header = c.group !== lastGroup ? c.group : null;
@@ -143,7 +143,7 @@ export const CommandPalette: React.FC<{ open: boolean; onClose(): void; commands
                   }}
                 >
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</span>
-                  {c.hint && <span style={{ fontFamily: font.mono, fontSize: 11, color: palette.text.muted, flexShrink: 0 }}>{c.hint}</span>}
+                  {c.hint && <span style={{ fontFamily: font.mono, fontSize: 11, color: palette.text.secondary, flexShrink: 0 }}>{c.hint}</span>}
                 </div>
               </React.Fragment>
             );
