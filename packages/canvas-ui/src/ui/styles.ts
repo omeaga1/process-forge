@@ -67,6 +67,11 @@ export const UI_CSS = `
 }
 .pf-sheet[data-starting-style], .pf-sheet[data-ending-style] { translate: 0 100%; }
 
+/* Popups are portalled into a positioner, which is its own stacking layer: the layer, not the popup, has to sit
+   above the panels (the unit panel is 40), or a menu opened from a panel draws behind it. */
+.pf-layer { z-index: 1100; }
+.pf-layer-tip { z-index: 1200; }
+
 .pf-tip {
   z-index: 1100; max-width: 280px; padding: 6px 9px; border-radius: 6px;
   background: var(--pf-bg-surface-elevated); color: var(--pf-text-primary); border: 1px solid var(--pf-border-strong);

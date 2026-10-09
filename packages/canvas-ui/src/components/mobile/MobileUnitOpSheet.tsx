@@ -39,7 +39,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({ node, isOp
           )}
           <div style={{ marginTop: tag ? 4 : 0, fontSize: 16, fontWeight: 700, color: palette.text.primary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</div>
         </div>
-        <Button variant="ghost" iconOnly icon={<X size={16} />} aria-label="Close" onClick={onClose} />
+        <Button variant="ghost" iconOnly icon={<X size={16} />} label="Close" onClick={onClose} />
       </div>
       {graph && (
         <TabStrip
