@@ -71,10 +71,10 @@ function loadPrefs(): Record<string, string> {
 function useDisplayUnits() {
   const [prefs, setPrefs] = useState<Record<string, string>>(() => (typeof window === 'undefined' ? {} : loadPrefs()));
   const unitFor = useCallback(
-    (unit: string, choices: string[]) => {
+    (unit: string, choices: string[], fallback?: string) => {
       const key = unitPreferenceKey(unit);
       const want = key ? prefs[key] : undefined;
-      return want && choices.includes(want) ? want : unit;
+      return want && choices.includes(want) ? want : fallback && choices.includes(fallback) ? fallback : unit;
     },
     [prefs]
   );
