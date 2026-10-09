@@ -91,11 +91,30 @@ describe('AI connection manager', () => {
     assert.ok(!/OAuth|SSO|Enterprise/.test(res.text));
   });
 
+  it('with no model: a question about the line is answered in its own terms', async () => {
+    resetToOfflineConfig();
+    const bulk = await dispatchMasterOrchestratorMessage(
+      'What limits the line?',
+      { graphName: 'Juice line', nodeCount: 9, totalPackaged: 0, averageRatePerMin: 0, bulk: true, productKg: 459, simulatedSeconds: 1200 },
+      { provider: 'offline' }
+    );
+    assert.strictEqual(bulk.isOfflineSolver, true);
+    assert.ok(bulk.text.includes('459 kg'), bulk.text);
+    assert.ok(bulk.text.includes('1,377 kg/h'), bulk.text);
+    assert.ok(!bulk.text.includes('units'), bulk.text);
+    const before = await dispatchMasterOrchestratorMessage(
+      'How much is it making?',
+      { graphName: 'Juice line', nodeCount: 9, totalPackaged: 0, averageRatePerMin: 0, bulk: true, productKg: 0, simulatedSeconds: 0 },
+      { provider: 'offline' }
+    );
+    assert.ok(before.text.includes('Press Run'), before.text);
+  });
+
   it('with no model: the flowsheet assistant says it is offline and what it can still do', async () => {
     resetToOfflineConfig();
 
     const res = await dispatchMasterOrchestratorMessage(
-      'Optimize plant throughput',
+      'Suggest a better layout for the packaging hall',
       {
         graphName: 'Architectural Coatings Line',
         nodeCount: 5,

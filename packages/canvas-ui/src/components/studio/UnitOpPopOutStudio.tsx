@@ -20,8 +20,9 @@ import {
   type AiModelConfig
 } from '../../ai/aiModelManager.js';
 import { dispatchUnitOpMessage } from '../../ai/aiDispatch.js';
+import { Button, DropdownMenu, TabStrip } from '../../ui/index.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, KeyRound, Copy, Trash2, Workflow, Bookmark, BookmarkCheck } from 'lucide-react';
+import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, KeyRound, Copy, Trash2, Workflow, Bookmark, BookmarkCheck, MoreHorizontal } from 'lucide-react';
 import type { ProcessGraph } from '@process-forge/protocol';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import { UnitOverviewPanel } from './UnitOverviewPanel.js';
@@ -124,19 +125,20 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
     setInputText('');
   }, [node?.id]);
 
-  if (!isOpen || !node) return null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      const el = document.activeElement as HTMLElement | null;
+      const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+      if (typing || document.querySelector('[role=dialog], [role=menu]')) return;
+      onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
 
-  const headerIconButton: React.CSSProperties = {
-    background: 'none',
-    border: `1px solid ${OsakaJadePalette.border.default}`,
-    width: 30,
-    height: 30,
-    borderRadius: r.md,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center'
-  };
+  if (!isOpen || !node) return null;
 
   const config = node.config as Record<string, unknown>;
   const tRole = terminalRole(node);
@@ -330,108 +332,38 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           const contract = parsed.data;
           const saved = savedUnits.some((u) => u.id === contract.id);
           return (
-            <button
-              type="button"
-              onClick={() => (saved ? removeSavedUnitOp(contract.id) : saveUnitOp(contract, 'studio'))}
-              title={saved ? 'In My unit ops. Click to remove it from there.' : 'Save to My unit ops, to place again in any project'}
-              aria-label={saved ? 'Remove from My unit ops' : 'Save to My unit ops'}
+            <Button
+              variant="ghost"
+              iconOnly
               aria-pressed={saved}
-              style={headerIconButton}
-            >
-              {saved ? <BookmarkCheck size={14} color={OsakaJadePalette.jade[500]} /> : <Bookmark size={14} color={OsakaJadePalette.text.secondary} />}
-            </button>
+              icon={saved ? <BookmarkCheck size={15} color={OsakaJadePalette.jade[400]} /> : <Bookmark size={15} />}
+              label={saved ? 'In My unit ops: click to remove it from there' : 'Save to My unit ops, to place again in any project'}
+              onClick={() => (saved ? removeSavedUnitOp(contract.id) : saveUnitOp(contract, 'studio'))}
+            />
           );
         })()}
-        {onDuplicate && (
-          <button
-            type="button"
-            onClick={() => onDuplicate(node.id)}
-            title="Duplicate this unit (Ctrl+D)"
-            aria-label="Duplicate unit"
-            style={headerIconButton}
-          >
-            <Copy size={14} color={OsakaJadePalette.text.secondary} />
-          </button>
-        )}
-        {onDelete && (
-          <button
-            type="button"
-            onClick={() => onDelete(node.id)}
-            title="Delete this unit and its streams (Delete). Undo with Ctrl+Z."
-            aria-label="Delete unit"
-            style={headerIconButton}
-          >
-            <Trash2 size={14} color={OsakaJadePalette.text.secondary} />
-          </button>
-        )}
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          style={{
-            background: 'none',
-            border: `1px solid ${OsakaJadePalette.border.default}`,
-            color: OsakaJadePalette.text.secondary,
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'background 0.15s ease'
-          }}
-          title="Close Studio"
-        >
-          <X size={15} color={OsakaJadePalette.text.secondary} />
-        </button>
+        <DropdownMenu
+          trigger={<Button variant="ghost" iconOnly icon={<MoreHorizontal size={16} />} aria-label="More actions" />}
+          items={[
+            ...(onDuplicate ? [{ label: 'Duplicate · Ctrl+D', icon: <Copy size={14} />, onSelect: () => onDuplicate(node.id) }] : []),
+            { label: 'Publish to the community library', icon: <Upload size={14} />, onSelect: () => onPublishToForgeHub(node) },
+            ...(onDelete ? [{ label: 'Delete · Delete', icon: <Trash2 size={14} />, onSelect: () => onDelete(node.id), danger: true, separatorBefore: true }] : [])
+          ]}
+        />
+        <Button variant="ghost" iconOnly icon={<X size={16} />} label="Close · Esc" onClick={onClose} />
         </div>
       </div>
 
       {/* Tabs. With an MCP client as the assistant there is no chat here: the
           conversation happens in the client, which works on this unit through
           the ProcessForge tools. */}
-      <div
-        role="tablist"
-        style={{
-          display: 'flex',
-          borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
-          backgroundColor: OsakaJadePalette.background.surface,
-          flexShrink: 0
-        }}
-      >
-        {tabs.map(({ id, label, Icon }) => {
-          const on = shownTab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={on}
-              onClick={() => setActiveTab(id)}
-              style={{
-                flex: 1,
-                height: 40,
-                padding: '0 8px',
-                backgroundColor: on ? OsakaJadePalette.background.surfaceElevated : 'transparent',
-                border: 'none',
-                borderBottom: `2px solid ${on ? OsakaJadePalette.jade[500] : 'transparent'}`,
-                color: on ? OsakaJadePalette.text.primary : OsakaJadePalette.text.muted,
-                fontWeight: 600,
-                fontSize: 13,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                whiteSpace: 'nowrap'
-              }}
-            >
-              <Icon size={14} />
-              <span>{label}</span>
-            </button>
-          );
-        })}
-      </div>
+      <TabStrip
+        label="Unit studio"
+        value={shownTab}
+        onValueChange={(v) => setActiveTab(v)}
+        items={tabs.map(({ id, label, Icon }) => ({ value: id, label, icon: <Icon size={14} /> }))}
+        style={{ padding: '0 12px', flexShrink: 0, backgroundColor: OsakaJadePalette.background.surface }}
+      />
 
       {/* Tab 1: Dedicated Machine Sub-Agent Chat */}
       {shownTab === 'CHAT' && (
@@ -758,42 +690,6 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           />
         </div>
       )}
-
-      {/* Footer: One-Click Publish to ForgeHub */}
-      <div
-        style={{
-          padding: '14px 20px',
-          borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-          backgroundColor: OsakaJadePalette.background.surface,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}
-      >
-        <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>
-          Ready to share with community?
-        </span>
-
-        <button
-          onClick={() => onPublishToForgeHub(node)}
-          style={{
-            backgroundColor: OsakaJadePalette.jade.muted,
-            color: OsakaJadePalette.jade.glow,
-            border: `1px solid ${OsakaJadePalette.jade[600]}`,
-            borderRadius: draftingRadius.soft,
-            padding: '8px 16px',
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6
-          }}
-        >
-          <Upload size={14} />
-          <span>Publish to Community Library</span>
-        </button>
-      </div>
 
       {/* AI Model & Provider Modal */}
       <AiModelModal

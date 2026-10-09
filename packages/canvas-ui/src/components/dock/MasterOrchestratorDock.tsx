@@ -20,6 +20,7 @@ import { SplitFlap } from './SplitFlap.js';
 import { unitTag } from '../../model/unitTag.js';
 import { AgentChat } from './AgentChat.js';
 import { RunDigest, type RunView } from './RunDigest.js';
+import { Chip } from '../../ui/index.js';
 import { supportsAgent } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
 import { Cpu, Loader2, ChevronRight, ChevronLeft, Sparkles, KeyRound } from 'lucide-react';
@@ -134,7 +135,10 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           totalPackaged: telemetry.totalPackaged,
           averageRatePerMin: telemetry.averageRatePerMin,
           bottleneckNodeName: bnNode?.name,
-          maxThroughput: bottlenecks.maximumSystemThroughputUnitsPerMin
+          maxThroughput: bottlenecks.maximumSystemThroughputUnitsPerMin,
+          bulk: Boolean(bulkLine),
+          productKg: telemetry.productKg ?? 0,
+          simulatedSeconds: telemetry.simulatedTimeSeconds
         },
         aiConfig
       );
@@ -414,6 +418,21 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           gap: 10
         }}
       >
+        {chatHistory.length === 0 && (
+          <div style={{ margin: 'auto 0', display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 2px' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: OsakaJadePalette.text.primary }}>Ask about this line</div>
+            <div style={{ fontSize: 12, lineHeight: 1.5, color: OsakaJadePalette.text.secondary }}>
+              Without an AI model the copilot answers what limits the line and adds standard equipment from a plain request. Connect a model for free-form engineering advice.
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {['What limits the line?', 'Add a surge tank', 'Add a pump'].map((q) => (
+                <Chip key={q} onClick={() => void handleSendMessage(q)}>
+                  {q}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
         {chatHistory.map((msg) => {
           const isUser = msg.sender === 'user';
           return (
