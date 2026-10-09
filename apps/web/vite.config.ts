@@ -257,6 +257,22 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
-    outDir: 'dist'
+    outDir: 'dist',
+    rollupOptions: {
+      output: {
+        // Third-party code in chunks of its own: it changes far less often than
+        // the app, so a new release re-downloads only what changed.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          // Before react: @xyflow/react has a 'react' path segment too.
+          if (id.includes('@xyflow')) return 'flow';
+          if (/[\/](react|react-dom|scheduler)[\/]/.test(id)) return 'react';
+          if (id.includes('@base-ui') || id.includes('@floating-ui')) return 'ui';
+          if (id.includes('lucide-react')) return 'icons';
+          if (id.includes('zod')) return 'zod';
+          return 'vendor';
+        }
+      }
+    }
   }
 });

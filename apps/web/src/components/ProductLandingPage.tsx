@@ -23,7 +23,11 @@ import { McpDemo } from '../landing/McpDemo.js';
  */
 
 export interface ProductLandingPageProps {
-  onLaunchStudio: () => void;
+  /**
+   * Opens the studio in this page. Only in development: ProcessForge is a
+   * desktop app, and the public site is the place to download it.
+   */
+  onLaunchStudio?: () => void;
 }
 
 interface PlatformInfo {
@@ -130,14 +134,15 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
       Download for {platform.name}
     </a>
   );
-  const secondary = (
-    <button
-      className="pf-cta-secondary"
-      onClick={onLaunchStudio}
-      style={{ ...sans, padding: '12px 22px', borderRadius: 9, background: 'transparent', color: D.text.primary, border: `1px solid ${D.border.strong}`, fontWeight: 600, fontSize: 16, cursor: 'pointer' }}
-    >
-      Open in your browser
+  const secondaryStyle: React.CSSProperties = { ...sans, display: 'inline-flex', alignItems: 'center', padding: '12px 22px', borderRadius: 9, background: 'transparent', color: D.text.primary, border: `1px solid ${D.border.strong}`, fontWeight: 600, fontSize: 16, cursor: 'pointer', textDecoration: 'none' };
+  const secondary = onLaunchStudio ? (
+    <button className="pf-cta-secondary" onClick={onLaunchStudio} style={secondaryStyle}>
+      Open the studio (development)
     </button>
+  ) : (
+    <a className="pf-cta-secondary" href={RELEASES_PAGE} target="_blank" rel="noopener noreferrer" style={secondaryStyle}>
+      macOS, Linux and all releases
+    </a>
   );
 
   return (

@@ -81,8 +81,8 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({ isOp
           palette.status.blocked,
           'Continue without an account',
           [
-            'Projects are saved in this browser (or this desktop app) and never uploaded',
-            'Clearing site data removes them, so export anything you want to keep'
+            'Projects are saved on this computer and never uploaded',
+            'Download a project file to keep a copy anywhere else'
           ],
           <Button
             onClick={() => {
