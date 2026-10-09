@@ -146,7 +146,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Sparkles size={15} color={OsakaJadePalette.jade[400]} />
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: OsakaJadePalette.text.primary, letterSpacing: '-0.01em' }}>
-              Unit-Op CAD Geometry
+              Drawing
             </span>
           </div>
 
@@ -170,7 +170,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
               title="Reset CAD geometry to standard dynamic animated shell"
             >
               <RotateCcw size={11} />
-              <span>Reset to Standard</span>
+              <span>Reset drawing</span>
             </button>
           )}
         </div>
@@ -180,6 +180,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {/* Clean Dropdown for Presets */}
             <select
+              className="pf-select"
               value=""
               onChange={(e) => {
                 if (e.target.value) {
@@ -187,19 +188,8 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                   handleForgeDrawing(e.target.value);
                 }
               }}
-              style={{
-                backgroundColor: OsakaJadePalette.background.surface,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                borderRadius: '6px',
-                padding: '7px 10px',
-                color: OsakaJadePalette.text.primary,
-                fontSize: '0.8rem',
-                outline: 'none',
-                minWidth: '170px',
-                cursor: 'pointer'
-              }}
             >
-              <option value="">Load CAD Preset...</option>
+              <option value="">Start from a template…</option>
               <option value="Jacketed CSTR with Rushton turbine and relief vent">Jacketed CSTR</option>
               <option value="Vertical distillation tower with 6 sieve trays and top reflux nozzle">Distillation Tower</option>
               <option value="Spherical LPG storage vessel with relief nozzle on support legs">Spherical LPG Tank</option>
@@ -216,7 +206,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleForgeDrawing();
               }}
-              placeholder="Or describe custom geometry (e.g. 'Fractionation column with 12 trays')..."
+              placeholder="Or describe it: 'column with 12 trays'"
               style={{
                 flex: 1,
                 backgroundColor: OsakaJadePalette.background.surface,
@@ -287,9 +277,12 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
             <Sliders size={16} color={OsakaJadePalette.jade[400]} />
             <span style={{ fontWeight: 700, fontSize: '0.9rem', color: OsakaJadePalette.text.primary }}>
-              Vessel Internals & Mechanical Dressing
+              Drawing details
             </span>
           </div>
+          <p style={{ margin: '-8px 0 12px', fontSize: 12, color: OsakaJadePalette.text.muted, lineHeight: 1.45 }}>
+            How the unit is drawn. They do not change how it is simulated: its contract does that, on the Design tab.
+          </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
             {/* Agitator Selection */}
@@ -298,17 +291,9 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 Agitator Impeller
               </label>
               <select
+                className="pf-select"
                 value={dressing.internals.agitatorType}
                 onChange={(e) => handleUpdateInternals({ agitatorType: e.target.value as any })}
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  borderRadius: '6px',
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: '0.8rem'
-                }}
               >
                 <option value="none">None (Static Vessel)</option>
                 <option value="pitched_blade">Pitched Blade Turbine (45° Axial)</option>
@@ -324,6 +309,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 Thermal Jacket
               </label>
               <select
+                className="pf-select"
                 value={dressing.internals.hasJacket ? dressing.internals.jacketType : 'none'}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -332,15 +318,6 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                   } else {
                     handleUpdateInternals({ hasJacket: true, jacketType: val as any });
                   }
-                }}
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  borderRadius: '6px',
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: '0.8rem'
                 }}
               >
                 <option value="none">No Jacket (Bare Shell)</option>
@@ -357,17 +334,9 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 Anti-Swirl Wall Baffles
               </label>
               <select
+                className="pf-select"
                 value={dressing.internals.baffleCount}
                 onChange={(e) => handleUpdateInternals({ baffleCount: parseInt(e.target.value, 10) })}
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  borderRadius: '6px',
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: '0.8rem'
-                }}
               >
                 <option value="0">0 Baffles (Unbaffled)</option>
                 <option value="2">2 Standard Wall Baffles (180°)</option>
@@ -381,17 +350,9 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 Demister / Mist Eliminator
               </label>
               <select
+                className="pf-select"
                 value={dressing.internals.hasDemister ? 'yes' : 'no'}
                 onChange={(e) => handleUpdateInternals({ hasDemister: e.target.value === 'yes' })}
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  borderRadius: '6px',
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                  color: OsakaJadePalette.text.primary,
-                  fontSize: '0.8rem'
-                }}
               >
                 <option value="no">None</option>
                 <option value="yes">Wire Mesh Demister Pad</option>
