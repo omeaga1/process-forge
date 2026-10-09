@@ -255,7 +255,8 @@ export const NozzlePlacementEditor: React.FC<NozzlePlacementEditorProps> = ({ no
                     style={{
                       position: 'absolute',
                       left: '50%',
-                      top: -18,
+                      // Off the end of the stem: below a bottom nozzle, whose stem rises into the space above.
+                      top: z.position === 'bottom' ? 18 : -18,
                       transform: 'translateX(-50%)',
                       fontSize: 10,
                       fontFamily: font.mono,
