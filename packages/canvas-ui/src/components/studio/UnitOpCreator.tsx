@@ -1,5 +1,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import {
+  designSpecsOf,
+  type DesignSpec,
   UnitOpContractSchema,
   validateUnitOpContract,
   evaluateUnitOp,
@@ -61,7 +63,8 @@ export interface UnitOpCreatorProps {
   /** Opens the "how do you use Claude" settings. */
   onChooseAssistant?: () => void;
   /** Called with a contract that passed every gate. */
-  onAccept: (contract: UnitOpContract) => void;
+  /** The design to add, and the results it holds (set on the preview's spec sheet), to keep on the new unit. */
+  onAccept: (contract: UnitOpContract, extras?: { designSpecs?: DesignSpec[] }) => void;
   onClose?: () => void;
   processContext?: UnitOpCreatorProcessContext;
   initialDescription?: string;
@@ -506,7 +509,8 @@ export function UnitOpCreator({
           onClick={() => {
             const contract = reviewState.contract;
             if (!contract) return;
-            // Add the design the gates actually passed: the draft as the spec sheet left it.
+            // Add the design the gates actually passed: the draft as the spec sheet left it, holds included.
+            const holds = previewConfig ? designSpecsOf(previewConfig) : [];
             onAccept(
               previewConfig
                 ? contract
@@ -515,7 +519,8 @@ export function UnitOpCreator({
                     parameters: contract.parameters.map((p) =>
                       overrides[p.name] === undefined ? p : { ...p, value: overrides[p.name]! }
                     )
-                  }
+                  },
+              holds.length ? { designSpecs: holds } : undefined
             );
           }}
         >
