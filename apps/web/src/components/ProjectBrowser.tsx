@@ -261,12 +261,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
     return (
       <div
         key={`${kind}:${id}`}
-        role="button"
-        tabIndex={0}
         onClick={() => !isRenaming && !isConfirming && onOpen()}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !isRenaming && !isConfirming && e.target === e.currentTarget) onOpen();
-        }}
         className="pf-project-row"
         style={{
           display: 'flex',
@@ -309,18 +304,32 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-              <span
+              <button
+                type="button"
+                className="pf-focus"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isConfirming) onOpen();
+                }}
+                aria-label={`Open ${name}`}
                 style={{
+                  padding: 0,
+                  border: 'none',
+                  background: 'none',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  fontFamily: 'inherit',
                   fontSize: 13,
                   fontWeight: 600,
                   color: palette.text.primary,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  minWidth: 0
                 }}
               >
                 {name}
-              </span>
+              </button>
               {badges}
             </div>
           )}
@@ -512,7 +521,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
       {/* Existing projects */}
       <div style={{ flex: '999 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ padding: '10px 16px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div role="tablist" style={{ display: 'flex', flex: 1 }}>
+          <div style={{ display: 'flex', flex: 1 }}>
             <TabStrip
               label="Where projects are kept"
               value={tab}

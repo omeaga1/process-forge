@@ -318,18 +318,7 @@ export const NozzlePlacementEditor: React.FC<NozzlePlacementEditorProps> = ({ no
           return (
             <div
               key={z.id}
-              role="button"
-              tabIndex={0}
-              aria-pressed={isSel}
-              aria-label={`Nozzle ${z.id}: ${z.name}`}
-              className="pf-focus"
               onClick={() => setSelectedId(z.id)}
-              onKeyDown={(e) => {
-                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                  e.preventDefault();
-                  setSelectedId(z.id);
-                }
-              }}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '14px 34px 1fr auto auto',
@@ -344,7 +333,19 @@ export const NozzlePlacementEditor: React.FC<NozzlePlacementEditorProps> = ({ no
               }}
             >
               <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: colorFor(z) }} />
-              <span style={{ fontFamily: font.mono, fontWeight: 700 }}>{z.id}</span>
+              <button
+                type="button"
+                className="pf-focus"
+                aria-pressed={isSel}
+                aria-label={`Select nozzle ${z.id}: ${z.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedId(z.id);
+                }}
+                style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: font.mono, fontWeight: 700, fontSize: 'inherit', color: 'inherit' }}
+              >
+                {z.id}
+              </button>
               <span style={{ color: palette.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {z.name}
                 <span style={{ color: palette.text.muted }}>
