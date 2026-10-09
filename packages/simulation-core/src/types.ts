@@ -164,6 +164,13 @@ export interface TerminalReport {
   temperatureC?: number;
   /** Liquid outlets and feeds with a composition: kg of each component received or supplied. */
   componentsKg?: Record<string, number>;
+  /**
+   * Product outlets: of what arrived, the kg and gallons made while a unit
+   * upstream had an ERROR check broken. A plant diverts this (a flow-diversion
+   * valve, a reject lane), so it is not counted in the line's output.
+   */
+  offSpecKg?: number;
+  offSpecGallons?: number;
 }
 
 export interface SimulationResult {
@@ -181,11 +188,14 @@ export interface SimulationResult {
   averageLineThroughputUnitsPerMin: number;
   /**
    * Liquid output, in gallons: what reached a product outlet, plus what left
-   * the line from a unit with no outlet pipe.
+   * the line from a unit with no outlet pipe, less what arrived off spec.
    */
   totalFluidDeliveredGallons: number;
   /** The same liquid output in kg. */
   totalFluidDeliveredKg: number;
+  /** Liquid that reached a product outlet off spec (see TerminalReport.offSpecKg), left out of the totals above. */
+  totalFluidOffSpecGallons: number;
+  totalFluidOffSpecKg: number;
   /** Every feed and outlet on the flowsheet, with its totals. Empty when there are none. */
   terminals: TerminalReport[];
   nodeReports: Record<string, MachineOeeReport>;

@@ -27,10 +27,14 @@ import { PROPERTY_FUNCTIONS } from './properties.js';
  * rather than guessing; unitWarnings() lists those so a model can fix them.
  */
 
-/** Exponents of mass, length, time and temperature. Counts (items, batches) are dimensionless. */
-export type Dimension = readonly [m: number, l: number, t: number, k: number];
+/**
+ * Exponents of mass, length, time, temperature and electric current. Counts
+ * (items, batches) are dimensionless. Current is optional when writing one
+ * (D(1, 2, -3, 0) is a power), so only electrical units need to name it.
+ */
+export type Dimension = readonly [m: number, l: number, t: number, k: number, a: number];
 
-const D = (m: number, l: number, t: number, k: number): Dimension => [m, l, t, k];
+const D = (m: number, l: number, t: number, k: number, a = 0): Dimension => [m, l, t, k, a];
 
 export const DIMENSIONLESS: Dimension = D(0, 0, 0, 0);
 export const MASS = D(1, 0, 0, 0);
@@ -47,6 +51,10 @@ export const PRESSURE = D(1, -1, -2, 0);
 export const DENSITY = D(1, -3, 0, 0);
 export const SPECIFIC_ENERGY = D(0, 2, -2, 0);
 export const SPECIFIC_HEAT = D(0, 2, -2, -1);
+export const CURRENT = D(0, 0, 0, 0, 1);
+export const VOLTAGE = D(1, 2, -3, 0, -1);
+export const RESISTANCE = D(1, 2, -3, 0, -2);
+export const CONDUCTANCE = D(-1, -2, 3, 0, 2);
 
 /** Unit symbols the checker knows, by dimension. Prefixed forms are listed rather than parsed, so "mm" is never mega-something. */
 const ATOMS: Record<string, Dimension> = {};
@@ -65,6 +73,12 @@ add(D(1, 1, -2, 0), 'N', 'kN', 'lbf');
 add(RATE, 'Hz', 'rpm', 'RPM');
 add(VOLUME_FLOW, 'gpm', 'GPM', 'lpm', 'cfm', 'CFM', 'acfm', 'ACFM', 'scfm', 'SCFM');
 add(D(1, -1, -1, 0), 'cP', 'cp', 'Pa·s', 'mPa·s');
+// Electrical: ohmic heaters, induction heaters, electrolysers, motor current.
+add(CURRENT, 'A', 'mA', 'kA', 'amp', 'amps');
+add(VOLTAGE, 'V', 'mV', 'kV', 'volt', 'volts');
+add(RESISTANCE, 'ohm', 'ohms', 'Ω', 'kohm', 'kΩ', 'mohm', 'mΩ');
+add(CONDUCTANCE, 'S', 'mS', 'µS', 'uS', 'siemens');
+add(D(1, 2, -2, 0, -1), 'Wb');
 /** Counts and ratios: dimensionless. */
 add(
   DIMENSIONLESS,
@@ -91,7 +105,7 @@ function parseFactor(raw: string): { symbol: string; power: number } | null {
   return { symbol, power: m[2] === undefined ? 1 : Number(m[2]) };
 }
 
-const times = (a: Dimension, b: Dimension, k = 1): Dimension => D(a[0] + k * b[0], a[1] + k * b[1], a[2] + k * b[2], a[3] + k * b[3]);
+const times = (a: Dimension, b: Dimension, k = 1): Dimension => D(a[0] + k * b[0], a[1] + k * b[1], a[2] + k * b[2], a[3] + k * b[3], a[4] + k * b[4]);
 
 /**
  * The dimension of a unit string, or null when the checker does not know it.
@@ -157,7 +171,13 @@ const SI_NAMES: [Dimension, string][] = [
   [SPECIFIC_HEAT, 'specific heat'],
   [D(0, 0, -1, 1), 'temperature per time'],
   [D(1, 0, -3, -1), 'heat transfer coefficient (power per area per temperature)'],
-  [D(1, 0, -2, 0), 'mass per area per time']
+  [D(1, 0, -2, 0), 'mass per area per time'],
+  [CURRENT, 'electric current'],
+  [VOLTAGE, 'voltage'],
+  [RESISTANCE, 'electrical resistance'],
+  [CONDUCTANCE, 'electrical conductance'],
+  [D(-1, -3, 3, 0, 2), 'electrical conductivity'],
+  [D(1, 1, -3, 0, -1), 'electric field strength']
 ];
 
 const sameDim = (a: Dimension, b: Dimension) => a.every((v, i) => Math.abs(v - b[i]!) < 1e-9);
@@ -166,7 +186,7 @@ const sameDim = (a: Dimension, b: Dimension) => a.every((v, i) => Math.abs(v - b
 export function describeDimension(d: Dimension): string {
   const named = SI_NAMES.find(([dim]) => sameDim(dim, d));
   if (named) return named[1];
-  const base = ['kg', 'm', 's', 'K'];
+  const base = ['kg', 'm', 's', 'K', 'A'];
   return d
     .map((p, i) => (p === 0 ? '' : `${base[i]}${p === 1 ? '' : `^${Math.round(p * 100) / 100}`}`))
     .filter(Boolean)
@@ -276,7 +296,7 @@ export function inferDimension(src: string, env: DimensionEnv): { result: Inferr
     if (sameDim(base.dim, DIMENSIONLESS)) return base;
     const k = constantOf(exponent);
     if (k === null) return UNKNOWN;
-    return dimOf(D(base.dim[0] * k, base.dim[1] * k, base.dim[2] * k, base.dim[3] * k));
+    return dimOf(D(base.dim[0] * k, base.dim[1] * k, base.dim[2] * k, base.dim[3] * k, base.dim[4] * k));
   };
 
   const mustBeDimensionless = (v: Inferred, fn: string): void => {
