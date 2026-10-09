@@ -18,6 +18,7 @@ server does no model inference itself: your MCP client is the model.
 | `add_unit_op_to_flowsheet` | Validates a contract and adds it to the flowsheet open in ProcessForge Desktop, drawn from its contract with pipes attaching at its nozzles. |
 | `add_stream` | Pipes one unit into another on the open flowsheet (by unit id, name or tag), choosing ports that fit: liquid to liquid, items to items. |
 | `update_unit` | Changes a unit's settings (dotted names for nested ones) or its name on the open flowsheet, and returns old and new values. Needs ProcessForge Desktop 0.1.33 or later. |
+| `hold_unit_result` | Holds a unit's result at a target by varying one of its settings (a design spec), re-solved after every later change; or releases it. Needs ProcessForge Desktop 0.1.67 or later. |
 | `remove_unit` | Removes a unit and its streams from the open flowsheet (undoable in the app). Marked destructive, so clients ask first. Needs 0.1.33 or later. |
 | `remove_stream` | Removes one stream, by id or by the units at its ends. Needs 0.1.33 or later. |
 | `list_standard_unit_ops` | Lists the equipment that ships with ProcessForge (the app's Standard palette) in six categories (feeds and outlets, transfer and storage, heat transfer, reaction, separation, packaging), with ports, default settings and how each is simulated; filter with `category` or `query`. Some are designed units (contracts) you can tune or redesign. |

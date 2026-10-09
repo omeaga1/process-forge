@@ -210,3 +210,46 @@ describe('Flowsheet edits: design specs (held results)', () => {
     assert.ok(Math.abs(resultsOf(evaluateUnitOp(effectiveContract(n)!))['engine.unitsPerMinute']! - 60) < 1e-6);
   });
 });
+
+describe('Flowsheet edits: hold-result', () => {
+  const bagLine = async (): Promise<ProcessGraph> => {
+    const { DUST_COLLECTOR_CONTRACT } = await import('../unitop/examples/phaseUnits.js');
+    const bag = { id: 'bag', name: 'Baghouse D-401', kind: 'CUSTOM_UNIT_OP', position: { x: 0, y: 0 }, inputs: [], outputs: [], config: { contract: DUST_COLLECTOR_CONTRACT } } as unknown as ProcessGraph['nodes'][number];
+    return { id: 'g', name: 'g', version: '1.0.0', metadata: {}, nodes: [bag], edges: [] };
+  };
+
+  it('solves the setting now and keeps the hold on the unit', async () => {
+    const { evaluateUnitOp } = await import('../index.js');
+    const r = applyFlowsheetEdit(await bagLine(), { op: 'hold-result', unit: 'D-401', result: 'airToCloth', target: 2, vary: 'filterAreaFt2' });
+    assert.ok(r.ok, JSON.stringify(r));
+    const cfg = r.graph.nodes[0]!.config as { contract: import('../index.js').UnitOpContract; designSpecs: unknown[]; filterAreaFt2: number };
+    assert.ok(Math.abs(evaluateUnitOp(cfg.contract).derived.airToCloth! - 2) < 1e-6);
+    assert.deepEqual(cfg.designSpecs, [{ result: 'airToCloth', target: 2, vary: 'filterAreaFt2' }]);
+    assert.equal(r.changes![0]!.heldFor, 'airToCloth');
+    // A later change keeps it on target.
+    const r2 = applyFlowsheetEdit(r.graph, { op: 'update-unit', unit: 'D-401', parameters: { pressureKpa: 90 } });
+    assert.ok(r2.ok);
+    assert.ok(Math.abs(evaluateUnitOp((r2.graph.nodes[0]!.config as typeof cfg).contract).derived.airToCloth! - 2) < 1e-6);
+  });
+
+  it('refuses a target out of reach, with the closest it can do, and changes nothing', async () => {
+    const g = await bagLine();
+    const r = applyFlowsheetEdit(g, { op: 'hold-result', unit: 'D-401', result: 'airToCloth', target: 0.01, vary: 'filterAreaFt2' });
+    assert.ok(!r.ok);
+    assert.match(r.error, /closest/);
+  });
+
+  it('picks a setting that moves the result when none is named, and releases', async () => {
+    const r = applyFlowsheetEdit(await bagLine(), { op: 'hold-result', unit: 'D-401', result: 'airToCloth', target: 2.5 });
+    assert.ok(r.ok, JSON.stringify(r));
+    const r2 = applyFlowsheetEdit(r.graph, { op: 'hold-result', unit: 'D-401', result: 'airToCloth', release: true });
+    assert.ok(r2.ok, JSON.stringify(r2));
+    assert.deepEqual((r2.graph.nodes[0]!.config as { designSpecs: unknown[] }).designSpecs, []);
+  });
+
+  it('names the results when asked for one the unit does not have', async () => {
+    const r = applyFlowsheetEdit(await bagLine(), { op: 'hold-result', unit: 'D-401', result: 'nope', target: 1 });
+    assert.ok(!r.ok);
+    assert.match(r.error, /airToCloth/);
+  });
+});

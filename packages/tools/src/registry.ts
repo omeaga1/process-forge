@@ -513,6 +513,36 @@ export const FORGE_TOOLS: ForgeTool[] = [
     run: (a, host) => host.edit({ op: 'update-unit', unit: String(a.unit ?? ''), ...(a.parameters ? { parameters: a.parameters } : {}), ...(a.name ? { name: String(a.name) } : {}) })
   },
   {
+    name: 'hold_unit_result',
+    title: "Hold a unit's result at a target",
+    access: 'write',
+    idempotent: true,
+    description:
+      "Holds one of a unit's results at a target by varying one of its settings, as a simulator's design spec does (\"keep the concentrate at 65 Brix by varying the steam duty\"): the engine solves the setting now, keeps the hold on the unit, and re-solves it after every later change (yours with update_unit, or the engineer's in the app). Results are a unit's derived values (get_open_flowsheet and explore_unit_op show them) and the figures the engine runs it at, named engine.unitsPerMinute, engine.cycleSeconds, engine.capacityGpm, engine.dutyKw and so on. Leave out vary to use the first setting that moves the result. A target out of reach is refused with the closest value the setting can give, and nothing changes. release: true drops a hold and leaves the setting where it is.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        unit: unit(),
+        result: { type: 'string', description: 'The result to hold, e.g. "concentrateBrix" or "engine.unitsPerMinute".' },
+        target: { type: 'number', description: "The value to hold it at, in the result's own unit." },
+        vary: { type: 'string', description: 'Optional: the setting the engine varies to hold it.' },
+        release: { type: 'boolean', description: 'True to release the hold on this result instead.' }
+      },
+      required: ['unit', 'result']
+    },
+    summarize: (a, g) =>
+      a.release ? `Release the hold on ${a.result} on ${nameOf(g, a.unit)}` : `Hold ${a.result} at ${a.target} on ${nameOf(g, a.unit)}${a.vary ? ` by varying ${a.vary}` : ''}`,
+    run: (a, host) =>
+      host.edit({
+        op: 'hold-result',
+        unit: String(a.unit ?? ''),
+        result: String(a.result ?? ''),
+        ...(a.target !== undefined ? { target: Number(a.target) } : {}),
+        ...(a.vary ? { vary: String(a.vary) } : {}),
+        ...(a.release ? { release: true } : {})
+      })
+  },
+  {
     name: 'arrange_unit',
     title: 'Move, size or turn a unit',
     access: 'write',

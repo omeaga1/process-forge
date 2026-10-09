@@ -4,7 +4,9 @@ import { resolveUnit } from './connect.js';
 import { FEED_LIQUID_KEYS, terminalRole } from './terminals.js';
 import type { UnitOpContract } from './unitop/contract.js';
 import { executeValidateUnitOp } from './unitop/review.js';
-import { designSpecsOf, resolveDesignSpecs } from './unitop/designSpecs.js';
+import { designSpecsOf, resolveDesignSpecs, type DesignSpec } from './unitop/designSpecs.js';
+import { evaluateUnitOp } from './unitop/evaluate.js';
+import { engineInfluence, engineResults, parameterInfluence, resultsOf, solveForTarget } from './unitop/explore.js';
 import { effectiveContract } from './unitop/standardKinds.js';
 import { compactLayout, MAX_SCALE, MIN_SCALE, resolvedLayout, type Rotation } from './layout/placement.js';
 
@@ -22,7 +24,13 @@ export type FlowsheetEdit =
   /** Move, size, turn or mirror a unit on the sheet. Drawing only: the simulation is unchanged. */
   | { op: 'arrange-unit'; unit: string; position?: { x: number; y: number }; scale?: number; rotation?: number; flipX?: boolean }
   /** Give a stream the bends it runs through, or (auto) let it route itself around the equipment. */
-  | { op: 'route-stream'; stream?: string; from?: string; to?: string; waypoints?: { x: number; y: number }[]; auto?: boolean };
+  | { op: 'route-stream'; stream?: string; from?: string; to?: string; waypoints?: { x: number; y: number }[]; auto?: boolean }
+  /**
+   * Hold one of a unit's results at a target by varying one of its settings (a
+   * design spec), or release it. The setting is solved now and re-solved after
+   * every later change to the unit.
+   */
+  | { op: 'hold-result'; unit: string; result: string; target?: number; vary?: string; release?: boolean };
 
 export interface ParameterChange {
   parameter: string;
@@ -166,6 +174,61 @@ function updateUnit(graph: ProcessGraph, edit: Extract<FlowsheetEdit, { op: 'upd
   };
 }
 
+function holdResult(graph: ProcessGraph, edit: Extract<FlowsheetEdit, { op: 'hold-result' }>): EditOutcome {
+  const found = resolveUnit(graph, String(edit.unit ?? ''));
+  if (typeof found === 'string') return { ok: false, error: found };
+  const config = { ...(found.config as Record<string, unknown>) };
+  const specs = designSpecsOf(config);
+  const result = String(edit.result ?? '');
+  const commit = (cfg: Record<string, unknown>, message: string, changes: ParameterChange[] = []): EditOutcome => {
+    const updated = { ...found, config: cfg } as ProcessNode;
+    return { ok: true, graph: { ...graph, nodes: graph.nodes.map((n) => (n.id === found.id ? updated : n)) }, unit: { id: found.id, name: found.name }, changes, message };
+  };
+
+  if (edit.release) {
+    const kept = specs.filter((h) => h.result !== result && h.vary !== result);
+    if (kept.length === specs.length) return { ok: false, error: `${found.name} holds nothing called "${result}". Held: ${specs.map((h) => `${h.result} by ${h.vary}`).join(', ') || 'nothing'}.` };
+    return commit({ ...config, designSpecs: kept }, `Released the hold on ${result} on ${found.name}; its setting stays where it is.`);
+  }
+
+  let contract = config.contract as UnitOpContract | undefined;
+  const current = contract ?? effectiveContract(found);
+  if (!current) return { ok: false, error: `${found.name} has no contract to solve: only units the engine models can hold a result.` };
+  const ev = evaluateUnitOp(current);
+  const values = resultsOf(ev);
+  if (values[result] === undefined) {
+    const names = [...engineResults(ev).map((e) => e.name), ...current.derived.map((d) => d.name)];
+    return { ok: false, error: `${found.name} has no result "${result}". Its results: ${names.join(', ')}.` };
+  }
+  const target = Number(edit.target);
+  if (!Number.isFinite(target)) return { ok: false, error: 'Give "target": the value to hold the result at, in its own unit.' };
+  // The settings that move this result: through the equations, or the engine's figures.
+  const inf = parameterInfluence(current);
+  const eng = engineInfluence(current);
+  const movers = current.parameters.filter((p) => (inf.derived[p.name] ?? []).includes(result) || (eng[p.name] ?? []).includes(result)).map((p) => p.name);
+  const vary = edit.vary ? String(edit.vary) : movers[0];
+  if (!vary || !movers.includes(vary)) {
+    return { ok: false, error: `${vary ? `${vary} does not move ${result}` : `Nothing moves ${result}`}. Settings that do: ${movers.join(', ') || 'none'}.` };
+  }
+  const solved = solveForTarget(current, result, target, vary);
+  if (!solved) return { ok: false, error: `The engine could not evaluate ${found.name} while varying ${vary}.` };
+  if (!solved.reached) {
+    return { ok: false, error: `${result} cannot reach ${target} by varying ${vary} within its range: the closest is ${Number(solved.achieved.toPrecision(5))} at ${vary} = ${Number(solved.value.toPrecision(5))}. Nothing was changed.` };
+  }
+  const before = current.parameters.find((p) => p.name === vary)?.value;
+  const spec: DesignSpec = { result, target, vary };
+  const next = { ...config, [vary]: solved.value, designSpecs: [...specs.filter((h) => h.vary !== vary && h.result !== result), spec] };
+  if (contract) {
+    contract = { ...contract, parameters: contract.parameters.map((p) => (p.name === vary ? { ...p, value: solved.value } : p)) };
+    next.contract = contract;
+  }
+  return commit(
+    next,
+    `${found.name} now holds ${result} at ${target} by varying ${vary} (${Number(solved.value.toPrecision(5))} now); it is re-solved after every change to the unit.${solved.allErrorsPass ? '' : ' A check fails at that value.'}`,
+    [{ parameter: vary, from: before, to: solved.value, heldFor: result, ...(contract ? { designParameter: true } : {}) }]
+  );
+}
+
 function removeUnit(graph: ProcessGraph, edit: Extract<FlowsheetEdit, { op: 'remove-unit' }>): EditOutcome {
   const found = resolveUnit(graph, String(edit.unit ?? ''));
   if (typeof found === 'string') return { ok: false, error: found };
@@ -293,6 +356,8 @@ export function applyFlowsheetEdit(graph: ProcessGraph, edit: FlowsheetEdit): Ed
       return routeStream(graph, edit);
     case 'update-unit':
       return updateUnit(graph, edit);
+    case 'hold-result':
+      return holdResult(graph, edit);
     case 'remove-unit':
       return removeUnit(graph, edit);
     case 'remove-stream':
