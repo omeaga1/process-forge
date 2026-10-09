@@ -17,6 +17,9 @@ import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
 import { layoutNozzles } from '../../nozzles/nozzleLayout.js';
 import type { AssistantRoute } from '../../ai/assistantRoute.js';
 import { McpDesignGuide } from './McpDesignGuide.js';
+import { Button } from '../../ui/index.js';
+import { Check, X, Circle, Sparkles } from 'lucide-react';
+import { tint } from '@process-forge/theme';
 
 /** The active theme's palette and drafting rules, so this screen follows the theme. */
 function useDrafting() {
@@ -125,23 +128,27 @@ function GateBadge({ state, label }: { state: 'pass' | 'fail' | 'pending'; label
   const { D } = useDrafting();
   const color =
     state === 'pass' ? D.semantic.ok : state === 'fail' ? D.semantic.violation : D.semantic.inert;
-  const glyph = state === 'pass' ? '✓' : state === 'fail' ? '✕' : '·';
+  const Icon = state === 'pass' ? Check : state === 'fail' ? X : Circle;
   return (
     <div
+      role="status"
+      aria-label={`${label}: ${state === 'pass' ? 'passes' : state === 'fail' ? 'fails' : 'not checked yet'}`}
       style={{
-        display: 'flex',
+        display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        padding: '4px 10px',
-        borderRadius: draftingRadius.sharp,
-        border: `1px solid ${color}`,
-        color,
-        ...D.data,
-        fontSize: '0.72rem',
+        height: 26,
+        padding: '0 10px',
+        borderRadius: 999,
+        backgroundColor: state === 'pending' ? 'transparent' : tint(color, 0.12),
+        border: `1px solid ${state === 'pending' ? 'var(--pf-border-default)' : tint(color, 0.4)}`,
+        color: state === 'pending' ? 'var(--pf-text-muted)' : color,
+        fontFamily: fontFamily.sans,
+        fontSize: 12,
         fontWeight: 600
       }}
     >
-      <span aria-hidden>{glyph}</span>
+      <Icon size={state === 'pending' ? 8 : 13} strokeWidth={state === 'pending' ? 3 : 2.5} aria-hidden />
       <span>{label}</span>
     </div>
   );
@@ -157,7 +164,7 @@ export function UnitOpCreator({
   initialDescription = ''
 }: UnitOpCreatorProps) {
   const { P, D } = useDrafting();
-  const card: React.CSSProperties = { background: P.background.surfaceElevated, border: D.rule, borderRadius: draftingRadius.sharp, padding: 14 };
+  const card: React.CSSProperties = { background: P.background.surfaceElevated, border: `1px solid ${P.border.default}`, borderRadius: 8, padding: 14 };
   const labelStyle = { ...D.label, marginBottom: 6 } as React.CSSProperties;
   const [description, setDescription] = useState(initialDescription);
   const [draft, setDraft] = useState('');
@@ -243,29 +250,17 @@ export function UnitOpCreator({
         minHeight: '100%'
       }}
     >
-      <header style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+      <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>Unit Operation Creator</h2>
-          <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: P.text.secondary }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Design a unit op</h2>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: P.text.secondary, lineHeight: 1.45 }}>
             {route === 'claude-desktop'
               ? 'Your MCP client designs it; the engine decides whether it is physically real.'
               : 'Describe the equipment. Your AI model designs it; the engine decides whether it is physically real.'}
           </p>
         </div>
         {onClose && (
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: `1px solid ${P.background.surfaceHover}`,
-              color: P.text.secondary,
-              borderRadius: draftingRadius.soft,
-              padding: '4px 10px',
-              cursor: 'pointer'
-            }}
-          >
-            Close
-          </button>
+          <Button variant="ghost" size="sm" iconOnly icon={<X size={15} />} label="Close · Esc" onClick={onClose} />
         )}
       </header>
 
@@ -300,35 +295,13 @@ export function UnitOpCreator({
           onChange={(e) => setDescription(e.target.value)}
           placeholder="A giant water-cooled belt where molten wax is poured on, cools as it travels, and is scraped off solid at the end."
           rows={3}
-          style={{
-            width: '100%',
-            background: P.background.surfaceMuted,
-            color: P.text.primary,
-            border: `1px solid ${P.background.surfaceHover}`,
-            borderRadius: draftingRadius.soft,
-            padding: 10,
-            fontSize: '0.85rem',
-            resize: 'vertical',
-            boxSizing: 'border-box'
-          }}
+          className="pf-textarea"
+          aria-label="What is the unit operation?"
         />
         {route === 'api-key' && onPropose ? (
-          <button
-            onClick={handlePropose}
-            disabled={busy || !description.trim()}
-            style={{
-              marginTop: 10,
-              background: busy ? P.background.surfaceHover : P.jade[600],
-              color: P.text.inverse,
-              border: 'none',
-              borderRadius: draftingRadius.soft,
-              padding: '8px 16px',
-              fontWeight: 600,
-              cursor: busy || !description.trim() ? 'not-allowed' : 'pointer'
-            }}
-          >
+          <Button variant="primary" icon={<Sparkles size={14} />} onClick={handlePropose} disabled={busy || !description.trim()} style={{ marginTop: 10 }}>
             {busy ? 'Designing it…' : 'Ask AI to design it'}
-          </button>
+          </Button>
         ) : (
           <div>
             <p style={{ margin: '10px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
@@ -336,22 +309,9 @@ export function UnitOpCreator({
               design here, or use Claude Desktop over MCP on your subscription.
             </p>
             {onChooseAssistant && (
-          <button
-            type="button"
-            onClick={onChooseAssistant}
-            style={{
-              marginTop: 10,
-              background: P.jade[600],
-              color: P.text.inverse,
-              border: 'none',
-              borderRadius: draftingRadius.soft,
-              padding: '8px 16px',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
+          <Button variant="primary" onClick={onChooseAssistant} style={{ marginTop: 10 }}>
             Connect an AI model
-          </button>
+          </Button>
             )}
           </div>
         )}
@@ -386,18 +346,10 @@ export function UnitOpCreator({
           placeholder='{ "contractVersion": 1, "id": "...", ... }'
           rows={8}
           spellCheck={false}
-          style={{
-            width: '100%',
-            background: P.background.surfaceMuted,
-            color: P.text.primary,
-            border: `1px solid ${jsonBroken ? D.semantic.violation : P.background.surfaceHover}`,
-            borderRadius: draftingRadius.soft,
-            padding: 10,
-            fontSize: '0.76rem',
-            fontFamily: fontFamily.mono,
-            resize: 'vertical',
-            boxSizing: 'border-box'
-          }}
+          className="pf-textarea"
+          data-mono=""
+          aria-label="Contract JSON"
+          aria-invalid={jsonBroken}
         />
         {jsonBroken && (
           <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: D.semantic.violation }}>
@@ -521,14 +473,15 @@ export function UnitOpCreator({
                           Number.isFinite(v) ? { ...o, [p.name]: v } : o
                         );
                       }}
+                      className="pf-input"
+                      aria-label={p.label}
+                      aria-invalid={outOfBounds}
                       style={{
-                        width: 96,
-                        background: P.background.surfaceMuted,
-                        color: outOfBounds ? D.semantic.violation : P.text.primary,
-                        border: `1px solid ${outOfBounds ? D.semantic.violation : P.background.surfaceHover}`,
-                        borderRadius: draftingRadius.soft,
-                        padding: '4px 6px',
-                        textAlign: 'right'
+                        width: 110,
+                        height: 30,
+                        textAlign: 'right',
+                        fontFamily: fontFamily.mono,
+                        ...(outOfBounds ? { color: D.semantic.violation, borderColor: D.semantic.violation } : {})
                       }}
                     />
                     <span style={{ width: 72, color: P.text.muted }}>{p.unit}</span>
@@ -587,8 +540,22 @@ export function UnitOpCreator({
         </>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 'auto' }}>
-        <button
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          marginTop: 'auto',
+          position: 'sticky',
+          bottom: 0,
+          margin: '0 -18px -18px',
+          padding: '12px 18px',
+          background: P.background.surface,
+          borderTop: `1px solid ${P.border.subtle}`
+        }}
+      >
+        <Button
+          variant="primary"
           disabled={!accepted}
           onClick={() => {
             const contract = reviewState.contract;
@@ -602,19 +569,10 @@ export function UnitOpCreator({
               )
             });
           }}
-          style={{
-            background: accepted ? P.jade[600] : P.background.surfaceHover,
-            color: accepted ? P.text.inverse : P.text.muted,
-            border: 'none',
-            borderRadius: draftingRadius.soft,
-            padding: '10px 20px',
-            fontWeight: 700,
-            cursor: accepted ? 'pointer' : 'not-allowed'
-          }}
         >
           Add to flowsheet
-        </button>
-        <span style={{ fontSize: '0.76rem', color: P.text.muted }}>
+        </Button>
+        <span role="status" style={{ fontSize: 12.5, color: accepted ? P.jade[400] : P.text.muted }}>
           {accepted
             ? warnings.length > 0
               ? `Accepted with ${warnings.length} warning(s).`

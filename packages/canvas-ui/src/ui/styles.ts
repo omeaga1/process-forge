@@ -119,6 +119,16 @@ export const UI_CSS = `
   border: 1px solid var(--pf-border-default); background: var(--pf-bg-surface-elevated); color: var(--pf-text-primary);
   font: 400 13px/1 ${fontFamily.sans}; outline: none; transition: border-color 120ms ease, box-shadow 120ms ease;
 }
+.pf-textarea {
+  box-sizing: border-box; width: 100%; padding: 10px 12px; border-radius: 6px; resize: vertical;
+  border: 1px solid var(--pf-border-default); background: var(--pf-bg-surface-elevated); color: var(--pf-text-primary);
+  font: 400 13px/1.5 ${fontFamily.sans}; outline: none; transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.pf-textarea[data-mono] { font: 400 12px/1.5 ${fontFamily.mono}; }
+.pf-textarea::placeholder { color: var(--pf-text-muted); }
+.pf-textarea:hover { border-color: var(--pf-border-strong); }
+.pf-textarea:focus { border-color: var(--pf-jade-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-jade-500) 22%, transparent); }
+.pf-textarea[aria-invalid="true"] { border-color: var(--pf-status-failed); }
 .pf-input::placeholder { color: var(--pf-text-muted); }
 .pf-input:hover { border-color: var(--pf-border-strong); }
 .pf-input:focus { border-color: var(--pf-jade-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-jade-500) 22%, transparent); }
