@@ -1204,7 +1204,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               pointerEvents: 'none'
             }}
           >
-            <div style={{ fontSize: 15, fontWeight: 600, color: OsakaJadePalette.text.secondary }}>Empty flowsheet</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: OsakaJadePalette.text.secondary }}>Empty flowsheet</div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap', pointerEvents: 'auto' }}>
               {onDesignUnitOp && (
                 <button

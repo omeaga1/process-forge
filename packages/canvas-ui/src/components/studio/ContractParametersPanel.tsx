@@ -374,7 +374,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                     borderRadius: r.sm,
                     background: 'transparent',
                     color: palette.text.primary,
-                    fontSize: 12.5,
+                    fontSize: 13,
                     cursor: 'pointer'
                   }}
                 >
@@ -408,7 +408,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
             </React.Fragment>
           )
         )}
-        {contract.parameters.length === 0 && <div style={{ fontSize: 12.5, color: palette.text.muted }}>This unit has no settings of its own: it runs on what reaches it.</div>}
+        {contract.parameters.length === 0 && <div style={{ fontSize: 13, color: palette.text.muted }}>This unit has no settings of its own: it runs on what reaches it.</div>}
 
         {own && contract.designInlet && (
           <details style={{ marginTop: 12 }}>
@@ -492,7 +492,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                   <span style={{ color: palette.text.muted }}>= </span>
                   <ExpressionView expr={d.expr} lookup={lookup} compact />
                 </div>
-                {d.description && <div style={{ fontSize: 11.5, color: palette.text.muted, marginTop: 2 }}>{d.description}</div>}
+                {d.description && <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>{d.description}</div>}
               </div>
             );
           })}
@@ -530,7 +530,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                 <div style={{ fontSize: 13, color: bad ? palette.text.primary : palette.text.secondary, minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
                     <span style={{ flex: 1 }}>{c.message}</span>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked, opacity: bad ? 1 : 0.6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked, opacity: bad ? 1 : 0.6 }}>
                       {c.severity === 'ERROR' ? 'must' : 'should'}
                     </span>
                   </div>

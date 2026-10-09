@@ -108,7 +108,7 @@ export const CommandPalette: React.FC<{ open: boolean; onClose(): void; commands
             aria-label="Command"
             aria-controls="pf-command-list"
             aria-activedescendant={shown[active] ? `pf-cmd-${shown[active]!.id}` : undefined}
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: palette.text.primary, fontSize: 15 }}
+            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: palette.text.primary, fontSize: 16 }}
           />
           <kbd style={{ fontFamily: font.mono, fontSize: 10, color: palette.text.muted, border: `1px solid ${palette.border.default}`, padding: '1px 5px', borderRadius: 2 }}>Esc</kbd>
         </div>
@@ -120,7 +120,7 @@ export const CommandPalette: React.FC<{ open: boolean; onClose(): void; commands
             return (
               <React.Fragment key={c.id}>
                 {header && (
-                  <div style={{ padding: '8px 16px 4px', fontFamily: font.mono, fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: palette.text.muted }}>{header}</div>
+                  <div style={{ padding: '8px 16px 4px', fontFamily: font.mono, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: palette.text.muted }}>{header}</div>
                 )}
                 <div
                   id={`pf-cmd-${c.id}`}
@@ -136,14 +136,14 @@ export const CommandPalette: React.FC<{ open: boolean; onClose(): void; commands
                     gap: 12,
                     padding: '8px 16px',
                     cursor: 'pointer',
-                    fontSize: 13.5,
+                    fontSize: 14,
                     color: i === active ? palette.text.primary : palette.text.secondary,
                     backgroundColor: i === active ? palette.background.surfaceActive : 'transparent',
                     borderLeft: `2px solid ${i === active ? palette.jade[400] : 'transparent'}`
                   }}
                 >
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</span>
-                  {c.hint && <span style={{ fontFamily: font.mono, fontSize: 10.5, color: palette.text.muted, flexShrink: 0 }}>{c.hint}</span>}
+                  {c.hint && <span style={{ fontFamily: font.mono, fontSize: 11, color: palette.text.muted, flexShrink: 0 }}>{c.hint}</span>}
                 </div>
               </React.Fragment>
             );

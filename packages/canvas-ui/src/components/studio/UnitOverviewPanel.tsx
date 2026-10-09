@@ -96,7 +96,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
           <div key={c} title={`${c} ${formatQuantity(x * 100)} %`} style={{ width: `${x * 100}%`, background: colorFor(i) }} />
         ))}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px', marginTop: 4, fontSize: 11.5, color: palette.text.secondary }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px', marginTop: 4, fontSize: 12, color: palette.text.secondary }}>
         {comp.slice(0, 5).map(([c, x], i) => (
           <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <span style={{ width: 7, height: 7, borderRadius: 2, background: colorFor(i) }} />
@@ -164,8 +164,8 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
           <Arrow size={15} color={color} style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 13.5, fontWeight: 700, color: palette.text.primary }}>{port.name}</span>
-              <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color, padding: '1px 6px', borderRadius: r.full, background: tint(color, 0.14) }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: palette.text.primary }}>{port.name}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color, padding: '1px 6px', borderRadius: r.full, background: tint(color, 0.14) }}>
                 {items ? 'items' : (phase ?? 'liquid').toLowerCase()}
               </span>
             </div>
@@ -185,7 +185,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
   };
 
   const source = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: palette.text.muted }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: palette.text.muted }}>
       {running ? <Loader2 size={12} style={{ animation: 'pf-spin 1s linear infinite' }} /> : <Info size={12} />}
       {running
         ? 'Running the line to work out the streams…'
@@ -227,13 +227,13 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
         <div style={{ ...card, overflow: 'hidden', borderTop: `3px solid ${color}` }}>
           <div style={{ padding: '12px 14px 4px', display: 'flex', alignItems: 'baseline', gap: 8 }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: palette.text.primary }}>{terminalMaterial(node)}</span>
-            <span style={{ fontSize: 11.5, color: palette.text.muted }}>{items ? 'items' : (t?.phase ?? 'liquid').toLowerCase()}</span>
+            <span style={{ fontSize: 12, color: palette.text.muted }}>{items ? 'items' : (t?.phase ?? 'liquid').toLowerCase()}</span>
           </div>
           {tiles.length > 0 ? (
             <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(tiles.length, 4)}, minmax(0, 1fr))` }}>
               {tiles.map((x, i) => (
                 <div key={x.label} style={{ padding: '8px 14px 12px', borderLeft: i ? `1px solid ${palette.border.subtle}` : 'none' }}>
-                  <div style={{ fontSize: 10.5, letterSpacing: '0.05em', textTransform: 'uppercase', color: palette.text.muted }}>{x.label}</div>
+                  <div style={{ fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase', color: palette.text.muted }}>{x.label}</div>
                   <div style={{ fontFamily: font.mono, fontSize: i === 0 ? 22 : 17, fontWeight: 700, color: palette.text.primary, fontVariantNumeric: 'tabular-nums' }}>
                     {x.value} <span style={{ fontSize: 11, fontWeight: 500, color: palette.text.muted }}>{x.unit}</span>
                   </div>
@@ -241,7 +241,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
               ))}
             </div>
           ) : (
-            <div style={{ padding: '6px 14px 14px', fontSize: 12.5, color: palette.text.muted }}>
+            <div style={{ padding: '6px 14px 14px', fontSize: 13, color: palette.text.muted }}>
               {running ? 'Working out what arrives here…' : edges.length ? 'Nothing reaches it in a run of the line.' : `Pipe it ${isFeed ? 'into a unit' : 'from a unit'} to see what moves.`}
             </div>
           )}
@@ -255,7 +255,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={label}>{isFeed ? 'Feeds' : 'Comes from'}</div>
           {edges.length === 0 ? (
-            <div style={{ ...card, padding: '10px 12px', fontSize: 12.5, color: palette.text.muted }}>Not connected yet.</div>
+            <div style={{ ...card, padding: '10px 12px', fontSize: 13, color: palette.text.muted }}>Not connected yet.</div>
           ) : (
             edges.map((e) => {
               const other = isFeed ? e.targetNodeId : e.sourceNodeId;
@@ -316,10 +316,10 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(unitTiles.length, 3)}, minmax(0, 1fr))` }}>
             {unitTiles.map((x, i) => (
               <div key={x.label} style={{ padding: '6px 14px 12px', borderLeft: i % 3 ? `1px solid ${palette.border.subtle}` : 'none', borderTop: i >= 3 ? `1px solid ${palette.border.subtle}` : 'none' }}>
-                <div style={{ fontFamily: font.mono, fontSize: 17, fontWeight: 700, color: palette.text.primary, fontVariantNumeric: 'tabular-nums' }}>
+                <div style={{ fontFamily: font.mono, fontSize: 18, fontWeight: 700, color: palette.text.primary, fontVariantNumeric: 'tabular-nums' }}>
                   {x.value} <span style={{ fontSize: 11, fontWeight: 500, color: palette.text.muted }}>{x.unit}</span>
                 </div>
-                <div style={{ fontSize: 11.5, color: palette.text.secondary, marginTop: 1 }}>{x.label}</div>
+                <div style={{ fontSize: 12, color: palette.text.secondary, marginTop: 1 }}>{x.label}</div>
               </div>
             ))}
           </div>

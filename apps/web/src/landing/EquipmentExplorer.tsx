@@ -124,9 +124,9 @@ export const EquipmentExplorer: React.FC = () => {
             <Glyph item={item} size={item.terminalRole ? 90 : 110} />
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 17, fontWeight: 650, color: D.text.primary }}>{item.title}</div>
-            <div style={{ fontSize: 12.5, color: D.text.muted, marginTop: 2 }}>{item.subtitle}</div>
-            <p style={{ margin: '10px 0 0', fontSize: 13.5, lineHeight: 1.55, color: D.text.secondary }}>{item.model}</p>
+            <div style={{ fontSize: 18, fontWeight: 650, color: D.text.primary }}>{item.title}</div>
+            <div style={{ fontSize: 13, color: D.text.muted, marginTop: 2 }}>{item.subtitle}</div>
+            <p style={{ margin: '10px 0 0', fontSize: 14, lineHeight: 1.55, color: D.text.secondary }}>{item.model}</p>
             {settings.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
                 {settings.map((w) => (

@@ -38,7 +38,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({ isOp
       </div>
       <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {points.map((p) => (
-          <li key={p} style={{ display: 'flex', gap: 8, fontSize: 12.5, lineHeight: 1.45, color: palette.text.secondary }}>
+          <li key={p} style={{ display: 'flex', gap: 8, fontSize: 13, lineHeight: 1.45, color: palette.text.secondary }}>
             <Check size={14} color={accent} style={{ flexShrink: 0, marginTop: 1 }} />
             {p}
           </li>

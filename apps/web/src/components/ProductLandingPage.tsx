@@ -45,13 +45,13 @@ function Section({ id, n, kicker, title, note, children }: {
 }) {
   return (
     <section id={id} style={{ maxWidth: 1120, margin: '0 auto', padding: `clamp(56px, 9vw, 104px) ${GUTTER} 0` }}>
-      <div style={{ ...mono, fontSize: 11.5, letterSpacing: '0.16em', color: D.jade.glow }}>
+      <div style={{ ...mono, fontSize: 12, letterSpacing: '0.16em', color: D.jade.glow }}>
         {n} <span style={{ color: D.text.muted }}>·</span> {kicker}
       </div>
       <h2 style={{ ...sans, margin: '10px 0 0', fontSize: 'clamp(1.6rem, 3.4vw, 2.2rem)', fontWeight: 650, letterSpacing: '-0.025em', lineHeight: 1.12, color: D.text.primary, maxWidth: '26ch' }}>
         {title}
       </h2>
-      {note && <p style={{ ...sans, margin: '12px 0 0', fontSize: '1rem', lineHeight: 1.6, color: D.text.secondary, maxWidth: '62ch' }}>{note}</p>}
+      {note && <p style={{ ...sans, margin: '12px 0 0', fontSize: 16, lineHeight: 1.6, color: D.text.secondary, maxWidth: '62ch' }}>{note}</p>}
       <div style={{ marginTop: 28 }}>{children}</div>
     </section>
   );
@@ -61,7 +61,7 @@ function CopyCommand({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div style={{ display: 'flex', alignItems: 'stretch', border: `1px solid ${D.border.strong}`, borderRadius: 8, overflow: 'hidden', background: D.background.base }}>
-      <code style={{ ...mono, flex: 1, minWidth: 0, padding: '10px 12px', fontSize: '0.84rem', color: D.jade.glow, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+      <code style={{ ...mono, flex: 1, minWidth: 0, padding: '10px 12px', fontSize: 13, color: D.jade.glow, overflowX: 'auto', whiteSpace: 'nowrap' }}>
         <span style={{ color: D.text.muted }}>$ </span>
         {text}
       </code>
@@ -116,7 +116,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
     };
   }, [platform.os]);
 
-  const navLink: React.CSSProperties = { ...sans, fontSize: 13.5, color: D.text.secondary, textDecoration: 'none' };
+  const navLink: React.CSSProperties = { ...sans, fontSize: 14, color: D.text.secondary, textDecoration: 'none' };
   const card: React.CSSProperties = { border: `1px solid ${D.border.default}`, borderRadius: 14, background: D.background.surface, padding: '20px 22px' };
 
   const primary = (
@@ -125,7 +125,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
       href={platform.downloadUrl}
       target="_blank"
       rel="noopener noreferrer"
-      style={{ ...sans, display: 'inline-flex', alignItems: 'center', padding: '12px 22px', borderRadius: 9, background: D.jade.glow, color: D.text.inverse, fontWeight: 650, fontSize: '0.95rem', textDecoration: 'none', boxShadow: `0 0 28px ${D.jade.glow}45` }}
+      style={{ ...sans, display: 'inline-flex', alignItems: 'center', padding: '12px 22px', borderRadius: 9, background: D.jade.glow, color: D.text.inverse, fontWeight: 650, fontSize: 16, textDecoration: 'none', boxShadow: `0 0 28px ${D.jade.glow}45` }}
     >
       Download for {platform.name}
     </a>
@@ -134,7 +134,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
     <button
       className="pf-cta-secondary"
       onClick={onLaunchStudio}
-      style={{ ...sans, padding: '12px 22px', borderRadius: 9, background: 'transparent', color: D.text.primary, border: `1px solid ${D.border.strong}`, fontWeight: 600, fontSize: '0.95rem', cursor: 'pointer' }}
+      style={{ ...sans, padding: '12px 22px', borderRadius: 9, background: 'transparent', color: D.text.primary, border: `1px solid ${D.border.strong}`, fontWeight: 600, fontSize: 16, cursor: 'pointer' }}
     >
       Open in your browser
     </button>
@@ -184,7 +184,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
           <div style={{ maxWidth: 1120, margin: '0 auto', padding: `12px ${GUTTER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
             <a href="#top" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: D.text.primary }}>
               <ProcessForgeEmblem size={28} />
-              <span style={{ fontSize: 16.5, fontWeight: 650, letterSpacing: '-0.01em' }}>
+              <span style={{ fontSize: 16, fontWeight: 650, letterSpacing: '-0.01em' }}>
                 Process<span style={{ color: D.jade.glow }}>Forge</span>
               </span>
             </a>
@@ -211,7 +211,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
 
         {/* Hero, with the line running under it. */}
         <header id="top" style={{ maxWidth: 1120, margin: '0 auto', padding: `clamp(40px, 7vw, 80px) ${GUTTER} 0` }}>
-          <div style={{ ...mono, fontSize: 11.5, letterSpacing: '0.18em', color: D.jade.glow }}>OPEN-SOURCE PROCESS SIMULATION</div>
+          <div style={{ ...mono, fontSize: 12, letterSpacing: '0.18em', color: D.jade.glow }}>OPEN-SOURCE PROCESS SIMULATION</div>
           <h1 style={{ margin: '14px 0 0', fontSize: 'clamp(2.2rem, 5.6vw, 3.8rem)', fontWeight: 680, letterSpacing: '-0.04em', lineHeight: 1.02, maxWidth: '21ch' }}>
             Find the bottleneck <span style={{ color: D.jade[400] }}>before you build the line.</span>
           </h1>
@@ -232,7 +232,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
                 <span style={{ color: D.text.primary, fontWeight: 600 }}>Try it:</span> a paint line, simulated in this page. Move a slider
                 and the shift runs again.
               </div>
-              <div style={{ ...mono, fontSize: 10.5, letterSpacing: '0.1em', color: D.text.muted }}>THE APP’S OWN ENGINE</div>
+              <div style={{ ...mono, fontSize: 11, letterSpacing: '0.1em', color: D.text.muted }}>THE APP’S OWN ENGINE</div>
             </div>
             <LineDemo />
           </div>
@@ -282,7 +282,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
                 >
                   Add to Claude Desktop
                 </a>
-                <p style={{ margin: '8px 0 14px', fontSize: 12.5, lineHeight: 1.55, color: D.text.muted }}>
+                <p style={{ margin: '8px 0 14px', fontSize: 13, lineHeight: 1.55, color: D.text.muted }}>
                   One click to install, and it keeps itself up to date. For Cursor and other clients, add the server (Node.js 20 or later):
                 </p>
                 <CopyCommand text={NPX} />
@@ -329,7 +329,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         </section>
 
         <footer style={{ borderTop: `1px solid ${D.border.default}` }}>
-          <div style={{ maxWidth: 1120, margin: '0 auto', padding: `18px ${GUTTER}`, display: 'flex', flexWrap: 'wrap', gap: '8px 24px', justifyContent: 'space-between', ...mono, fontSize: 11.5 }}>
+          <div style={{ maxWidth: 1120, margin: '0 auto', padding: `18px ${GUTTER}`, display: 'flex', flexWrap: 'wrap', gap: '8px 24px', justifyContent: 'space-between', ...mono, fontSize: 12 }}>
             <span style={{ color: D.text.muted }}>ProcessForge · Apache-2.0</span>
             <span style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px' }}>
               {[

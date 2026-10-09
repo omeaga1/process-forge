@@ -165,7 +165,7 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
                     Save to ProcessForge Cloud
                     <span
                       style={{
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: 700,
                         padding: '1px 6px',
                         borderRadius: draftingRadius.soft,

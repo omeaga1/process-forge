@@ -63,7 +63,7 @@ function Slider({ label, value, unit, min, max, step, onChange }: {
 }) {
   return (
     <label style={{ display: 'block', minWidth: 0 }}>
-      <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12.5, color: D.text.secondary }}>
+      <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13, color: D.text.secondary }}>
         <span>{label}</span>
         <span style={{ ...mono, color: D.text.primary, fontWeight: 600 }}>
           {value}
@@ -114,7 +114,7 @@ function Unit({ kind, name, frames, shift, limit }: {
       }}
     >
       {limit && (
-        <span style={{ ...mono, position: 'absolute', top: -9, left: 10, fontSize: 9, letterSpacing: '0.1em', fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: LIMIT, color: D.text.inverse }}>
+        <span style={{ ...mono, position: 'absolute', top: -9, left: 10, fontSize: 10, letterSpacing: '0.1em', fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: LIMIT, color: D.text.inverse }}>
           LIMIT
         </span>
       )}
@@ -294,7 +294,7 @@ export const LineDemo: React.FC = () => {
               ['LIMIT', limit ? STAGE_LABEL[limit.stage].replace('the ', '') : '…', '', limit ? LIMIT : D.text.muted]
             ].map(([k, v, u, c]) => (
               <div key={k}>
-                <div style={{ ...mono, fontSize: 9.5, letterSpacing: '0.12em', color: D.text.muted, marginBottom: 4 }}>{k}</div>
+                <div style={{ ...mono, fontSize: 10, letterSpacing: '0.12em', color: D.text.muted, marginBottom: 4 }}>{k}</div>
                 {/* A departure board: each figure flips as the shift runs. */}
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, whiteSpace: 'nowrap' }}>
                   <SplitFlap
@@ -337,7 +337,7 @@ export const LineDemo: React.FC = () => {
 
         {/* Verdict */}
         <div style={{ padding: '0 18px 16px', display: 'flex', flexWrap: 'wrap', gap: '8px 24px', alignItems: 'baseline', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 13.5, lineHeight: 1.55, color: D.text.secondary, maxWidth: '68ch', minHeight: 42 }}>
+          <div style={{ fontSize: 14, lineHeight: 1.55, color: D.text.secondary, maxWidth: '68ch', minHeight: 42 }}>
             {limit ? (
               <>
                 <span style={{ color: D.text.primary, fontWeight: 600 }}>
