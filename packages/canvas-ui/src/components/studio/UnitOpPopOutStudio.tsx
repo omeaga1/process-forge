@@ -344,7 +344,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           );
         })()}
         <DropdownMenu
-          trigger={<Button variant="ghost" iconOnly icon={<MoreHorizontal size={16} />} aria-label="More actions" />}
+          trigger={<Button variant="ghost" iconOnly icon={<MoreHorizontal size={16} />} label="More actions" />}
           items={[
             ...(onDuplicate ? [{ label: 'Duplicate · Ctrl+D', icon: <Copy size={14} />, onSelect: () => onDuplicate(node.id) }] : []),
             { label: 'Publish to the community library', icon: <Upload size={14} />, onSelect: () => onPublishToForgeHub(node) },

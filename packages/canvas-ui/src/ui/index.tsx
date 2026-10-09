@@ -124,7 +124,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, side = 'top', childre
   <BaseTooltip.Root>
     <BaseTooltip.Trigger render={children} />
     <BaseTooltip.Portal>
-      <BaseTooltip.Positioner side={side} sideOffset={6}>
+      <BaseTooltip.Positioner className="pf-layer pf-layer-tip" side={side} sideOffset={6}>
         <BaseTooltip.Popup className="pf-tip">{content}</BaseTooltip.Popup>
       </BaseTooltip.Positioner>
     </BaseTooltip.Portal>
@@ -196,7 +196,7 @@ export const DropdownMenu: React.FC<{ trigger: React.ReactElement; items: readon
   <BaseMenu.Root>
     <BaseMenu.Trigger render={trigger} />
     <BaseMenu.Portal>
-      <BaseMenu.Positioner align={align} sideOffset={6}>
+      <BaseMenu.Positioner className="pf-layer" align={align} sideOffset={6}>
         <BaseMenu.Popup className="pf-menu">
           {items.map((it, i) => (
             <React.Fragment key={i}>
@@ -307,7 +307,7 @@ export const PointMenu: React.FC<{ at: { x: number; y: number } | null; onClose:
   return (
     <BaseMenu.Root open={at !== null} onOpenChange={(o) => !o && onClose()}>
       <BaseMenu.Portal>
-        <BaseMenu.Positioner anchor={anchor} side="bottom" align="start" sideOffset={2} collisionPadding={8}>
+        <BaseMenu.Positioner className="pf-layer" anchor={anchor} side="bottom" align="start" sideOffset={2} collisionPadding={8}>
           <BaseMenu.Popup className="pf-menu" aria-label={label}>
             {items.map((it, i) => (
               <React.Fragment key={i}>
