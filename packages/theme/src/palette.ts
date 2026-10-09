@@ -185,7 +185,7 @@ export const OsakaJadeLightPalette: ThemePalette = {
     strong: '#a8a592', // Prominent separators
     glow: '#1e7e58', // Active node glow (deep radiant imperial jade)
     glowAmber: '#d97706', // Blocked warning glow
-    glowRose: '#b91c1c', // Failure colour (also waste labels): 5.3:1 or better on light surfaces
+    glowRose: '#a51818', // Failure colour (also waste labels): 4.5:1 or better on light surfaces and on its own tint
     division: '#629c89' // Box divider and metric lines
   },
 
@@ -194,14 +194,14 @@ export const OsakaJadeLightPalette: ThemePalette = {
     50: '#064e3b',
     100: '#047857',
     200: '#059669',
-    300: '#036b4e', // Active-state text: 5.3:1 or better on light surfaces and the jade tint (WCAG AA)
+    300: '#03644a', // Active-state text: 4.5:1 or better on light surfaces and on jade tints (WCAG AA)
     400: '#1b7a54', // Tags and accent text: 4.7:1 on the canvas (WCAG AA)
     500: '#239468', // Standard Imperial Jade brand accent
     600: '#1b7a54',
     700: '#145f41',
     800: '#0f4731',
     900: '#0a3021',
-    glow: '#036b4e', // Emerald jade accent text: 5.3:1 or better on every light surface (WCAG AA)
+    glow: '#03644a', // Emerald jade accent text: 4.5:1 or better on every light surface and on jade tints (WCAG AA)
     muted: '#dcf5ea' // Soft jade tint for badge backgrounds
   },
 
@@ -211,7 +211,7 @@ export const OsakaJadeLightPalette: ThemePalette = {
     secondary: '#45574c', // Balanced secondary forest sage text
     muted: '#5a695e', // Dimmed labels and hints: 4.5:1 on the elevated surface (WCAG AA)
     inverse: '#f8f7f0', // Text on dark jade accents
-    accent: '#176c4b', // Highlighted deep jade text: 5.2:1 or better on every light surface and tint (WCAG AA)
+    accent: '#146546', // Highlighted deep jade text: 4.5:1 or better on every light surface and on jade tints (WCAG AA)
     gold: '#b47818' // Deep bamboo amber text
   },
 
@@ -219,8 +219,8 @@ export const OsakaJadeLightPalette: ThemePalette = {
   status: {
     busy: '#1b7a54', // Deep Emerald Jade: Machine running normally
     starved: '#0284c7', // Sky Cyan: Machine starved, waiting for infeed
-    blocked: '#8f5306', // Amber: machine blocked by backpressure; 5:1 or better on every light surface (WCAG AA)
-    failed: '#b91c1c', // Crimson: machine stopped by a fault; 5.3:1 or better on light surfaces (WCAG AA)
+    blocked: '#804a04', // Amber: machine blocked by backpressure; 4.5:1 or better on every light surface and on its own tint (WCAG AA)
+    failed: '#a51818', // Crimson: machine stopped by a fault; 4.5:1 or better on light surfaces and on its own tint (WCAG AA)
     idle: '#64748b' // Cool Slate: Machine offline / unconfigured
   },
 
