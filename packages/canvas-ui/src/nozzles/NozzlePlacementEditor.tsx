@@ -318,7 +318,18 @@ export const NozzlePlacementEditor: React.FC<NozzlePlacementEditorProps> = ({ no
           return (
             <div
               key={z.id}
+              role="button"
+              tabIndex={0}
+              aria-pressed={isSel}
+              aria-label={`Nozzle ${z.id}: ${z.name}`}
+              className="pf-focus"
               onClick={() => setSelectedId(z.id)}
+              onKeyDown={(e) => {
+                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault();
+                  setSelectedId(z.id);
+                }
+              }}
               style={{
                 display: 'grid',
                 gridTemplateColumns: '14px 34px 1fr auto auto',
