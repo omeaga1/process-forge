@@ -64,7 +64,7 @@ describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
     assert.equal(OsakaJadeLightPalette.background.base, '#f8f7f0'); // Bamboo ivory
     assert.equal(OsakaJadeLightPalette.text.primary, '#1e2922'); // Forest pine charcoal
     assert.equal(OsakaJadeLightPalette.status.busy, '#1b7a54'); // Deep emerald
-    assert.equal(OsakaJadeLightPalette.status.starved, '#0284c7'); // Sky cyan
+    assert.equal(OsakaJadeLightPalette.status.starved, '#075985'); // Deep sky, deep enough to read as a badge
     assert.equal(OsakaJadeLightPalette.status.blocked, '#804a04'); // Amber, deep enough to read as text, even on its own tint
     assert.equal(OsakaJadeLightPalette.status.failed, '#a51818'); // Crimson, deep enough to read as text, even on its own tint
   });
@@ -93,7 +93,14 @@ describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
       // Chips and badges set a colour's text on that colour's own tint (up to 16 %), or on the jade tint for accents.
       const mix = (fg: string, base: string, a: number) =>
         '#' + [1, 3, 5].map((i) => Math.round(parseInt(fg.slice(i, i + 2), 16) * a + parseInt(base.slice(i, i + 2), 16) * (1 - a)).toString(16).padStart(2, '0')).join('');
-      for (const [what, fg, tintOf] of [['failed', L.status.failed, L.status.failed], ['blocked', L.status.blocked, L.status.blocked], ['glow', L.jade.glow, L.jade[500]], ['accent', L.text.accent, L.jade[500]]] as const) {
+      for (const [what, fg, tintOf] of [
+        ['failed', L.status.failed, L.status.failed],
+        ['blocked', L.status.blocked, L.status.blocked],
+        ['starved', L.status.starved, L.status.starved],
+        ['idle', L.status.idle, L.status.idle],
+        ['glow', L.jade.glow, L.jade[500]],
+        ['accent', L.text.accent, L.jade[500]]
+      ] as const) {
         const under = mix(tintOf, bg, 0.16);
         assert.ok(ratio(fg, under) >= 4.5, `light ${what} ${fg} on its tint over ${bg}: ${ratio(fg, under).toFixed(2)}`);
       }
