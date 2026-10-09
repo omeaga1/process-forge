@@ -336,6 +336,29 @@ export const StreamsSection: React.FC<{
       </span>
     </div>
   );
+  // What arrives at the design point, component by component (kg/s), to work out what leaves by each outlet.
+  const feeds = Object.keys(contract.designPorts ?? {}).length ? Object.values(contract.designPorts!) : contract.designInlet ? [contract.designInlet] : [];
+  const componentsIn: Record<string, number> = {};
+  for (const f of feeds) {
+    if (f.massFlowKgPerS === undefined || !f.composition) continue;
+    for (const [c, x] of Object.entries(f.composition)) componentsIn[c] = (componentsIn[c] ?? 0) + f.massFlowKgPerS * x;
+  }
+  const totalIn = feeds.reduce((s, f) => s + (f.massFlowKgPerS ?? 0), 0);
+  // A component an outlet does not list goes elsewhere, so long as some outlet accounts for it.
+  const accounted = new Set(Object.values(evaluation.outlets).flatMap((o) => Object.keys(o.recovery ?? {})));
+  const outletFlow = (plan: UnitOpEvaluation['outlets'][string]): { kgPerS: number; mix?: [string, number][] } | undefined => {
+    const comps = Object.keys(componentsIn);
+    if (plan.recovery && comps.length && comps.every((c) => accounted.has(c))) {
+      const out = comps.map((c) => [c, componentsIn[c]! * (plan.recovery![c] ?? 0)] as [string, number]);
+      const kgPerS = out.reduce((s, [, m]) => s + m, 0);
+      return { kgPerS, ...(kgPerS > 0 ? { mix: out.filter(([, m]) => m > 0).map(([c, m]) => [c, m / kgPerS] as [string, number]).sort((a, b) => b[1] - a[1]) } : {}) };
+    }
+    if (plan.share !== undefined && totalIn > 0) return { kgPerS: plan.share * totalIn };
+    return undefined;
+  };
+  // A trace reads as one, not as nothing.
+  const mixText = (mix: [string, number][]) => mix.slice(0, 3).map(([c, x]) => `${c} ${x > 0 && x < 0.001 ? '<0.1' : Math.round(x * 1000) / 10}%`).join(', ');
+
   // Several inlets checked at one mixed design point: say so, once, above the cards.
   const mixedDesign = continuousInlets.length > 1 && contract.designInlet && !Object.keys(contract.designPorts ?? {}).length ? contract.designInlet : undefined;
   return (
@@ -389,16 +412,22 @@ export const StreamsSection: React.FC<{
                 {design.composition && fig('Mix', Object.entries(design.composition).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c, x]) => `${c} ${Math.round(x * 1000) / 10}%`).join(', '))}
               </div>
             )}
-            {plan && (
-              <div style={{ display: 'grid', gap: 2 }}>
-                {plan.share !== undefined && fig('Share', formatQuantity(plan.share * 100), '%')}
-                {plan.temperatureC !== undefined && fig('Leaves at', formatQuantity(plan.temperatureC), '°C')}
-                {plan.recovery &&
-                  Object.entries(plan.recovery)
-                    .slice(0, 4)
-                    .map(([c, x]) => <React.Fragment key={c}>{fig(`${c}`, formatQuantity(x * 100), '% of it')}</React.Fragment>)}
-              </div>
-            )}
+            {plan &&
+              (() => {
+                const flow = outletFlow(plan);
+                return (
+                  <div style={{ display: 'grid', gap: 2 }}>
+                    {flow && fig('Design flow', formatQuantity(flow.kgPerS * 3600), 'kg/h')}
+                    {flow?.mix && fig('Mix', mixText(flow.mix))}
+                    {plan.share !== undefined && fig('Share', formatQuantity(plan.share * 100), '%')}
+                    {plan.temperatureC !== undefined && fig('Leaves at', formatQuantity(plan.temperatureC), '°C')}
+                    {plan.recovery &&
+                      Object.entries(plan.recovery)
+                        .slice(0, 4)
+                        .map(([c, x]) => <React.Fragment key={c}>{fig(c, formatQuantity(x * 100), "% recovered")}</React.Fragment>)}
+                  </div>
+                );
+              })()}
             {now && (
               <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px dashed ${palette.border.subtle}`, display: 'grid', gap: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: palette.jade[400], textTransform: 'uppercase', letterSpacing: '0.05em' }}>
