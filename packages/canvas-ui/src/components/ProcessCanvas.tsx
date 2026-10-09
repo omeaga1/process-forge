@@ -686,24 +686,23 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   // A callback ref, not an effect with []: the canvas area is not in the
   // first render (the field view or a loading state can come first), so an
   // effect that ran once found no element and never watched the width.
-  const [compactToolbar, setCompactToolbar] = useState(false);
   // Narrower still (the 1024 px window with the dock open): drop the status
-  // word and the unit count too; the dock shows both.
-  const [tightToolbar, setTightToolbar] = useState(false);
+  // word and the unit count too; the dock shows both. An open unit panel lies
+  // over the canvas's right side, so the toolbar has that much less room.
+  const [canvasWidth, setCanvasWidth] = useState(1200);
+  const toolbarRoom = canvasWidth - (popOutNodeId ? Math.min(620, canvasWidth) : 0);
+  const compactToolbar = toolbarRoom < 1060;
+  const tightToolbar = toolbarRoom < 820;
   const observerRef = useRef<ResizeObserver | null>(null);
   const canvasAreaRef = useCallback((el: HTMLDivElement | null) => {
     observerRef.current?.disconnect();
     observerRef.current = null;
     if (!el) return;
     // Measure now, so the first paint is right without waiting for the observer.
-    const w0 = el.getBoundingClientRect().width;
-    setCompactToolbar(w0 < 1060);
-    setTightToolbar(w0 < 820);
+    setCanvasWidth(el.getBoundingClientRect().width);
     if (typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(([entry]) => {
-      const w = entry?.contentRect.width ?? 1200;
-      setCompactToolbar(w < 1060);
-      setTightToolbar(w < 820);
+      setCanvasWidth(entry?.contentRect.width ?? 1200);
     });
     ro.observe(el);
     observerRef.current = ro;
