@@ -267,3 +267,18 @@ export const DialogShell: React.FC<{ open: boolean; onOpenChange: (open: boolean
     </Dialog.Portal>
   </Dialog.Root>
 );
+
+// ---------------------------------------------------------------- Sheet
+
+/** A bottom sheet (phones): a modal dialog that slides up from the bottom edge. */
+export const Sheet: React.FC<{ open: boolean; onOpenChange: (open: boolean) => void; label: string; children: React.ReactNode }> = ({ open, onOpenChange, label, children }) => (
+  <Dialog.Root open={open} onOpenChange={(o) => onOpenChange(o)}>
+    <Dialog.Portal>
+      <Dialog.Backdrop className="pf-backdrop" />
+      <Dialog.Popup className="pf-sheet" aria-label={label}>
+        <div aria-hidden style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--pf-border-strong)', margin: '8px auto 2px', flexShrink: 0 }} />
+        {children}
+      </Dialog.Popup>
+    </Dialog.Portal>
+  </Dialog.Root>
+);

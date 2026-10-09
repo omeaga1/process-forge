@@ -1,17 +1,14 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import type { ProcessGraph, ProcessNode } from '@process-forge/protocol';
+import { terminalRole } from '@process-forge/protocol';
+import { Monitor, Play, Pause, RotateCcw, ChevronRight } from 'lucide-react';
+import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
-import { kindLabel, type ProcessGraph, type ProcessNode } from '@process-forge/protocol';
 import type { PlantTelemetryState } from '../../types.js';
-import {
-  Play,
-  Pause,
-  RotateCcw,
-  AlertTriangle,
-  ChevronRight,
-  Monitor
-} from 'lucide-react';
+import { describeUnitBehavior } from '../../model/unitBehavior.js';
+import { Button } from '../../ui/index.js';
+import type { RunView } from '../dock/RunDigest.js';
 import { MobileUnitOpSheet } from './MobileUnitOpSheet.js';
-import { draftingRadius, tint } from '@process-forge/theme';
 
 export interface MobileFieldViewProps {
   graph: ProcessGraph;
@@ -22,8 +19,16 @@ export interface MobileFieldViewProps {
   onSwitchToCanvas: () => void;
   onUpdateNodeConfig?: (nodeId: string, config: any) => void;
   onUpdateNodeDressing?: (nodeId: string, dressing: any) => void;
+  /** The run at the playhead: each unit shows its state and flow as the run plays. */
+  run?: RunView;
+  /** The line's product is bulk (liquid, powder): read in kg. */
+  bulkLine?: boolean;
 }
 
+const clock = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const fmt = (v: number) => (v >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1));
+
+/** The line on a phone: what it is making, and every unit with what it does and what flows through it now. */
 export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
   graph,
   telemetry,
@@ -32,322 +37,143 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
   onResetSimulation,
   onSwitchToCanvas,
   onUpdateNodeConfig,
-  onUpdateNodeDressing
+  onUpdateNodeDressing,
+  run,
+  bulkLine
 }) => {
-  const { palette, space, radius: r } = useTheme();
-  const OsakaJadePalette = palette;
-  const [selectedNode, setSelectedNode] = useState<ProcessNode | null>(null);
+  const { palette, font } = useTheme();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedNode = selectedId ? graph.nodes.find((n) => n.id === selectedId) ?? null : null;
+  const behaviors = useMemo(() => new Map(graph.nodes.map((n) => [n.id, describeUnitBehavior(n, graph)])), [graph]);
+  const t = telemetry.simulatedTimeSeconds;
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const stats = bulkLine
+    ? [
+        { label: 'Product so far', value: `${fmt(telemetry.productKg ?? 0)} kg` },
+        { label: 'Average', value: `${t > 0 ? fmt(((telemetry.productKg ?? 0) / t) * 3600) : '0'} kg/h` },
+        { label: 'Units', value: String(graph.nodes.filter((n) => n.kind !== 'TERMINAL').length) }
+      ]
+    : [
+        { label: 'Finished', value: `${telemetry.totalPackaged.toLocaleString()}` },
+        { label: 'Average', value: `${telemetry.averageRatePerMin.toFixed(1)} /min` },
+        { label: 'Units', value: String(graph.nodes.filter((n) => n.kind !== 'TERMINAL').length) }
+      ];
+
+  const stateColor = (state?: string) =>
+    state === 'RUNNING' || state === 'BUSY'
+      ? palette.status.busy
+      : state === 'STARVED'
+        ? palette.status.starved
+        : state === 'BLOCKED'
+          ? palette.status.blocked
+          : state === 'DOWN' || state === 'FAILED'
+            ? palette.status.failed
+            : palette.status.idle;
+
+  const subtitle = (n: ProcessNode) => {
+    const role = terminalRole(n);
+    if (role) return `${role[0]!.toUpperCase()}${role.slice(1)} · ${(n.config as { material?: string }).material ?? 'stream'}`;
+    return behaviors.get(n.id)?.headline ?? '';
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        width: '100%',
-        height: '100%',
-        backgroundColor: OsakaJadePalette.background.canvas,
-        color: OsakaJadePalette.text.primary,
-        overflow: 'hidden',
-        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif"
-      }}
-    >
-      {/* Top Mobile Field Header */}
-      <div
-        style={{
-          padding: '12px 16px',
-          backgroundColor: OsakaJadePalette.background.surface,
-          borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  backgroundColor: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted,
-                }}
-              />
-              <span style={{ fontSize: 11, fontWeight: 700, color: isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.secondary, textTransform: 'uppercase' }}>
-                {isRunning ? 'Running' : 'Paused'}
-              </span>
-              <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>•</span>
-              <span style={{ fontSize: 11, fontFamily: 'monospace', color: OsakaJadePalette.text.secondary }}>
-                {formatTime(telemetry.simulatedTimeSeconds)}
-              </span>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', backgroundColor: palette.background.canvas, color: palette.text.primary, overflow: 'hidden', fontFamily: font.sans }}>
+      <div style={{ padding: '12px 16px', backgroundColor: palette.background.surface, borderBottom: `1px solid ${palette.border.default}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: isRunning ? palette.jade.glow : palette.text.secondary }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: isRunning ? palette.jade.glow : palette.text.muted }} />
+              {isRunning ? 'Running' : t > 0 ? 'Paused' : 'Not run yet'}
+              <span style={{ fontFamily: font.mono, color: palette.text.muted }}>{clock(t)}</span>
             </div>
-            <h2 style={{ margin: '2px 0 0 0', fontSize: 16, fontWeight: 800, color: OsakaJadePalette.text.primary }}>
-              {graph.name}
-            </h2>
+            <h2 style={{ margin: '4px 0 0', fontSize: 17, fontWeight: 700, lineHeight: 1.25 }}>{graph.name}</h2>
           </div>
-
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={onSwitchToCanvas}
-              title="Switch to Desktop Canvas"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '6px 10px',
-                borderRadius: draftingRadius.soft,
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                color: OsakaJadePalette.text.secondary,
-                fontSize: 11,
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              <Monitor size={13} />
-              <span>Canvas</span>
-            </button>
-
-            <button
-              onClick={onResetSimulation}
-              title="Reset Simulation"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '6px 8px',
-                borderRadius: draftingRadius.soft,
-                backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                color: OsakaJadePalette.text.secondary,
-                fontSize: 11,
-                cursor: 'pointer'
-              }}
-            >
-              <RotateCcw size={13} />
-            </button>
-
-            <button
-              onClick={onToggleSimulation}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 14px',
-                borderRadius: draftingRadius.soft,
-                backgroundColor: isRunning ? OsakaJadePalette.background.surfaceElevated : OsakaJadePalette.jade[500],
-                border: isRunning ? `1px solid ${OsakaJadePalette.border.default}` : 'none',
-                color: isRunning ? OsakaJadePalette.text.primary : OsakaJadePalette.text.inverse,
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              {isRunning ? <Pause size={13} /> : <Play size={13} />}
-              <span>{isRunning ? 'Pause' : 'Start'}</span>
-            </button>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <Button iconOnly icon={<Monitor size={15} />} label="Open the canvas" onClick={onSwitchToCanvas} />
+            <Button iconOnly icon={<RotateCcw size={15} />} label="Reset the run" onClick={onResetSimulation} />
+            <Button variant={isRunning ? 'warning' : 'primary'} icon={isRunning ? <Pause size={15} /> : <Play size={15} />} onClick={onToggleSimulation}>
+              {isRunning ? 'Pause' : 'Run'}
+            </Button>
           </div>
         </div>
-
-        {/* Live Line KPIs Quick Bar */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 6,
-            paddingTop: 4
-          }}
-        >
-          <div
-            style={{
-              padding: '6px 10px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.background.surfaceElevated,
-              border: `1px solid ${OsakaJadePalette.border.subtle}`
-            }}
-          >
-            <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Throughput</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.jade.glow }}>
-              {isRunning ? `${Math.round(telemetry.averageRatePerMin)} CPM` : '0 CPM'}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          {stats.map((s) => (
+            <div key={s.label} style={{ padding: '8px 10px', borderRadius: 8, backgroundColor: palette.background.base, border: `1px solid ${palette.border.subtle}` }}>
+              <div style={{ fontSize: 11, color: palette.text.muted }}>{s.label}</div>
+              <div style={{ marginTop: 2, fontFamily: font.mono, fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{s.value}</div>
             </div>
-          </div>
-
-          <div
-            style={{
-              padding: '6px 10px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.background.surfaceElevated,
-              border: `1px solid ${OsakaJadePalette.border.subtle}`
-            }}
-          >
-            <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Packaged</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-              {telemetry.totalPackaged} Units
-            </div>
-          </div>
-
-          <div
-            style={{
-              padding: '6px 10px',
-              borderRadius: draftingRadius.soft,
-              backgroundColor: OsakaJadePalette.background.surfaceElevated,
-              border: `1px solid ${OsakaJadePalette.border.subtle}`
-            }}
-          >
-            <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, textTransform: 'uppercase' }}>Equipment</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-              {graph.nodes.length} Units
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
-      {/* Active Bottleneck Banner */}
-      {telemetry.activeBottleneck && (
-        <div
-          style={{
-            padding: '10px 16px',
-            backgroundColor: tint(palette.status.blocked, 0.12),
-            borderBottom: `1px solid ${OsakaJadePalette.border.glowAmber}`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            fontSize: 12
-          }}
-        >
-          <AlertTriangle size={16} color={OsakaJadePalette.border.glowAmber} style={{ flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <strong style={{ color: OsakaJadePalette.text.primary }}>Chokepoint Alarm: </strong>
-            <span style={{ color: OsakaJadePalette.text.secondary }}>
-              {graph.nodes.find((n) => n.id === telemetry.activeBottleneck)?.name ?? telemetry.activeBottleneck} is the constraint on this line
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Equipment Feed Scroll List */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: 12,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 10,
-          WebkitOverflowScrolling: 'touch'
-        }}
-      >
-        <div style={{ fontSize: 11, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', paddingLeft: 4 }}>
-          Equipment Stream ({graph.nodes.length} Units)
-        </div>
-
-        {graph.nodes.map((node, index) => {
-          const isBottleneck = node.id === telemetry.activeBottleneck;
-          const statusText = isBottleneck ? 'Bottleneck' : isRunning ? 'Running' : 'Standby';
-          const statusColor = isBottleneck ? OsakaJadePalette.border.glowAmber : isRunning ? OsakaJadePalette.jade.glow : OsakaJadePalette.text.muted;
-
+      <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {graph.nodes.map((n) => {
+          const snap = run?.snapshot.get(n.id);
+          const flow = snap?.kgPerHour;
           return (
-            <div
-              key={node.id}
-              onClick={() => setSelectedNode(node)}
+            <button
+              key={n.id}
+              type="button"
+              className="pf-focus"
+              onClick={() => setSelectedId(n.id)}
               style={{
-                padding: `${space[3]}px`,
-                borderRadius: r.md,
-                backgroundColor: OsakaJadePalette.background.surface,
-                border: isBottleneck ? `1px solid ${OsakaJadePalette.border.glowAmber}` : `1px solid ${OsakaJadePalette.border.default}`,
                 display: 'flex',
-                flexDirection: 'column',
-                gap: space[2],
+                alignItems: 'center',
+                gap: 12,
+                padding: '12px 12px 12px 14px',
+                borderRadius: 10,
+                border: `1px solid ${palette.border.default}`,
+                borderLeft: `3px solid ${stateColor(snap?.state)}`,
+                backgroundColor: palette.background.surface,
+                color: palette.text.primary,
+                textAlign: 'left',
                 cursor: 'pointer',
-                transition: 'background-color 0.15s ease'
+                fontFamily: font.sans
               }}
             >
-              {/* Machine Header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 800,
-                      color: OsakaJadePalette.jade.glow,
-                      backgroundColor: tint(palette.jade[500], 0.12),
-                      padding: '2px 6px',
-                      borderRadius: draftingRadius.soft
-                    }}
-                  >
-                    #{index + 1}
-                  </span>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                      {node.name}
-                    </div>
-                    <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted }}>
-                      {node.kind.replace('_', ' ')}
-                    </div>
-                  </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span style={{ fontSize: 14, fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.name}</span>
                 </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: '2px 8px',
-                      borderRadius: draftingRadius.sharp,
-                      backgroundColor: `${statusColor}22`,
-                      color: statusColor,
-                      border: `1px solid ${statusColor}44`
-                    }}
-                  >
-                    {statusText}
-                  </span>
-                  <ChevronRight size={16} color={OsakaJadePalette.text.muted} />
+                <div
+                  style={{
+                    marginTop: 3,
+                    fontSize: 12,
+                    lineHeight: 1.4,
+                    color: palette.text.secondary,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {subtitle(n)}
                 </div>
               </div>
-
-              {/* Machine Telemetry Row */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '8px 10px',
-                  borderRadius: draftingRadius.soft,
-                  backgroundColor: OsakaJadePalette.background.surfaceElevated,
-                  fontSize: 11
-                }}
-              >
-                <div>
-                  <span style={{ color: OsakaJadePalette.text.muted }}>Type: </span>
-                  <span style={{ color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
-                    {kindLabel(node)}
-                  </span>
+              {snap && flow !== undefined && (
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontFamily: font.mono, fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(flow)}</div>
+                  <div style={{ fontSize: 10.5, color: palette.text.muted }}>kg/h</div>
                 </div>
-
-                <div>
-                  <span style={{ color: OsakaJadePalette.text.muted }}>Nozzles: </span>
-                  <span style={{ color: OsakaJadePalette.text.primary, fontWeight: 600 }}>
-                    {node.dressing?.nozzles?.length ?? 0}
-                  </span>
-                </div>
-              </div>
-            </div>
+              )}
+              {snap && (
+                <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, color: stateColor(snap.state), backgroundColor: tint(stateColor(snap.state), 0.14), textTransform: 'capitalize', flexShrink: 0 }}>
+                  {snap.state.toLowerCase()}
+                </span>
+              )}
+              <ChevronRight size={16} color={palette.text.muted} style={{ flexShrink: 0 }} />
+            </button>
           );
         })}
       </div>
 
-      {/* Slide-Up Mobile Bottom Sheet for Unit-Op inspection */}
       <MobileUnitOpSheet
         node={selectedNode}
         isOpen={selectedNode !== null}
-        onClose={() => setSelectedNode(null)}
-        onUpdateConfig={onUpdateNodeConfig}
-        onUpdateDressing={onUpdateNodeDressing}
+        onClose={() => setSelectedId(null)}
+        graph={graph}
+        {...(onUpdateNodeConfig ? { onUpdateConfig: onUpdateNodeConfig } : {})}
+        {...(onUpdateNodeDressing ? { onUpdateDressing: onUpdateNodeDressing } : {})}
       />
     </div>
   );
