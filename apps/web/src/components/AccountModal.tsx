@@ -13,7 +13,7 @@ import {
   KeyRound,
   CheckCircle2
 } from 'lucide-react';
-import { Modal, TabStrip, useTheme } from '@process-forge/canvas-ui';
+import { Button, Modal, TabStrip, useTheme } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
 import { getInitials, hasCloudSession } from '../auth/accountManager.js';
 import { isDesktopRuntime } from '../runtime/desktop.js';
@@ -398,7 +398,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   {/* Mode Selector: Sign In vs Create Account */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                      {authMode === 'signin' ? 'Sign In to Your Account' : 'Create New Engineer Account'}
+                      {authMode === 'signin' ? 'Sign in' : 'Create a profile on this device'}
                     </span>
                     <button
                       type="button"
@@ -415,7 +415,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         cursor: 'pointer'
                       }}
                     >
-                      {authMode === 'signin' ? 'Need an account? Register →' : 'Already registered? Sign In →'}
+                      {authMode === 'signin' ? 'Create one instead' : 'I already have one'}
                     </button>
                   </div>
 
@@ -423,27 +423,17 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     {/* Email Input */}
                     <div>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
-                        Work Email
+                        Email
                       </label>
                       <div style={{ position: 'relative' }}>
-                        <Mail size={15} color={OsakaJadePalette.text.muted} style={{ position: 'absolute', left: 10, top: 11 }} />
+                        <Mail size={15} color={OsakaJadePalette.text.muted} style={{ position: 'absolute', left: 10, top: 10, pointerEvents: 'none' }} />
                         <input
                           type="email"
                           required
                           value={emailInput}
                           onChange={(e) => setEmailInput(e.target.value)}
                           placeholder="engineer@company.com"
-                          style={{
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            backgroundColor: OsakaJadePalette.background.canvas,
-                            border: `1px solid ${OsakaJadePalette.border.default}`,
-                            borderRadius: draftingRadius.soft,
-                            padding: '8px 10px 8px 34px',
-                            color: OsakaJadePalette.text.primary,
-                            fontSize: 13,
-                            outline: 'none'
-                          }}
+                          className="pf-input" style={{ padding: '8px 10px 8px 34px' }}
                         />
                       </div>
                     </div>
@@ -453,24 +443,14 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div>
                           <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
-                            Full Name
+                            Name
                           </label>
                           <input
                             type="text"
                             value={nameInput}
                             onChange={(e) => setNameInput(e.target.value)}
                             placeholder="Alex Vance"
-                            style={{
-                              width: '100%',
-                              boxSizing: 'border-box',
-                              backgroundColor: OsakaJadePalette.background.canvas,
-                              border: `1px solid ${OsakaJadePalette.border.default}`,
-                              borderRadius: draftingRadius.soft,
-                              padding: '8px 10px',
-                              color: OsakaJadePalette.text.primary,
-                              fontSize: 13,
-                              outline: 'none'
-                            }}
+                            className="pf-input" style={{ padding: '8px 10px' }}
                           />
                         </div>
                         <div>
@@ -482,17 +462,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                             value={orgInput}
                             onChange={(e) => setOrgInput(e.target.value)}
                             placeholder="Process Engineering"
-                            style={{
-                              width: '100%',
-                              boxSizing: 'border-box',
-                              backgroundColor: OsakaJadePalette.background.canvas,
-                              border: `1px solid ${OsakaJadePalette.border.default}`,
-                              borderRadius: draftingRadius.soft,
-                              padding: '8px 10px',
-                              color: OsakaJadePalette.text.primary,
-                              fontSize: 13,
-                              outline: 'none'
-                            }}
+                            className="pf-input" style={{ padding: '8px 10px' }}
                           />
                         </div>
                       </div>
@@ -504,27 +474,18 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                         Password {authMode === 'register' && '(minimum 8 characters)'}
                       </label>
                       <div style={{ position: 'relative' }}>
-                        <Lock size={15} color={OsakaJadePalette.text.muted} style={{ position: 'absolute', left: 10, top: 11 }} />
+                        <Lock size={15} color={OsakaJadePalette.text.muted} style={{ position: 'absolute', left: 10, top: 10, pointerEvents: 'none' }} />
                         <input
                           type={showPassword ? 'text' : 'password'}
                           required
                           value={passwordInput}
                           onChange={(e) => setPasswordInput(e.target.value)}
                           placeholder="••••••••"
-                          style={{
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            backgroundColor: OsakaJadePalette.background.canvas,
-                            border: `1px solid ${OsakaJadePalette.border.default}`,
-                            borderRadius: draftingRadius.soft,
-                            padding: '8px 36px 8px 34px',
-                            color: OsakaJadePalette.text.primary,
-                            fontSize: 13,
-                            outline: 'none'
-                          }}
+                          className="pf-input" style={{ padding: '8px 36px 8px 34px' }}
                         />
                         <button
                           type="button"
+                          aria-label={showPassword ? 'Hide the password' : 'Show the password'}
                           onClick={() => setShowPassword(!showPassword)}
                           style={{
                             position: 'absolute',
@@ -549,52 +510,24 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                           Confirm Password
                         </label>
                         <div style={{ position: 'relative' }}>
-                          <Lock size={15} color={OsakaJadePalette.text.muted} style={{ position: 'absolute', left: 10, top: 11 }} />
+                          <Lock size={15} color={OsakaJadePalette.text.muted} style={{ position: 'absolute', left: 10, top: 10, pointerEvents: 'none' }} />
                           <input
                             type={showPassword ? 'text' : 'password'}
                             required
                             value={confirmPasswordInput}
                             onChange={(e) => setConfirmPasswordInput(e.target.value)}
                             placeholder="••••••••"
-                            style={{
-                              width: '100%',
-                              boxSizing: 'border-box',
-                              backgroundColor: OsakaJadePalette.background.canvas,
-                              border: `1px solid ${OsakaJadePalette.border.default}`,
-                              borderRadius: draftingRadius.soft,
-                              padding: '8px 10px 8px 34px',
-                              color: OsakaJadePalette.text.primary,
-                              fontSize: 13,
-                              outline: 'none'
-                            }}
+                            className="pf-input" style={{ padding: '8px 10px 8px 34px' }}
                           />
                         </div>
                       </div>
                     )}
 
                     {/* Submit Button */}
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      style={{
-                        marginTop: 6,
-                        padding: '10px 16px',
-                        borderRadius: draftingRadius.soft,
-                        backgroundColor: OsakaJadePalette.jade[600],
-                        border: 'none',
-                        color: palette.text.inverse,
-                        fontSize: 13,
-                        fontWeight: 700,
-                        cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6
-                      }}
-                    >
-                      <span>{authMode === 'signin' ? 'Sign In to Account' : 'Create profile on this device'}</span>
+                    <Button type="submit" variant="primary" size="lg" disabled={isSubmitting} style={{ marginTop: 6 }}>
+                      {authMode === 'signin' ? 'Sign in' : 'Create profile on this device'}
                       <ArrowRight size={14} />
-                    </button>
+                    </Button>
                   </form>
                 </div>
               ) : (
@@ -606,23 +539,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   </p>
                   {isDesktopRuntime() ? (
                     isDesktopGoogleSignInConfigured() ? (
-                      <button
-                        type="button"
-                        onClick={handleDesktopGoogleSignIn}
-                        disabled={isSubmitting}
-                        style={{
-                          padding: '10px 16px',
-                          borderRadius: draftingRadius.soft,
-                          backgroundColor: OsakaJadePalette.jade[600],
-                          border: 'none',
-                          color: palette.text.inverse,
-                          fontSize: 13,
-                          fontWeight: 700,
-                          cursor: isSubmitting ? 'wait' : 'pointer'
-                        }}
-                      >
+                      <Button variant="primary" size="lg" onClick={handleDesktopGoogleSignIn} disabled={isSubmitting}>
                         {isSubmitting ? 'Waiting for your browser…' : 'Continue with Google'}
-                      </button>
+                      </Button>
                     ) : (
                       <p role="status" style={{ fontSize: 12, color: OsakaJadePalette.text.muted, margin: 0 }}>
                         Google sign-in is not set up in this desktop build yet. Everything else works without an
