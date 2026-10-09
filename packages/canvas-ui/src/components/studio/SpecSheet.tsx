@@ -374,13 +374,16 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
   let passes: React.ReactNode = <span style={{ color: palette.text.muted }}>—</span>;
   if (band) {
     const pr = band.passing;
-    if (!pr) passes = <span style={{ color: palette.status.failed }}>nowhere in range</span>;
+    // Out of range is said in words and marked in red underneath, so it reads in either theme and without colour.
+    const miss: React.CSSProperties = { color: palette.text.primary, textDecoration: `underline 2px ${palette.status.failed}`, textUnderlineOffset: 3 };
+    if (!pr) passes = <span style={miss}>nowhere in range</span>;
     else {
       const whole = sweep && Math.abs(pr.from - sweep.range.from) < 1e-9 && Math.abs(pr.to - sweep.range.to) < 1e-9;
       passes = whole ? (
         <span style={{ color: palette.text.muted }}>whole range</span>
       ) : (
-        <span style={{ color: pr.containsValue ? palette.text.secondary : palette.status.failed, fontFamily: font.mono, fontSize: 12 }}>
+        <span style={{ ...(pr.containsValue ? { color: palette.text.secondary } : miss), fontFamily: font.mono, fontSize: 12 }}>
+          {pr.containsValue ? '' : 'needs '}
           {formatQuantity(toShown(pr.from))} – {formatQuantity(toShown(pr.to))}
         </span>
       );
