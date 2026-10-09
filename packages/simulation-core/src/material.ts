@@ -221,6 +221,12 @@ export interface MaterialUnit {
   /** Per-tick scratch. */
   accept: number;
   inbox: Parcel;
+  /**
+   * A pass-through in a recycle loop: what reached it after it had stepped
+   * this tick (from a unit later in flow order). It opens the next tick's
+   * inbox, so nothing is lost and a regenerator sees both its streams at once.
+   */
+  late?: { inbox: Parcel; byPort: Record<string, Parcel> };
   /** Down (a breakdown): passes nothing, and a batch's clock stops. */
   down: boolean;
   live?: LiveContract;
@@ -295,6 +301,8 @@ export class MaterialNetwork {
   private readonly order: string[];
   private readonly outEdges = new Map<string, ProcessEdge[]>();
   private readonly inEdges = new Map<string, ProcessEdge[]>();
+  /** Units the forward pass has stepped this tick. */
+  private readonly stepped = new Set<string>();
 
   /**
    * @param contracts every node's contract (terminals have none)
@@ -874,6 +882,15 @@ export class MaterialNetwork {
   /** Delivers a parcel to a unit: into a pass-through's inbox, or mixed into what it holds. */
   private receive(target: MaterialUnit, parcel: Parcel, dt: number, port?: string): void {
     mixInto(target.received, parcel);
+    if (target.role === 'pass' && this.stepped.has(target.id)) {
+      // It already stepped this tick (a recycle loop): this opens its next one.
+      const late = (target.late ??= { inbox: emptyParcel(), byPort: {} });
+      mixInto(late.inbox, parcel);
+      if (port) mixInto((late.byPort[port] ??= emptyParcel()), parcel);
+      target.inKgRate += parcel.kg / dt;
+      target.inRate += parcel.m3 / dt;
+      return;
+    }
     if (target.role === 'pass' && port) mixInto((target.inboxByPort[port] ??= emptyParcel()), parcel);
     if (target.role === 'batch' && port) mixInto((target.chargedByPort[port] ??= emptyParcel()), parcel);
     target.inRate += parcel.m3 / dt;
@@ -885,20 +902,27 @@ export class MaterialNetwork {
 
   /** Advances the liquid by `dt` seconds, ending at time `now`. */
   tick(now: number, dt: number): void {
+    this.stepped.clear();
     for (const u of this.units.values()) {
-      u.inbox = emptyParcel();
+      u.inbox = u.late?.inbox ?? emptyParcel();
       u.inRate = 0;
       u.outRate = 0;
       u.inKgRate = 0;
       u.outKgRate = 0;
       u.tickPort = {};
-      u.inboxByPort = {};
+      u.inboxByPort = u.late?.byPort ?? {};
+      delete u.late;
       if (u.role === 'batch') this.stepBatch(u, now, dt);
     }
 
-    // Backward pass: what each unit can take this tick (m³).
+    // Backward pass: what each unit can take this tick (m³). In a recycle
+    // loop a unit's downstream can come later in this pass; it is not yet
+    // known, so it does not limit (the forward pass still keeps to what that
+    // unit takes). Reading last tick's value instead locks a loop at zero.
+    const known = new Set<string>();
     for (let i = this.order.length - 1; i >= 0; i--) {
       const u = this.units.get(this.order[i]!)!;
+      known.add(u.id);
       if (u.down) {
         u.accept = 0;
         continue;
@@ -923,7 +947,7 @@ export class MaterialNetwork {
         case 'pass': {
           const { outs } = this.split(u);
           const downstream = outs.length
-            ? Math.min(...outs.map((o) => (o.share > 0 ? o.target.accept / o.share : Infinity)))
+            ? Math.min(...outs.map((o) => (o.share > 0 && known.has(o.target.id) ? o.target.accept / o.share : Infinity)))
             : this.outEdges.has(u.id)
               ? 0 // piped into a unit that takes no liquid
               : Infinity; // nothing downstream: it leaves the line
@@ -941,6 +965,7 @@ export class MaterialNetwork {
     const remaining = new Map([...this.units.values()].map((u) => [u.id, u.accept]));
     for (const id of this.order) {
       const u = this.units.get(id)!;
+      this.stepped.add(id);
       if (u.down) continue;
       let offer = 0;
       let source: Parcel = u.hold;
