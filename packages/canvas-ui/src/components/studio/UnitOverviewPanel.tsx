@@ -63,7 +63,9 @@ function useLineRun(graph: ProcessGraph): { result: SimulationResult | null; run
  * feed or an outlet leads with what it supplies or receives.
  */
 export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, graph, bottleneckNodeId, live, onOpenUnit }) => {
-  const { palette, font, radius: r } = useTheme();
+  const { palette, font, radius: r, theme } = useTheme();
+  // Coloured text on its own tint: on the light theme the colour needs deepening to read (WCAG AA).
+  const readable = (c: string) => (theme === 'light' ? `color-mix(in srgb, ${c} 55%, ${palette.text.primary})` : c);
   const behavior = useMemo(() => describeUnitBehavior(node, graph), [node, graph]);
   const byId = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph.nodes]);
   const { result, running } = useLineRun(graph);
@@ -81,7 +83,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
   const chip = (text: string, tone: 'ok' | 'warn' | 'muted', icon?: React.ReactNode) => {
     const c = tone === 'ok' ? palette.jade[500] : tone === 'warn' ? palette.status.blocked : palette.text.muted;
     // Text bright enough to read on its own tint (WCAG AA).
-    const fg = tone === 'ok' ? palette.jade.glow : tone === 'warn' ? palette.status.blocked : palette.text.secondary;
+    const fg = tone === 'ok' ? readable(palette.jade.glow) : tone === 'warn' ? readable(palette.status.blocked) : palette.text.secondary;
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: r.full, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: fg, background: tint(c, 0.12) }}>
         {icon}
@@ -167,7 +169,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: palette.text.primary }}>{port.name}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color, padding: '1px 6px', borderRadius: r.full, background: tint(color, 0.14) }}>
+              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: readable(color), padding: '1px 6px', borderRadius: r.full, background: tint(color, 0.14) }}>
                 {items ? 'items' : (phase ?? 'liquid').toLowerCase()}
               </span>
             </div>

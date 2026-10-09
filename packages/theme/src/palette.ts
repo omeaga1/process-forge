@@ -194,14 +194,14 @@ export const OsakaJadeLightPalette: ThemePalette = {
     50: '#064e3b',
     100: '#047857',
     200: '#059669',
-    300: '#10b981',
-    400: '#1e7e58',
+    300: '#047857', // Active-state text: 4.8:1 on the jade tint (WCAG AA)
+    400: '#1b7a54', // Tags and accent text: 4.7:1 on the canvas (WCAG AA)
     500: '#239468', // Standard Imperial Jade brand accent
     600: '#1b7a54',
     700: '#145f41',
     800: '#0f4731',
     900: '#0a3021',
-    glow: '#10b981', // Bright Emerald Jade
+    glow: '#047857', // Emerald jade accent text: 5.5:1 on white (WCAG AA)
     muted: '#dcf5ea' // Soft jade tint for badge backgrounds
   },
 
@@ -219,7 +219,7 @@ export const OsakaJadeLightPalette: ThemePalette = {
   status: {
     busy: '#1b7a54', // Deep Emerald Jade: Machine running normally
     starved: '#0284c7', // Sky Cyan: Machine starved, waiting for infeed
-    blocked: '#d97706', // Amber Gold: Machine blocked by backpressure
+    blocked: '#9a5a07', // Amber: machine blocked by backpressure; 5:1 on its own tint (WCAG AA)
     failed: '#dc2626', // Crimson Rose: Machine stopped due to fault
     idle: '#64748b' // Cool Slate: Machine offline / unconfigured
   },
