@@ -206,7 +206,7 @@ export const SectionNav: React.FC<{
             <Icon size={13} />
             {s.label}
             {s.badge && (
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '0 5px', borderRadius: r.full, color: badgeColor, background: tint(badgeColor, 0.14) }}>{s.badge.text}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '0 5px', borderRadius: r.full, color: s.badge.tone === 'ok' ? palette.jade.glow : s.badge.tone === 'muted' ? palette.text.secondary : badgeColor, background: tint(badgeColor, 0.14) }}>{s.badge.text}</span>
             )}
           </button>
         );
