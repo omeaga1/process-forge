@@ -179,6 +179,12 @@ function pipeState(
   };
 }
 
+/** A pipe as a screen reader says it: the units it joins, by name. */
+function pipeLabel(graph: ProcessGraph, e: ProcessEdge): string {
+  const name = (id: string) => graph.nodes.find((n) => n.id === id)?.name ?? 'a unit';
+  return `Pipe from ${name(e.sourceNodeId)} to ${name(e.targetNodeId)}`;
+}
+
 const fmtFlow = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: v >= 100 ? 0 : 1 });
 
 export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
@@ -482,6 +488,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     graph.nodes.map((pNode) => ({
       id: pNode.id,
       type: nodeTypeOf(pNode),
+      ariaLabel: `${pNode.name}. Enter opens it.`,
       position: pNode.position,
       data: {
         processNode: pNode,
@@ -501,6 +508,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const [edges, setEdges] = useState<Edge[]>(() =>
     graph.edges.map((pEdge) => ({
       id: pEdge.id,
+      ariaLabel: pipeLabel(graph, pEdge),
       source: pEdge.sourceNodeId,
       target: pEdge.targetNodeId,
       sourceHandle: pEdge.sourcePortId,
@@ -525,6 +533,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         return {
           id: pNode.id,
           type: nodeTypeOf(pNode),
+          ariaLabel: `${pNode.name}. Enter opens it.`,
           // The flowsheet's position, so undoing a move moves the unit back.
           position: pNode.position,
           selected: existing?.selected ?? false,
@@ -549,6 +558,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       graph.edges.map((pEdge) => ({
         id: pEdge.id,
         selected: existingEdges.find((e) => e.id === pEdge.id)?.selected ?? false,
+        ariaLabel: pipeLabel(graph, pEdge),
         source: pEdge.sourceNodeId,
         target: pEdge.targetNodeId,
         sourceHandle: pEdge.sourcePortId,
@@ -792,6 +802,22 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [undo, redo, duplicateNode, deleteSelection, hasSelection, selectedNodeIds, popOutNodeId, setNodeLayouts]);
+
+  // Enter on a unit focused from the keyboard opens it in the studio, as a click does.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return;
+      const el = document.activeElement as HTMLElement | null;
+      if (!el?.classList.contains('react-flow__node')) return;
+      const id = el.getAttribute('data-id');
+      if (id) {
+        e.preventDefault();
+        setPopOutNodeId(id);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   // Keyboard shortcut: Spacebar to toggle simulation
   useEffect(() => {
