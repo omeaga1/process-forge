@@ -9,6 +9,7 @@ import {
   isTemperatureDifference,
   parseQuantity,
   solveForTarget,
+  type DesignSpec,
   type Influence,
   type Sweep,
   type SweepPoint,
@@ -24,12 +25,8 @@ import { Button, Chip, Switch } from '../../ui/index.js';
 import { controlFor, displayUnitsFor, feasibleBand, formatQuantity, statusAt, stepFor, type ParameterGroup } from '../../model/parameterUi.js';
 import { QuantityText } from './ParameterControl.js';
 
-/** A design spec: keep `result` at `target` (in its own unit) by varying `vary`. */
-export interface HeldSpec {
-  result: string;
-  target: number;
-  vary: string;
-}
+/** A design spec: keep a result at its target by varying one setting (protocol's DesignSpec). */
+export type HeldSpec = DesignSpec;
 
 export interface SpecSheetProps {
   contract: UnitOpContract;
