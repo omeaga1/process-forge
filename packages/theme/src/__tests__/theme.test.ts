@@ -65,8 +65,8 @@ describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
     assert.equal(OsakaJadeLightPalette.text.primary, '#1e2922'); // Forest pine charcoal
     assert.equal(OsakaJadeLightPalette.status.busy, '#1b7a54'); // Deep emerald
     assert.equal(OsakaJadeLightPalette.status.starved, '#0284c7'); // Sky cyan
-    assert.equal(OsakaJadeLightPalette.status.blocked, '#9a5a07'); // Amber, deep enough to read as text
-    assert.equal(OsakaJadeLightPalette.status.failed, '#dc2626'); // Crimson rose
+    assert.equal(OsakaJadeLightPalette.status.blocked, '#8f5306'); // Amber, deep enough to read as text
+    assert.equal(OsakaJadeLightPalette.status.failed, '#b91c1c'); // Crimson, deep enough to read as text
   });
 
   it('keeps text readable: muted text and the amber meet WCAG AA (4.5:1) on every surface, both themes', () => {
@@ -85,6 +85,12 @@ describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
       }
     }
     assert.ok(ratio(OsakaJadeLightPalette.status.blocked, '#ffffff') >= 4.5, 'light amber on white');
+    const L = OsakaJadeLightPalette;
+    for (const bg of [L.background.base, L.background.canvas, L.background.surface, L.background.surfaceElevated]) {
+      for (const [what, fg] of [['accent', L.text.accent], ['glow', L.jade.glow], ['failed', L.status.failed], ['blocked', L.status.blocked]] as const) {
+        assert.ok(ratio(fg, bg) >= 4.5, `light ${what} ${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`);
+      }
+    }
   });
 
   it('getOsakaJadePalette returns respective dark and light palettes with backward compatibility', () => {
