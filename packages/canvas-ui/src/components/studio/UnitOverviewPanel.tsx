@@ -76,12 +76,14 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
   const phaseColor = (phase?: string, items?: boolean) =>
     items ? palette.streams.discreteContainer : phase === 'GAS' ? palette.streams.gas : phase === 'SOLID' ? palette.streams.solid : palette.streams.continuousFluid;
 
-  const label: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: palette.text.muted };
+  const label: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: palette.text.secondary };
   const card: React.CSSProperties = { borderRadius: r.lg, border: `1px solid ${palette.border.default}`, background: palette.background.surface };
   const chip = (text: string, tone: 'ok' | 'warn' | 'muted', icon?: React.ReactNode) => {
     const c = tone === 'ok' ? palette.jade[500] : tone === 'warn' ? palette.status.blocked : palette.text.muted;
+    // Text bright enough to read on its own tint (WCAG AA).
+    const fg = tone === 'ok' ? palette.jade.glow : tone === 'warn' ? palette.status.blocked : palette.text.secondary;
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: r.full, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: c, background: tint(c, 0.12) }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: r.full, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: fg, background: tint(c, 0.12) }}>
         {icon}
         {text}
       </span>

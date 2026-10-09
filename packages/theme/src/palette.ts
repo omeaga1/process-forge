@@ -136,7 +136,7 @@ export const OsakaJadeDarkPalette: ThemePalette = {
   text: {
     primary: '#f6f5dd', // Warm rice paper white (Kitty/Alacritty color7)
     secondary: '#c1c497', // Kitty/Alacritty foreground (pale bamboo sage)
-    muted: '#53685b', // Kitty/Alacritty color8 (mineral slate / bright black)
+    muted: '#8a9e93', // Dimmed labels and hints: 4.5:1 or better on every surface and tinted card (WCAG AA)
     inverse: '#111c18', // Text on bright jade accents
     accent: '#71cead', // Highlighted mint jade text
     gold: '#deb266' // Warm bamboo amber text (Btop)
@@ -209,7 +209,7 @@ export const OsakaJadeLightPalette: ThemePalette = {
   text: {
     primary: '#1e2922', // Deep forest pine charcoal
     secondary: '#45574c', // Balanced secondary forest sage text
-    muted: '#7a8c80', // Dimmed labels, hints, and timestamps
+    muted: '#5a695e', // Dimmed labels and hints: 4.5:1 on the elevated surface (WCAG AA)
     inverse: '#f8f7f0', // Text on dark jade accents
     accent: '#1e7e58', // Highlighted deep jade text
     gold: '#b47818' // Deep bamboo amber text
