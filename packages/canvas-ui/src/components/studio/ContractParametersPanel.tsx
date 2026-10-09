@@ -463,6 +463,18 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
             onHoverParam={(name) => setHover(name ? { param: name } : {})}
             flash={flash}
             onFlash={setFlash}
+            {...(own && contract.designInlet
+              ? {
+                  feed: {
+                    params: designFields(contract.designInlet).map((f) => f.param),
+                    baseline: Object.fromEntries(baseline.current!.design ? designFields(baseline.current!.design).map((f) => [f.param.name, f.param.value]) : []),
+                    onChange: (name: string, v: number) => {
+                      const f = designFields(contract.designInlet!).find((x) => x.param.name === name);
+                      if (f) setDesign(f.apply(v, contract.designInlet!));
+                    }
+                  }
+                }
+              : {})}
           />
         ) : groups.map((g) =>
           g.folded ? (
@@ -481,7 +493,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
         )}
         {contract.parameters.length === 0 && <div style={{ fontSize: 13, color: palette.text.muted }}>This unit has no settings of its own: it runs on what reaches it.</div>}
 
-        {own && contract.designInlet && (
+        {view === 'sliders' && own && contract.designInlet && (
           <details style={{ marginTop: 12 }}>
             <summary style={{ ...heading, margin: 0, cursor: 'pointer', listStyle: 'revert' }}>Design conditions</summary>
             <div style={{ fontSize: 12, color: palette.text.muted, lineHeight: 1.5, margin: '6px 0' }}>
