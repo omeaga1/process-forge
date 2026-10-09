@@ -385,7 +385,7 @@ export const NozzlePlacementEditor: React.FC<NozzlePlacementEditorProps> = ({ no
           <div>
             <label style={label}>Faces</label>
             <select
-              style={field}
+              className="pf-select"
               value={selected.position}
               onChange={(e) => commit(updateNozzle(node, selected.id, { position: e.target.value as Side }))}
             >
@@ -398,7 +398,7 @@ export const NozzlePlacementEditor: React.FC<NozzlePlacementEditorProps> = ({ no
           <div>
             <label style={label}>Size</label>
             <select
-              style={field}
+              className="pf-select"
               value={selected.sizeInches}
               onChange={(e) => commit(updateNozzle(node, selected.id, { sizeInches: parseFloat(e.target.value) }))}
             >
@@ -412,7 +412,7 @@ export const NozzlePlacementEditor: React.FC<NozzlePlacementEditorProps> = ({ no
           <div>
             <label style={label}>Flange class</label>
             <select
-              style={field}
+              className="pf-select"
               value={selected.ratingPsi}
               onChange={(e) => commit(updateNozzle(node, selected.id, { ratingPsi: parseInt(e.target.value, 10) }))}
             >

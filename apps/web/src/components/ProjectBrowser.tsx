@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createSimulationProject, type SimulationProject } from '@process-forge/protocol';
-import { useTheme } from '@process-forge/canvas-ui';
+import { useTheme, Button, TabStrip } from '@process-forge/canvas-ui';
 import { draftingRadius, tint } from '@process-forge/theme';
 import {
   Search,
@@ -228,18 +228,6 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
   };
 
   // ---- styles ----------------------------------------------------------------
-  const iconButton: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 28,
-    height: 28,
-    borderRadius: draftingRadius.soft,
-    border: 'none',
-    background: 'transparent',
-    color: palette.text.secondary,
-    cursor: 'pointer'
-  };
   const sectionLabel: React.CSSProperties = {
     fontSize: 11,
     fontWeight: 700,
@@ -382,26 +370,19 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
           <div className="pf-row-actions" style={{ display: 'flex', gap: 2 }} onClick={(e) => e.stopPropagation()}>
             {kind === 'device' && (
               <>
-                <button type="button" title="Rename" aria-label={`Rename ${name}`} style={iconButton} onClick={() => setRenaming({ id, name })}>
-                  <Pencil size={14} />
-                </button>
-                <button type="button" title="Duplicate" aria-label={`Duplicate ${name}`} style={iconButton} onClick={() => duplicate(id)}>
-                  <Copy size={14} />
-                </button>
-                <button type="button" title="Download as a .pfg.json file" aria-label={`Download ${name}`} style={iconButton} onClick={() => download(id)}>
-                  <Download size={14} />
-                </button>
+                <Button size="sm" variant="ghost" iconOnly icon={<Pencil size={14} />} label={`Rename ${name}`} onClick={() => setRenaming({ id, name })} />
+                <Button size="sm" variant="ghost" iconOnly icon={<Copy size={14} />} label={`Duplicate ${name}`} onClick={() => duplicate(id)} />
+                <Button size="sm" variant="ghost" iconOnly icon={<Download size={14} />} label={`Download ${name} as a .pfg.json file`} onClick={() => download(id)} />
               </>
             )}
-            <button
-              type="button"
-              title={isCurrent ? 'Delete this project (it is open: the most recent other one opens instead)' : kind === 'device' ? 'Delete from this device' : 'Delete from the cloud'}
-              aria-label={`Delete ${name}`}
-              style={iconButton}
+            <Button
+              size="sm"
+              variant="ghost"
+              iconOnly
+              icon={<Trash2 size={14} />}
+              label={isCurrent ? 'Delete this project (it is open: the most recent other one opens instead)' : kind === 'device' ? 'Delete from this device' : 'Delete from the cloud'}
               onClick={() => setConfirmDelete(`${kind}:${id}`)}
-            >
-              <Trash2 size={14} />
-            </button>
+            />
           </div>
         )}
       </div>
@@ -426,34 +407,6 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
       {icon}
       {text}
     </span>
-  );
-
-  const tabButton = (t: Tab, label: string, icon: React.ReactNode, n: number | null) => (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={tab === t}
-      onClick={() => setTab(t)}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        height: 34,
-        padding: '0 4px',
-        marginRight: 16,
-        border: 'none',
-        borderBottom: `2px solid ${tab === t ? palette.jade[500] : 'transparent'}`,
-        background: 'transparent',
-        color: tab === t ? palette.text.primary : palette.text.secondary,
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: 'pointer'
-      }}
-    >
-      {icon}
-      {label}
-      {n !== null && <span style={{ color: palette.text.muted, fontWeight: 500 }}>{n}</span>}
-    </button>
   );
 
   const body = (
@@ -560,8 +513,16 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
       <div style={{ flex: '999 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ padding: '10px 16px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div role="tablist" style={{ display: 'flex', flex: 1 }}>
-            {tabButton('device', 'This computer', <HardDrive size={14} />, local.length)}
-            {tabButton('cloud', 'Cloud', <Cloud size={14} />, signedIn ? cloud.records.length : null)}
+            <TabStrip
+              label="Where projects are kept"
+              value={tab}
+              onValueChange={setTab}
+              style={{ borderBottom: 'none' }}
+              items={[
+                { value: 'device', icon: <HardDrive size={14} />, label: <>This computer <span style={{ color: palette.text.muted, fontWeight: 500 }}>{local.length}</span></> },
+                { value: 'cloud', icon: <Cloud size={14} />, label: <>Cloud {signedIn && <span style={{ color: palette.text.muted, fontWeight: 500 }}>{cloud.records.length}</span>}</> }
+              ]}
+            />
           </div>
           <label
             style={{
@@ -756,7 +717,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
           }}
         >
           <div style={{ fontSize: 15, fontWeight: 700, color: palette.text.primary }}>Projects</div>
-          <button type="button" aria-label="Close" onClick={onClose} style={iconButton}>
+          <button type="button" className="pf-btn" data-variant="ghost" data-size="md" data-icon-only="" aria-label="Close" onClick={onClose}>
             <X size={16} />
           </button>
         </div>

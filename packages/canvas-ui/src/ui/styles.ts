@@ -115,6 +115,18 @@ export const UI_CSS = `
 .pf-input:hover { border-color: var(--pf-border-strong); }
 .pf-input:focus { border-color: var(--pf-jade-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-jade-500) 22%, transparent); }
 
+.pf-select {
+  box-sizing: border-box; width: 100%; height: 34px; padding: 0 30px 0 10px; border-radius: 6px; cursor: pointer;
+  appearance: none; -webkit-appearance: none;
+  border: 1px solid var(--pf-border-default); background-color: var(--pf-bg-surface-elevated); color: var(--pf-text-primary);
+  background-image: linear-gradient(45deg, transparent 50%, var(--pf-text-muted) 50%), linear-gradient(135deg, var(--pf-text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+  font: 400 13px/1 ${fontFamily.sans}; outline: none; transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.pf-select:hover { border-color: var(--pf-border-strong); }
+.pf-select:focus { border-color: var(--pf-jade-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-jade-500) 22%, transparent); }
+select option, select optgroup { background-color: var(--pf-bg-surface-elevated); color: var(--pf-text-primary); }
+
 .pf-chip {
   display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--pf-border-default); background: transparent; color: var(--pf-text-secondary);

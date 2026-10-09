@@ -393,7 +393,8 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
                   id="pf-openrouter-model"
                   value={creds.modelId || OPENROUTER_MODELS.defaultModel}
                   onChange={(e) => setCreds({ ...creds, modelId: e.target.value })}
-                  style={{ ...input, fontWeight: 600, cursor: 'pointer' }}
+                  className="pf-select"
+                  style={{ fontWeight: 600 }}
                 >
                   {creds.modelId && !isListedModel(creds.modelId) && <option value={creds.modelId}>{creds.modelId}</option>}
                   {OPENROUTER_MODELS.models.map((m) => (

@@ -150,7 +150,7 @@ export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, 
           {mine.length > 0 && (
             <label>
               <span style={label}>Publish as</span>
-              <select value={target} onChange={(e) => setTarget(e.target.value)} style={field}>
+              <select value={target} onChange={(e) => setTarget(e.target.value)} className="pf-select">
                 <option value="new">A new listing</option>
                 {mine.map((i) => (
                   <option key={i.id} value={i.id}>
@@ -179,7 +179,7 @@ export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <label style={{ flex: '1 1 200px' }}>
               <span style={label}>Category</span>
-              <select value={category} onChange={(e) => setCategory(e.target.value as Category)} style={field}>
+              <select value={category} onChange={(e) => setCategory(e.target.value as Category)} className="pf-select">
                 {CATEGORIES.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.label}
