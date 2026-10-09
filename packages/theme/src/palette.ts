@@ -218,10 +218,10 @@ export const OsakaJadeLightPalette: ThemePalette = {
   // Industrial Machine Status & Flow Dynamics (Light mode calibrated)
   status: {
     busy: '#1b7a54', // Deep Emerald Jade: Machine running normally
-    starved: '#0284c7', // Sky Cyan: Machine starved, waiting for infeed
+    starved: '#075985', // Deep sky: machine starved, waiting for infeed; 4.5:1 or better on light surfaces and on its badge tint (WCAG AA)
     blocked: '#804a04', // Amber: machine blocked by backpressure; 4.5:1 or better on every light surface and on its own tint (WCAG AA)
     failed: '#a51818', // Crimson: machine stopped by a fault; 4.5:1 or better on light surfaces and on its own tint (WCAG AA)
-    idle: '#64748b' // Cool Slate: Machine offline / unconfigured
+    idle: '#4b5868' // Slate: machine offline / unconfigured; 4.5:1 or better on light surfaces and on its badge tint (WCAG AA)
   },
 
   // Canvas Flow Stream Wire Colors
