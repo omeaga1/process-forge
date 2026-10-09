@@ -5,8 +5,10 @@ import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
 import { EquipmentFigure, flangePoint, STUB_PX } from '../../nozzles/EquipmentFigure.js';
 import { drawingSize, layoutNozzles, type Side } from '../../nozzles/nozzleLayout.js';
+import { Lock } from 'lucide-react';
 import {
   clampScale,
+  designSpecsOf,
   effectiveContract,
   layoutTransform,
   nodePortPhase,
@@ -46,6 +48,14 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const k = useLabelScale();
   const nodeData = data as unknown as CanvasNodeData;
   const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, kgPerHour, phase, phaseName, onLayoutChange } = nodeData;
+  const holdNote = useMemo(() => {
+    const holds = designSpecsOf(processNode.config as Record<string, unknown>);
+    if (!holds.length) return null;
+    const c = effectiveContract(processNode);
+    const words = (name: string) => c?.derived.find((d) => d.name === name)?.label ?? name.replace(/^engine\./, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+    const varied = (name: string) => c?.parameters.find((p) => p.name === name)?.label ?? name;
+    return `Holds ${holds.map((h) => `${words(h.result)} at ${h.target} by varying ${varied(h.vary)}`).join('; ')}`;
+  }, [processNode]);
   // A unit with a gas or solid port is read in kg/h: its gallons are not meaningful.
   const byMass = (processNode.outputs ?? []).concat(processNode.inputs ?? []).some((p) => {
     const ph = nodePortPhase(processNode, p.id);
@@ -303,6 +313,12 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
       >
         <div style={{ fontFamily: font.mono, fontSize: size['2xs'], letterSpacing: '0.08em', color: palette.jade[400], fontWeight: weight.bold }}>
           {tag ?? processNode.kind.replace(/_/g, ' ')}
+          {holdNote && (
+            // The unit holds results at targets: say so on the sheet, as a simulator marks a controlled unit.
+            <span role="img" aria-label={holdNote} title={holdNote} style={{ display: 'inline-flex', verticalAlign: '-1px', marginLeft: 5 }}>
+              <Lock size={size['2xs']} strokeWidth={2.5} />
+            </span>
+          )}
         </div>
         <div style={{ fontSize: size.sm, fontWeight: weight.semibold, color: palette.text.primary }}>{title}</div>
         {(state !== 'IDLE' || instantaneousRate > 0 || isLiquid) && (
