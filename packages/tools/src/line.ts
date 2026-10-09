@@ -51,6 +51,9 @@ export interface SimulationResultPayload {
   /** Liquid that left the line, gallons and kg. */
   liquidOutGallons: number;
   liquidOutKg: number;
+  /** Liquid that reached a product outlet while an ERROR check upstream was broken: diverted, not in liquidOut. */
+  offSpecGallons?: number;
+  offSpecKg?: number;
   identifiedBottleneckNodeId: string;
   identifiedBottleneckMachine: string;
   machineMetrics: Array<{
@@ -195,6 +198,13 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
         ? ` ${result.totalFluidDeliveredKg} kg of product left the line (${perHour(result.totalFluidDeliveredKg)} kg/h): ${products.map((t) => `${t.kg} kg of ${t.material}${t.phase ? ` (${t.phase.toLowerCase()})` : ''}`).join('; ')}.`
         : ` ${result.totalFluidDeliveredGallons} gal (${result.totalFluidDeliveredKg} kg) of liquid product left the line.`
       : '';
+  const offSpec =
+    result.totalFluidOffSpecKg > 0
+      ? ` ${result.totalFluidOffSpecGallons} gal (${result.totalFluidOffSpecKg} kg) more reached ${products
+          .filter((t) => t.offSpecKg)
+          .map((t) => `"${t.name}"`)
+          .join(', ')} off spec (made while a unit upstream had an ERROR check broken) and was diverted: it is not counted above.`
+      : '';
   const amount = (t: TerminalReport) =>
     t.carries === 'items' ? `${t.units} items` : t.phase === 'GAS' || t.phase === 'SOLID' ? `${t.kg} kg (${t.phase.toLowerCase()})` : `${t.gallons} gal`;
   const sides = result.terminals.filter((t) => t.role === 'byproduct' || t.role === 'waste');
@@ -203,7 +213,7 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
   const fed = feeds.length ? ` Fed: ${feeds.map((t) => `${amount(t)} of ${t.material}`).join('; ')}.` : '';
   // A liquid-only line finishes no items: say what it did make.
   const items = result.totalUnitsPackaged > 0 || !liquid ? ` ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.` : '';
-  const diagnosis = `Simulated ${duration} minutes:${items}${liquid}${fed}${side}${notes.length ? ` ${notes.join(' ')}` : ''} ${bottleneckAdvice(
+  const diagnosis = `Simulated ${duration} minutes:${items}${liquid}${offSpec}${fed}${side}${notes.length ? ` ${notes.join(' ')}` : ''} ${bottleneckAdvice(
     bottleneckNode,
     bottleneckRate,
     graph,
@@ -221,6 +231,7 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
     overallThroughputPpm: result.averageLineThroughputUnitsPerMin,
     liquidOutGallons: result.totalFluidDeliveredGallons,
     liquidOutKg: result.totalFluidDeliveredKg,
+    ...(result.totalFluidOffSpecKg > 0 ? { offSpecGallons: result.totalFluidOffSpecGallons, offSpecKg: result.totalFluidOffSpecKg } : {}),
     identifiedBottleneckNodeId: bottleneckId,
     identifiedBottleneckMachine: bottleneckNode ? bottleneckNode.name : bottleneckId,
     machineMetrics,

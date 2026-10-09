@@ -76,6 +76,12 @@ export interface Parcel {
   /** kJ/kg·K. */
   cp: number;
   comp: Composition;
+  /**
+   * Mass fraction made while a unit it passed through had an ERROR check
+   * broken (a holding tube short of its F0, a heater below its target): the
+   * share a plant would divert rather than ship. Mixes by mass like the rest.
+   */
+  offSpec?: number;
 }
 
 const emptyParcel = (): Parcel => ({ kg: 0, m3: 0, tempC: AMBIENT_C, cp: DEFAULT_SPECIFIC_HEAT, comp: {} });
@@ -106,6 +112,9 @@ function mixInto(a: Parcel, b: Parcel): void {
       if (v > 0) comp[k] = v;
     }
     a.comp = comp;
+    const off = ((a.offSpec ?? 0) * a.kg + (b.offSpec ?? 0) * b.kg) / kg;
+    if (off > 0) a.offSpec = off;
+    else delete a.offSpec;
   }
   a.kg = kg;
   a.m3 += b.m3;
@@ -121,7 +130,7 @@ function takeFrom(a: Parcel, m3: number): Parcel {
     a.m3 = 0;
     a.kg = 0;
   }
-  return { kg, m3: v, tempC: a.tempC, cp: a.cp, comp: { ...a.comp } };
+  return { kg, m3: v, tempC: a.tempC, cp: a.cp, comp: { ...a.comp }, ...(a.offSpec ? { offSpec: a.offSpec } : {}) };
 }
 
 /** kg/m³ of a holdup, or of what would arrive when it is empty. */
@@ -211,6 +220,8 @@ export interface MaterialUnit {
   /** A batch unit: what each inlet port has charged into the batch in hand, and the seconds it has spent filling. */
   chargedByPort: Record<string, Parcel>;
   fillSeconds: number;
+  /** A pass-through with an ERROR check broken at this tick's evaluation: what it sends now is off spec. */
+  offSpecNow?: boolean;
   /** A unit with channels: what each channel holds, by its inlet port, kept apart from the others. */
   channelHold: Record<string, Parcel>;
   /** Mass in and out this tick, kg/s. */
@@ -666,6 +677,7 @@ export class MaterialNetwork {
       if (!run.firstError) run.firstError = `${ev.error.path}: ${ev.error.message}`;
       return;
     }
+    u.offSpecNow = ev.constraints.some((c) => !c.satisfied && c.severity === 'ERROR');
     for (const c of ev.constraints) {
       if (c.satisfied) continue;
       const t = run.broken[c.id] ?? (run.broken[c.id] = { message: c.message, severity: c.severity, seconds: 0 });
@@ -1003,6 +1015,7 @@ export class MaterialNetwork {
         if (!this.outEdges.has(u.id) || (u.role === 'batch' && plan.unpipedShare > 0)) {
           sent = Number.isFinite(offer) ? offer : 0;
           const parcel = this.take(u, source, sent);
+          if (u.offSpecNow) parcel.offSpec = 1;
           sentKg = parcel.kg;
           mixInto(u.leftLine, parcel);
           mixInto(u.heat.sent, parcel);
@@ -1030,6 +1043,7 @@ export class MaterialNetwork {
         // (an unrated mixer, an outlet): the pipes' design flow is the limit.
         if (!Number.isFinite(total)) total = this.pipeDesignRate(u) * dt;
         const parcel = this.take(u, source, total);
+        if (u.offSpecNow) parcel.offSpec = 1;
         sentKg = parcel.kg;
         const kgPerM3 = parcel.m3 > 0 ? parcel.kg / parcel.m3 : 0;
         for (const [i, o] of outs.entries()) {
@@ -1041,7 +1055,7 @@ export class MaterialNetwork {
           // Mass splits by the plan; a port that states its phase gets the volume of that phase.
           const kg = v * kgPerM3;
           const rho = this.portDensity(u, o.port, comp, tempC);
-          const piece: Parcel = { kg, m3: rho ? kg / rho : v, tempC, cp: parcel.cp, comp };
+          const piece: Parcel = { kg, m3: rho ? kg / rho : v, tempC, cp: parcel.cp, comp, ...(parcel.offSpec ? { offSpec: parcel.offSpec } : {}) };
           this.receive(o.target, piece, dt, o.targetPort);
           mixInto(u.heat.sent, piece);
           tallyPort(u, o.port, piece);

@@ -864,6 +864,8 @@ export class SimulationEngine {
     let totalScrapped = 0;
     let fluidOutM3 = 0;
     let fluidOutKg = 0;
+    let offSpecM3 = 0;
+    let offSpecKg = 0;
     const terminals: TerminalReport[] = [];
 
     for (const [nodeId, r] of this.nodes.entries()) {
@@ -930,14 +932,20 @@ export class SimulationEngine {
           gallons: moved ? round1(gallonsOf(moved)) : 0,
           kg: moved ? round1(moved.kg) : 0,
           ...(moved && moved.m3 > 1e-9 ? { temperatureC: round1(moved.tempC) } : {}),
-          ...(moved && componentKg(moved) ? { componentsKg: componentKg(moved) } : {})
+          ...(moved && componentKg(moved) ? { componentsKg: componentKg(moved) } : {}),
+          ...(r.terminal === 'product' && moved?.offSpec
+            ? { offSpecKg: round1(moved.kg * moved.offSpec), offSpecGallons: round1(gallonsOf(moved) * moved.offSpec) }
+            : {})
         };
         terminals.push(report);
         nodeReports[nodeId]!.terminal = report;
         if (r.terminal === 'product') {
           totalPackaged += report.units;
-          fluidOutM3 += unit?.received.m3 ?? 0;
-          fluidOutKg += unit?.received.kg ?? 0;
+          const off = unit?.received.offSpec ?? 0;
+          fluidOutM3 += (unit?.received.m3 ?? 0) * (1 - off);
+          fluidOutKg += (unit?.received.kg ?? 0) * (1 - off);
+          offSpecM3 += (unit?.received.m3 ?? 0) * off;
+          offSpecKg += (unit?.received.kg ?? 0) * off;
         }
         continue;
       }
@@ -963,6 +971,8 @@ export class SimulationEngine {
       averageLineThroughputUnitsPerMin: durationMinutes > 0 ? Math.round((totalPackaged / durationMinutes) * 10) / 10 : 0,
       totalFluidDeliveredGallons: round1(fluidOutM3 / M3_PER_GALLON),
       totalFluidDeliveredKg: round1(fluidOutKg),
+      totalFluidOffSpecGallons: round1(offSpecM3 / M3_PER_GALLON),
+      totalFluidOffSpecKg: round1(offSpecKg),
       terminals,
       nodeReports,
       telemetryLog: this.telemetry
