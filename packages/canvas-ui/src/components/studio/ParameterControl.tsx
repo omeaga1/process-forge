@@ -276,6 +276,7 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
         <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary, display: 'flex', alignItems: 'center', gap: 6 }}>
           {here && kind !== 'fixed' && (
             <span
+              role="img"
               aria-label={here === 'ok' ? 'every check passes here' : here === 'warning' ? 'a check warns here' : 'a check fails here'}
               title={here === 'ok' ? 'Every check passes at this value' : here === 'warning' ? 'A check warns at this value' : 'A check fails at this value'}
               style={{ width: 7, height: 7, borderRadius: 4, flex: '0 0 auto', backgroundColor: statusColor(here) }}

@@ -181,6 +181,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
             {/* Clean Dropdown for Presets */}
             <select
               className="pf-select"
+              aria-label="Start the drawing from a template"
               value=""
               onChange={(e) => {
                 if (e.target.value) {
@@ -287,10 +288,10 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
             {/* Agitator Selection */}
             <div>
-              <label style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
+              <label htmlFor="pf-dressing-1" style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
                 Agitator Impeller
               </label>
-              <select
+              <select id="pf-dressing-1"
                 className="pf-select"
                 value={dressing.internals.agitatorType}
                 onChange={(e) => handleUpdateInternals({ agitatorType: e.target.value as any })}
@@ -305,10 +306,10 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
 
             {/* Utility Jacket Toggle */}
             <div>
-              <label style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
+              <label htmlFor="pf-dressing-2" style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
                 Thermal Jacket
               </label>
-              <select
+              <select id="pf-dressing-2"
                 className="pf-select"
                 value={dressing.internals.hasJacket ? dressing.internals.jacketType : 'none'}
                 onChange={(e) => {
@@ -330,10 +331,10 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
 
             {/* Wall Baffles */}
             <div>
-              <label style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
+              <label htmlFor="pf-dressing-3" style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
                 Anti-Swirl Wall Baffles
               </label>
-              <select
+              <select id="pf-dressing-3"
                 className="pf-select"
                 value={dressing.internals.baffleCount}
                 onChange={(e) => handleUpdateInternals({ baffleCount: parseInt(e.target.value, 10) })}
@@ -346,10 +347,10 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
 
             {/* Demister Pad */}
             <div>
-              <label style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
+              <label htmlFor="pf-dressing-4" style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
                 Demister / Mist Eliminator
               </label>
-              <select
+              <select id="pf-dressing-4"
                 className="pf-select"
                 value={dressing.internals.hasDemister ? 'yes' : 'no'}
                 onChange={(e) => handleUpdateInternals({ hasDemister: e.target.value === 'yes' })}
