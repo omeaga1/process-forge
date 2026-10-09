@@ -35,6 +35,11 @@ jobs:
       - name: Run Protocol & Simulation Test Suites
         run: pnpm run test
 
+      # Unit tests run the source; this loads what ships (the built web app, also the
+      # desktop app's window) in a browser, as the public site and as the desktop app.
+      - name: Smoke-test the built app
+        run: pnpm exec playwright install --with-deps chromium && pnpm --filter @process-forge/web run smoke
+
       # The npm package is one bundled file; check that it runs on its own
       # (MCP handshake over stdio, tools listed) before anyone publishes it.
       - name: Bundle & smoke-test the MCP server package
