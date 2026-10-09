@@ -73,6 +73,16 @@ function allResults(contract: UnitOpContract, evaluation: UnitOpEvaluation, engi
 /** The results a setting moves: through the contract's equations, and through the engine's figures. */
 const movedBy = (props: Pick<SpecSheetProps, 'influence' | 'engineMovers'>, param: string) => [...(props.influence.derived[param] ?? []), ...(props.engineMovers[param] ?? [])];
 
+/** Enter commits a typed value and moves to the next specification, as in a spreadsheet; Shift+Enter moves back. */
+function nextOnEnter(e: React.KeyboardEvent<HTMLTableElement>) {
+  const el = e.target as HTMLElement;
+  if (e.key !== 'Enter' || el.tagName !== 'INPUT' || !el.closest('[data-spec-value]')) return;
+  const fields = [...e.currentTarget.querySelectorAll<HTMLInputElement>('[data-spec-value] input')];
+  const next = fields[fields.indexOf(el as HTMLInputElement) + (e.shiftKey ? -1 : 1)];
+  // After the field has committed its value.
+  if (next) setTimeout(() => next.focus(), 0);
+}
+
 export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
   const { contract, evaluation, groups, baselineDerived, unitFor, setUnit } = props;
   const { palette, font, radius: r } = useTheme();
@@ -124,7 +134,7 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
   return (
     <div>
       {contract.parameters.length > 0 && (
-        <table style={table}>
+        <table style={table} onKeyDown={nextOnEnter}>
           <caption style={hidden}>Specifications</caption>
           {cols}
           <thead>
@@ -361,7 +371,7 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
           {p.label}
         </span>
       </th>
-      <td style={{ ...td, textAlign: 'right' }}>{value}</td>
+      <td data-spec-value style={{ ...td, textAlign: 'right' }}>{value}</td>
       <td style={td}>{kind === 'toggle' || kind === 'select' ? null : <UnitCell label={p.label} unit={p.unit} shown={du} choices={choices} onPick={(u) => setUnit(p.unit, u)} />}</td>
       <td style={{ ...td, whiteSpace: 'nowrap', fontSize: 12 }}>{passes}</td>
       <td style={{ ...td, padding: '3px 4px' }}>

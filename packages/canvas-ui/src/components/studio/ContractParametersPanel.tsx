@@ -371,7 +371,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
         ref={refFor('settings')}
         id="settings"
         title="Settings"
-        hint={view === 'sheet' ? 'Type a value in any unit of its kind; green rows pass.' : 'Each knob shows where along its range the design passes.'}
+        hint={view === 'sheet' ? 'Type a value in any unit of its kind; Enter moves to the next.' : 'Each knob shows where along its range the design passes.'}
       >
         {contract.parameters.length > 0 && (
           <div role="group" aria-label="Show settings as" style={{ display: 'inline-flex', alignSelf: 'flex-start', gap: 2, padding: 2, margin: '2px 0 6px', borderRadius: r.md, border: `1px solid ${palette.border.default}` }}>
