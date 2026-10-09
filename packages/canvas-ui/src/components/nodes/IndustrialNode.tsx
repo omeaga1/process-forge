@@ -289,19 +289,22 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         style={{
           marginTop: hasBottomNozzle ? 10 : -6,
           textAlign: 'center',
+          // Grown by a transform, not a font size: the node keeps its measured size, so zooming never re-routes the pipes around it.
+          ...(k !== 1 ? { transform: `scale(${k})`, transformOrigin: 'top center' } : {}),
           maxWidth: Math.max(180, width + PAD * 2),
           lineHeight: 1.25,
           padding: '2px 8px',
           borderRadius: r.md,
-          backgroundColor: palette.background.canvas,
+          // Enlarged, it spreads past the room the pipes keep clear of it: translucent then, so a pipe behind it still shows.
+          backgroundColor: k > 1 ? `${palette.background.canvas}b3` : palette.background.canvas,
           position: 'relative',
           zIndex: 2
         }}
       >
-        <div style={{ fontFamily: font.mono, fontSize: size['2xs'] * k, letterSpacing: '0.08em', color: palette.jade[400], fontWeight: weight.bold }}>
+        <div style={{ fontFamily: font.mono, fontSize: size['2xs'], letterSpacing: '0.08em', color: palette.jade[400], fontWeight: weight.bold }}>
           {tag ?? processNode.kind.replace(/_/g, ' ')}
         </div>
-        <div style={{ fontSize: size.sm * k, fontWeight: weight.semibold, color: palette.text.primary }}>{title}</div>
+        <div style={{ fontSize: size.sm, fontWeight: weight.semibold, color: palette.text.primary }}>{title}</div>
         {(state !== 'IDLE' || instantaneousRate > 0 || isLiquid) && (
           <div
             style={{
