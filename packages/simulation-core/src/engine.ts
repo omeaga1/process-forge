@@ -129,13 +129,15 @@ function gasVolumes(kgPerS: number, molarMass: number, tempC: number): { acfm: n
 
 /**
  * What each outlet port is sending right now: kg/h and °C, and ACFM for a gas.
- * For phase-aware units and units with several liquid outlets (an
- * exchanger's two sides), where one figure for the unit would mislead.
+ * For phase-aware units, units with several liquid outlets (an exchanger's
+ * two sides), and units that set their outlet's temperature (a heater): there
+ * one figure for the unit (what it holds, the inlet's state) would mislead.
  */
 function portFlowsNow(contract: UnitOpContract | undefined, tick: Record<string, Parcel>): NodeTelemetrySnapshot['portFlows'] {
   if (!contract) return undefined;
   const severalOutlets = contract.ports.filter((p) => p.direction === 'OUTLET' && p.flowDimension === 'CONTINUOUS_FLUID').length > 1;
-  if (!isPhaseAware(contract) && !severalOutlets) return undefined;
+  const setsOutletTemperature = contract.outlets?.some((o) => o.temperatureC !== undefined) ?? false;
+  if (!isPhaseAware(contract) && !severalOutlets && !setsOutletTemperature) return undefined;
   const out: NonNullable<NodeTelemetrySnapshot['portFlows']> = {};
   for (const port of contract.ports) {
     const p = tick[port.id];
