@@ -65,8 +65,8 @@ describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
     assert.equal(OsakaJadeLightPalette.text.primary, '#1e2922'); // Forest pine charcoal
     assert.equal(OsakaJadeLightPalette.status.busy, '#1b7a54'); // Deep emerald
     assert.equal(OsakaJadeLightPalette.status.starved, '#0284c7'); // Sky cyan
-    assert.equal(OsakaJadeLightPalette.status.blocked, '#8f5306'); // Amber, deep enough to read as text
-    assert.equal(OsakaJadeLightPalette.status.failed, '#b91c1c'); // Crimson, deep enough to read as text
+    assert.equal(OsakaJadeLightPalette.status.blocked, '#804a04'); // Amber, deep enough to read as text, even on its own tint
+    assert.equal(OsakaJadeLightPalette.status.failed, '#a51818'); // Crimson, deep enough to read as text, even on its own tint
   });
 
   it('keeps text readable: muted text and the amber meet WCAG AA (4.5:1) on every surface, both themes', () => {
@@ -89,6 +89,13 @@ describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
     for (const bg of [L.background.base, L.background.canvas, L.background.surface, L.background.surfaceElevated]) {
       for (const [what, fg] of [['accent', L.text.accent], ['glow', L.jade.glow], ['failed', L.status.failed], ['blocked', L.status.blocked]] as const) {
         assert.ok(ratio(fg, bg) >= 4.5, `light ${what} ${fg} on ${bg}: ${ratio(fg, bg).toFixed(2)}`);
+      }
+      // Chips and badges set a colour's text on that colour's own tint (up to 16 %), or on the jade tint for accents.
+      const mix = (fg: string, base: string, a: number) =>
+        '#' + [1, 3, 5].map((i) => Math.round(parseInt(fg.slice(i, i + 2), 16) * a + parseInt(base.slice(i, i + 2), 16) * (1 - a)).toString(16).padStart(2, '0')).join('');
+      for (const [what, fg, tintOf] of [['failed', L.status.failed, L.status.failed], ['blocked', L.status.blocked, L.status.blocked], ['glow', L.jade.glow, L.jade[500]], ['accent', L.text.accent, L.jade[500]]] as const) {
+        const under = mix(tintOf, bg, 0.16);
+        assert.ok(ratio(fg, under) >= 4.5, `light ${what} ${fg} on its tint over ${bg}: ${ratio(fg, under).toFixed(2)}`);
       }
     }
   });
