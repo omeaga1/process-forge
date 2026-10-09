@@ -98,7 +98,18 @@ const times = (a: Dimension, b: Dimension, k = 1): Dimension => D(a[0] + k * b[0
  * Engineering convention: everything after the first "/" is the denominator,
  * so "kJ/kg-K" and "W/m2-K" read as kJ/(kg·K) and W/(m²·K).
  */
+// The same few units are parsed over and over (every row of a unit's sheet, every redraw): remember them.
+const parsed = new Map<string, Dimension | null>();
+
 export function parseUnit(unit: string): Dimension | null {
+  const hit = parsed.get(unit);
+  if (hit !== undefined || parsed.has(unit)) return hit ?? null;
+  const d = parseUnitUncached(unit);
+  if (parsed.size < 2000) parsed.set(unit, d ? (Object.freeze(d) as Dimension) : d);
+  return d;
+}
+
+function parseUnitUncached(unit: string): Dimension | null {
   const u = unit.trim();
   if (u === '' || u === '-' || u === '1') return DIMENSIONLESS;
   if (Object.prototype.hasOwnProperty.call(ATOMS, u)) return ATOMS[u]!;
