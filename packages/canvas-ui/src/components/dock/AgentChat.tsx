@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, CircleSlash, Eye, Loader2, PencilLine, Square, X, ArrowUp, Hand, ShieldCheck, Workflow } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
+import { Button, Tooltip } from '../../ui/index.js';
 import { loadLlmCredentials } from '../../ai/aiModelManager.js';
 import { runAgent, type AgentMessage, type ApprovalRequest } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
@@ -48,19 +49,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
     fontSize: 10.5,
     fontWeight: 600,
     whiteSpace: 'nowrap'
-  });
-  const iconButton = (bg: string, fg: string, border: string): React.CSSProperties => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 28,
-    height: 28,
-    borderRadius: 2,
-    border: `1px solid ${border}`,
-    background: bg,
-    color: fg,
-    cursor: 'pointer',
-    flexShrink: 0
   });
   const [lines, setLines] = useState<Line[]>([]);
   const [input, setInput] = useState('');
@@ -199,21 +187,12 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
             <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: palette.jade[400] }}>Change to the flowsheet</div>
             <div style={{ fontSize: 12.5, color: palette.text.primary, lineHeight: 1.45 }}>{pending.summary}</div>
             <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => decide(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 6, border: 'none', background: palette.jade[500], color: palette.text.inverse, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-              >
-                <Check size={13} /> Approve
-              </button>
-              <button
-                type="button"
-                onClick={() => decide(false)}
-                style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${palette.border.default}`, background: 'transparent', color: palette.text.secondary, fontSize: 12, cursor: 'pointer' }}
-              >
+              <Button variant="primary" size="sm" autoFocus icon={<Check size={13} />} onClick={() => decide(true)}>
+                Approve
+              </Button>
+              <Button size="sm" onClick={() => decide(false)}>
                 Decline
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -253,12 +232,11 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
             style={{ display: 'block', width: '100%', boxSizing: 'border-box', resize: 'none', background: 'transparent', border: 'none', padding: '9px 10px 4px', color: palette.text.primary, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px 6px 8px' }}>
-            <span
-              title="Reading, simulating, what-ifs and design checks run straight away; every change to the flowsheet waits for your approval."
-              style={chip(palette.text.secondary)}
-            >
-              <Hand size={11} /> Asks before changes
-            </span>
+            <Tooltip content="Reading, simulating, what-ifs and design checks run straight away; every change to the flowsheet waits for your approval.">
+              <span tabIndex={0} className="pf-focus" style={chip(palette.text.secondary)}>
+                <Hand size={11} /> Asks before changes
+              </span>
+            </Tooltip>
             <button
               type="button"
               aria-pressed={jevOn}
@@ -275,20 +253,9 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
               {modelLabel}
             </span>
             {busy ? (
-              <button type="button" onClick={stop} title="Stop" aria-label="Stop" style={iconButton(palette.background.surface, palette.text.secondary, palette.border.default)}>
-                <Square size={11} />
-              </button>
+              <Button size="sm" iconOnly icon={<Square size={11} />} label="Stop" onClick={stop} />
             ) : (
-              <button
-                type="button"
-                onClick={() => send(input)}
-                disabled={!input.trim()}
-                title="Send (Enter)"
-                aria-label="Send"
-                style={iconButton(input.trim() ? palette.jade[500] : palette.background.surface, input.trim() ? palette.text.inverse : palette.text.muted, input.trim() ? palette.jade[500] : palette.border.default)}
-              >
-                <ArrowUp size={14} />
-              </button>
+              <Button variant="primary" size="sm" iconOnly icon={<ArrowUp size={14} />} label="Send · Enter" onClick={() => send(input)} disabled={!input.trim()} />
             )}
           </div>
         </div>
