@@ -4,6 +4,7 @@ import {
   engineInfluence,
   isTemperatureDifference,
   resultsOf,
+  solveForTarget,
   evaluateUnitOp,
   parameterInfluence,
   physicsAlignment,
@@ -20,7 +21,7 @@ import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { controlFor, displayUnitsFor, formatQuantity, groupParameters, isConstantParameter, unitPreferenceKey } from '../../model/parameterUi.js';
 import { FEASIBLE_RANGE_CSS, ParameterControl } from './ParameterControl.js';
-import { SpecSheet } from './SpecSheet.js';
+import { SpecSheet, type HeldSpec } from './SpecSheet.js';
 import { engineLabel, engineValue, ExpressionView, PhysicsSection, Section, SectionNav, SpecHeader, StreamsSection, type Lookup, type SectionId } from './UnitSpecSections.js';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 
@@ -179,7 +180,28 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
   const labelOf = (name: string) => contract.parameters.find((p) => p.name === name)?.label ?? contract.derived.find((d) => d.name === name)?.label ?? name;
   const paramOf = (name: string) => contract.parameters.find((p) => p.name === name);
 
-  const writeParams = (values: Record<string, number>) => {
+  // Results the engineer holds at a target by varying one setting: re-solved on every edit, like a simulator's design spec.
+  const holds: HeldSpec[] = Array.isArray(config.designSpecs) ? (config.designSpecs as HeldSpec[]) : [];
+  const solveHolds = (values: Record<string, number>, design?: UnitOpDesignStream, list: HeldSpec[] = holds): Record<string, number> => {
+    if (!list.length) return values;
+    const out = { ...values };
+    let trial: UnitOpContract = {
+      ...contract,
+      parameters: contract.parameters.map((p) => (p.name in out ? { ...p, value: out[p.name]! } : p)),
+      ...(design ? { designInlet: design } : {})
+    };
+    for (const h of list) {
+      const solved = solveForTarget(trial, h.result, h.target, h.vary);
+      if (!solved) continue;
+      out[h.vary] = solved.value;
+      trial = { ...trial, parameters: trial.parameters.map((p) => (p.name === h.vary ? { ...p, value: solved.value } : p)) };
+    }
+    return out;
+  };
+
+  const writeParams = (asked: Record<string, number>, list: HeldSpec[] = holds) => {
+    const values = solveHolds(asked, undefined, list);
+    const specs = list === holds ? {} : { designSpecs: list };
     if (own) {
       const confirmed = new Set(contract.provenance.engineerConfirmed ?? []);
       for (const k of Object.keys(values)) confirmed.add(k);
@@ -189,17 +211,26 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
         // The engineer set these by hand: the contract's provenance says so.
         provenance: { ...contract.provenance, engineerConfirmed: [...confirmed] }
       };
-      onUpdateConfig(node.id, { ...config, contract: next, ...values });
+      onUpdateConfig(node.id, { ...config, contract: next, ...values, ...specs });
     } else {
       // A standard unit's contract is built from its config, key for key.
-      onUpdateConfig(node.id, { ...config, ...values });
+      onUpdateConfig(node.id, { ...config, ...values, ...specs });
     }
   };
+  const hold = (h: HeldSpec) => writeParams({}, [...holds.filter((x) => x.vary !== h.vary && x.result !== h.result), h]);
+  const release = (vary: string) => writeParams({}, holds.filter((x) => x.vary !== vary));
   const setParam = (name: string, value: number) => writeParams({ [name]: value });
   const setDesign = (patch: Partial<UnitOpDesignStream>) => {
     if (!own) return;
-    const next: UnitOpContract = { ...contract, designInlet: { ...(contract.designInlet ?? {}), ...patch } };
-    onUpdateConfig(node.id, { ...config, contract: next });
+    const design = { ...(contract.designInlet ?? {}), ...patch };
+    // A new feed moves the held results: re-solve them with it.
+    const values = solveHolds({}, design);
+    const next: UnitOpContract = {
+      ...contract,
+      designInlet: design,
+      parameters: contract.parameters.map((p) => (p.name in values ? { ...p, value: values[p.name]! } : p))
+    };
+    onUpdateConfig(node.id, { ...config, contract: next, ...values });
   };
 
   const changed = contract.parameters.filter((p) => baseline.current!.params[p.name] !== undefined && baseline.current!.params[p.name] !== p.value);
@@ -468,6 +499,9 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
             onHoverParam={(name) => setHover(name ? { param: name } : {})}
             flash={flash}
             onFlash={setFlash}
+            holds={holds}
+            onHold={hold}
+            onRelease={release}
             {...(own && contract.designInlet
               ? {
                   feed: {
