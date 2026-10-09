@@ -318,7 +318,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           const kgPerHour = bulk && telemetry.simulatedTimeSeconds > 0 ? ((telemetry.productKg ?? 0) / telemetry.simulatedTimeSeconds) * 3600 : 0;
           const cell = (label: string, unit: string, flap: React.ReactNode, title?: string) => (
             <div title={title} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: font.mono }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: font.mono }}>
                 {label}
               </span>
               <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
@@ -410,7 +410,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, marginBottom: 4, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>{msg.senderTitle}</span>
                 {!isUser && msg.modelBadge && (
-                  <span style={{ padding: '1px 6px', borderRadius: 999, fontSize: 9.5, fontWeight: 600, backgroundColor: tint(palette.text.primary, 0.06), color: OsakaJadePalette.text.muted }}>{msg.modelBadge}</span>
+                  <span style={{ padding: '1px 6px', borderRadius: 999, fontSize: 10, fontWeight: 600, backgroundColor: tint(palette.text.primary, 0.06), color: OsakaJadePalette.text.muted }}>{msg.modelBadge}</span>
                 )}
                 <span>{msg.timestamp}</span>
               </div>

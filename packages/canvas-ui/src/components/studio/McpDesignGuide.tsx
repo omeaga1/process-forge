@@ -64,7 +64,7 @@ export const McpDesignGuide: React.FC = () => {
                   border: `1px solid ${D.semantic.ok}`,
                   color: D.semantic.ok,
                   borderRadius: draftingRadius.sharp,
-                  fontSize: '0.7rem',
+                  fontSize: 11,
                   fontWeight: 600,
                   ...D.data
                 }}
@@ -118,16 +118,16 @@ export const McpDesignGuide: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '0.72rem',
+                fontSize: 11,
                 fontWeight: 700
               }}
             >
               {i + 1}
             </span>
-            <div style={{ fontSize: '0.8rem', color: P.text.secondary, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13, color: P.text.secondary, lineHeight: 1.5 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ color: P.text.primary, fontWeight: 700 }}>{st.title}</span>
-                {st.tool && <code style={{ fontSize: '0.7rem', color: P.text.muted }}>{st.tool}</code>}
+                {st.tool && <code style={{ fontSize: 11, color: P.text.muted }}>{st.tool}</code>}
               </div>
               <div style={{ marginTop: 2 }}>{st.body}</div>
             </div>
@@ -141,7 +141,7 @@ export const McpDesignGuide: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          fontSize: '0.78rem',
+          fontSize: 12,
           color: status.ok ? P.text.secondary : P.text.gold
         }}
       >

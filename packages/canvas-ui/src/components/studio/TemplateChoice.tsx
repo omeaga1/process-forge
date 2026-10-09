@@ -53,7 +53,7 @@ export function TemplateChoice({ routing, current, onPick }: TemplateChoiceProps
               onClick={() => onPick(family)}
               style={{
                 ...D.prose,
-                fontSize: '0.72rem',
+                fontSize: 11,
                 padding: '3px 8px',
                 borderRadius: draftingRadius.soft,
                 border: active ? `1px solid ${palette.jade[400]}` : D.rule,

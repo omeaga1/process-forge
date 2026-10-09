@@ -34,7 +34,7 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView }> = ({ gra
   );
 
   const label: React.CSSProperties = {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: 700,
     color: palette.text.muted,
     textTransform: 'uppercase',
@@ -97,7 +97,7 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView }> = ({ gra
               <div
                 key={i}
                 style={{
-                  fontSize: 11.5,
+                  fontSize: 12,
                   lineHeight: 1.4,
                   color: palette.text.secondary,
                   padding: '6px 8px',

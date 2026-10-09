@@ -110,11 +110,11 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({ is
         <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{figure}</div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 650, lineHeight: 1.3 }}>{title}</div>
-          <div style={{ fontSize: 11.5, color: palette.text.muted, marginTop: 2, lineHeight: 1.35 }}>{sub}</div>
+          <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2, lineHeight: 1.35 }}>{sub}</div>
         </div>
         <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, minHeight: 18 }}>
           <span style={{ fontSize: 11, color: palette.text.muted, fontFamily: font.mono }}>{meta}</span>
-          <span className="pf-palette-add" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 650, color: palette.jade.glow }}>
+          <span className="pf-palette-add" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 650, color: palette.jade.glow }}>
             {isAdded ? <Check size={13} /> : <Plus size={13} />}
             {isAdded ? 'Added' : 'Add'}
           </span>
@@ -140,7 +140,7 @@ export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({ is
       footer={
         onDesignNew ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 12 }}>
-            <span style={{ fontSize: 12.5, color: palette.text.secondary }}>
+            <span style={{ fontSize: 13, color: palette.text.secondary }}>
               Not here? Describe it: your AI model writes the contract and the engine checks its physics.
             </span>
             <Button variant="primary" icon={<Sparkles size={14} />} onClick={onDesignNew}>

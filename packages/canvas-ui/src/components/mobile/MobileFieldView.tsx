@@ -86,7 +86,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
               {isRunning ? 'Running' : t > 0 ? 'Paused' : 'Not run yet'}
               <span style={{ fontFamily: font.mono, color: palette.text.muted }}>{clock(t)}</span>
             </div>
-            <h2 style={{ margin: '4px 0 0', fontSize: 17, fontWeight: 700, lineHeight: 1.25 }}>{graph.name}</h2>
+            <h2 style={{ margin: '4px 0 0', fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>{graph.name}</h2>
           </div>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
             <Button iconOnly icon={<Monitor size={15} />} label="Open the canvas" onClick={onSwitchToCanvas} />
@@ -100,7 +100,7 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
           {stats.map((s) => (
             <div key={s.label} style={{ padding: '8px 10px', borderRadius: 8, backgroundColor: palette.background.base, border: `1px solid ${palette.border.subtle}` }}>
               <div style={{ fontSize: 11, color: palette.text.muted }}>{s.label}</div>
-              <div style={{ marginTop: 2, fontFamily: font.mono, fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{s.value}</div>
+              <div style={{ marginTop: 2, fontFamily: font.mono, fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{s.value}</div>
             </div>
           ))}
         </div>
@@ -153,11 +153,11 @@ export const MobileFieldView: React.FC<MobileFieldViewProps> = ({
               {snap && flow !== undefined && (
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{ fontFamily: font.mono, fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(flow)}</div>
-                  <div style={{ fontSize: 10.5, color: palette.text.muted }}>kg/h</div>
+                  <div style={{ fontSize: 11, color: palette.text.muted }}>kg/h</div>
                 </div>
               )}
               {snap && (
-                <span style={{ fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 999, color: stateColor(snap.state), backgroundColor: tint(stateColor(snap.state), 0.14), textTransform: 'capitalize', flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 999, color: stateColor(snap.state), backgroundColor: tint(stateColor(snap.state), 0.14), textTransform: 'capitalize', flexShrink: 0 }}>
                   {snap.state.toLowerCase()}
                 </span>
               )}

@@ -75,7 +75,7 @@ export const SpecHeader: React.FC<{
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 4 }}>
             <span
               style={{
-                fontSize: 10.5,
+                fontSize: 11,
                 fontWeight: 700,
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
@@ -99,7 +99,7 @@ export const SpecHeader: React.FC<{
             <div
               title={contract.description}
               style={{
-                fontSize: 12.5,
+                fontSize: 13,
                 lineHeight: 1.45,
                 color: palette.text.secondary,
                 display: '-webkit-box',
@@ -120,7 +120,7 @@ export const SpecHeader: React.FC<{
           alignItems: 'center',
           gap: 8,
           padding: '8px 12px',
-          fontSize: 12.5,
+          fontSize: 13,
           borderTop: `1px solid ${palette.border.subtle}`,
           background: tint(toneColor, 0.08),
           color: palette.text.primary
@@ -134,8 +134,8 @@ export const SpecHeader: React.FC<{
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(kpis.length, 3)}, minmax(0, 1fr))`, borderTop: `1px solid ${palette.border.subtle}` }}>
           {kpis.map((k, i) => (
             <div key={k.label} style={{ padding: '8px 12px', borderLeft: i ? `1px solid ${palette.border.subtle}` : 'none' }}>
-              <div style={{ fontSize: 10.5, letterSpacing: '0.04em', textTransform: 'uppercase', color: palette.text.muted }}>{k.label}</div>
-              <div style={{ fontFamily: font.mono, fontSize: 15, fontWeight: 600, color: palette.text.primary, fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: palette.text.muted }}>{k.label}</div>
+              <div style={{ fontFamily: font.mono, fontSize: 16, fontWeight: 600, color: palette.text.primary, fontVariantNumeric: 'tabular-nums' }}>
                 {k.value} <span style={{ fontSize: 11, color: palette.text.muted, fontWeight: 400 }}>{k.unit}</span>
               </div>
             </div>
@@ -206,7 +206,7 @@ export const SectionNav: React.FC<{
             <Icon size={13} />
             {s.label}
             {s.badge && (
-              <span style={{ fontSize: 10.5, fontWeight: 700, padding: '0 5px', borderRadius: r.full, color: badgeColor, background: tint(badgeColor, 0.14) }}>{s.badge.text}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '0 5px', borderRadius: r.full, color: badgeColor, background: tint(badgeColor, 0.14) }}>{s.badge.text}</span>
             )}
           </button>
         );
@@ -222,7 +222,7 @@ export const Section = React.forwardRef<HTMLElement, { id: SectionId; title: str
       <section ref={ref} id={`unit-${id}`} data-section={id} style={{ scrollMarginTop: 52, paddingTop: 14 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
           <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: palette.text.primary }}>{title}</h3>
-          {hint && <span style={{ fontSize: 11.5, color: palette.text.muted, flex: 1 }}>{hint}</span>}
+          {hint && <span style={{ fontSize: 12, color: palette.text.muted, flex: 1 }}>{hint}</span>}
           {right}
         </div>
         {children}
@@ -371,10 +371,10 @@ export const StreamsSection: React.FC<{
           <div key={`${p.direction}:${p.id}`} style={{ borderRadius: r.md, border: `1px solid ${palette.border.default}`, borderLeft: `3px solid ${color}`, background: palette.background.surface, padding: '8px 10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <Arrow size={14} color={color} />
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: palette.text.primary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-              <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color, padding: '1px 6px', borderRadius: r.full, background: tint(color, 0.14) }}>{PHASE_WORD[phase]}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: palette.text.primary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color, padding: '1px 6px', borderRadius: r.full, background: tint(color, 0.14) }}>{PHASE_WORD[phase]}</span>
             </div>
-            <div style={{ fontSize: 11.5, color: palette.text.muted, marginBottom: 4 }}>
+            <div style={{ fontSize: 12, color: palette.text.muted, marginBottom: 4 }}>
               {inlet ? 'In' : 'Out'}
               {p.role !== 'MATERIAL' ? ` · ${p.role.toLowerCase()}` : ''}
               {dispersed.length ? ` · carries ${dispersed.map(([c, ph]) => `${c} as ${PHASE_WORD[ph] ?? ph}`).join(', ')}` : ''}
@@ -401,7 +401,7 @@ export const StreamsSection: React.FC<{
             )}
             {now && (
               <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px dashed ${palette.border.subtle}`, display: 'grid', gap: 2 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 700, color: palette.jade[400], textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: palette.jade[400], textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   <CircleDashed size={10} /> Live
                 </div>
                 {fig('Flow', formatQuantity(now.kgPerHour), 'kg/h')}
@@ -433,9 +433,9 @@ export const PhysicsSection: React.FC<{ alignment: PhysicsAlignment; lookup: Loo
       ) : (
         <XCircle size={14} color={palette.status.failed} style={{ flexShrink: 0, marginTop: 1 }} />
       )}
-      <div style={{ fontSize: 12.5, color: palette.text.primary, minWidth: 0 }}>
+      <div style={{ fontSize: 13, color: palette.text.primary, minWidth: 0 }}>
         {text}
-        {detail && <div style={{ fontSize: 11.5, color: palette.text.muted, marginTop: 2 }}>{detail}</div>}
+        {detail && <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>{detail}</div>}
       </div>
     </div>
   );
@@ -453,7 +453,7 @@ export const PhysicsSection: React.FC<{ alignment: PhysicsAlignment; lookup: Loo
       </div>
       {alignment.relations.length > 0 && (
         <div style={{ borderRadius: r.md, border: `1px solid ${palette.border.default}`, padding: '6px 10px', marginBottom: 8, background: palette.background.surface }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: palette.text.muted, marginBottom: 2 }}>Governing relations, at the design point</div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: palette.text.muted, marginBottom: 2 }}>Governing relations, at the design point</div>
           {alignment.relations.map((rel) =>
             row(
               rel.status === 'holds' ? true : rel.status === 'unbound' ? 'warn' : false,

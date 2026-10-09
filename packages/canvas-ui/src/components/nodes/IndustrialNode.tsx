@@ -233,7 +233,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
                       transform: horizontal
                         ? `translate(${a.side === 'left' ? 'calc(-100% - 10px)' : '10px'}, -50%)`
                         : `translate(-50%, ${a.side === 'top' ? 'calc(-100% - 9px)' : '9px'})`,
-                      fontSize: 9.5,
+                      fontSize: 10,
                       fontFamily: font.mono,
                       lineHeight: 1.2,
                       whiteSpace: 'nowrap',

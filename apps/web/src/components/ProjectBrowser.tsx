@@ -716,7 +716,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
             borderBottom: `1px solid ${palette.border.subtle}`
           }}
         >
-          <div style={{ fontSize: 15, fontWeight: 700, color: palette.text.primary }}>Projects</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: palette.text.primary }}>Projects</div>
           <button type="button" className="pf-btn" data-variant="ghost" data-size="md" data-icon-only="" aria-label="Close" onClick={onClose}>
             <X size={16} />
           </button>

@@ -408,7 +408,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                       style={{
                         padding: '1px 6px',
                         borderRadius: draftingRadius.soft,
-                        fontSize: 9,
+                        fontSize: 10,
                         fontWeight: 700,
                         backgroundColor: msg.isOffline ? tint(palette.text.primary, 0.06) : tint(palette.jade[500], 0.15),
                         color: msg.isOffline ? OsakaJadePalette.text.muted : OsakaJadePalette.jade.glow,

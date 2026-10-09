@@ -117,8 +117,8 @@ export const DesignLoop: React.FC = () => {
                 {i < steps.length - 1 && <span style={{ position: 'absolute', top: 18, bottom: -2, width: 1, background: D.border.strong }} />}
               </span>
               <div>
-                <div style={{ ...mono, fontSize: 10.5, letterSpacing: '0.1em', color: color[s.who], textTransform: 'uppercase' }}>{s.label}</div>
-                <div style={{ fontSize: 13.5, lineHeight: 1.55, color: s.who === 'you' ? D.text.primary : D.text.secondary, marginTop: 3 }}>{s.text}</div>
+                <div style={{ ...mono, fontSize: 11, letterSpacing: '0.1em', color: color[s.who], textTransform: 'uppercase' }}>{s.label}</div>
+                <div style={{ fontSize: 14, lineHeight: 1.55, color: s.who === 'you' ? D.text.primary : D.text.secondary, marginTop: 3 }}>{s.text}</div>
               </div>
             </li>
           );
@@ -132,7 +132,7 @@ export const DesignLoop: React.FC = () => {
         style={{
           marginTop: 16,
           fontFamily: fontFamily.sans,
-          fontSize: 12.5,
+          fontSize: 13,
           padding: '6px 12px',
           borderRadius: 8,
           border: `1px solid ${D.border.strong}`,
@@ -148,7 +148,7 @@ export const DesignLoop: React.FC = () => {
     {/* The contract's limits, judged as the replay reaches each verdict. */}
     <div style={{ border: `1px solid ${D.border.default}`, borderRadius: 14, background: D.background.canvas, padding: '18px 20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-        <div style={{ ...mono, fontSize: 10.5, letterSpacing: '0.12em', color: D.text.muted }}>THE CONTRACT’S LIMITS</div>
+        <div style={{ ...mono, fontSize: 11, letterSpacing: '0.12em', color: D.text.muted }}>THE CONTRACT’S LIMITS</div>
         <div style={{ ...mono, fontSize: 12, color: D.text.secondary }}>
           belt speed{' '}
           <span style={{ color: D.jade.glow, transition: 'color .3s' }}>{shown >= 4 ? '6' : '3'} m/min</span>

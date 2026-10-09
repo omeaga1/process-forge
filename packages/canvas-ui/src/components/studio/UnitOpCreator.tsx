@@ -267,7 +267,7 @@ export function UnitOpCreator({
       {processContext && (processContext.upstream || processContext.downstream) && (
         <div style={{ ...card, borderColor: P.jade[700] }}>
           <div style={labelStyle}>Surrounding process</div>
-          <div style={{ fontSize: '0.82rem', color: P.text.secondary, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: P.text.secondary, lineHeight: 1.5 }}>
             {processContext.upstream && (
               <div>
                 Fed by <strong style={{ color: P.text.accent }}>{processContext.upstream}</strong>
@@ -304,7 +304,7 @@ export function UnitOpCreator({
           </Button>
         ) : (
           <div>
-            <p style={{ margin: '10px 0 0', fontSize: '0.78rem', color: P.text.muted }}>
+            <p style={{ margin: '10px 0 0', fontSize: 12, color: P.text.muted }}>
               No AI model is set up. Paste a contract below, or set one up: sign in with OpenRouter to
               design here, or use Claude Desktop over MCP on your subscription.
             </p>
@@ -316,14 +316,14 @@ export function UnitOpCreator({
           </div>
         )}
         {progress.length > 0 && (
-          <ol aria-live="polite" style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: '0.76rem', color: P.text.secondary }}>
+          <ol aria-live="polite" style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, color: P.text.secondary }}>
             {progress.map((note, i) => (
               <li key={i} style={{ marginTop: 2 }}>{note}</li>
             ))}
           </ol>
         )}
         {proposeError && (
-          <p style={{ margin: '8px 0 0', fontSize: '0.78rem', color: D.semantic.violation }}>
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: D.semantic.violation }}>
             {proposeError}
           </p>
         )}
@@ -352,7 +352,7 @@ export function UnitOpCreator({
           aria-invalid={jsonBroken}
         />
         {jsonBroken && (
-          <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: D.semantic.violation }}>
+          <p style={{ margin: '6px 0 0', fontSize: 12, color: D.semantic.violation }}>
             Not valid JSON yet.
           </p>
         )}
@@ -370,7 +370,7 @@ export function UnitOpCreator({
       {reviewState.schemaErrors.length > 0 && (
         <div style={{ ...card, borderColor: D.semantic.violation }}>
           <div style={labelStyle}>Schema problems</div>
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.8rem', color: P.text.secondary }}>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: P.text.secondary }}>
             {reviewState.schemaErrors.map((e) => (
               <li key={e}>{e}</li>
             ))}
@@ -381,7 +381,7 @@ export function UnitOpCreator({
       {reviewState.staticIssues.length > 0 && (
         <div style={{ ...card, borderColor: D.semantic.violation }}>
           <div style={labelStyle}>Unresolved references</div>
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.8rem', color: P.text.secondary }}>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: P.text.secondary }}>
             {reviewState.staticIssues.map((i) => (
               <li key={`${i.path}-${i.message}`}>
                 <code style={{ color: P.text.accent }}>{i.path}</code> — {i.message}
@@ -394,7 +394,7 @@ export function UnitOpCreator({
       {evaluation?.error && (
         <div style={{ ...card, borderColor: D.semantic.violation }}>
           <div style={labelStyle}>Evaluation failed</div>
-          <p style={{ margin: 0, fontSize: '0.8rem', color: P.text.secondary }}>
+          <p style={{ margin: 0, fontSize: 13, color: P.text.secondary }}>
             <code style={{ color: P.text.accent }}>{evaluation.error.path}</code> —{' '}
             {evaluation.error.message}
           </p>
@@ -425,24 +425,24 @@ export function UnitOpCreator({
                       .map((a) => ({ nozzle: a.nozzle!, color: P.streams.continuousFluid }))}
                   />
                 </div>
-                <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: P.text.muted }}>
+                <p style={{ margin: '8px 0 0', fontSize: 11, color: P.text.muted }}>
                   Drawn by the contract. Pipes attach at the {figure.layout.anchors.filter((a) => a.nozzle).length} nozzles shown.
                 </p>
               </>
             ) : (
-              <p style={{ margin: 0, fontSize: '0.8rem', color: P.text.secondary }}>
+              <p style={{ margin: 0, fontSize: 13, color: P.text.secondary }}>
                 This contract has no drawing, so it will appear as a generic vessel with its connections along the edges.
               </p>
             )}
             {reviewState.drawingCheck && reviewState.drawingCheck.errors.length > 0 && (
-              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: '0.8rem', color: D.semantic.violation }}>
+              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13, color: D.semantic.violation }}>
                 {reviewState.drawingCheck.errors.map((e) => (
                   <li key={e}>{e}</li>
                 ))}
               </ul>
             )}
             {reviewState.drawingCheck && reviewState.drawingCheck.warnings.length > 0 && (
-              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: '0.8rem', color: P.text.secondary }}>
+              <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13, color: P.text.secondary }}>
                 {reviewState.drawingCheck.warnings.map((w) => (
                   <li key={w}>{w}</li>
                 ))}
@@ -461,7 +461,7 @@ export function UnitOpCreator({
                 return (
                   <div
                     key={p.name}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}
                   >
                     <span style={{ flex: 1, color: P.text.secondary }}>{p.label}</span>
                     <input
@@ -497,7 +497,7 @@ export function UnitOpCreator({
               {reviewState.contract!.derived.map((d) => (
                 <div
                   key={d.name}
-                  style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}
+                  style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}
                 >
                   <span style={{ color: P.text.secondary }}>{d.label}</span>
                   <span style={{ color: P.text.accent, ...D.data }}>
@@ -522,7 +522,7 @@ export function UnitOpCreator({
                     ? D.semantic.violation
                     : P.text.gold;
                 return (
-                  <div key={c.id} style={{ display: 'flex', gap: 8, fontSize: '0.78rem' }}>
+                  <div key={c.id} style={{ display: 'flex', gap: 8, fontSize: 12 }}>
                     <span style={{ color, fontWeight: 700 }}>{ok ? '✓' : '✕'}</span>
                     <div>
                       <div style={{ color: ok ? P.text.secondary : color }}>
@@ -572,7 +572,7 @@ export function UnitOpCreator({
         >
           Add to flowsheet
         </Button>
-        <span role="status" style={{ fontSize: 12.5, color: accepted ? P.jade[400] : P.text.muted }}>
+        <span role="status" style={{ fontSize: 13, color: accepted ? P.jade[400] : P.text.muted }}>
           {accepted
             ? warnings.length > 0
               ? `Accepted with ${warnings.length} warning(s).`

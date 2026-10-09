@@ -37,7 +37,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({ node, isOp
           {tag && (
             <span style={{ fontSize: 11, fontWeight: 700, color: palette.jade.glow, backgroundColor: tint(palette.jade[500], 0.15), padding: '2px 6px', borderRadius: draftingRadius.soft }}>{tag}</span>
           )}
-          <div style={{ marginTop: tag ? 4 : 0, fontSize: 15, fontWeight: 700, color: palette.text.primary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</div>
+          <div style={{ marginTop: tag ? 4 : 0, fontSize: 16, fontWeight: 700, color: palette.text.primary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</div>
         </div>
         <Button variant="ghost" iconOnly icon={<X size={16} />} aria-label="Close" onClick={onClose} />
       </div>
@@ -103,7 +103,7 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({ node, isOp
                         >
                           {nz.ratingPsi} PSI
                         </span>
-                        <div style={{ fontSize: 9, color: OsakaJadePalette.text.muted, marginTop: 3 }}>
+                        <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, marginTop: 3 }}>
                           Elevation: {nz.elevationMeters ? `${(nz.elevationMeters * 1000).toFixed(0)} mm` : '0 mm'}
                         </div>
                       </div>

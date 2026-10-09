@@ -356,7 +356,7 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
         </div>
       )}
       {highlighted && drives && drives.length > 0 && (
-        <div style={{ gridColumn: '1 / -1', fontSize: 11.5, color: palette.text.muted }}>Changes {drives.slice(0, 6).join(', ')}{drives.length > 6 ? `, and ${drives.length - 6} more` : ''}.</div>
+        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: palette.text.muted }}>Changes {drives.slice(0, 6).join(', ')}{drives.length > 6 ? `, and ${drives.length - 6} more` : ''}.</div>
       )}
     </div>
   );

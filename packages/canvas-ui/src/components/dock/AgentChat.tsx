@@ -46,7 +46,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
     border: `1px solid ${palette.border.default}`,
     background: 'transparent',
     color,
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: 600,
     whiteSpace: 'nowrap'
   });
@@ -130,7 +130,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
     maxWidth: '92%',
     padding: '8px 10px',
     borderRadius: 8,
-    fontSize: 12.5,
+    fontSize: 13,
     lineHeight: 1.5,
     whiteSpace: 'pre-wrap',
     background: mine ? `${palette.jade[500]}22` : palette.background.surfaceElevated,
@@ -152,7 +152,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
                   key={ex}
                   type="button"
                   onClick={() => send(ex)}
-                  style={{ textAlign: 'left', fontSize: 11.5, padding: '5px 8px', borderRadius: 6, background: palette.background.surface, border: `1px solid ${palette.border.default}`, color: palette.jade.glow, cursor: 'pointer' }}
+                  style={{ textAlign: 'left', fontSize: 12, padding: '5px 8px', borderRadius: 6, background: palette.background.surface, border: `1px solid ${palette.border.default}`, color: palette.jade.glow, cursor: 'pointer' }}
                 >
                   {ex}
                 </button>
@@ -184,8 +184,8 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
 
         {pending && (
           <div role="dialog" aria-label="Approve a change" style={{ padding: 10, borderRadius: 8, border: `1px solid ${palette.jade[500]}`, background: palette.background.surface, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: palette.jade[400] }}>Change to the flowsheet</div>
-            <div style={{ fontSize: 12.5, color: palette.text.primary, lineHeight: 1.45 }}>{pending.summary}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: palette.jade[400] }}>Change to the flowsheet</div>
+            <div style={{ fontSize: 13, color: palette.text.primary, lineHeight: 1.45 }}>{pending.summary}</div>
             <div style={{ display: 'flex', gap: 6 }}>
               <Button variant="primary" size="sm" autoFocus icon={<Check size={13} />} onClick={() => decide(true)}>
                 Approve
@@ -229,7 +229,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
                 void send(input);
               }
             }}
-            style={{ display: 'block', width: '100%', boxSizing: 'border-box', resize: 'none', background: 'transparent', border: 'none', padding: '9px 10px 4px', color: palette.text.primary, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
+            style={{ display: 'block', width: '100%', boxSizing: 'border-box', resize: 'none', background: 'transparent', border: 'none', padding: '9px 10px 4px', color: palette.text.primary, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
           />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px 6px 8px' }}>
             <Tooltip content="Reading, simulating, what-ifs and design checks run straight away; every change to the flowsheet waits for your approval.">
@@ -260,7 +260,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
           </div>
         </div>
         {/* What it works on, under the composer like an attachment tray. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 2px 0', fontSize: 10.5, color: palette.text.muted }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 2px 0', fontSize: 11, color: palette.text.muted }}>
           <Workflow size={11} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             Works on <span style={{ color: palette.text.secondary }}>{sheet.name}</span> · {sheet.units} {sheet.units === 1 ? 'unit' : 'units'} · ProcessForge tools
@@ -269,7 +269,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
             type="button"
             onClick={() => void runJevTest()}
             disabled={jevTest.busy}
-            style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, color: palette.jade.glow, fontSize: 10.5, cursor: 'pointer', flexShrink: 0 }}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, color: palette.jade.glow, fontSize: 11, cursor: 'pointer', flexShrink: 0 }}
           >
             {jevTest.busy ? 'Testing Jev…' : 'Test Jev'}
           </button>

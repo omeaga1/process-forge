@@ -31,7 +31,7 @@ export const PhaseTrack: React.FC<{ phases: string[]; current?: string; color: s
           />
         ))}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: font.mono, fontSize: 8.5, color: palette.text.muted, letterSpacing: '0.04em' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: font.mono, fontSize: 10, color: palette.text.muted, letterSpacing: '0.04em' }}>
         <span>{at >= 0 ? `${at + 1}/${phases.length}` : ''}</span>
         <span>{at >= 0 && at + 1 < phases.length ? `next: ${phases[at + 1]}` : at === phases.length - 1 ? `next: ${phases[0]}` : ''}</span>
       </div>

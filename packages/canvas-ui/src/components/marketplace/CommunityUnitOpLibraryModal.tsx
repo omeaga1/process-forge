@@ -353,7 +353,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <span style={{ fontSize: 15, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
                       {plugin.name}
                     </span>
                     <span

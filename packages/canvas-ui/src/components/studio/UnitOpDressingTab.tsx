@@ -145,7 +145,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Sparkles size={15} color={OsakaJadePalette.jade[400]} />
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: OsakaJadePalette.text.primary, letterSpacing: '-0.01em' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary, letterSpacing: '-0.01em' }}>
               Drawing
             </span>
           </div>
@@ -157,7 +157,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '5px',
-                fontSize: '0.72rem',
+                fontSize: 11,
                 fontWeight: 600,
                 padding: '3px 8px',
                 backgroundColor: OsakaJadePalette.background.surface,
@@ -214,7 +214,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 borderRadius: '6px',
                 padding: '7px 12px',
                 color: OsakaJadePalette.text.primary,
-                fontSize: '0.8rem',
+                fontSize: 13,
                 outline: 'none'
               }}
             />
@@ -230,7 +230,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 border: `1px solid ${!aiPrompt.trim() ? OsakaJadePalette.border.default : OsakaJadePalette.jade[400]}`,
                 borderRadius: '6px',
                 fontWeight: 600,
-                fontSize: '0.8rem',
+                fontSize: 13,
                 cursor: !aiPrompt.trim() ? 'not-allowed' : 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -276,7 +276,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
             <Sliders size={16} color={OsakaJadePalette.jade[400]} />
-            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: OsakaJadePalette.text.primary }}>
+            <span style={{ fontWeight: 700, fontSize: 14, color: OsakaJadePalette.text.primary }}>
               Drawing details
             </span>
           </div>
@@ -287,7 +287,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
             {/* Agitator Selection */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
+              <label style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
                 Agitator Impeller
               </label>
               <select
@@ -305,7 +305,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
 
             {/* Utility Jacket Toggle */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
+              <label style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
                 Thermal Jacket
               </label>
               <select
@@ -330,7 +330,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
 
             {/* Wall Baffles */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
+              <label style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
                 Anti-Swirl Wall Baffles
               </label>
               <select
@@ -346,7 +346,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
 
             {/* Demister Pad */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
+              <label style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
                 Demister / Mist Eliminator
               </label>
               <select

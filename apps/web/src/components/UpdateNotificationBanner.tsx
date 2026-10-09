@@ -229,7 +229,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span
               style={{
-                fontSize: '0.86rem',
+                fontSize: 14,
                 fontWeight: 700,
                 color: OsakaJadePalette.text.primary,
                 whiteSpace: 'nowrap'
@@ -246,7 +246,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
             {updateInfo?.current_version && (
               <span
                 style={{
-                  fontSize: '0.7rem',
+                  fontSize: 11,
                   padding: '1px 6px',
                   borderRadius: draftingRadius.soft,
                   backgroundColor: OsakaJadePalette.background.surface,
@@ -262,7 +262,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
 
           <div
             style={{
-              fontSize: '0.78rem',
+              fontSize: 12,
               color: OsakaJadePalette.text.secondary,
               whiteSpace: 'nowrap',
               overflow: 'hidden',

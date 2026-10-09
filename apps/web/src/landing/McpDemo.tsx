@@ -88,7 +88,7 @@ export const McpDemo: React.FC = () => {
             className="pf-chip"
             style={{
               fontFamily: fontFamily.sans,
-              fontSize: 12.5,
+              fontSize: 13,
               padding: '6px 11px',
               borderRadius: 999,
               cursor: 'pointer',
@@ -104,24 +104,24 @@ export const McpDemo: React.FC = () => {
 
       <div style={{ border: `1px solid ${D.border.default}`, borderRadius: 12, background: D.background.base, padding: 14, minHeight: 250 }}>
         <div style={{ ...reveal(0), display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ maxWidth: '85%', padding: '8px 12px', borderRadius: '12px 12px 4px 12px', background: D.background.surfaceElevated, color: D.text.primary, fontSize: 13.5, lineHeight: 1.5 }}>
+          <div style={{ maxWidth: '85%', padding: '8px 12px', borderRadius: '12px 12px 4px 12px', background: D.background.surfaceElevated, color: D.text.primary, fontSize: 14, lineHeight: 1.5 }}>
             {script.ask}
           </div>
         </div>
         {script.calls.map((c, i) => (
           <div key={`${pick}-${i}`} style={{ ...reveal(i + 1), marginTop: 10, border: `1px solid ${D.border.subtle}`, borderRadius: 8, overflow: 'hidden' }}>
-            <div style={{ ...mono, fontSize: 11.5, padding: '7px 10px', background: D.background.surface, color: D.jade.glow, display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+            <div style={{ ...mono, fontSize: 12, padding: '7px 10px', background: D.background.surface, color: D.jade.glow, display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
               <span style={{ color: D.text.muted }}>tool</span> {c.tool}
               <span style={{ color: D.text.muted, overflowWrap: 'anywhere' }}>{c.args}</span>
             </div>
-            <div style={{ ...mono, fontSize: 11.5, padding: '6px 10px', color: D.text.secondary }}>
+            <div style={{ ...mono, fontSize: 12, padding: '6px 10px', color: D.text.secondary }}>
               <span style={{ color: D.status.busy }}>✓</span> {c.result}
             </div>
           </div>
         ))}
-        <div style={{ ...reveal(script.calls.length + 1), marginTop: 12, fontSize: 13.5, lineHeight: 1.55, color: D.text.secondary }}>{script.reply}</div>
+        <div style={{ ...reveal(script.calls.length + 1), marginTop: 12, fontSize: 14, lineHeight: 1.55, color: D.text.secondary }}>{script.reply}</div>
       </div>
-      <div style={{ fontSize: 11.5, color: D.text.muted, marginTop: 8 }}>An illustration of the server’s tools, not a live session.</div>
+      <div style={{ fontSize: 12, color: D.text.muted, marginTop: 8 }}>An illustration of the server’s tools, not a live session.</div>
     </div>
   );
 };
