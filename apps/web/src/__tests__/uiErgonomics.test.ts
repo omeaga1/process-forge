@@ -25,7 +25,7 @@ describe('Landing and portal layout', () => {
   const landingHubContent = fs.readFileSync(landingHubPath, 'utf8');
 
   it('has one primary button, and it continues the open project', () => {
-    const primaries = landingHubContent.match(/backgroundColor:\s*palette\.jade\[600\]/g);
+    const primaries = landingHubContent.match(/variant="primary"/g);
     assert.strictEqual(primaries?.length, 1, 'The hub has exactly one primary button');
     assert.ok(landingHubContent.includes('Continue “{currentProject.name}”'), 'The primary button continues the current project');
   });
