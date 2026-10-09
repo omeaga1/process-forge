@@ -18,6 +18,7 @@ import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { controlFor, displayUnitsFor, formatQuantity, groupParameters, isConstantParameter, unitPreferenceKey } from '../../model/parameterUi.js';
 import { FEASIBLE_RANGE_CSS, ParameterControl } from './ParameterControl.js';
+import { SpecSheet } from './SpecSheet.js';
 import { engineLabel, engineValue, ExpressionView, PhysicsSection, Section, SectionNav, SpecHeader, StreamsSection, type Lookup, type SectionId } from './UnitSpecSections.js';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 
@@ -32,6 +33,28 @@ interface ContractParametersPanelProps {
 }
 
 const PREF_KEY = 'pf.displayUnits';
+const VIEW_KEY = 'pf.settingsView';
+type SettingsView = 'sheet' | 'sliders';
+
+/** Spec sheet or sliders, remembered in this browser. */
+function useSettingsView(): [SettingsView, (v: SettingsView) => void] {
+  const [view, setView] = useState<SettingsView>(() => {
+    try {
+      return window.localStorage.getItem(VIEW_KEY) === 'sliders' ? 'sliders' : 'sheet';
+    } catch {
+      return 'sheet';
+    }
+  });
+  const set = useCallback((v: SettingsView) => {
+    setView(v);
+    try {
+      window.localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // Storage off: the choice holds for this session.
+    }
+  }, []);
+  return [view, set];
+}
 
 function loadPrefs(): Record<string, string> {
   try {
@@ -82,6 +105,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
   const { palette, font, radius: r } = useTheme();
   const config = node.config as Record<string, unknown>;
   const { unitFor, setUnit } = useDisplayUnits();
+  const [view, setView] = useSettingsView();
 
   // What it was when the panel opened, to show what has moved and to put it back.
   const baseline = useRef<{ nodeId: string; params: Record<string, number>; derived: Record<string, number>; design?: UnitOpDesignStream } | null>(null);
@@ -339,7 +363,37 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
 
       <SectionNav sections={sectionList} active={active} onGo={go} />
 
-      <Section ref={refFor('settings')} id="settings" title="Settings" hint="Each knob shows where along its range the design passes.">
+      <Section
+        ref={refFor('settings')}
+        id="settings"
+        title="Settings"
+        hint={view === 'sheet' ? 'Type a value in any unit of its kind; green rows pass.' : 'Each knob shows where along its range the design passes.'}
+      >
+        {contract.parameters.length > 0 && (
+          <div role="group" aria-label="Show settings as" style={{ display: 'inline-flex', alignSelf: 'flex-start', gap: 2, padding: 2, margin: '2px 0 6px', borderRadius: r.md, border: `1px solid ${palette.border.default}` }}>
+            {(['sheet', 'sliders'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={view === v}
+                className="pf-focus"
+                onClick={() => setView(v)}
+                style={{
+                  border: 'none',
+                  borderRadius: r.sm,
+                  padding: '3px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: view === v ? tint(palette.jade[500], 0.16) : 'transparent',
+                  color: view === v ? palette.text.primary : palette.text.secondary
+                }}
+              >
+                {v === 'sheet' ? 'Spec sheet' : 'Sliders'}
+              </button>
+            ))}
+          </div>
+        )}
         {/* The engine's counter-offers: one knob, the value that clears a check. */}
         {fixes.length > 0 && (
           <div style={{ margin: '4px 0 6px', padding: '10px 12px', borderRadius: r.md, border: `1px dashed ${tint(palette.jade[500], 0.5)}`, background: tint(palette.jade[500], 0.04) }}>
@@ -393,7 +447,24 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
           </div>
         )}
 
-        {groups.map((g) =>
+        {view === 'sheet' ? (
+          <SpecSheet
+            contract={contract}
+            evaluation={evaluation}
+            groups={groups}
+            sweeps={sweeps}
+            influence={influence}
+            baselineParams={baseline.current!.params}
+            baselineDerived={baseline.current!.derived}
+            unitFor={unitFor}
+            setUnit={setUnit}
+            setParam={setParam}
+            lit={(k) => lit.has(k) || (k.startsWith('p:') && hover.param === k.slice(2))}
+            onHoverParam={(name) => setHover(name ? { param: name } : {})}
+            flash={flash}
+            onFlash={setFlash}
+          />
+        ) : groups.map((g) =>
           g.folded ? (
             <details key={g.name} style={{ marginTop: 12 }}>
               <summary style={{ ...heading, margin: 0, cursor: 'pointer', listStyle: 'revert' }}>
