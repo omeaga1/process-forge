@@ -39,6 +39,8 @@ export interface UnitBehavior {
   details: string[];
   /** Top rate per minute, as the engine would run it (net of rejects and breakdowns); null if it has none. */
   capacityPerMin: number | null;
+  /** The share of time it runs between breakdowns, when it has them: capacityPerMin is net of it. */
+  uptime?: number;
   /** What the rate counts: whole items, or gallons of liquid. */
   rateUnit?: 'units' | 'gal';
   /** Config keys the engine reads for this unit. Every other numeric key is inert. */
@@ -298,6 +300,7 @@ export function describeUnit(node: ProcessNode, graph: ProcessGraph): UnitBehavi
         headline: `${source || liquid ? 'Makes' : 'Processes'} ${plural(b.unitsPerCycle, 'item')} every ${formatDuration(b.cycleSeconds)}${good !== b.unitsPerCycle ? `, ${round(good)} good on average` : ''}.`,
         details: withBreakdowns(details),
         capacityPerMin: failing === 0 ? (good / b.cycleSeconds) * 60 * down.uptime : null,
+        ...(down.uptime < 1 ? { uptime: down.uptime } : {}),
         engineKeys: own ? [...keys, 'bufferCapacity'] : keys,
         role,
         ...figures
@@ -321,6 +324,7 @@ export function describeUnit(node: ProcessNode, graph: ProcessGraph): UnitBehavi
           'Each phase is worked out when it starts, from the batch as it is then, so times and amounts follow its mass and temperature.'
         ]),
         capacityPerMin: failing === 0 && Number.isFinite(b.gallonsPerMinute) ? b.gallonsPerMinute * down.uptime : null,
+        ...(down.uptime < 1 ? { uptime: down.uptime } : {}),
         rateUnit: 'gal',
         engineKeys: keys,
         role,
@@ -349,6 +353,7 @@ export function describeUnit(node: ProcessNode, graph: ProcessGraph): UnitBehavi
           'Its level rises while it is fed faster than it drains, and falls otherwise. Full, it backs up what feeds it; empty, what it feeds waits.'
         ]),
         capacityPerMin: sendsTo.length && b.maxOutflowGpm !== undefined ? b.maxOutflowGpm * down.uptime : null,
+        ...(down.uptime < 1 ? { uptime: down.uptime } : {}),
         rateUnit: 'gal',
         engineKeys: keys,
         role,
@@ -379,6 +384,7 @@ export function describeUnit(node: ProcessNode, graph: ProcessGraph): UnitBehavi
           'In a run it is re-evaluated every second at the stream that actually reaches it; any check that breaks there is reported with how long it was broken.'
         ]),
         capacityPerMin: failing === 0 && cap !== undefined ? cap * down.uptime : null,
+        ...(down.uptime < 1 ? { uptime: down.uptime } : {}),
         rateUnit: 'gal',
         engineKeys: keys,
         role,
