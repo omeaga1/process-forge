@@ -25,7 +25,7 @@ injectUiCss();
 
 // ---------------------------------------------------------------- Button
 
-export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
+export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger' | 'warning';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

@@ -39,6 +39,7 @@ import {
 } from '@process-forge/protocol';
 import { SimulationEngine, type SimulationResult, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import type { RunView } from './dock/RunDigest.js';
+import { Button, Tooltip } from '../ui/index.js';
 
 import { IndustrialNode } from './nodes/IndustrialNode.js';
 import { TerminalNode } from './nodes/TerminalNode.js';
@@ -1033,128 +1034,45 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               overflowX: 'auto'
             }}
           >
-            <button
-              type="button"
-              onClick={handleToggleSimulation}
-              title={`${isRunning ? 'Pause' : 'Run'} the simulation (Space)`}
-              style={{
-                ...toolbarButton,
-                backgroundColor: isRunning ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade[500],
-                color: OsakaJadePalette.text.inverse,
-                border: 'none',
-                fontWeight: 700
-              }}
-            >
-              {isRunning ? <Pause size={15} /> : <Play size={15} />}
-              {!compactToolbar && <span>{isRunning ? 'Pause' : 'Run'}</span>}
-            </button>
+            <Tooltip content={`${isRunning ? 'Pause' : 'Run'} the simulation · Space`}>
+              <Button variant={isRunning ? 'warning' : 'primary'} icon={isRunning ? <Pause size={15} /> : <Play size={15} />} onClick={handleToggleSimulation} aria-label={isRunning ? 'Pause' : 'Run'}>
+                {!compactToolbar && (isRunning ? 'Pause' : 'Run')}
+              </Button>
+            </Tooltip>
 
             {onDesignUnitOp && (
-              <button
-                type="button"
-                onClick={onDesignUnitOp}
-                title="Design a unit op: describe equipment that has no model yet; your AI model writes it and the engine checks the physics"
-                style={{
-                  ...toolbarButton,
-                  backgroundColor: OsakaJadePalette.jade[600],
-                  color: OsakaJadePalette.text.inverse,
-                  border: `1px solid ${OsakaJadePalette.jade[500]}`,
-                  fontWeight: 700
-                }}
-              >
-                <Sparkles size={15} />
-                {!compactToolbar && <span>Design unit op</span>}
-              </button>
+              <Tooltip content="Describe equipment that has no model yet: your AI model writes it and the engine checks the physics">
+                <Button icon={<Sparkles size={15} color={OsakaJadePalette.jade[400]} />} onClick={onDesignUnitOp} aria-label="Design unit op">
+                  {!compactToolbar && 'Design unit op'}
+                </Button>
+              </Tooltip>
             )}
 
-            <button
-              type="button"
-              onClick={() => setIsEquipmentPaletteOpen(true)}
-              title="Add standard equipment: pumps, tanks, reactors, fillers, conveyors"
-              style={{
-                ...toolbarButton,
-                backgroundColor: OsakaJadePalette.background.surface,
-                color: OsakaJadePalette.text.primary,
-                border: `1px solid ${OsakaJadePalette.border.strong}`
-              }}
-            >
-              <Plus size={15} color={OsakaJadePalette.jade[400]} />
-              {!compactToolbar && <span>Add equipment</span>}
-            </button>
+            <Tooltip content="Pumps, tanks, reactors, fillers, conveyors, and your own designs">
+              <Button icon={<Plus size={15} color={OsakaJadePalette.jade[400]} />} onClick={() => setIsEquipmentPaletteOpen(true)} aria-label="Add equipment">
+                {!compactToolbar && 'Add equipment'}
+              </Button>
+            </Tooltip>
 
-            <button
-              type="button"
-              onClick={() => setIsPaletteOpen(true)}
-              title="Every action from the keyboard (Ctrl+K)"
-              aria-label="Open the command palette"
-              style={{
-                ...toolbarButton,
-                padding: '0 8px',
-                backgroundColor: 'transparent',
-                color: OsakaJadePalette.text.muted,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                fontFamily: font.mono,
-                fontSize: 11
-              }}
-            >
-              Ctrl K
-            </button>
-
-            <button
-              type="button"
-              onClick={handleResetSimulation}
-              title="Reset the simulation clock and counters"
-              aria-label="Reset simulation"
-              style={{
-                ...toolbarButton,
-                width: 32,
-                padding: 0,
-                justifyContent: 'center',
-                backgroundColor: OsakaJadePalette.background.surface,
-                color: OsakaJadePalette.text.secondary,
-                border: `1px solid ${OsakaJadePalette.border.default}`
-              }}
-            >
-              <RotateCcw size={14} />
-            </button>
+            <Tooltip content="Every action from the keyboard">
+              <Button variant="ghost" size="sm" onClick={() => setIsPaletteOpen(true)} aria-label="Open the command palette" style={{ fontFamily: font.mono, fontSize: 11 }}>
+                Ctrl K
+              </Button>
+            </Tooltip>
 
             <div style={{ width: 1, height: 20, backgroundColor: OsakaJadePalette.border.subtle, flexShrink: 0 }} />
 
-            {[
-              { label: 'Undo', hint: 'Undo (Ctrl+Z)', icon: <Undo2 size={15} />, onClick: undo, enabled: historySize.past > 0 },
-              { label: 'Redo', hint: 'Redo (Ctrl+Y)', icon: <Redo2 size={15} />, onClick: redo, enabled: historySize.future > 0 },
-              {
-                label: 'Delete',
-                hint: hasSelection
-                  ? 'Delete the selected units and streams (Delete)'
-                  : 'Select a unit or a stream to delete it (Delete)',
-                icon: <Trash2 size={15} />,
-                onClick: deleteSelection,
-                enabled: hasSelection
-              }
-            ].map((b) => (
-              <button
-                key={b.label}
-                type="button"
-                onClick={b.onClick}
-                disabled={!b.enabled}
-                title={b.hint}
-                aria-label={b.label}
-                style={{
-                  ...toolbarButton,
-                  width: 32,
-                  padding: 0,
-                  justifyContent: 'center',
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  color: b.enabled ? OsakaJadePalette.text.primary : OsakaJadePalette.text.muted,
-                  border: `1px solid ${OsakaJadePalette.border.default}`,
-                  opacity: b.enabled ? 1 : 0.45,
-                  cursor: b.enabled ? 'pointer' : 'default'
-                }}
-              >
-                {b.icon}
-              </button>
-            ))}
+            <Button variant="ghost" iconOnly icon={<RotateCcw size={15} />} label="Reset the run" onClick={handleResetSimulation} />
+            <Button variant="ghost" iconOnly icon={<Undo2 size={15} />} label="Undo · Ctrl+Z" onClick={undo} disabled={historySize.past === 0} />
+            <Button variant="ghost" iconOnly icon={<Redo2 size={15} />} label="Redo · Ctrl+Y" onClick={redo} disabled={historySize.future === 0} />
+            <Button
+              variant="ghost"
+              iconOnly
+              icon={<Trash2 size={15} />}
+              label={hasSelection ? 'Delete the selection · Delete' : 'Select a unit or a stream to delete it'}
+              onClick={deleteSelection}
+              disabled={!hasSelection}
+            />
 
             <div style={{ width: 1, height: 20, backgroundColor: OsakaJadePalette.border.subtle, flexShrink: 0 }} />
 

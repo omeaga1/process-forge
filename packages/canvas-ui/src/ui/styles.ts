@@ -14,14 +14,16 @@ export const UI_CSS = `
   font: 600 13px/1 ${fontFamily.sans}; white-space: nowrap; cursor: pointer; user-select: none;
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
 }
-.pf-btn:hover:not(:disabled):not([data-disabled]) { background: var(--pf-bg-surface-hover); border-color: var(--pf-border-strong); }
-.pf-btn:active:not(:disabled):not([data-disabled]) { background: var(--pf-bg-surface-active); }
+.pf-btn[data-variant="default"]:hover:not(:disabled):not([data-disabled]) { background: var(--pf-bg-surface-hover); border-color: var(--pf-border-strong); }
+.pf-btn:active:not(:disabled):not([data-disabled]) { filter: brightness(0.95); }
 .pf-btn:focus-visible, .pf-focus:focus-visible { outline: 2px solid var(--pf-jade-400); outline-offset: 1px; }
 .pf-btn:disabled, .pf-btn[data-disabled] { opacity: 0.45; cursor: not-allowed; }
 .pf-btn[data-size="sm"] { height: 26px; padding: 0 9px; font-size: 12px; border-radius: 5px; }
 .pf-btn[data-size="lg"] { height: 38px; padding: 0 16px; font-size: 14px; }
 .pf-btn[data-variant="primary"] { background: var(--pf-jade-500); border-color: var(--pf-jade-500); color: var(--pf-text-inverse); }
 .pf-btn[data-variant="primary"]:hover:not(:disabled) { background: var(--pf-jade-400); border-color: var(--pf-jade-400); }
+.pf-btn[data-variant="warning"] { background: var(--pf-status-blocked); border-color: var(--pf-status-blocked); color: var(--pf-text-inverse); }
+.pf-btn[data-variant="warning"]:hover:not(:disabled) { filter: brightness(1.08); background: var(--pf-status-blocked); }
 .pf-btn[data-variant="ghost"] { background: transparent; border-color: transparent; color: var(--pf-text-secondary); }
 .pf-btn[data-variant="ghost"]:hover:not(:disabled) { background: var(--pf-bg-surface-hover); border-color: transparent; color: var(--pf-text-primary); }
 .pf-btn[data-variant="danger"] { background: transparent; border-color: color-mix(in srgb, var(--pf-status-failed) 45%, transparent); color: var(--pf-status-failed); }
