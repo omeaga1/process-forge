@@ -10,6 +10,7 @@ import {
   clampScale,
   designSpecsOf,
   effectiveContract,
+  resultLabel,
   layoutTransform,
   nodePortPhase,
   placePoint,
@@ -52,7 +53,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
     const holds = designSpecsOf(processNode.config as Record<string, unknown>);
     if (!holds.length) return null;
     const c = effectiveContract(processNode);
-    const words = (name: string) => c?.derived.find((d) => d.name === name)?.label ?? name.replace(/^engine\./, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+    const words = (name: string) => resultLabel(c, name);
     const varied = (name: string) => c?.parameters.find((p) => p.name === name)?.label ?? name;
     return `Holds ${holds.map((h) => `${words(h.result)} at ${h.target} by varying ${varied(h.vary)}`).join('; ')}`;
   }, [processNode]);

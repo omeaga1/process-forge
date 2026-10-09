@@ -492,3 +492,26 @@ export function engineInfluence(contract: UnitOpContract, input: UnitOpEvaluatio
   }
   return out;
 }
+
+const ENGINE_RESULT_LABELS: Record<string, string> = {
+  unitsPerMinute: 'Rate',
+  cycleSeconds: 'Cycle time',
+  unitsPerCycle: 'Units per cycle',
+  capacityGpm: 'Capacity',
+  capacityKgPerHour: 'Capacity (mass)',
+  dutyKw: 'Duty',
+  residenceTimeSeconds: 'Residence time',
+  batchGallons: 'Batch size',
+  cycleSecondsEstimate: 'Batch cycle',
+  gallonsPerMinute: 'Average throughput',
+  capacityGallons: 'Capacity',
+  maxOutflowGpm: 'Most outflow'
+};
+
+/** A result's name in words: a derived value's label, or what engineResults calls an engine figure. */
+export function resultLabel(contract: UnitOpContract | undefined, name: string): string {
+  const derived = contract?.derived.find((d) => d.name === name)?.label;
+  if (derived) return derived;
+  const field = name.replace(/^engine\./, '');
+  return ENGINE_RESULT_LABELS[field] ?? field.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+}

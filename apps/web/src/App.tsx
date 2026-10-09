@@ -466,8 +466,10 @@ const AppInner: React.FC = () => {
   }, []);
 
   const handleAcceptUnitOpContract = useCallback(
-    (contract: Parameters<typeof contractToProcessNode>[0]) => {
-      handleInsertCommunityNode(contractToProcessNode(contract));
+    (contract: Parameters<typeof contractToProcessNode>[0], extras?: { designSpecs?: unknown[] }) => {
+      const node = contractToProcessNode(contract);
+      // Results held on the creator's preview stay held on the placed unit.
+      handleInsertCommunityNode(extras?.designSpecs?.length ? { ...node, config: { ...node.config, designSpecs: extras.designSpecs } } : node);
       // Kept in My unit ops, so it can be placed again in any project.
       saveUnitOp(contract, 'designed');
       setIsUnitOpCreatorOpen(false);
