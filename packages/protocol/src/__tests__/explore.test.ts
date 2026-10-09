@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { alternativeUnits, convertUnit, parseQuantity } from '../unitop/unitConversion.js';
-import { parameterInfluence, solveForConstraint, solveForTarget, suggestFixes, sweepParameter, sweepRange, niceValue } from '../unitop/explore.js';
+import { parameterInfluence, caseStudy, solveForConstraint, solveForTarget, suggestFixes, sweepParameter, sweepRange, niceValue } from '../unitop/explore.js';
 import { DUST_COLLECTOR_CONTRACT } from '../unitop/examples/phaseUnits.js';
 import { validateUnitOpContract, type UnitOpContract } from '../unitop/contract.js';
 import { evaluateUnitOp } from '../unitop/evaluate.js';
@@ -132,5 +132,23 @@ describe('solveForTarget: specify a result, vary an input', () => {
 
   it('refuses an unknown parameter', () => {
     assert.equal(solveForTarget(DUST_COLLECTOR_CONTRACT, 'airToCloth', 2, 'nope'), null);
+  });
+});
+
+describe('caseStudy: one setting stepped, every result tabulated', () => {
+  it('steps the filter area evenly and the air-to-cloth ratio falls as ACFM / area', () => {
+    const acfm = evaluateUnitOp(DUST_COLLECTOR_CONTRACT).derived.acfm!;
+    const rows = caseStudy(DUST_COLLECTOR_CONTRACT, 'filterAreaFt2', 1000, 3000, 5);
+    assert.deepEqual(rows.map((r) => r.value), [1000, 1500, 2000, 2500, 3000]);
+    for (const r of rows) close(r.derived.airToCloth!, acfm / r.value, 1e-9);
+    // Too little cloth fails the air-to-cloth limit; enough passes.
+    assert.notEqual(rows[0]!.status, 'ok');
+    assert.equal(rows[4]!.status, 'ok');
+  });
+
+  it('steps geometrically when asked, and gives nothing for an unknown setting', () => {
+    const rows = caseStudy(DUST_COLLECTOR_CONTRACT, 'filterAreaFt2', 100, 10000, 3, { log: true });
+    rows.forEach((r, i) => close(r.value, [100, 1000, 10000][i]!, 1e-9));
+    assert.deepEqual(caseStudy(DUST_COLLECTOR_CONTRACT, 'nope', 1, 2, 3), []);
   });
 });

@@ -376,3 +376,52 @@ export function solveForTarget(
   const pick = Math.abs(a.y - target) <= Math.abs(b.y - target) ? a : b;
   return finish(pick.v, true);
 }
+
+/** One row of a case study: the setting's value, every result there, and the verdict. */
+export interface CaseStudyRow {
+  value: number;
+  derived: Record<string, number>;
+  status: PointStatus;
+  /** Ids of the constraints that fail there. */
+  failing: string[];
+}
+
+/**
+ * A sensitivity study: the unit evaluated with one setting stepped from
+ * `from` to `to` (inclusive, evenly, or geometrically when `log`), the
+ * others where they are. Whole-number settings are rounded and repeats dropped.
+ */
+export function caseStudy(
+  contract: UnitOpContract,
+  parameter: string,
+  from: number,
+  to: number,
+  steps: number,
+  options: { log?: boolean; input?: UnitOpEvaluationInput } = {}
+): CaseStudyRow[] {
+  const p = contract.parameters.find((x) => x.name === parameter);
+  if (!p || !Number.isFinite(from) || !Number.isFinite(to)) return [];
+  const n = Math.max(2, Math.min(200, Math.round(steps)));
+  const log = Boolean(options.log) && from > 0 && to > 0;
+  const whole = isWholeNumberParameter(p);
+  const input = options.input ?? {};
+  const rows: CaseStudyRow[] = [];
+  for (let i = 0; i < n; i++) {
+    const raw = atFraction({ from, to, log }, i / (n - 1));
+    const value = whole ? Math.round(raw) : raw;
+    if (rows.length && rows[rows.length - 1]!.value === value) continue;
+    const ev = evaluateUnitOp(contract, { ...input, parameterOverrides: { ...(input.parameterOverrides ?? {}), [parameter]: value } });
+    if (ev.error) {
+      rows.push({ value, derived: {}, status: 'invalid', failing: [] });
+      continue;
+    }
+    const failing = ev.constraints.filter((c) => !c.satisfied);
+    rows.push({
+      value,
+      derived: ev.derived,
+      status: failing.some((c) => c.severity === 'ERROR') ? 'error' : failing.length ? 'warning' : 'ok',
+      failing: failing.map((c) => c.id)
+    });
+  }
+  return rows;
+}

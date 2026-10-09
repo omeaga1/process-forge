@@ -372,7 +372,7 @@ export const StreamsSection: React.FC<{
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <Arrow size={14} color={color} />
               <span style={{ fontSize: 13, fontWeight: 700, color: palette.text.primary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color, padding: '1px 6px', borderRadius: r.full, background: tint(color, 0.14) }}>{PHASE_WORD[phase]}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: palette.text.primary, padding: '0 6px', borderRadius: r.full, background: tint(color, 0.14), border: `1px solid ${tint(color, 0.55)}` }}>{PHASE_WORD[phase]}</span>
             </div>
             <div style={{ fontSize: 12, color: palette.text.muted, marginBottom: 4 }}>
               {inlet ? 'In' : 'Out'}
