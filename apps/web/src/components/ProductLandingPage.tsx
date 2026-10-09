@@ -271,7 +271,19 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
                 <div style={{ fontSize: 16, fontWeight: 650 }}>From Claude Desktop, Cursor, or any MCP client</div>
                 <p style={{ margin: '8px 0 14px', fontSize: 14, lineHeight: 1.6, color: D.text.secondary }}>
                   On your existing subscription. The client designs units, places standard equipment, pulls units from the community
-                  library, pipes them together and simulates. Add the server (Node.js 20 or later):
+                  library, pipes them together and simulates.
+                </p>
+                <a
+                  href="https://github.com/omeaga1/process-forge/releases/latest/download/process-forge.mcpb"
+                  className="pf-btn"
+                  data-variant="primary"
+                  data-size="md"
+                  style={{ textDecoration: 'none' }}
+                >
+                  Add to Claude Desktop
+                </a>
+                <p style={{ margin: '8px 0 14px', fontSize: 12.5, lineHeight: 1.55, color: D.text.muted }}>
+                  One click to install, and it keeps itself up to date. For Cursor and other clients, add the server (Node.js 20 or later):
                 </p>
                 <CopyCommand text={NPX} />
               </div>
@@ -290,9 +302,9 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         <Section id="limits" n="04" kicker="HONESTLY" title="What it does not do yet.">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
             {[
-              ['Heat', 'Heat is not simulated along the line: a heat exchanger passes flow up to its rated rate.'],
-              ['Continuous designs', 'A designed unit that runs continuously is checked at steady state, but does not limit the flow.'],
-              ['Splits', 'Whole items split evenly down each branch. Liquid splits only at a separator, by its vapor ratio.'],
+              ['Pressure', 'No pressure network is solved: flow is limited by each unit\'s rated capacity, not worked out from pressure drops and pump curves.'],
+              ['Properties', 'Water and steam use IAPWS-IF97 and gases the ideal-gas law; other liquids, and mixtures, use the density and heat capacity you give them, mixed by mass. There is no full property package.'],
+              ['Items', 'Whole items split evenly down each branch.'],
               ['Subscriptions', 'Claude Pro or ChatGPT Plus cannot be used inside other apps; they work through an MCP client. In-app AI is billed per use.'],
               ['The model matters', 'Smaller models write designs the engine rejects more often.']
             ].map(([k, t]) => (
