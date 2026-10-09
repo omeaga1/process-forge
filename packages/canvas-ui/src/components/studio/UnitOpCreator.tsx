@@ -17,6 +17,7 @@ import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
 import { layoutNozzles } from '../../nozzles/nozzleLayout.js';
 import type { AssistantRoute } from '../../ai/assistantRoute.js';
 import { McpDesignGuide } from './McpDesignGuide.js';
+import { ContractParametersPanel } from './ContractParametersPanel.js';
 import { Button } from '../../ui/index.js';
 import { Check, X, Circle, Sparkles } from 'lucide-react';
 import { tint } from '@process-forge/theme';
@@ -175,6 +176,8 @@ export function UnitOpCreator({
   const [progress, setProgress] = useState<string[]>([]);
   const route: AssistantRoute = routeProp ?? (onPropose ? 'api-key' : 'none');
   const [overrides, setOverrides] = useState<Record<string, number>>({});
+  // The draft as the spec sheet below has edited it (values, feed, holds): what the gates check and what is added.
+  const [previewConfig, setPreviewConfig] = useState<Record<string, unknown> | null>(null);
   // Keyed to the description it was made for, so editing the description
   // discards a pick that no longer applies.
 
@@ -191,8 +194,8 @@ export function UnitOpCreator({
 
   const reviewState = useMemo<ReviewState>(() => {
     if (parsedDraft === undefined || jsonBroken) return EMPTY_REVIEW;
-    return review(parsedDraft, overrides);
-  }, [parsedDraft, jsonBroken, overrides]);
+    return previewConfig ? review(previewConfig.contract, {}) : review(parsedDraft, overrides);
+  }, [parsedDraft, jsonBroken, overrides, previewConfig]);
 
   // The unit as the canvas will draw it: from the contract's own drawing.
   const figure = useMemo(() => {
@@ -224,6 +227,7 @@ export function UnitOpCreator({
       const result = await onPropose(description, (note) => setProgress((p) => [...p, note]));
       setDraft(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
       setOverrides({});
+      setPreviewConfig(null);
     } catch (e) {
       setProposeError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -342,6 +346,7 @@ export function UnitOpCreator({
           onChange={(e) => {
             setDraft(e.target.value);
             setOverrides({});
+      setPreviewConfig(null);
           }}
           placeholder='{ "contractVersion": 1, "id": "...", ... }'
           rows={8}
@@ -450,92 +455,24 @@ export function UnitOpCreator({
             )}
           </div>
 
+          {/* The same spec sheet a placed unit gets: what passes where, the solver, the study, before it is even added. */}
           <div style={card}>
-            <div style={labelStyle}>Parameters — edit to ask “what if?”</div>
-            <div style={{ display: 'grid', gap: 6 }}>
-              {reviewState.contract!.parameters.map((p) => {
-                const current = overrides[p.name] ?? p.value;
-                const outOfBounds =
-                  (p.min !== undefined && current < p.min) ||
-                  (p.max !== undefined && current > p.max);
-                return (
-                  <div
-                    key={p.name}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}
-                  >
-                    <span style={{ flex: 1, color: P.text.secondary }}>{p.label}</span>
-                    <input
-                      type="number"
-                      value={current}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setOverrides((o) =>
-                          Number.isFinite(v) ? { ...o, [p.name]: v } : o
-                        );
-                      }}
-                      className="pf-input"
-                      aria-label={p.label}
-                      aria-invalid={outOfBounds}
-                      style={{
-                        width: 110,
-                        height: 30,
-                        textAlign: 'right',
-                        fontFamily: fontFamily.mono,
-                        ...(outOfBounds ? { color: D.semantic.violation, borderColor: D.semantic.violation } : {})
-                      }}
-                    />
-                    <span style={{ width: 72, color: P.text.muted }}>{p.unit}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div style={card}>
-            <div style={labelStyle}>Computed by the engine</div>
-            <div style={{ display: 'grid', gap: 4 }}>
-              {reviewState.contract!.derived.map((d) => (
-                <div
-                  key={d.name}
-                  style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}
-                >
-                  <span style={{ color: P.text.secondary }}>{d.label}</span>
-                  <span style={{ color: P.text.accent, ...D.data }}>
-                    {Number(evaluation.derived[d.name] ?? 0).toLocaleString(undefined, {
-                      maximumFractionDigits: 3
-                    })}{' '}
-                    <span style={{ color: P.text.muted }}>{d.unit}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div style={card}>
-            <div style={labelStyle}>Physical checks</div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {evaluation.constraints.map((c) => {
-                const ok = c.satisfied;
-                const color = ok
-                  ? P.jade[400]
-                  : c.severity === 'ERROR'
-                    ? D.semantic.violation
-                    : P.text.gold;
-                return (
-                  <div key={c.id} style={{ display: 'flex', gap: 8, fontSize: 12 }}>
-                    <span style={{ color, fontWeight: 700 }}>{ok ? '✓' : '✕'}</span>
-                    <div>
-                      <div style={{ color: ok ? P.text.secondary : color }}>
-                        {ok ? c.id : c.message}
-                      </div>
-                      {!ok && c.hint && (
-                        <div style={{ color: P.text.muted, marginTop: 2 }}>Try: {c.hint}</div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <ContractParametersPanel
+              node={
+                {
+                  id: 'unit-op-preview',
+                  name: reviewState.contract!.name,
+                  kind: 'CUSTOM_UNIT_OP',
+                  position: { x: 0, y: 0 },
+                  inputs: [],
+                  outputs: [],
+                  config: previewConfig ?? { contract: reviewState.contract }
+                } as unknown as Parameters<typeof ContractParametersPanel>[0]['node']
+              }
+              contract={reviewState.contract!}
+              own
+              onUpdateConfig={(_, config) => setPreviewConfig(config)}
+            />
           </div>
         </>
       )}
@@ -560,14 +497,17 @@ export function UnitOpCreator({
           onClick={() => {
             const contract = reviewState.contract;
             if (!contract) return;
-            // Add the design the gates actually passed, with the engineer's
-            // "what if?" edits folded in.
-            onAccept({
-              ...contract,
-              parameters: contract.parameters.map((p) =>
-                overrides[p.name] === undefined ? p : { ...p, value: overrides[p.name]! }
-              )
-            });
+            // Add the design the gates actually passed: the draft as the spec sheet left it.
+            onAccept(
+              previewConfig
+                ? contract
+                : {
+                    ...contract,
+                    parameters: contract.parameters.map((p) =>
+                      overrides[p.name] === undefined ? p : { ...p, value: overrides[p.name]! }
+                    )
+                  }
+            );
           }}
         >
           Add to flowsheet
