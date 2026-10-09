@@ -17,7 +17,7 @@ import {
   type UnitOpEvaluation,
   type UnitOpParameter
 } from '@process-forge/protocol';
-import { Crosshair, RotateCcw } from 'lucide-react';
+import { Check, Copy, Crosshair, RotateCcw } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { Button, Chip, Switch } from '../../ui/index.js';
@@ -581,6 +581,27 @@ const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius
   const log = range.log && !fromText.trim() && !toText.trim();
   const rows = useMemo(() => (from !== null && to !== null && from !== to ? caseStudy(contract, p.name, from, to, steps, { log }) : []), [contract, p.name, from, to, steps, log]);
   const shownCols = moved.filter((d) => cols.includes(d.name));
+  // The table as tab-separated text, headers with units, values in shown units: it pastes into a spreadsheet.
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    const unitTag = (u: string) => (u !== '-' ? ` (${u})` : '');
+    const head = [`${p.label}${unitTag(du)}`, ...shownCols.map((d) => `${d.label ?? d.name}${unitTag(unitOf(d))}`), 'Checks'];
+    const body = rows.map((row) => [
+      String(Number(toShown(row.value).toPrecision(6))),
+      ...shownCols.map((d) => {
+        const v = row.derived[d.name];
+        return v === undefined ? '' : String(Number((convertUnit(v, d.unit, unitOf(d), { difference: isTemperatureDifference(d) }) ?? v).toPrecision(6)));
+      }),
+      row.status === 'ok' ? 'pass' : row.status === 'warning' ? 'warn' : row.status === 'error' ? 'fail' : 'invalid'
+    ]);
+    try {
+      await navigator.clipboard.writeText([head, ...body].map((r) => r.join('\t')).join('\n'));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard refused: the button simply does not change.
+    }
+  };
   // The plot: one result against the setting, sampled finely over the same range.
   const [plotName, setPlotName] = useState<string | null>(null);
   const plotted = shownCols.find((d) => d.name === plotName) ?? shownCols[0];
@@ -624,7 +645,14 @@ const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius
       aria-label="Sensitivity study"
       style={{ marginTop: 12, padding: '12px 12px 10px', borderRadius: radius, border: `1px solid ${palette.border.default}`, background: palette.background.surfaceElevated }}
     >
-      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: palette.text.muted, marginBottom: 8 }}>Sensitivity study</div>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ flex: 1, fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: palette.text.muted }}>Sensitivity study</span>
+        {rows.length > 0 && (
+          <Button size="sm" variant="ghost" icon={copied ? <Check size={13} /> : <Copy size={13} />} onClick={copy}>
+            {copied ? 'Copied' : 'Copy table'}
+          </Button>
+        )}
+      </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
         <span style={label}>Vary</span>
         <select className="pf-select" aria-label="Setting to step" value={p.name} onChange={(e) => setName(e.target.value)} style={{ width: 'auto', minWidth: 150, height: 30 }}>
