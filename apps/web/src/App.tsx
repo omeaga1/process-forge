@@ -28,7 +28,7 @@ import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModa
 import { StudioEntryGateModal } from './components/StudioEntryGateModal.js';
 import { initialViewMode, homeViewMode, isDesktopRuntime } from './runtime/desktop.js';
 import { contractToProcessNode } from './unitop/contractToNode.js';
-import { saveUnitOp, useUnitOpCloudSync } from '@process-forge/canvas-ui';
+import { DialogShell, saveUnitOp, useUnitOpCloudSync } from '@process-forge/canvas-ui';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
 import { AccountModal } from './components/AccountModal.js';
@@ -628,43 +628,15 @@ const AppInner: React.FC = () => {
         onSaveCloud={handleSaveCloud}
       />
 
-      {isUnitOpCreatorOpen && (
-        <div
-          role="dialog"
-          aria-label="Unit Operation Creator"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1000,
-            background: 'var(--pf-bg-overlay)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px'
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setIsUnitOpCreatorOpen(false);
-          }}
-        >
-          <div
-            style={{
-              width: 'min(760px, 100%)',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              borderRadius: '10px',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.5)'
-            }}
-          >
-            <UnitOpCreator
-              route={assistantRoute}
-              onChooseAssistant={() => setIsAiModalOpen(true)}
-              onPropose={handleProposeUnitOp}
-              onAccept={handleAcceptUnitOpContract}
-              onClose={() => setIsUnitOpCreatorOpen(false)}
-            />
-          </div>
-        </div>
-      )}
+      <DialogShell open={isUnitOpCreatorOpen} onOpenChange={setIsUnitOpCreatorOpen} label="Design a unit op" width={760}>
+        <UnitOpCreator
+          route={assistantRoute}
+          onChooseAssistant={() => setIsAiModalOpen(true)}
+          onPropose={handleProposeUnitOp}
+          onAccept={handleAcceptUnitOpContract}
+          onClose={() => setIsUnitOpCreatorOpen(false)}
+        />
+      </DialogShell>
 
       <CommunityUnitOpLibraryModal
         isOpen={isCommunityLibraryOpen}

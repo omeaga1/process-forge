@@ -3,7 +3,6 @@ import {
   User,
   LogOut,
   Cloud,
-  X,
   Building2,
   Mail,
   Lock,
@@ -14,7 +13,7 @@ import {
   KeyRound,
   CheckCircle2
 } from 'lucide-react';
-import { useTheme } from '@process-forge/canvas-ui';
+import { Modal, useTheme } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
 import { getInitials, hasCloudSession } from '../auth/accountManager.js';
 import { isDesktopRuntime } from '../runtime/desktop.js';
@@ -179,85 +178,20 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: palette.background.overlay,
-        backdropFilter: 'blur(8px)',
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 520,
-          backgroundColor: OsakaJadePalette.background.surface,
-          border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: draftingRadius.sharp,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          animation: 'fadeIn 0.15s ease-out'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: '16px 20px',
-            backgroundColor: OsakaJadePalette.background.canvas,
-            borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: draftingRadius.soft,
-                backgroundColor: OsakaJadePalette.jade.muted,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: `1px solid ${OsakaJadePalette.jade[600]}`
-              }}
-            >
-              <User size={18} color={OsakaJadePalette.jade[400]} />
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                {isAuthenticated ? 'Engineer Profile & Cloud Sync' : 'ProcessForge Account'}
-              </div>
-              <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>
-                {isAuthenticated ? 'Your account on this device' : 'A Google account can save to ProcessForge Cloud. An email profile stays on this device.'}
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: OsakaJadePalette.text.muted,
-              cursor: 'pointer',
-              padding: 4
-            }}
-          >
-            <X size={18} />
-          </button>
+    <Modal
+      open={isOpen}
+      onOpenChange={(o) => !o && onClose()}
+      width={520}
+      icon={
+        <div style={{ width: 32, height: 32, borderRadius: 8, display: 'grid', placeItems: 'center', backgroundColor: tint(palette.jade[500], 0.14) }}>
+          <User size={17} color={palette.jade[400]} />
         </div>
+      }
+      title={isAuthenticated ? 'Your account' : 'Sign in to ProcessForge'}
+      description={isAuthenticated ? 'Signed in on this device.' : 'A Google account can save to ProcessForge Cloud. An email profile stays on this device.'}
+    >
+        <div>
 
-        {/* Content */}
-        <div style={{ padding: 20 }}>
           {isAuthenticated && user ? (
             /* ── AUTHENTICATED PROFILE VIEW ── */
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -758,7 +692,6 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

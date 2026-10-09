@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import type { ProcessNode } from '@process-forge/protocol';
-import { Globe, ShieldCheck, X } from 'lucide-react';
+import { Globe, ShieldCheck } from 'lucide-react';
 import { draftingRadius } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
+import { Button, Modal } from '../../ui/index.js';
 import { CommunityLibraryService, type CommunityUnitOpItem, type PublishResult } from '../../marketplace/communityLibraryClient.js';
 
 export interface PublishSuggestion {
@@ -46,7 +47,7 @@ export function guessCategory(n: ProcessNode): Category {
  * confirm.
  */
 export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, suggestion, onClose }) => {
-  const { palette, font } = useTheme();
+  const { palette } = useTheme();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<Category>('FLUID_PROCESSING');
@@ -108,21 +109,24 @@ export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, 
   const label: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: palette.text.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4, display: 'block' };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Publish to the community library"
-      style={{ position: 'fixed', inset: 0, zIndex: 10001, background: palette.background.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+    <Modal
+      open={node !== null}
+      onOpenChange={(o) => !o && onClose()}
+      width={580}
+      title="Publish to the community library"
+      description={node ? node.name : undefined}
+      footer={
+        <>
+          <Button onClick={onClose}>{result?.success ? 'Done' : 'Cancel'}</Button>
+          {!result?.success && (
+            <Button variant="primary" disabled={!canPublish} onClick={publish}>
+              {busy ? 'Publishing…' : existing ? 'Publish new version' : 'Publish'}
+            </Button>
+          )}
+        </>
+      }
     >
-      <div style={{ width: 560, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', background: palette.background.surface, border: `1px solid ${palette.border.default}`, borderRadius: draftingRadius.sharp }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: `1px solid ${palette.border.subtle}` }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: palette.text.primary }}>Publish to the community library</div>
-          <button type="button" onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: palette.text.muted, cursor: 'pointer' }}>
-            <X size={18} />
-          </button>
-        </div>
-
-        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {suggestion?.requestedByClient && (
             <div role="note" style={{ padding: '8px 10px', borderRadius: draftingRadius.soft, border: `1px solid ${palette.jade[600]}`, fontSize: 12, color: palette.text.primary, lineHeight: 1.5 }}>
               Your AI client asked to publish this unit and filled in the details below. Review them: nothing is published unless you click Publish.
@@ -205,31 +209,6 @@ export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, 
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '14px 20px', borderTop: `1px solid ${palette.border.subtle}` }}>
-          <button type="button" onClick={onClose} style={{ padding: '8px 14px', background: 'transparent', border: `1px solid ${palette.border.default}`, borderRadius: draftingRadius.soft, color: palette.text.secondary, cursor: 'pointer' }}>
-            {result?.success ? 'Done' : 'Cancel'}
-          </button>
-          {!result?.success && (
-            <button
-              type="button"
-              disabled={!canPublish}
-              onClick={publish}
-              style={{
-                padding: '8px 16px',
-                background: canPublish ? palette.jade[500] : palette.background.canvas,
-                border: 'none',
-                borderRadius: draftingRadius.soft,
-                color: canPublish ? palette.text.inverse : palette.text.muted,
-                fontWeight: 700,
-                cursor: canPublish ? 'pointer' : 'default',
-                fontFamily: font.sans
-              }}
-            >
-              {busy ? 'Publishing…' : existing ? `Publish new version` : 'Publish'}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

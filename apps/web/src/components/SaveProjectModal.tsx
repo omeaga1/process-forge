@@ -2,14 +2,12 @@ import React, { useState, useEffect } from 'react';
 import {
   Save,
   Download,
-  X,
   Check,
   Cloud,
-  ShieldCheck,
   User,
   HardDrive
 } from 'lucide-react';
-import { useTheme } from '@process-forge/canvas-ui';
+import { Button, Modal, useTheme } from '@process-forge/canvas-ui';
 import type { SimulationProject } from '@process-forge/protocol';
 import { useAccount } from '../auth/useAccount.js';
 import { hasCloudSession } from '../auth/accountManager.js';
@@ -87,86 +85,23 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: palette.background.overlay,
-        backdropFilter: 'blur(8px)',
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20
-      }}
-    >
-      <div
-        style={{
-          width: 580,
-          maxWidth: '100%',
-          maxHeight: 'min(90vh, calc(100vh - 40px))',
-          backgroundColor: OsakaJadePalette.background.surface,
-          border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: draftingRadius.sharp,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '16px 20px',
-            backgroundColor: OsakaJadePalette.background.canvas,
-            borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: draftingRadius.soft,
-                backgroundColor: tint(palette.jade[500], 0.15),
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: OsakaJadePalette.jade[500]
-              }}
-            >
-              <Save size={18} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                Save Simulation Flowsheet
-              </h3>
-              <span style={{ fontSize: 12, color: OsakaJadePalette.text.secondary }}>
-                Units, settings, drawings and streams
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: OsakaJadePalette.text.muted,
-              cursor: 'pointer',
-              padding: 4
-            }}
-          >
-            <X size={18} />
-          </button>
+    <Modal
+      open={isOpen}
+      onOpenChange={(o) => !o && onClose()}
+      width={560}
+      icon={
+        <div style={{ width: 32, height: 32, borderRadius: 8, display: 'grid', placeItems: 'center', backgroundColor: tint(palette.jade[500], 0.14), color: palette.jade[400] }}>
+          <Save size={17} />
         </div>
-
-        {/* Content Form */}
-        <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto' }}>
+      }
+      title="Save flowsheet"
+      description="Units, settings, drawings and streams. A saved project reopens exactly as it was."
+      footer={<Button onClick={onClose}>Close</Button>}
+    >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
-              Simulation Project Name
+              Name
             </label>
             <input
               type="text"
@@ -393,39 +328,6 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            padding: '12px 20px',
-            backgroundColor: OsakaJadePalette.background.canvas,
-            borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: 11,
-            color: OsakaJadePalette.text.muted
-          }}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <ShieldCheck size={12} color={OsakaJadePalette.jade[500]} />
-            Saved projects reopen exactly as they were
-          </span>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '6px 14px',
-              backgroundColor: 'transparent',
-              border: `1px solid ${OsakaJadePalette.border.default}`,
-              borderRadius: draftingRadius.soft,
-              color: OsakaJadePalette.text.secondary,
-              fontSize: 12,
-              cursor: 'pointer'
-            }}
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 };

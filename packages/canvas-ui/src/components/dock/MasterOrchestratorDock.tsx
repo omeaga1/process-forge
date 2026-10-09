@@ -28,11 +28,6 @@ interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
   bottlenecks: BottleneckAnalysis;
   telemetry: PlantTelemetryState;
-  isRunning?: boolean;
-  onToggleSimulation?: () => void;
-  onResetSimulation?: () => void;
-  onOpenForgeHub?: () => void;
-  onBroadcastContext: () => void;
   onAddNode?: (node: ProcessNode) => void;
   onOpenPopOutStudio?: (nodeId: string) => void;
   isCollapsed?: boolean;
@@ -41,23 +36,21 @@ interface MasterOrchestratorDockProps {
   agentHost?: AgentHost;
   /** The run at the canvas playhead: the board and the run digest follow it. */
   run?: RunView;
+  /** The line's product is bulk (liquid, powder): read in kg before a run as well as during one. */
+  bulkLine?: boolean;
 }
 
 export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   graph,
   bottlenecks,
   telemetry,
-  isRunning: _isRunning,
-  onToggleSimulation: _onToggleSimulation,
-  onResetSimulation: _onResetSimulation,
-  onOpenForgeHub: _onOpenForgeHub,
-  onBroadcastContext,
   onAddNode,
   onOpenPopOutStudio,
   isCollapsed = false,
   onToggleCollapse,
   agentHost,
-  run
+  run,
+  bulkLine
 }) => {
   const { palette, font, size, weight, space, radius: r, motion } = useTheme();
   const OsakaJadePalette = palette;
@@ -115,10 +108,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   const handleSendMessage = async (textToSend?: string) => {
     const text = textToSend || inputText;
     if (!text.trim() || isProcessing) return;
-
-    if (text.toLowerCase().includes('broadcast')) {
-      onBroadcastContext();
-    }
 
     const userMsg: ChatMessage = {
       id: `usr-${Date.now()}`,
@@ -359,12 +348,12 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           const rate = telemetry.averageRatePerMin;
           // A line that makes no items (a powder or liquid line) is read in kg.
           // Decided by the whole run, so the board does not switch from units to kg as the first kg arrive.
-          const bulk = run ? run.result.totalUnitsPackaged === 0 && run.result.totalFluidDeliveredKg > 0 : telemetry.totalPackaged === 0 && (telemetry.productKg ?? 0) > 0;
+          const bulk = run ? run.result.totalUnitsPackaged === 0 && run.result.totalFluidDeliveredKg > 0 : bulkLine ?? (telemetry.totalPackaged === 0 && (telemetry.productKg ?? 0) > 0);
           // kg/h reaching the product outlets right now.
           const kgNow = run
             ? graph.nodes.reduce((a, n) => a + ((n.kind === 'TERMINAL' && (n.config as { role?: string }).role === 'product' ? run.snapshot.get(n.id)?.kgPerHour : 0) ?? 0), 0)
             : 0;
-          const kgPerHour = bulk && telemetry.simulatedTimeSeconds > 0 ? (telemetry.productKg! / telemetry.simulatedTimeSeconds) * 3600 : 0;
+          const kgPerHour = bulk && telemetry.simulatedTimeSeconds > 0 ? ((telemetry.productKg ?? 0) / telemetry.simulatedTimeSeconds) * 3600 : 0;
           const cell = (label: string, unit: string, flap: React.ReactNode, title?: string) => (
             <div title={title} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
               <span style={{ fontSize: 9, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: font.mono }}>

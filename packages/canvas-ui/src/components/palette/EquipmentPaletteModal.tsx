@@ -9,16 +9,9 @@ import { useUnitOpSyncStatus } from '../../library/unitOpCloudSync.js';
 import { contractToProcessNode } from '../../unitop/contractToNode.js';
 import { describeUnitBehavior, formatRate } from '../../model/unitBehavior.js';
 import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
-import {
-  X,
-  Search,
-  Plus,
-  Layers,
-  Check,
-  Trash2,
-  Bookmark
-} from 'lucide-react';
-import { draftingRadius, tint } from '@process-forge/theme';
+import { Search, Plus, Layers, Check, Trash2, Bookmark, Sparkles } from 'lucide-react';
+import { tint } from '@process-forge/theme';
+import { Button, Modal } from '../../ui/index.js';
 
 /** The catalog lives in the protocol package, so the MCP server lists the same units. */
 export { STANDARD_EQUIPMENT_CATALOG, type EquipmentPaletteItem };
@@ -31,581 +24,283 @@ export interface EquipmentPaletteModalProps {
   onDesignNew?: () => void;
 }
 
-export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({
-  isOpen,
-  onClose,
-  onInsertNode,
-  onDesignNew
-}) => {
-  const { palette, radius: r } = useTheme();
-  const OsakaJadePalette = palette;
+type Category = 'MINE' | 'ALL' | EquipmentPaletteItem['category'];
+
+const matches = (item: EquipmentPaletteItem, q: string) =>
+  !q ||
+  item.title.toLowerCase().includes(q) ||
+  item.subtitle.toLowerCase().includes(q) ||
+  item.description.toLowerCase().includes(q) ||
+  item.kind.toLowerCase().includes(q) ||
+  item.tags.some((t) => t.includes(q));
+
+/**
+ * Add equipment: the stock units and the engineer's own designs, by
+ * category, searchable. A tile is the add button; the dialog closes once the
+ * unit is on the flowsheet.
+ */
+export const EquipmentPaletteModal: React.FC<EquipmentPaletteModalProps> = ({ isOpen, onClose, onInsertNode, onDesignNew }) => {
+  const { palette, font } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<'MINE' | 'ALL' | EquipmentPaletteItem['category']>('ALL');
-  const [justAddedKind, setJustAddedKind] = useState<string | null>(null);
+  const [category, setCategory] = useState<Category>('ALL');
+  const [justAdded, setJustAdded] = useState<string | null>(null);
   const saved = useSavedUnitOps();
   const sync = useUnitOpSyncStatus();
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   // Open on your own designs when there are any: they are why you came.
   useEffect(() => {
     if (isOpen) {
-      setSelectedCategory(saved.length > 0 ? 'MINE' : 'ALL');
+      setCategory(saved.length > 0 ? 'MINE' : 'ALL');
       setConfirmRemove(null);
+      setSearchQuery('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const savedShown = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return saved.filter(
-      (i) => !q || i.contract.name.toLowerCase().includes(q) || (i.contract.description ?? '').toLowerCase().includes(q)
-    );
-  }, [saved, searchQuery]);
+  const q = searchQuery.toLowerCase().trim();
+  const savedShown = useMemo(
+    () => saved.filter((i) => !q || i.contract.name.toLowerCase().includes(q) || (i.contract.description ?? '').toLowerCase().includes(q)),
+    [saved, q]
+  );
+  const found = useMemo(() => STANDARD_EQUIPMENT_CATALOG.filter((i) => matches(i, q)), [q]);
+  // A search looks everywhere: the category only narrows an empty search.
+  const shown = useMemo(() => (q || category === 'ALL' || category === 'MINE' ? found : found.filter((i) => i.category === category)), [found, category, q]);
+  const countOf = (c: Category) => (c === 'MINE' ? savedShown.length : c === 'ALL' ? found.length : found.filter((i) => i.category === c).length);
 
-  const handleInsertSaved = (item: SavedUnitOp) => {
-    onInsertNode(contractToProcessNode(item.contract));
-    setJustAddedKind(item.id);
+  const added = (id: string, node: ProcessNode) => {
+    onInsertNode(node);
+    setJustAdded(id);
     setTimeout(() => {
-      setJustAddedKind(null);
+      setJustAdded(null);
       onClose();
-    }, 450);
+    }, 350);
   };
 
-  const filteredItems = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return STANDARD_EQUIPMENT_CATALOG.filter((item) => {
-      const matchesCat = selectedCategory === 'ALL' || selectedCategory === 'MINE' || item.category === selectedCategory;
-      if (!matchesCat) return false;
-      if (!q) return true;
-      return (
-        item.title.toLowerCase().includes(q) ||
-        item.subtitle.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q) ||
-        item.kind.toLowerCase().includes(q) ||
-        item.tags.some((t) => t.includes(q))
-      );
-    });
-  }, [searchQuery, selectedCategory]);
+  const rail: { id: Category; label: string }[] = [
+    { id: 'MINE', label: 'My unit ops' },
+    { id: 'ALL', label: 'All equipment' },
+    ...EQUIPMENT_CATEGORIES.map((c) => ({ id: c.id as Category, label: c.label }))
+  ];
+  const showMine = category === 'MINE' && !q;
 
-  const handleInsert = (item: EquipmentPaletteItem) => {
-    onInsertNode(createStandardUnitOp(item));
-    setJustAddedKind(item.id);
-    setTimeout(() => {
-      setJustAddedKind(null);
-      onClose();
-    }, 450);
-  };
-
-  if (!isOpen) return null;
+  const tile = (key: string, isAdded: boolean, onAdd: () => void, figure: React.ReactNode, title: string, sub: React.ReactNode, meta?: React.ReactNode, extra?: React.ReactNode) => (
+    <div key={key} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        className="pf-palette-tile pf-focus"
+        onClick={onAdd}
+        aria-label={`Add ${title} to the flowsheet`}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          gap: 8,
+          padding: 12,
+          textAlign: 'left',
+          cursor: 'pointer',
+          borderRadius: 8,
+          border: `1px solid ${isAdded ? palette.jade.glow : palette.border.default}`,
+          backgroundColor: isAdded ? tint(palette.jade[500], 0.12) : palette.background.canvas,
+          color: palette.text.primary,
+          fontFamily: font.sans
+        }}
+      >
+        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{figure}</div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 650, lineHeight: 1.3 }}>{title}</div>
+          <div style={{ fontSize: 11.5, color: palette.text.muted, marginTop: 2, lineHeight: 1.35 }}>{sub}</div>
+        </div>
+        <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, minHeight: 18 }}>
+          <span style={{ fontSize: 11, color: palette.text.muted, fontFamily: font.mono }}>{meta}</span>
+          <span className="pf-palette-add" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 650, color: palette.jade.glow }}>
+            {isAdded ? <Check size={13} /> : <Plus size={13} />}
+            {isAdded ? 'Added' : 'Add'}
+          </span>
+        </div>
+      </button>
+      {extra}
+    </div>
+  );
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: palette.background.overlay,
-        backdropFilter: 'blur(8px)',
-        zIndex: 10000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          width: 860,
-          maxWidth: '100%',
-          maxHeight: '90vh',
-          backgroundColor: OsakaJadePalette.background.surface,
-          border: `1px solid ${OsakaJadePalette.border.default}`,
-          borderRadius: draftingRadius.sharp,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '18px 24px',
-            backgroundColor: OsakaJadePalette.background.canvas,
-            borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div
-              style={{
-                width: 38,
-                height: 38,
-                borderRadius: r.md,
-                backgroundColor: `${OsakaJadePalette.jade[500]}1a`,
-                border: `1px solid ${OsakaJadePalette.jade[500]}44`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: OsakaJadePalette.jade.glow
-              }}
-            >
-              <Layers size={20} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                  Add Unit Operation
-                </span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.06em',
-                    padding: '2px 8px',
-                    borderRadius: r.full,
-                    backgroundColor: tint(palette.jade[500], 0.15),
-                    color: OsakaJadePalette.jade.glow,
-                    border: `1px solid ${OsakaJadePalette.jade[600]}40`
-                  }}
-                >
-                  {selectedCategory === 'MINE' ? 'Your designs' : 'Standard equipment'}
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>
-                {selectedCategory === 'MINE'
-                  ? 'Unit ops you designed, or your MCP client added, ready to place again.'
-                  : 'Stock units with ready-made models. For anything else, design it.'}
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={onClose}
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: r.md,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'transparent',
-              border: `1px solid ${OsakaJadePalette.border.subtle}`,
-              color: OsakaJadePalette.text.muted,
-              cursor: 'pointer'
-            }}
-          >
-            <X size={16} />
-          </button>
+    <Modal
+      open={isOpen}
+      onOpenChange={(o) => !o && onClose()}
+      width={980}
+      flush
+      icon={
+        <div style={{ width: 32, height: 32, borderRadius: 8, display: 'grid', placeItems: 'center', backgroundColor: tint(palette.jade[500], 0.14), color: palette.jade.glow }}>
+          <Layers size={17} />
         </div>
-
-        {/* Designing is the point; the stock list is the shortcut. */}
-        {onDesignNew && (
-          <button
-            type="button"
-            onClick={onDesignNew}
-            style={{
-              margin: '12px 24px 0',
-              padding: '12px 14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              textAlign: 'left',
-              borderRadius: draftingRadius.soft,
-              border: `1px solid ${OsakaJadePalette.jade[600]}`,
-              backgroundColor: tint(palette.jade[500], 0.08),
-              color: OsakaJadePalette.text.primary,
-              cursor: 'pointer'
-            }}
-          >
-            <span>
-              <span style={{ display: 'block', fontSize: 13, fontWeight: 700 }}>Not in this list? Design it.</span>
-              <span style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.secondary, marginTop: 2 }}>
-                Describe the equipment. Your AI model writes it as a contract, and the engine checks the physics before it goes on the flowsheet.
-              </span>
+      }
+      title="Add equipment"
+      description="Stock units with ready-made models, and the unit ops you designed. Click one to place it."
+      footer={
+        onDesignNew ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 12 }}>
+            <span style={{ fontSize: 12.5, color: palette.text.secondary }}>
+              Not here? Describe it: your AI model writes the contract and the engine checks its physics.
             </span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.jade.glow, whiteSpace: 'nowrap' }}>Design a unit op →</span>
-          </button>
-        )}
-
-        {/* Search & Category Filter Bar */}
-        <div
-          style={{
-            padding: '14px 24px',
-            backgroundColor: OsakaJadePalette.background.surface,
-            borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            flexWrap: 'wrap'
-          }}
-        >
-          {/* Search Box */}
-          <div
-            style={{
-              position: 'relative',
-              flex: '1 1 240px',
-              minWidth: 200
-            }}
-          >
-            <Search
-              size={15}
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: OsakaJadePalette.text.muted,
-                pointerEvents: 'none'
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Search feeds, pumps, tanks, reactors, fillers..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 12px 8px 36px',
-                borderRadius: r.md,
-                backgroundColor: OsakaJadePalette.background.canvas,
-                border: `1px solid ${OsakaJadePalette.border.default}`,
-                color: OsakaJadePalette.text.primary,
-                fontSize: 13,
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
-            />
+            <Button variant="primary" icon={<Sparkles size={14} />} onClick={onDesignNew}>
+              Design a unit op
+            </Button>
           </div>
-
-          {/* Category Tabs */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {[
-              { id: 'MINE', label: `My unit ops · ${saved.length}` },
-              { id: 'ALL', label: 'All equipment' },
-              ...EQUIPMENT_CATEGORIES.map((c) => ({ id: c.id, label: c.label }))
-            ].map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id as any)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: r.md,
-                  fontSize: 12,
-                  fontWeight: selectedCategory === cat.id ? 700 : 500,
-                  backgroundColor:
-                    selectedCategory === cat.id
-                      ? `${OsakaJadePalette.jade[500]}22`
-                      : OsakaJadePalette.background.canvas,
-                  border: `1px solid ${
-                    selectedCategory === cat.id
-                      ? OsakaJadePalette.jade[500]
-                      : OsakaJadePalette.border.subtle
-                  }`,
-                  color:
-                    selectedCategory === cat.id
-                      ? OsakaJadePalette.jade.glow
-                      : OsakaJadePalette.text.secondary,
-                  cursor: 'pointer'
-                }}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Equipment Catalog Grid */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: 24,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-            gap: 16
-          }}
-        >
-          {selectedCategory === 'MINE' && (
-            <div role="status" style={{ gridColumn: '1 / -1', fontSize: 11, color: sync.kind === 'error' ? OsakaJadePalette.status.blocked : OsakaJadePalette.text.muted }}>
-              {sync.kind === 'signed-out'
-                ? 'Kept on this device. Sign in with Google to have them on your other devices too.'
-                : sync.kind === 'syncing'
-                  ? 'Syncing with your account…'
-                  : sync.kind === 'synced'
-                    ? `Synced with your account: on every device you sign in on.`
-                    : sync.message}
-            </div>
-          )}
-          {selectedCategory === 'MINE' && savedShown.length === 0 && (
-            <div style={{ gridColumn: '1 / -1', padding: '32px 12px', textAlign: 'center', color: OsakaJadePalette.text.muted, fontSize: 13, lineHeight: 1.6 }}>
-              <Bookmark size={20} style={{ display: 'block', margin: '0 auto 8px' }} />
-              {saved.length === 0
-                ? 'Nothing saved yet. Every unit you design, or your MCP client adds, is kept here to use again in any project.'
-                : `No saved unit op matches "${searchQuery}".`}
-            </div>
-          )}
-          {selectedCategory === 'MINE' &&
-            savedShown.map((item) => {
-              const node = contractToProcessNode(item.contract);
-              const b = describeUnitBehavior(node, { id: '', name: '', version: '', metadata: {}, nodes: [node], edges: [] });
-              const rate = formatRate(b.capacityPerMin, b.rateUnit);
-              const dressing = item.contract.drawing ? drawingToDressing(item.contract.drawing, item.contract.ports) : undefined;
-              const isAdded = justAddedKind === item.id;
-              return (
-                <div
-                  key={item.id}
-                  style={{
-                    backgroundColor: OsakaJadePalette.background.canvas,
-                    border: `1px solid ${isAdded ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
-                    borderRadius: draftingRadius.soft,
-                    padding: 14,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 10
-                  }}
-                >
-                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <div style={{ width: 72, height: 60, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <EquipmentFigure kind="CUSTOM_UNIT_OP" {...(dressing ? { dressing } : {})} width={64} />
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary }}>{item.contract.name}</div>
-                      <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted, marginTop: 2 }}>
-                        {item.source === 'mcp' ? 'From your MCP client' : item.source === 'studio' ? 'Saved from a flowsheet' : 'Designed here'} ·{' '}
-                        {new Date(item.savedAt).toLocaleDateString()}
-                      </div>
-                      {b.capacityPerMin !== null && (
-                        <div style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.accent, marginTop: 4, fontFamily: 'monospace' }}>
-                          {rate.value}
-                          {rate.per}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: OsakaJadePalette.text.secondary,
-                      lineHeight: 1.45,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    {item.contract.description || b.headline}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 'auto' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleInsertSaved(item)}
-                      style={{
-                        flex: 1,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6,
-                        padding: '8px 12px',
-                        borderRadius: draftingRadius.soft,
-                        backgroundColor: isAdded ? OsakaJadePalette.jade.glow : tint(palette.jade[500], 0.15),
-                        border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                        color: isAdded ? OsakaJadePalette.background.base : OsakaJadePalette.jade.glow,
-                        fontSize: 12,
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {isAdded ? <Check size={14} /> : <Plus size={14} />}
-                      {isAdded ? 'Added' : 'Add to flowsheet'}
-                    </button>
-                    {confirmRemove === item.id ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          removeSavedUnitOp(item.id);
-                          setConfirmRemove(null);
-                        }}
-                        style={{
-                          padding: '8px 10px',
-                          borderRadius: draftingRadius.soft,
-                          border: 'none',
-                          backgroundColor: palette.status.failed,
-                          color: palette.text.inverse,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Remove
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmRemove(item.id)}
-                        title="Remove from My unit ops (units already on a flowsheet stay)"
-                        aria-label={`Remove ${item.contract.name} from My unit ops`}
-                        style={{
-                          width: 34,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: draftingRadius.soft,
-                          border: `1px solid ${OsakaJadePalette.border.default}`,
-                          backgroundColor: 'transparent',
-                          color: OsakaJadePalette.text.muted,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          {selectedCategory !== 'MINE' && filteredItems.map((item, index) => {
-            const isAdded = justAddedKind === item.id;
-            const role = item.terminalRole;
-            const category = EQUIPMENT_CATEGORIES.find((c) => c.id === item.category);
-            // In the full list, a heading where each category starts.
-            const heading = selectedCategory === 'ALL' && filteredItems[index - 1]?.category !== item.category;
-            const dressing = item.contract?.drawing ? drawingToDressing(item.contract.drawing, item.contract.ports) : undefined;
+        ) : undefined
+      }
+    >
+      <style>{`.pf-palette-tile{transition:border-color 120ms ease,background-color 120ms ease}.pf-palette-tile:hover{border-color:var(--pf-border-strong)!important;background:var(--pf-bg-surface-hover)!important}.pf-palette-tile .pf-palette-add{opacity:.55;transition:opacity 120ms ease}.pf-palette-tile:hover .pf-palette-add,.pf-palette-tile:focus-visible .pf-palette-add{opacity:1}.pf-rail-item{transition:background-color 120ms ease,color 120ms ease}.pf-rail-item:hover{background:var(--pf-bg-surface-hover)!important;color:var(--pf-text-primary)!important}`}</style>
+      <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', height: 'min(640px, calc(100dvh - 220px))' }}>
+        {/* Categories */}
+        <nav aria-label="Equipment categories" style={{ borderRight: `1px solid ${palette.border.subtle}`, padding: 10, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {rail.map((c, i) => {
+            const active = !q && category === c.id;
             return (
-              <React.Fragment key={item.id}>
-              {heading && (
-                <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'baseline', gap: 10, marginTop: index === 0 ? 0 : 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary }}>{category?.label}</span>
-                  <span style={{ fontSize: 11, color: OsakaJadePalette.text.muted }}>{category?.description}</span>
-                </div>
-              )}
-              <div
-                style={{
-                  backgroundColor: OsakaJadePalette.background.canvas,
-                  border: `1px solid ${isAdded ? OsakaJadePalette.jade.glow : OsakaJadePalette.border.default}`,
-                  borderRadius: draftingRadius.soft,
-                  padding: 16,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        color: OsakaJadePalette.jade[400]
-                      }}
-                    >
-                      {role ? (role === 'feed' ? 'Stream in' : 'Stream out') : item.short}
-                    </span>
-                    {item.contract && (
-                      <span
-                        title="A designed unit: its behaviour is a contract you can tune like any unit you design, or ask your AI client to redesign."
-                        style={{ fontSize: 10, fontWeight: 600, color: OsakaJadePalette.text.muted }}
-                      >
-                        Designed
-                      </span>
-                    )}
-                    {item.defaultFlowGpm && (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 600,
-                          color: OsakaJadePalette.text.muted,
-                          fontFamily: 'monospace'
-                        }}
-                      >
-                        ~{item.defaultFlowGpm} GPM
-                      </span>
-                    )}
-                  </div>
-
-                  {!role && (
-                    <div style={{ height: 64, margin: '4px 0 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <EquipmentFigure kind={item.kind} {...(dressing ? { dressing } : {})} width={item.contract ? 72 : 64} />
-                    </div>
-                  )}
-                  {role && (
-                    <div style={{ margin: '4px 0 10px' }}>
-                      <TerminalArrow
-                        role={role}
-                        color={terminalColor(role, OsakaJadePalette)}
-                        fill={`${terminalColor(role, OsakaJadePalette)}14`}
-                        width={120}
-                        height={30}
-                      />
-                    </div>
-                  )}
-                  <div style={{ fontSize: 14, fontWeight: 700, color: OsakaJadePalette.text.primary, marginBottom: 4 }}>
-                    {item.title}
-                  </div>
-
-                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted, marginBottom: 10 }}>
-                    {item.subtitle}
-                  </div>
-
-                  <div
-                    title={item.description}
-                    style={{
-                      fontSize: 12,
-                      color: OsakaJadePalette.text.secondary,
-                      lineHeight: 1.4,
-                      marginBottom: 14,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 3,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    {item.model}
-                  </div>
-                </div>
-
+              <React.Fragment key={c.id}>
+                {i === 2 && <div style={{ height: 1, margin: '6px 4px', backgroundColor: palette.border.subtle }} />}
                 <button
-                  onClick={() => handleInsert(item)}
+                  type="button"
+                  className="pf-rail-item pf-focus"
+                  aria-current={active ? 'true' : undefined}
+                  onClick={() => {
+                    setCategory(c.id);
+                    setSearchQuery('');
+                  }}
                   style={{
-                    display: 'inline-flex',
+                    display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    padding: '8px 12px',
-                    borderRadius: draftingRadius.soft,
-                    backgroundColor: isAdded ? OsakaJadePalette.jade.glow : tint(palette.jade[500], 0.15),
-                    border: `1px solid ${OsakaJadePalette.jade[600]}`,
-                    color: isAdded ? OsakaJadePalette.background.base : OsakaJadePalette.jade.glow,
-                    fontSize: 12,
-                    fontWeight: 700,
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    padding: '7px 10px',
+                    borderRadius: 6,
+                    border: 'none',
                     cursor: 'pointer',
-                    transition: 'all 0.15s ease'
+                    textAlign: 'left',
+                    fontFamily: font.sans,
+                    fontSize: 13,
+                    fontWeight: active ? 650 : 500,
+                    backgroundColor: active ? tint(palette.jade[500], 0.14) : 'transparent',
+                    color: active ? palette.jade.glow : palette.text.secondary
                   }}
                 >
-                  {isAdded ? (
-                    <>
-                      <Check size={14} />
-                      <span>Added to Flowsheet!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Plus size={14} />
-                      <span>Add to Flowsheet</span>
-                    </>
-                  )}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                    {c.id === 'MINE' && <Bookmark size={13} />}
+                    {c.label}
+                  </span>
+                  <span style={{ fontSize: 11, color: palette.text.muted, fontVariantNumeric: 'tabular-nums' }}>{countOf(c.id)}</span>
                 </button>
-              </div>
               </React.Fragment>
             );
           })}
+        </nav>
+
+        {/* Search and results */}
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${palette.border.subtle}`, position: 'relative' }}>
+            <Search size={15} style={{ position: 'absolute', left: 27, top: '50%', transform: 'translateY(-50%)', color: palette.text.muted, pointerEvents: 'none' }} />
+            <input
+              className="pf-input"
+              type="search"
+              autoFocus
+              placeholder="Search everything: pumps, tanks, reactors, fillers…"
+              aria-label="Search equipment"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ paddingLeft: 34 }}
+            />
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+            {showMine && (
+              <div role="status" style={{ fontSize: 12, marginBottom: 12, color: sync.kind === 'error' ? palette.status.blocked : palette.text.muted }}>
+                {sync.kind === 'signed-out'
+                  ? 'Kept on this device. Sign in with Google to have them on your other devices too.'
+                  : sync.kind === 'syncing'
+                    ? 'Syncing with your account…'
+                    : sync.kind === 'synced'
+                      ? 'Synced with your account: on every device you sign in on.'
+                      : sync.message}
+              </div>
+            )}
+            {showMine && savedShown.length === 0 && (
+              <div style={{ padding: '48px 24px', textAlign: 'center', color: palette.text.muted, fontSize: 13, lineHeight: 1.6 }}>
+                <Bookmark size={22} style={{ display: 'block', margin: '0 auto 10px' }} />
+                Nothing saved yet. Every unit you design, or your MCP client adds, is kept here to use again in any project.
+              </div>
+            )}
+            {!showMine && shown.length === 0 && (
+              <div style={{ padding: '48px 24px', textAlign: 'center', color: palette.text.muted, fontSize: 13 }}>
+                Nothing matches “{searchQuery}”. {onDesignNew && 'Design it instead: the button below.'}
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(176px, 1fr))', gap: 10 }}>
+              {showMine &&
+                savedShown.map((item: SavedUnitOp) => {
+                  const node = contractToProcessNode(item.contract);
+                  const b = describeUnitBehavior(node, { id: '', name: '', version: '', metadata: {}, nodes: [node], edges: [] });
+                  const rate = formatRate(b.capacityPerMin, b.rateUnit);
+                  const dressing = item.contract.drawing ? drawingToDressing(item.contract.drawing, item.contract.ports) : undefined;
+                  return tile(
+                    item.id,
+                    justAdded === item.id,
+                    () => added(item.id, contractToProcessNode(item.contract)),
+                    <EquipmentFigure kind="CUSTOM_UNIT_OP" {...(dressing ? { dressing } : {})} width={64} />,
+                    item.contract.name,
+                    item.source === 'mcp' ? 'From your MCP client' : item.source === 'studio' ? 'Saved from a flowsheet' : 'Designed here',
+                    b.capacityPerMin !== null ? `${rate.value}${rate.per}` : undefined,
+                    <div style={{ position: 'absolute', top: 6, right: 6 }}>
+                      {confirmRemove === item.id ? (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => {
+                            removeSavedUnitOp(item.id);
+                            setConfirmRemove(null);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="ghost" iconOnly icon={<Trash2 size={13} />} label={`Remove ${item.contract.name} from My unit ops (copies on flowsheets stay)`} onClick={() => setConfirmRemove(item.id)} />
+                      )}
+                    </div>
+                  );
+                })}
+              {!showMine &&
+                shown.map((item, index) => {
+                  const role = item.terminalRole;
+                  const cat = EQUIPMENT_CATEGORIES.find((c) => c.id === item.category);
+                  const heading = (category === 'ALL' || q) && shown[index - 1]?.category !== item.category;
+                  const dressing = item.contract?.drawing ? drawingToDressing(item.contract.drawing, item.contract.ports) : undefined;
+                  return (
+                    <React.Fragment key={item.id}>
+                      {heading && (
+                        <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'baseline', gap: 10, marginTop: index === 0 ? 0 : 14 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: palette.text.primary, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{cat?.label}</span>
+                          <span style={{ fontSize: 12, color: palette.text.muted }}>{cat?.description}</span>
+                        </div>
+                      )}
+                      {tile(
+                        item.id,
+                        justAdded === item.id,
+                        () => added(item.id, createStandardUnitOp(item)),
+                        role ? (
+                          <TerminalArrow role={role} color={terminalColor(role, palette)} fill={`${terminalColor(role, palette)}14`} width={112} height={28} />
+                        ) : (
+                          <EquipmentFigure kind={item.kind} {...(dressing ? { dressing } : {})} width={item.contract ? 68 : 60} />
+                        ),
+                        item.title,
+                        item.subtitle,
+                        role ? (role === 'feed' ? 'stream in' : 'stream out') : item.defaultFlowGpm ? `~${item.defaultFlowGpm} gpm` : item.short
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
