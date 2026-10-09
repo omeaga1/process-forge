@@ -422,12 +422,12 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                   <form onSubmit={handleEmailSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {/* Email Input */}
                     <div>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
+                      <label htmlFor="pf-account-1" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
                         Email
                       </label>
                       <div style={{ position: 'relative' }}>
                         <Mail size={15} color={OsakaJadePalette.text.muted} style={{ position: 'absolute', left: 10, top: 10, pointerEvents: 'none' }} />
-                        <input
+                        <input id="pf-account-1"
                           type="email"
                           required
                           value={emailInput}
@@ -442,10 +442,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     {authMode === 'register' && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div>
-                          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
+                          <label htmlFor="pf-account-2" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
                             Name
                           </label>
-                          <input
+                          <input id="pf-account-2"
                             type="text"
                             value={nameInput}
                             onChange={(e) => setNameInput(e.target.value)}
@@ -454,10 +454,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                           />
                         </div>
                         <div>
-                          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
+                          <label htmlFor="pf-account-3" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
                             Organization
                           </label>
-                          <input
+                          <input id="pf-account-3"
                             type="text"
                             value={orgInput}
                             onChange={(e) => setOrgInput(e.target.value)}
@@ -470,12 +470,12 @@ export const AccountModal: React.FC<AccountModalProps> = ({
 
                     {/* Password Input */}
                     <div>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
+                      <label htmlFor="pf-account-4" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
                         Password {authMode === 'register' && '(minimum 8 characters)'}
                       </label>
                       <div style={{ position: 'relative' }}>
                         <Lock size={15} color={OsakaJadePalette.text.muted} style={{ position: 'absolute', left: 10, top: 10, pointerEvents: 'none' }} />
-                        <input
+                        <input id="pf-account-4"
                           type={showPassword ? 'text' : 'password'}
                           required
                           value={passwordInput}
@@ -506,12 +506,12 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     {/* Confirm Password (Register mode only) */}
                     {authMode === 'register' && (
                       <div>
-                        <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
+                        <label htmlFor="pf-account-5" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
                           Confirm Password
                         </label>
                         <div style={{ position: 'relative' }}>
                           <Lock size={15} color={OsakaJadePalette.text.muted} style={{ position: 'absolute', left: 10, top: 10, pointerEvents: 'none' }} />
-                          <input
+                          <input id="pf-account-5"
                             type={showPassword ? 'text' : 'password'}
                             required
                             value={confirmPasswordInput}

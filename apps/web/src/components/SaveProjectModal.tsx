@@ -100,10 +100,10 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
     >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
+            <label htmlFor="pf-save-1" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
               Name
             </label>
-            <input
+            <input id="pf-save-1"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -114,10 +114,10 @@ export const SaveProjectModal: React.FC<SaveProjectModalProps> = ({
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
+            <label htmlFor="pf-save-2" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.secondary, marginBottom: 4 }}>
               Notes
             </label>
-            <textarea
+            <textarea id="pf-save-2"
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
