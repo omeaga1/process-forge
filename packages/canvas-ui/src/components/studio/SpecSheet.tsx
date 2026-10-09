@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  caseStudy,
   convertUnit,
+  niceValue,
+  sweepRange,
   isTemperatureDifference,
   parseQuantity,
   solveForTarget,
@@ -15,7 +18,7 @@ import {
 import { Crosshair, RotateCcw } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
-import { Button, Switch } from '../../ui/index.js';
+import { Button, Chip, Switch } from '../../ui/index.js';
 import { controlFor, displayUnitsFor, feasibleBand, formatQuantity, statusAt, stepFor, type ParameterGroup } from '../../model/parameterUi.js';
 import { QuantityText } from './ParameterControl.js';
 
@@ -88,6 +91,11 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
       return k !== 'fixed' && k !== 'toggle' && k !== 'select' && (props.influence.derived[p.name] ?? []).includes(result);
     });
   const derivedRows = contract.derived.filter((d) => evaluation.derived[d.name] !== undefined);
+  // Settings worth stepping: continuous ones that move at least one result.
+  const studyable = contract.parameters.filter((p) => {
+    const k = controlFor(p);
+    return k !== 'fixed' && k !== 'toggle' && k !== 'select' && (props.influence.derived[p.name] ?? []).length > 0;
+  });
   const specifiable = derivedRows.filter((d) => Number.isFinite(evaluation.derived[d.name]!) && moversOf(d.name).length > 0);
 
   return (
@@ -230,6 +238,8 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
           <TargetSolver {...props} results={specifiable} moversOf={moversOf} picked={solveFor} onPick={setSolveFor} radius={r.md} />
         </div>
       )}
+
+      {studyable.length > 0 && derivedRows.length > 0 && <CaseStudy {...props} settings={studyable} radius={r.md} />}
     </div>
   );
 };
@@ -479,6 +489,194 @@ const TargetSolver: React.FC<
           >
             {solution.value === varied.value ? 'Applied' : 'Apply'}
           </Button>
+        </div>
+      )}
+    </section>
+  );
+};
+
+const srOnly: React.CSSProperties = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' };
+
+/**
+ * A sensitivity study: one setting stepped across a range, the chosen results
+ * tabulated against it with the verdict at each step. Any row can be taken.
+ */
+const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius: number }> = ({ contract, influence, unitFor, setParam, onFlash, settings, radius }) => {
+  const { palette, font } = useTheme();
+  const [name, setName] = useState(settings[0]!.name);
+  const p = settings.find((x) => x.name === name) ?? settings[0]!;
+  const du = unitFor(p.unit, displayUnitsFor(p));
+  const difference = isTemperatureDifference(p);
+  const toShown = (v: number) => convertUnit(v, p.unit, du, { difference }) ?? v;
+  // Around where it is now (half to one and a half times), inside its bounds; its whole range when it is zero.
+  const range = useMemo(() => {
+    const whole = sweepRange(p);
+    if (!p.value) return whole;
+    const lo = Math.min(p.value * 0.5, p.value * 1.5);
+    const hi = Math.max(p.value * 0.5, p.value * 1.5);
+    return { from: Math.max(p.min ?? -Infinity, lo), to: Math.min(p.max ?? Infinity, hi), log: false };
+  }, [p]);
+  const [fromText, setFromText] = useState('');
+  const [toText, setToText] = useState('');
+  const [steps, setSteps] = useState(5);
+  const moved = useMemo(() => contract.derived.filter((d) => (influence.derived[p.name] ?? []).includes(d.name)), [contract.derived, influence, p.name]);
+  const [cols, setCols] = useState<string[]>(() => moved.slice(0, 3).map((d) => d.name));
+  // A new setting: its own range, and the first results it moves.
+  const shownFor = useRef(p.name);
+  useEffect(() => {
+    if (shownFor.current === p.name) return;
+    shownFor.current = p.name;
+    setFromText('');
+    setToText('');
+    setCols(moved.slice(0, 3).map((d) => d.name));
+  }, [p.name, moved]);
+
+  const parse = (t: string, fallback: number) => (t.trim() ? parseQuantity(t, p.unit, du, { difference }) : fallback);
+  const from = parse(fromText, range.from);
+  const to = parse(toText, range.to);
+  const log = range.log && !fromText.trim() && !toText.trim();
+  const rows = useMemo(() => (from !== null && to !== null && from !== to ? caseStudy(contract, p.name, from, to, steps, { log }) : []), [contract, p.name, from, to, steps, log]);
+  const shownCols = moved.filter((d) => cols.includes(d.name));
+  const unitOf = (d: UnitOpContract['derived'][number]) => unitFor(d.unit, displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 }));
+  const statusColor = (st: string) => (st === 'ok' ? palette.jade[500] : st === 'warning' ? palette.status.blocked : st === 'error' ? palette.status.failed : palette.text.muted);
+  const label: React.CSSProperties = { fontSize: 12, color: palette.text.secondary };
+  const cell: React.CSSProperties = {
+    padding: '4px 8px',
+    borderBottom: `1px solid ${palette.border.subtle}`,
+    textAlign: 'right',
+    fontFamily: font.mono,
+    fontVariantNumeric: 'tabular-nums',
+    whiteSpace: 'nowrap'
+  };
+  const head: React.CSSProperties = {
+    ...cell,
+    fontFamily: 'inherit',
+    fontSize: 11,
+    fontWeight: 700,
+    color: palette.text.muted,
+    borderBottom: `1px solid ${palette.border.default}`,
+    whiteSpace: 'normal',
+    verticalAlign: 'bottom'
+  };
+  const rangeInput = (v: string, set: (s: string) => void, placeholder: number, which: string) => (
+    <input
+      className="pf-input"
+      aria-label={`${which} ${p.label}${du !== '-' ? ` in ${du}` : ''}`}
+      aria-invalid={parse(v, 0) === null}
+      inputMode="decimal"
+      value={v}
+      placeholder={formatQuantity(niceValue(toShown(placeholder)))}
+      onChange={(e) => set(e.target.value)}
+      style={{ width: 84, height: 30, fontFamily: font.mono, textAlign: 'right' }}
+    />
+  );
+
+  return (
+    <section
+      aria-label="Sensitivity study"
+      style={{ marginTop: 12, padding: '12px 12px 10px', borderRadius: radius, border: `1px solid ${palette.border.default}`, background: palette.background.surfaceElevated }}
+    >
+      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: palette.text.muted, marginBottom: 8 }}>Sensitivity study</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+        <span style={label}>Vary</span>
+        <select className="pf-select" aria-label="Setting to step" value={p.name} onChange={(e) => setName(e.target.value)} style={{ width: 'auto', minWidth: 150, height: 30 }}>
+          {settings.map((x) => (
+            <option key={x.name} value={x.name}>
+              {x.label}
+            </option>
+          ))}
+        </select>
+        <span style={label}>from</span>
+        {rangeInput(fromText, setFromText, range.from, 'From')}
+        <span style={label}>to</span>
+        {rangeInput(toText, setToText, range.to, 'To')}
+        <span style={{ ...label, color: palette.text.muted }}>{du !== '-' ? du : ''}</span>
+        <span style={label}>in</span>
+        <select className="pf-select" aria-label="Steps" value={steps} onChange={(e) => setSteps(Number(e.target.value))} style={{ width: 'auto', height: 30 }}>
+          {[3, 5, 6, 8, 10, 12, 20].map((n) => (
+            <option key={n} value={n}>
+              {n} steps
+            </option>
+          ))}
+        </select>
+      </div>
+      {moved.length > 1 && (
+        <div role="group" aria-label="Results to show" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+          {moved.map((d) => (
+            <Chip key={d.name} active={cols.includes(d.name)} onClick={() => setCols((c) => (c.includes(d.name) ? c.filter((x) => x !== d.name) : [...c, d.name]))}>
+              {d.label ?? d.name}
+            </Chip>
+          ))}
+        </div>
+      )}
+      {rows.length > 0 && (
+        <div style={{ overflowX: 'auto', marginTop: 10 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <caption style={srOnly}>{`Results as ${p.label} changes`}</caption>
+            <thead>
+              <tr>
+                <th scope="col" style={{ ...head, textAlign: 'left' }}>
+                  {p.label}
+                  {du !== '-' ? ` (${du})` : ''}
+                </th>
+                {shownCols.map((d) => (
+                  <th key={d.name} scope="col" style={head}>
+                    {d.label ?? d.name}
+                    {unitOf(d) !== '-' ? ` (${unitOf(d)})` : ''}
+                  </th>
+                ))}
+                <th scope="col" style={{ ...head, textAlign: 'left' }}>
+                  Checks
+                </th>
+                <th scope="col" style={head}>
+                  <span style={srOnly}>Use</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const current = Math.abs(row.value - p.value) <= 1e-9 * Math.max(1, Math.abs(p.value));
+                return (
+                  <tr key={row.value} style={{ backgroundColor: current ? tint(palette.jade[500], 0.1) : 'transparent' }}>
+                    <th scope="row" style={{ ...cell, textAlign: 'left', fontWeight: current ? 700 : 500, color: palette.text.primary }}>
+                      {formatQuantity(toShown(row.value))}
+                    </th>
+                    {shownCols.map((d) => {
+                      const v = row.derived[d.name];
+                      return (
+                        <td key={d.name} style={{ ...cell, color: palette.text.primary }}>
+                          {v === undefined ? '—' : formatQuantity(convertUnit(v, d.unit, unitOf(d), { difference: isTemperatureDifference(d) }) ?? v)}
+                        </td>
+                      );
+                    })}
+                    <td style={{ ...cell, textAlign: 'left', fontFamily: 'inherit', fontSize: 12 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: palette.text.secondary }}>
+                        <span aria-hidden style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: statusColor(row.status) }} />
+                        {row.status === 'ok' ? 'pass' : row.status === 'warning' ? 'warn' : row.status === 'error' ? `fail (${row.failing.length})` : 'invalid'}
+                      </span>
+                    </td>
+                    <td style={{ ...cell, padding: '2px 4px' }}>
+                      {current ? (
+                        <span style={{ fontSize: 11, color: palette.text.secondary, fontFamily: 'inherit' }}>now</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Use ${p.label} = ${formatQuantity(toShown(row.value))}${du !== '-' ? ` ${du}` : ''}`}
+                          onClick={() => {
+                            setParam(p.name, row.value);
+                            onFlash(p.name);
+                          }}
+                        >
+                          Use
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </section>
