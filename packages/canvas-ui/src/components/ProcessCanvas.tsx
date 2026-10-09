@@ -31,12 +31,14 @@ import {
   resolvedLayout,
   rotateLayout,
   scaleLayout,
+  terminalRole,
   type NodeLayout,
   type ProcessGraph,
   type ProcessNode,
   type ProcessEdge
 } from '@process-forge/protocol';
 import { SimulationEngine, type SimulationResult, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
+import type { RunView } from './dock/RunDigest.js';
 
 import { IndustrialNode } from './nodes/IndustrialNode.js';
 import { TerminalNode } from './nodes/TerminalNode.js';
@@ -153,7 +155,13 @@ function pipeState(
   // A liquid pipe from a unit that reports per port (an exchanger's hot and cold sides) takes its own port's temperature.
   const own = edge ? t?.portFlows?.[edge.sourcePortId] : undefined;
   // A gas or solids pipe is stated in its own units: what its port sends, else the unit's mass flow.
-  if (!t || (edge?.phase !== 'GAS' && edge?.phase !== 'SOLID')) return { ...base, ...(own ? { temperatureC: own.temperatureC } : {}), liveText: undefined };
+  if (!t || (edge?.phase !== 'GAS' && edge?.phase !== 'SOLID'))
+    return {
+      ...base,
+      // Its own port's flow when the unit reports ports (a condenser's condensate is not its cooling water).
+      ...(own ? { temperatureC: own.temperatureC, activeFlowRate: own.gpm ?? 0 } : t?.portFlows && edge ? { activeFlowRate: 0 } : {}),
+      liveText: undefined
+    };
   const port = t.portFlows?.[edge.sourcePortId];
   // A unit that reports per port: that port's flow, which is zero while it sends nothing.
   const kgPerHour = t.portFlows ? port?.kgPerHour ?? 0 : t.kgPerHour ?? 0;
@@ -443,6 +451,37 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     }
     return map;
   }, [simResult, sampleTimes, playheadIndex]);
+
+  /** The run at the playhead, for the copilot and the toolbar: they move with the canvas, not jump to the end. */
+  const runView = useMemo<RunView | undefined>(() => {
+    if (!simResult || sampleTimes.length === 0) return undefined;
+    return { result: simResult, timeSeconds: sampleTimes[Math.min(playheadIndex, sampleTimes.length - 1)]!, snapshot: snapshotByNode };
+  }, [simResult, sampleTimes, playheadIndex, snapshotByNode]);
+
+  /** A line whose product is bulk (liquid, powder): read in kg, not units. */
+  const bulkLine = useMemo(
+    () =>
+      simResult
+        ? simResult.totalUnitsPackaged === 0 && simResult.totalFluidDeliveredKg > 0
+        : graph.nodes.some((n) => terminalRole(n) === 'product') &&
+          graph.edges.filter((e) => terminalRole(graph.nodes.find((n) => n.id === e.targetNodeId)) === 'product').every((e) => e.stream.type === 'CONTINUOUS_FLUID'),
+    [simResult, graph]
+  );
+
+  /** What the line's product outlets have received by the playhead. */
+  const liveTelemetry = useMemo<PlantTelemetryState>(() => {
+    if (!runView) return telemetry;
+    let units = 0;
+    let productKg = 0;
+    for (const n of graph.nodes) {
+      if (terminalRole(n) !== 'product') continue;
+      const s = runView.snapshot.get(n.id);
+      units += s?.unitsProduced ?? 0;
+      productKg += s?.levelKg ?? 0;
+    }
+    const t = runView.timeSeconds;
+    return { ...telemetry, simulatedTimeSeconds: t, totalPackaged: units, productKg, averageRatePerMin: t > 0 ? (units / t) * 60 : 0 };
+  }, [runView, telemetry, graph.nodes]);
 
   const [nodes, setNodes] = useState<Node[]>(() =>
     graph.nodes.map((pNode) => ({
@@ -1186,19 +1225,21 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               </span>
               {/* Fixed widths and tabular digits: the bar keeps its size as the counts climb. */}
               <span
-                title="Average output rate"
+                title={bulkLine ? 'Average product rate' : 'Average output rate'}
                 style={{ fontFamily: font.mono, color: OsakaJadePalette.text.primary, minWidth: '7ch', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}
               >
-                {Math.round(telemetry.averageRatePerMin)}
-                <span style={{ color: OsakaJadePalette.text.muted }}>/min</span>
+                {bulkLine
+                  ? Math.round(liveTelemetry.simulatedTimeSeconds > 0 ? ((liveTelemetry.productKg ?? 0) / liveTelemetry.simulatedTimeSeconds) * 3600 : 0).toLocaleString()
+                  : Math.round(liveTelemetry.averageRatePerMin)}
+                <span style={{ color: OsakaJadePalette.text.muted }}>{bulkLine ? ' kg/h' : '/min'}</span>
               </span>
               {!tightToolbar && (
               <span
-                title="Units finished"
+                title={bulkLine ? 'Product delivered' : 'Units finished'}
                 style={{ fontFamily: font.mono, color: OsakaJadePalette.text.primary, minWidth: '11ch', fontVariantNumeric: 'tabular-nums' }}
               >
-                {telemetry.totalPackaged.toLocaleString()}
-                <span style={{ color: OsakaJadePalette.text.muted }}> units</span>
+                {bulkLine ? Math.round(liveTelemetry.productKg ?? 0).toLocaleString() : liveTelemetry.totalPackaged.toLocaleString()}
+                <span style={{ color: OsakaJadePalette.text.muted }}>{bulkLine ? ' kg' : ' units'}</span>
               </span>
               )}
               {(() => {
@@ -1434,7 +1475,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       <MasterOrchestratorDock
         graph={graph}
         bottlenecks={telemetry.bottlenecks}
-        telemetry={telemetry}
+        telemetry={liveTelemetry}
+        {...(runView ? { run: runView } : {})}
         isRunning={isRunning}
         isCollapsed={isDockCollapsed}
         onToggleCollapse={handleToggleDock}

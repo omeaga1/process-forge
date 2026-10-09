@@ -146,7 +146,9 @@ function portFlowsNow(contract: UnitOpContract | undefined, tick: Record<string,
       phase,
       kgPerHour: round1(p.kg * 3600),
       temperatureC: round1(p.tempC),
-      ...(phase === 'GAS' && split.ownKg > 0 ? { acfm: gasVolumes(split.ownKg, split.molarMass, p.tempC).acfm } : {})
+      ...(phase === 'GAS' && split.ownKg > 0 ? { acfm: gasVolumes(split.ownKg, split.molarMass, p.tempC).acfm } : {}),
+      // A liquid port's own volume flow: a pipe shows its own stream, not the unit's total.
+      ...(phase === 'LIQUID' ? { gpm: round1((p.m3 / M3_PER_GALLON) * 60) } : {})
     };
   }
   return Object.keys(out).length ? out : undefined;

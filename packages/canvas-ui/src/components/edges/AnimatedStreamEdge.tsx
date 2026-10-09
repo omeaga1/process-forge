@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { getSmoothStepPath, EdgeLabelRenderer, Position, useReactFlow, useStore, type ConnectionLineComponentProps, type EdgeProps, type ReactFlowState } from '@xyflow/react';
-import { moveRun, placedSize, roundedPath, routePipe, routeThrough, type Point, type ProcessNode, type Rect } from '@process-forge/protocol';
+import { labelSpot, moveRun, placedSize, roundedPath, routePipe, routeThrough, type Point, type ProcessNode, type Rect } from '@process-forge/protocol';
 import { drawingSize } from '../../nozzles/nozzleLayout.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasEdgeData } from '../../types.js';
@@ -82,8 +82,6 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   const shown = dragging ?? route;
   const rounded = roundedPath(shown, 10);
   const path = rounded.d;
-  const labelX = rounded.mid.x;
-  const labelY = rounded.mid.y;
   const { screenToFlowPosition } = useReactFlow();
   const onRouteChange = edgeData?.onRouteChange;
 
@@ -126,6 +124,14 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
     phase === 'GAS' ? 'gas' : phase === 'SOLID' ? 'solids' : isFluid ? `${stream.designFlowRateGpm} gpm` : stream ? `${stream.targetPiecesPerMinute} cpm` : '';
   const labelText = isBlocked ? 'BLOCKED' : flowing ? (edgeData?.liveText ?? liveLabel(isFluid, rate, temperatureC)) : designLabel;
   const emphasis = selected || hovered;
+  // On the pipe where the tag clears every unit (10 px mono: ~6.1 px a character, plus padding and the swatch).
+  const labelAt = useMemo(
+    () => (labelText ? labelSpot(shown, labelText.length * 6.1 + 26, 16, obstacles) : rounded.mid),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shown, labelText, obstacles]
+  );
+  const labelX = labelAt.x;
+  const labelY = labelAt.y;
   const period = flowPeriodSeconds(rate, isFluid ? 120 : 90);
 
   return (
@@ -283,7 +289,12 @@ function obstaclesOf(st: ReactFlowState): string {
       const bh = Math.min(h, placed.height + 2 * PAD);
       box(n.id, p.x + (w - bw) / 2, p.y, bw, bh);
       box(n.id, p.x, p.y + bh, w, h - bh);
-    } else box(n.id, p.x, p.y, w, h);
+    } else {
+      box(n.id, p.x, p.y, w, h);
+      // A feed or outlet shows its running total in a tag under it (TerminalNode): kept clear
+      // whether or not a run is on, so starting one does not re-route the pipes.
+      if (n.type === 'terminalNode') box(n.id, p.x, p.y + h, w, 24);
+    }
   }
   return out.join(';');
 }

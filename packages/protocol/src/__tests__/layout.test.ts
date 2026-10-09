@@ -9,7 +9,7 @@ import {
   compactLayout,
   layoutTransform
 } from '../layout/placement.js';
-import { moveRun, orthogonalize, polylineHits, routePipe, routeThrough, roundedPath, waypointsOf, type Rect } from '../layout/routing.js';
+import { labelSpot, moveRun, orthogonalize, polylineHits, routePipe, routeThrough, roundedPath, waypointsOf, type Rect } from '../layout/routing.js';
 import { ProcessEdgeSchema } from '../streams.js';
 import { ProcessNodeSchema } from '../nodes.js';
 
@@ -162,5 +162,22 @@ describe('a unit right below a lead', () => {
     // It arrives moving right, into the suction.
     const last = route[route.length - 2]!;
     assert.ok(last.x < 800 && Math.abs(last.y - 525) < 1, JSON.stringify(route));
+  });
+});
+
+describe('labelSpot', () => {
+  it('stays in the middle when the middle is clear', () => {
+    const p = labelSpot([{ x: 0, y: 0 }, { x: 200, y: 0 }], 40, 14, []);
+    assert.deepEqual(p, { x: 100, y: 0 });
+  });
+  it('moves along the pipe off a unit that covers the middle', () => {
+    const p = labelSpot([{ x: 0, y: 0 }, { x: 200, y: 0 }], 40, 14, [{ x: 80, y: -20, width: 40, height: 40 }]);
+    assert.ok(p.x + 20 <= 80 || p.x - 20 >= 120, `clear of the unit: ${p.x}`);
+    assert.equal(p.y, 0);
+  });
+  it('turns a corner when a whole run is covered', () => {
+    const p = labelSpot([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 200 }], 40, 14, [{ x: -10, y: -30, width: 200, height: 60 }]);
+    assert.equal(p.x, 100);
+    assert.ok(p.y - 7 >= 30, `below the cover: ${p.y}`);
   });
 });
