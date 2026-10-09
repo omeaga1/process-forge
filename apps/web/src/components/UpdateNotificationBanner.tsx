@@ -165,7 +165,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
 
   return (
     <aside
-      aria-label="Application Update Status"
+      aria-label="Application update"
       role="status"
       aria-live="polite"
       style={{

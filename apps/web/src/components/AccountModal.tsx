@@ -307,7 +307,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                     }}
                   >
                     <Cloud size={15} />
-                    <span>Browse Cloud Projects</span>
+                    <span>Browse cloud projects</span>
                   </button>
                 )}
 

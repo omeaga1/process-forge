@@ -523,7 +523,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                           }}
                         >
                           <Check size={12} />
-                          <span>Apply Equipment Dressing</span>
+                          <span>Apply to the drawing</span>
                         </button>
                       </div>
                     </div>
