@@ -28,7 +28,7 @@ import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 import { UnitOverviewPanel } from './UnitOverviewPanel.js';
 import { useSavedUnitOps, saveUnitOp, removeSavedUnitOp } from '../../library/savedUnitOps.js';
 import { UnitOpContractSchema } from '@process-forge/protocol';
-import { draftingRadius, tint } from '@process-forge/theme';
+import { draftingRadius, tint, fontFamily } from '@process-forge/theme';
 
 interface UnitOpPopOutStudioProps {
   node: ProcessNode | null;
@@ -220,7 +220,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
         flexDirection: 'column',
         zIndex: 40,
         color: OsakaJadePalette.text.primary,
-        fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontFamily: fontFamily.sans,
         overflow: 'hidden'
       }}
     >

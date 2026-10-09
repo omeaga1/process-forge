@@ -11,7 +11,7 @@ import {
   type UnitOpEvaluation,
   type ContractValidationIssue
 } from '@process-forge/protocol';
-import { drafting, draftingRadius } from '@process-forge/theme';
+import { drafting, draftingRadius, fontFamily } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
 import { layoutNozzles } from '../../nozzles/nozzleLayout.js';
@@ -239,7 +239,7 @@ export function UnitOpCreator({
         padding: 18,
         background: P.background.surface,
         color: P.text.primary,
-        fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+        fontFamily: fontFamily.sans,
         minHeight: '100%'
       }}
     >
@@ -394,7 +394,7 @@ export function UnitOpCreator({
             borderRadius: draftingRadius.soft,
             padding: 10,
             fontSize: '0.76rem',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            fontFamily: fontFamily.mono,
             resize: 'vertical',
             boxSizing: 'border-box'
           }}
