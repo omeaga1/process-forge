@@ -179,24 +179,6 @@ function pipeState(
 
 const fmtFlow = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: v >= 100 ? 0 : 1 });
 
-/** Every toolbar button: one height, one type size, never wrapping. */
-const toolbarButton: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 6,
-  height: 32,
-  boxSizing: 'border-box',
-  padding: '0 12px',
-  borderRadius: draftingRadius.soft,
-  fontSize: 13,
-  fontWeight: 600,
-  lineHeight: 1,
-  whiteSpace: 'nowrap',
-  flexShrink: 0,
-  cursor: 'pointer',
-  transition: 'background-color 0.15s ease'
-};
-
 export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   initialViewMode = 'auto',
   onViewModeChange,
@@ -833,6 +815,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   }, [isRunning, simSpeed]);
 
   const handleToggleSimulation = () => {
+    if (!isRunning && graph.nodes.length === 0) return;
     if (!isRunning) {
       // Execute the deterministic engine
       const sim = new SimulationEngine(graph);
@@ -1023,8 +1006,15 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               overflowX: 'auto'
             }}
           >
-            <Tooltip content={`${isRunning ? 'Pause' : 'Run'} the simulation · Space`}>
-              <Button variant={isRunning ? 'warning' : 'primary'} icon={isRunning ? <Pause size={15} /> : <Play size={15} />} onClick={handleToggleSimulation} aria-label={isRunning ? 'Pause' : 'Run'}>
+            <Tooltip side="bottom" content={graph.nodes.length === 0 ? 'Add equipment first: there is nothing to simulate' : `${isRunning ? 'Pause' : 'Run'} the simulation · Space`}>
+              <Button
+                variant={isRunning ? 'warning' : 'primary'}
+                icon={isRunning ? <Pause size={15} /> : <Play size={15} />}
+                onClick={handleToggleSimulation}
+                aria-label={isRunning ? 'Pause' : 'Run'}
+                aria-disabled={!isRunning && graph.nodes.length === 0}
+                data-disabled={!isRunning && graph.nodes.length === 0 ? '' : undefined}
+              >
                 {!compactToolbar && (isRunning ? 'Pause' : 'Run')}
               </Button>
             </Tooltip>
@@ -1204,34 +1194,17 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               pointerEvents: 'none'
             }}
           >
-            <div style={{ fontSize: 16, fontWeight: 600, color: OsakaJadePalette.text.secondary }}>Empty flowsheet</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: OsakaJadePalette.text.primary }}>Start the line</div>
+            <div style={{ fontSize: 13, color: OsakaJadePalette.text.secondary, marginTop: 4 }}>Place a feed, the equipment and an outlet, then pipe them together.</div>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap', pointerEvents: 'auto' }}>
               {onDesignUnitOp && (
-                <button
-                  type="button"
-                  onClick={onDesignUnitOp}
-                  style={{
-                    ...toolbarButton,
-                    backgroundColor: OsakaJadePalette.jade[600],
-                    color: OsakaJadePalette.text.inverse,
-                    border: 'none'
-                  }}
-                >
-                  <Sparkles size={14} /> Design a unit op
-                </button>
+                <Button icon={<Sparkles size={14} color={OsakaJadePalette.jade[400]} />} onClick={onDesignUnitOp}>
+                  Design a unit op
+                </Button>
               )}
-              <button
-                type="button"
-                onClick={() => setIsEquipmentPaletteOpen(true)}
-                style={{
-                  ...toolbarButton,
-                  backgroundColor: OsakaJadePalette.background.surface,
-                  color: OsakaJadePalette.text.primary,
-                  border: `1px solid ${OsakaJadePalette.border.strong}`
-                }}
-              >
-                <Plus size={14} /> Add standard equipment
-              </button>
+              <Button variant="primary" icon={<Plus size={14} />} onClick={() => setIsEquipmentPaletteOpen(true)}>
+                Add equipment
+              </Button>
             </div>
             <div style={{ fontSize: 12, color: OsakaJadePalette.text.muted, marginTop: 10, lineHeight: 1.5 }}>
               {assistantRoute === 'claude-desktop'
