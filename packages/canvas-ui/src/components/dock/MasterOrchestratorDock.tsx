@@ -466,7 +466,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: OsakaJadePalette.jade.glow }}>
                     <Sparkles size={13} />
-                    <span>Flowsheet Equipment Placed</span>
+                    <span>Equipment placed on the flowsheet</span>
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
                     {msg.createdNode.name}

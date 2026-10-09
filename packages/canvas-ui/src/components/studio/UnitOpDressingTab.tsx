@@ -323,9 +323,9 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
               >
                 <option value="none">No Jacket (Bare Shell)</option>
                 <option value="steam">Steam Heating Jacket (150 psi)</option>
-                <option value="water">Chilled Water Cooling Jacket</option>
+                <option value="water">Chilled-water cooling jacket</option>
                 <option value="glycol">Refrigerated Glycol Jacket (-10°C)</option>
-                <option value="electric">Electric Resistance Heating Trace</option>
+                <option value="electric">Electric heat tracing</option>
               </select>
             </div>
 
@@ -356,7 +356,7 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
                 onChange={(e) => handleUpdateInternals({ hasDemister: e.target.value === 'yes' })}
               >
                 <option value="no">None</option>
-                <option value="yes">Wire Mesh Demister Pad</option>
+                <option value="yes">Wire-mesh demister pad</option>
               </select>
             </div>
           </div>
