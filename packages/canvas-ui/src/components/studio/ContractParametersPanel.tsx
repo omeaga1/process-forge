@@ -18,7 +18,7 @@ import {
   type UnitOpDesignStream,
   type UnitOpParameter
 } from '@process-forge/protocol';
-import { AlertTriangle, CheckCircle2, ChevronRight, RotateCcw, Wand2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronRight, RotateCcw, XCircle } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { controlFor, displayUnitsFor, formatQuantity, groupParameters, isConstantParameter, unitPreferenceKey } from '../../model/parameterUi.js';
@@ -434,7 +434,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
         {visibleFixes.length > 0 && (
           <div style={{ margin: '4px 0 6px', padding: '10px 12px', borderRadius: r.md, border: `1px dashed ${tint(palette.jade[500], 0.5)}`, background: tint(palette.jade[500], 0.04) }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: palette.text.secondary, marginBottom: 6 }}>
-              <Wand2 size={13} color={palette.jade[500]} /> The engine solved for values that clear the failing checks
+              The engine solved for values that clear the failing checks
             </div>
             {visibleFixes.slice(0, 4).map((f) => {
               const p = paramOf(f.parameter)!;

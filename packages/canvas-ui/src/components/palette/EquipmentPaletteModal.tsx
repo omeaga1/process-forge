@@ -16,7 +16,7 @@ function tileWidth(kind: string, dressing: Parameters<typeof drawingSize>[1], wi
   const d = drawingSize(kind, dressing);
   return d.width > 0 && d.height > 0 ? Math.min(widest, (tallest * d.width) / d.height) : widest;
 }
-import { Search, Plus, Layers, Check, Trash2, Bookmark, Sparkles } from 'lucide-react';
+import { Search, Plus, Layers, Check, Trash2, Bookmark } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { Button, Modal } from '../../ui/index.js';
 
@@ -153,7 +153,7 @@ const OpenPalette: React.FC<EquipmentPaletteModalProps> = ({ isOpen, onClose, on
             <span style={{ fontSize: 13, color: palette.text.secondary }}>
               Not here? Describe it: your AI model writes the contract and the engine checks its physics.
             </span>
-            <Button variant="primary" icon={<Sparkles size={14} />} onClick={onDesignNew}>
+            <Button variant="primary" icon={<Plus size={14} />} onClick={onDesignNew}>
               Design a unit op
             </Button>
           </div>

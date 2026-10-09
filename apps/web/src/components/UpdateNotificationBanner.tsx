@@ -4,7 +4,6 @@ import {
   Download,
   RefreshCw,
   X,
-  Sparkles,
   ExternalLink,
   CheckCircle2,
   AlertTriangle,
@@ -220,7 +219,7 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
           {status === 'checking' && <RefreshCw size={17} className="animate-spin" />}
           {status === 'installing' && <Download size={17} className="animate-bounce" />}
           {status === 'restarting' && <RotateCcw size={17} className="animate-spin" />}
-          {status === 'available' && <Sparkles size={17} />}
+          {status === 'available' && <Download size={17} />}
           {status === 'up-to-date' && <CheckCircle2 size={17} />}
           {status === 'error' && <AlertTriangle size={17} />}
         </div>

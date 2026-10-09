@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Button, useTheme } from '@process-forge/canvas-ui';
-import { Sparkles, X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import type { BridgeArrival } from '../hooks/useMcpBridge.js';
 
 /**
@@ -39,7 +39,7 @@ export const McpArrivalNotice: React.FC<{ arrival: BridgeArrival | null; onDismi
         boxShadow: '0 6px 20px rgba(0, 0, 0, 0.18)'
       }}
     >
-      <Sparkles size={15} color={palette.jade[500]} />
+      <Plus size={15} color={palette.text.secondary} />
       <span>
         <strong>{arrival.name}</strong> added by your MCP client
       </span>

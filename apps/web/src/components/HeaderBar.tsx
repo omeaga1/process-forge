@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Layers, Cpu, ChevronDown, FolderOpen, AlertCircle, Sun, Moon, RotateCw, Sparkles, User, LayoutDashboard, CloudOff, CloudUpload, Check, Loader2 } from 'lucide-react';
+import { Layers, Cpu, ChevronDown, FolderOpen, AlertCircle, Sun, Moon, RotateCw, Download, User, LayoutDashboard, CloudOff, CloudUpload, Check, Loader2 } from 'lucide-react';
 import { Button, Tooltip, useMobileViewport, useTheme, ProcessForgeLogo } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
 import { hasCloudSession } from '../auth/accountManager.js';
@@ -274,7 +274,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
         {isTauriEnvironment() && onCheckForUpdates &&
           (hasUpdateAvailable ? (
-            <Button variant="primary" icon={<Sparkles size={14} />} onClick={onCheckForUpdates}>
+            <Button variant="primary" icon={<Download size={14} />} onClick={onCheckForUpdates}>
               Update ready
             </Button>
           ) : (
