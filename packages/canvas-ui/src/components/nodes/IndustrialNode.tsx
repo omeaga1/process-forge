@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Handle, Position, useEdges, useStore, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
+import { useLabelScale } from './labelScale.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
 import { EquipmentFigure, flangePoint, STUB_PX } from '../../nozzles/EquipmentFigure.js';
@@ -42,6 +43,7 @@ const PAD = 18;
  */
 export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { palette, machineVisuals, font, size, weight, radius: r, motion } = useTheme();
+  const k = useLabelScale();
   const nodeData = data as unknown as CanvasNodeData;
   const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, kgPerHour, phase, phaseName, onLayoutChange } = nodeData;
   // A unit with a gas or solid port is read in kg/h: its gallons are not meaningful.
@@ -233,7 +235,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
                       transform: horizontal
                         ? `translate(${a.side === 'left' ? 'calc(-100% - 10px)' : '10px'}, -50%)`
                         : `translate(-50%, ${a.side === 'top' ? 'calc(-100% - 9px)' : '9px'})`,
-                      fontSize: 10,
+                      fontSize: 10 * k,
                       fontFamily: font.mono,
                       lineHeight: 1.2,
                       whiteSpace: 'nowrap',
@@ -287,11 +289,14 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         style={{
           marginTop: hasBottomNozzle ? 10 : -6,
           textAlign: 'center',
+          // Grown by a transform, not a font size: the node keeps its measured size, so zooming never re-routes the pipes around it.
+          ...(k !== 1 ? { transform: `scale(${k})`, transformOrigin: 'top center' } : {}),
           maxWidth: Math.max(180, width + PAD * 2),
           lineHeight: 1.25,
           padding: '2px 8px',
           borderRadius: r.md,
-          backgroundColor: palette.background.canvas,
+          // Enlarged, it spreads past the room the pipes keep clear of it: translucent then, so a pipe behind it still shows.
+          backgroundColor: k > 1 ? `${palette.background.canvas}b3` : palette.background.canvas,
           position: 'relative',
           zIndex: 2
         }}
