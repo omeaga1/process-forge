@@ -8,7 +8,7 @@ import {
   type ProcessGraph,
   type ProcessNode
 } from '@process-forge/protocol';
-import { simulateProcess, type HeatReport, type MachineOeeReport, type TerminalReport } from '@process-forge/simulation-core';
+import { finalSnapshots, simulateProcess, streamStates, type HeatReport, type MachineOeeReport, type StreamState, type TerminalReport } from '@process-forge/simulation-core';
 
 /**
  * Reading a line: simulate it, find what limits it, and compare what-ifs. Pure
@@ -70,6 +70,8 @@ export interface SimulationResultPayload {
   }>;
   /** Feeds, products, byproducts and waste: what came in and went out, and where. */
   streams: TerminalReport[];
+  /** Every pipe at the end of the run, as a stream report lists it: from and to, phase, kg/h, gal/min, items/min, °C and mass fractions. */
+  pipes: StreamState[];
   engineeringDiagnosis: string;
 }
 
@@ -218,6 +220,7 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
     identifiedBottleneckMachine: bottleneckNode ? bottleneckNode.name : bottleneckId,
     machineMetrics,
     streams: result.terminals,
+    pipes: streamStates(graph, finalSnapshots(result.telemetryLog)),
     engineeringDiagnosis: diagnosis
   };
 }

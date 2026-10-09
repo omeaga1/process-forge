@@ -148,7 +148,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     idempotent: true,
     graphSource: true,
     description:
-      'Runs the deterministic simulation of the line over time and returns throughput, units finished and scrapped, each unit\'s busy, starved, blocked and broken-down time, liquid in gallons and kg, temperatures, heat duty, constraints a unit\'s contract broke at the conditions it actually saw, and the bottleneck with advice. Nothing on the flowsheet changes.',
+      'Runs the deterministic simulation of the line over time and returns throughput, units finished and scrapped, each unit\'s busy, starved, blocked and broken-down time, liquid in gallons and kg, temperatures, heat duty, constraints a unit\'s contract broke at the conditions it actually saw, every pipe at the end of the run (pipes: from, to, phase, kg/h, gal/min, items/min, temperature and composition, as a stream report), and the bottleneck with advice. Nothing on the flowsheet changes.',
     inputSchema: {
       type: 'object',
       properties: {
