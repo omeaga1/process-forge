@@ -100,6 +100,10 @@ export interface MasterOrchestratorContext {
   averageRatePerMin: number;
   bottleneckNodeName?: string;
   maxThroughput?: number;
+  /** A line whose product is bulk (liquid, powder): kg delivered so far and the run time it took. */
+  bulk?: boolean;
+  productKg?: number;
+  simulatedSeconds?: number;
 }
 
 /** The loaded key itself, not just the keychain's record of one. */
@@ -232,6 +236,26 @@ Be concise, mathematically sound, and directly actionable.`;
 /**
  * Dispatch message for Environment & Master Process Orchestrator
  */
+/**
+ * A question about the line itself (what limits it, what it makes), answered
+ * from the static analysis and the run so far, in the line's own terms: kg
+ * for a bulk line, units for an items line. Null for anything else.
+ */
+function lineStatus(message: string, ctx: MasterOrchestratorContext): AiAgentResponse | null {
+  if (!/bottleneck|limit|capacity|throughput|rate|status|output|making|produc|so far|how much/i.test(message)) return null;
+  const limit = ctx.bottleneckNodeName
+    ? `${ctx.bottleneckNodeName} limits the line${!ctx.bulk && ctx.maxThroughput ? `, at ${Math.round(ctx.maxThroughput)} units/min` : ''}.`
+    : 'Nothing limits the line in the static analysis.';
+  const t = ctx.simulatedSeconds ?? 0;
+  const so =
+    t <= 0
+      ? 'Press Run (Space) to simulate it and see what it delivers.'
+      : ctx.bulk
+        ? `So far ${Math.round(ctx.productKg ?? 0).toLocaleString()} kg of product in ${Math.round(t / 60)} min, ${Math.round(((ctx.productKg ?? 0) / t) * 3600).toLocaleString()} kg/h on average.`
+        : `So far ${ctx.totalPackaged.toLocaleString()} units, ${ctx.averageRatePerMin.toFixed(1)} a minute on average.`;
+  return { text: `${limit} ${so}`, senderBadge: 'Line solver', isOfflineSolver: true };
+}
+
 export async function dispatchMasterOrchestratorMessage(
   message: string,
   ctx: MasterOrchestratorContext,
@@ -266,6 +290,8 @@ export async function dispatchMasterOrchestratorMessage(
         createdNode
       };
     }
+    const status = lineStatus(message, ctx);
+    if (status) return status;
     return {
       text: `Working offline on "${ctx.graphName}". Standard equipment can be added from a plain request ("add a surge tank"), and custom unit operations from New Unit Op. Signing in with OpenRouter, or using an MCP client, adds free-form engineering advice.`,
       senderBadge: 'Offline (Local Only)',
@@ -295,24 +321,8 @@ export async function dispatchMasterOrchestratorMessage(
       };
     }
 
-    const lower = message.toLowerCase();
-    if (
-      lower.includes('bottleneck') ||
-      lower.includes('capacity') ||
-      lower.includes('throughput') ||
-      lower.includes('rate') ||
-      lower.includes('status') ||
-      lower.includes('output')
-    ) {
-      const bnText = ctx.bottleneckNodeName
-        ? `Primary constraint identified at "${ctx.bottleneckNodeName}". Max system capacity: ${ctx.maxThroughput ? Math.round(ctx.maxThroughput) : 'Dynamic'} units/min.`
-        : 'No hydraulic or discrete constraint currently limiting line throughput.';
-      return {
-        text: `[Plant Telemetry Solver]: ${bnText} Current packaged output: ${ctx.totalPackaged} units at ${Math.round(ctx.averageRatePerMin)} units/min.`,
-        senderBadge: 'Telemetry Solver',
-        isOfflineSolver: true
-      };
-    }
+    const status = lineStatus(message, ctx);
+    if (status) return status;
 
     return {
       text: `Process Copilot offline solver active for "${ctx.graphName}". You can query plant bottlenecks, throughput, or type "add pump" / "add tank". Sign in with OpenRouter in AI model settings for free-form answers.`,

@@ -217,7 +217,7 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.4, color: palette.text.primary }}>{behavior.headline}</div>
+          <p style={{ margin: 0, fontSize: 14, fontWeight: 450, lineHeight: 1.55, color: palette.text.secondary, textWrap: 'pretty' }}>{behavior.headline}</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
             {chip(TERMINAL_ROLE_LABEL[role], role === 'waste' ? 'warn' : 'ok')}
             {chip(role === 'product' ? "Counts as the line's output" : role === 'feed' ? 'Start of the line' : 'Totalled apart from the output', 'muted')}
@@ -280,13 +280,17 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
   const rate = formatRate(behavior.capacityPerMin, behavior.rateUnit);
   const unitTiles = [
     ...(behavior.capacityPerMin !== null ? [{ label: behavior.rateUnit === 'gal' ? 'Most it moves' : 'Top rate', value: rate.value, unit: rate.per.replace(/^\//, '').trim() || 'per min' }] : []),
-    ...(behavior.keyFigures ?? []).slice(0, 5).map((f) => ({ label: f.label, value: Number.isFinite(f.value) ? formatQuantity(f.value) : '—', unit: f.unit }))
+    ...(behavior.keyFigures ?? []).slice(0, 5).map((f) => {
+      // A dimensionless share (0..1) reads as a percentage.
+      const share = (!f.unit || f.unit === '-') && Number.isFinite(f.value) && f.value >= 0 && f.value <= 1 && /share|fraction|efficien|ratio|yield|recovery/i.test(f.label);
+      return { label: f.label, value: !Number.isFinite(f.value) ? '—' : share ? formatQuantity(f.value * 100) : formatQuantity(f.value), unit: share ? '%' : f.unit === '-' ? '' : f.unit };
+    })
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div>
-        <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.4, color: palette.text.primary }}>{behavior.headline}</div>
+        <p style={{ margin: 0, fontSize: 14, fontWeight: 450, lineHeight: 1.55, color: palette.text.secondary, textWrap: 'pretty' }}>{behavior.headline}</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
           {behavior.simulated ? chip('Simulated', 'ok', <Gauge size={11} />) : chip('Not simulated yet', 'warn', <Info size={11} />)}
           {behavior.role === 'source' && chip('Start of the line', 'muted')}
