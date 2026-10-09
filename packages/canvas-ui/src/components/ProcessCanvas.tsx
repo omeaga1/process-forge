@@ -488,15 +488,21 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     if (!runView) return telemetry;
     let units = 0;
     let productKg = 0;
+    // What has left the line, counted as the engine counts it: product outlets, and every
+    // unit at the end of a line that makes items (a palletizer with nothing after it).
     for (const n of graph.nodes) {
-      if (terminalRole(n) !== 'product') continue;
       const s = runView.snapshot.get(n.id);
-      units += s?.unitsProduced ?? 0;
-      productKg += s?.levelKg ?? 0;
+      if (terminalRole(n) === 'product') {
+        units += s?.unitsProduced ?? 0;
+        productKg += s?.levelKg ?? 0;
+        continue;
+      }
+      const atEnd = !terminalRole(n) && !graph.edges.some((e) => e.sourceNodeId === n.id);
+      if (atEnd && s && s.flowGpm === undefined) units += s.unitsProduced;
     }
     const t = runView.timeSeconds;
     return { ...telemetry, simulatedTimeSeconds: t, totalPackaged: units, productKg, averageRatePerMin: t > 0 ? (units / t) * 60 : 0 };
-  }, [runView, telemetry, graph.nodes]);
+  }, [runView, telemetry, graph.nodes, graph.edges]);
 
   const [nodes, setNodes] = useState<Node[]>(() =>
     graph.nodes.map((pNode) => ({
