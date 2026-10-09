@@ -247,12 +247,17 @@ function lineStatus(message: string, ctx: MasterOrchestratorContext): AiAgentRes
     ? `${ctx.bottleneckNodeName} limits the line${!ctx.bulk && ctx.maxThroughput ? `, at ${Math.round(ctx.maxThroughput)} units/min` : ''}.`
     : 'Nothing limits the line in the static analysis.';
   const t = ctx.simulatedSeconds ?? 0;
+  const minutes = Math.max(1, Math.round(t / 60));
+  const made = ctx.bulk ? (ctx.productKg ?? 0) : ctx.totalPackaged;
   const so =
     t <= 0
       ? 'Press Run (Space) to simulate it and see what it delivers.'
-      : ctx.bulk
-        ? `So far ${Math.round(ctx.productKg ?? 0).toLocaleString()} kg of product in ${Math.round(t / 60)} min, ${Math.round(((ctx.productKg ?? 0) / t) * 3600).toLocaleString()} kg/h on average.`
-        : `So far ${ctx.totalPackaged.toLocaleString()} units, ${ctx.averageRatePerMin.toFixed(1)} a minute on average.`;
+      : made <= 0
+        ? // Zero is not a broken line: a batch or a long first cycle upstream has not come round yet.
+          `Nothing has reached the end of the line yet after ${minutes} min of simulated time: a batch or a long cycle upstream has not finished its first round. Let it run longer, or play it at 5×.`
+        : ctx.bulk
+          ? `So far ${Math.round(made).toLocaleString()} kg of product in ${minutes} min, ${Math.round((made / t) * 3600).toLocaleString()} kg/h on average.`
+          : `So far ${made.toLocaleString()} units in ${minutes} min, ${ctx.averageRatePerMin.toFixed(1)} a minute on average.`;
   return { text: `${limit} ${so}`, senderBadge: 'Line solver', isOfflineSolver: true };
 }
 
