@@ -35,7 +35,8 @@ export interface SpecSheetProps {
   /** Values when the unit was opened: what has been changed, and what to put back. */
   baselineParams: Record<string, number>;
   baselineDerived: Record<string, number>;
-  unitFor: (unit: string, choices: string[]) => string;
+  /** The unit to show: the engineer's choice for this kind of quantity, else `fallback`, else the unit itself. */
+  unitFor: (unit: string, choices: string[], fallback?: string) => string;
   setUnit: (unit: string, chosen: string) => void;
   setParam: (name: string, value: number) => void;
   /** Lit by hovering elsewhere (a check, a fix). */
@@ -82,6 +83,13 @@ function nextOnEnter(e: React.KeyboardEvent<HTMLTableElement>) {
   // After the field has committed its value.
   if (next) setTimeout(() => next.focus(), 0);
 }
+
+/** A share between 0 and 1 reads as a percentage unless the engineer has chosen otherwise. */
+const paramUnit = (unitFor: SpecSheetProps['unitFor'], p: UnitOpParameter) => {
+  const choices = displayUnitsFor(p);
+  const fraction = p.unit === '-' && choices.includes('%') && p.min !== undefined && p.min >= 0 && p.max !== undefined && p.max <= 1;
+  return unitFor(p.unit, choices, fraction ? '%' : undefined);
+};
 
 export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
   const { contract, evaluation, groups, baselineDerived, unitFor, setUnit } = props;
@@ -282,7 +290,7 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
   const { palette, font } = useTheme();
   const kind = controlFor(p);
   const choices = displayUnitsFor(p);
-  const du = unitFor(p.unit, choices);
+  const du = paramUnit(unitFor, p);
   const difference = isTemperatureDifference(p);
   const toShown = (v: number) => convertUnit(v, p.unit, du, { difference }) ?? v;
   const sweep = sweeps[p.name];
@@ -438,7 +446,7 @@ const TargetSolver: React.FC<
     setSolution(solveForTarget(contract, result.name, t, varied.name));
   };
 
-  const vdu = varied ? unitFor(varied.unit, displayUnitsFor(varied)) : '';
+  const vdu = varied ? paramUnit(unitFor, varied) : '';
   const vShown = (v: number) => (varied ? convertUnit(v, varied.unit, vdu, { difference: isTemperatureDifference(varied) }) ?? v : v);
   const label: React.CSSProperties = { fontSize: 12, color: palette.text.secondary };
 
@@ -538,7 +546,7 @@ const CaseStudy: React.FC<SpecSheetProps & { settings: UnitOpParameter[]; radius
   const { palette, font } = useTheme();
   const [name, setName] = useState(settings[0]!.name);
   const p = settings.find((x) => x.name === name) ?? settings[0]!;
-  const du = unitFor(p.unit, displayUnitsFor(p));
+  const du = paramUnit(unitFor, p);
   const difference = isTemperatureDifference(p);
   const toShown = (v: number) => convertUnit(v, p.unit, du, { difference }) ?? v;
   // Around where it is now (half to one and a half times), inside its bounds; its whole range when it is zero.
