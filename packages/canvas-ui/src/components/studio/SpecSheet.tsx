@@ -18,7 +18,8 @@ import {
   type UnitOpEvaluation,
   type UnitOpParameter
 } from '@process-forge/protocol';
-import { Check, Copy, Crosshair, Lock, RotateCcw } from 'lucide-react';
+import { NumberField } from '@base-ui/react/number-field';
+import { Check, Copy, Crosshair, Lock, MoveHorizontal, RotateCcw } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { Button, Chip, Switch } from '../../ui/index.js';
@@ -354,6 +355,13 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
   const range = p.min !== undefined || p.max !== undefined ? `Allowed ${p.min !== undefined ? formatQuantity(toShown(p.min)) : '…'} to ${p.max !== undefined ? formatQuantity(toShown(p.max)) : '…'} ${du !== '-' ? du : ''}` : '';
 
   const heldBy = holds.find((h) => h.vary === p.name);
+  const scrubbable = !heldBy && (kind === 'number' || kind === 'slider' || kind === 'stepper');
+  const fromShown = (v: number) => convertUnit(v, du, p.unit, { difference }) ?? v;
+  const shownStep = Math.abs(convertUnit(stepFor(p), p.unit, du, { difference: true }) ?? stepFor(p));
+  // Converted bounds can swap order (a unit with an offset never does, but a reciprocal one would).
+  const shownBounds = [p.min, p.max].map((b) => (b === undefined ? undefined : toShown(b)));
+  const shownMin = shownBounds[0] !== undefined && shownBounds[1] !== undefined ? Math.min(shownBounds[0], shownBounds[1]) : shownBounds[0];
+  const shownMax = shownBounds[0] !== undefined && shownBounds[1] !== undefined ? Math.max(shownBounds[0], shownBounds[1]) : shownBounds[1];
   const heldFor = heldBy ? allResults(contract, evaluation, engineMovers).defs.find((d) => d.name === heldBy.result) : undefined;
 
   let value: React.ReactNode;
@@ -408,13 +416,17 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
     const miss: React.CSSProperties = { color: palette.text.primary, textDecoration: `underline 2px ${palette.status.failed}`, textUnderlineOffset: 3 };
     if (!pr) passes = <span style={miss}>nowhere in range</span>;
     else {
-      const whole = sweep && Math.abs(pr.from - sweep.range.from) < 1e-9 && Math.abs(pr.to - sweep.range.to) < 1e-9;
+      const near = (a: number, b: number) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
+      // A band that starts a thousandth of the way up from nothing starts at nothing, as far as anyone setting it is concerned.
+      const fromBottom = Boolean(sweep && (near(pr.from, sweep.range.from) || (pr.from >= 0 && pr.from <= 1e-3 * Math.abs(pr.to))));
+      const toTop = Boolean(sweep && near(pr.to, sweep.range.to));
+      const whole = fromBottom && toTop;
       passes = whole ? (
         <span style={{ color: palette.text.muted }}>whole range</span>
       ) : (
         <span style={{ ...(pr.containsValue ? { color: palette.text.secondary } : miss), fontFamily: font.mono, fontSize: 12 }}>
           {pr.containsValue ? '' : 'needs '}
-          {formatQuantity(toShown(pr.from))} – {formatQuantity(toShown(pr.to))}
+          {fromBottom ? `up to ${formatQuantity(toShown(pr.to))}` : toTop ? `from ${formatQuantity(toShown(pr.from))}` : `${formatQuantity(toShown(pr.from))} – ${formatQuantity(toShown(pr.to))}`}
         </span>
       );
     }
@@ -430,7 +442,29 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
       <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 500, color: palette.text.primary, minWidth: 120 }} title={p.description}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
           <span role="img" aria-label={`At this value the design ${statusText}`} style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, backgroundColor: statusColor, opacity: here ? 1 : 0.4 }} />
-          {p.label}
+          {scrubbable ? (
+            // Drag the name left or right to run the value through its range, the way a CAD inspector does; the field still takes typing.
+            <NumberField.Root
+              value={toShown(p.value)}
+              step={shownStep}
+              snapOnStep={kind === 'stepper'}
+              {...(shownMin !== undefined ? { min: shownMin } : {})}
+              {...(shownMax !== undefined ? { max: shownMax } : {})}
+              onValueChange={(v) => v !== null && commit(fromShown(v))}
+              render={<span />}
+            >
+              <NumberField.ScrubArea className="pf-scrub" pixelSensitivity={3} title={`Drag to change ${p.label}${p.description ? `. ${p.description}` : ''}`}>
+                {p.label}
+                <NumberField.ScrubAreaCursor className="pf-scrub-cursor">
+                  <MoveHorizontal size={16} />
+                </NumberField.ScrubAreaCursor>
+              </NumberField.ScrubArea>
+              {/* The scrub area drives the root through its input; the visible field is the unit-aware one in the next cell. */}
+              <NumberField.Input hidden tabIndex={-1} aria-hidden />
+            </NumberField.Root>
+          ) : (
+            p.label
+          )}
         </span>
       </th>
       <td data-spec-value style={{ ...td, textAlign: 'right' }}>{value}</td>

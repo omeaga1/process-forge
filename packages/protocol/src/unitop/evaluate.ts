@@ -1,5 +1,5 @@
-import type { ExprScope } from './expression.js';
-import { evaluateBoolean, evaluateNumber, ExpressionError } from './expression.js';
+import type { ComparisonSides, ExprScope } from './expression.js';
+import { comparisonSides, evaluateBoolean, evaluateNumber, ExpressionError } from './expression.js';
 import type { UnitOpContract } from './contract.js';
 import { DEFAULT_SPECIFIC_HEAT, LITERS_PER_GALLON } from '../thermal.js';
 
@@ -72,6 +72,8 @@ export interface ConstraintResult {
   severity: 'ERROR' | 'WARNING';
   message: string;
   hint?: string;
+  /** A check written as one comparison: its two sides at this point, so its margin can be shown. */
+  sides?: ComparisonSides;
 }
 
 export interface UnitOpEvaluation {
@@ -222,6 +224,11 @@ function buildScope(
  * This is deliberately usable without the engine, so the verify step of an
  * agent loop can be unit-tested without a model in the picture.
  */
+function sidesOf(expr: string, scope: ExprScope): { sides?: ComparisonSides } {
+  const sides = comparisonSides(expr, scope);
+  return sides ? { sides } : {};
+}
+
 export function evaluateUnitOp(
   contract: UnitOpContract,
   input: UnitOpEvaluationInput = {}
@@ -308,7 +315,8 @@ export function evaluateUnitOp(
         satisfied: evaluateBoolean(c.expr, scope),
         severity: c.severity,
         message: c.message,
-        ...(c.hint ? { hint: c.hint } : {})
+        ...(c.hint ? { hint: c.hint } : {}),
+        ...sidesOf(c.expr, scope)
       });
     } catch (e) {
       return fail(`constraints.${c.id}`, e);

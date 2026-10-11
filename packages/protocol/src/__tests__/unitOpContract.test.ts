@@ -128,6 +128,8 @@ describe('Unit-op contract validation', () => {
   it('catches a syntactically broken expression at authoring time', () => {
     const bad: UnitOpContract = {
       ...WAX_COOLING_BELT_CONTRACT,
+      // Its panel gauges the checks this replaces.
+      panel: [],
       constraints: [
         { id: 'broken', expr: 'beltLengthM >', severity: 'ERROR', message: 'x' }
       ]

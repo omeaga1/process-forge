@@ -24,6 +24,7 @@ import { useTheme } from '../../hooks/useTheme.js';
 import { controlFor, displayUnitsFor, formatQuantity, groupParameters, isConstantParameter, unitPreferenceKey } from '../../model/parameterUi.js';
 import { FEASIBLE_RANGE_CSS, ParameterControl } from './ParameterControl.js';
 import { SpecSheet } from './SpecSheet.js';
+import { UnitGlance } from './UnitGlance.js';
 import { engineLabel, engineValue, ExpressionView, PhysicsSection, Section, SectionNav, SpecHeader, StreamsSection, type Lookup, type SectionId } from './UnitSpecSections.js';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 
@@ -318,6 +319,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
 
   const relationsFailing = alignment?.relations.filter((x) => x.status === 'fails').length ?? 0;
   const sectionList: { id: SectionId; label: string; badge?: { text: string; tone: 'ok' | 'warn' | 'fail' | 'muted' } }[] = [
+    ...(evaluation.error ? [] : [{ id: 'glance' as const, label: 'Glance' }]),
     { id: 'settings', label: 'Settings', badge: { text: String(contract.parameters.length), tone: 'muted' } },
     { id: 'streams', label: 'Streams', badge: { text: String(contract.ports.length), tone: 'muted' } },
     ...(contract.derived.length ? [{ id: 'equations' as const, label: 'Equations', badge: { text: String(contract.derived.length), tone: 'muted' as const } }] : []),
@@ -398,6 +400,23 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
       />
 
       <SectionNav sections={sectionList} active={active} onGo={go} />
+
+      {!evaluation.error && (
+        <Section ref={refFor('glance')} id="glance" title="At a glance" hint={contract.panel?.length ? "Laid out by the unit's contract." : 'How close each check runs to its limit.'}>
+          <UnitGlance
+            contract={contract}
+            evaluation={evaluation}
+            onSetParam={(name, value) => {
+              setParam(name, value);
+              setFlash(name);
+            }}
+            onPickCheck={(id) => {
+              go('checks');
+              setHover({ check: id });
+            }}
+          />
+        </Section>
+      )}
 
       <Section
         ref={refFor('settings')}

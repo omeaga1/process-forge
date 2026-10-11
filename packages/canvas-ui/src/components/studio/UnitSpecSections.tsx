@@ -11,7 +11,7 @@ import {
   type UnitOpEvaluation
 } from '@process-forge/protocol';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
-import { ArrowDownRight, ArrowUpRight, CheckCircle2, AlertTriangle, XCircle, Sigma, Gauge, Waves, ShieldCheck, Settings2, ListChecks, CircleDashed } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, AlertTriangle, XCircle, Sigma, Gauge, Waves, ShieldCheck, Settings2, ListChecks, CircleDashed, LayoutDashboard } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
@@ -25,7 +25,7 @@ import { formatQuantity } from '../../model/parameterUi.js';
  * it is held to and the governing relations, with their numbers).
  */
 
-export type SectionId = 'settings' | 'streams' | 'equations' | 'checks' | 'physics';
+export type SectionId = 'glance' | 'settings' | 'streams' | 'equations' | 'checks' | 'physics';
 
 /** A quantity's value and unit, for a name in an equation. */
 export interface Lookup {
@@ -158,7 +158,7 @@ export const SectionNav: React.FC<{
   onGo: (id: SectionId) => void;
 }> = ({ sections, active, onGo }) => {
   const { palette, radius: r } = useTheme();
-  const ICON: Record<SectionId, React.ElementType> = { settings: Settings2, streams: Waves, equations: Sigma, checks: ListChecks, physics: Gauge };
+  const ICON: Record<SectionId, React.ElementType> = { glance: LayoutDashboard, settings: Settings2, streams: Waves, equations: Sigma, checks: ListChecks, physics: Gauge };
   return (
     <nav
       aria-label="Unit sections"

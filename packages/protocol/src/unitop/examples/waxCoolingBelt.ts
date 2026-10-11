@@ -159,6 +159,19 @@ export const WAX_COOLING_BELT_CONTRACT: UnitOpContract = {
     residenceTimeSeconds: 'residenceTimeS'
   },
 
+  // What an engineer reads first: the duty, whether the wax freezes in time on
+  // the belt, whether the belt can shed the heat, and what belt speed does.
+  panel: [
+    { kind: 'figure', result: 'engine.dutyKw', label: 'Heat removed' },
+    { kind: 'figure', result: 'residenceTimeS' },
+    { kind: 'figure', result: 'waxLayerThicknessMm' },
+    { kind: 'gauge', check: 'residence-time-sufficient', label: 'Wax freezes before the scraper' },
+    { kind: 'gauge', check: 'belt-has-capacity', label: 'Belt sheds the heat' },
+    { kind: 'gauge', check: 'cooling-water-rise-acceptable', label: 'Cooling water rise' },
+    { kind: 'trend', result: 'conductionTimeS', over: 'beltSpeedMPerMin', label: 'Freezing time against belt speed' },
+    { kind: 'note', text: 'A faster belt lays a thinner layer that freezes sooner, but spends less time on the belt.' }
+  ],
+
   provenance: {
     authoredBy: 'ENGINEER',
     engineerConfirmed: [

@@ -486,6 +486,30 @@ export function evaluateBoolean(src: string, scope: ExprScope): boolean {
   return v;
 }
 
+/** The two sides of a comparison, worked out: what a check measures and the limit it holds it to. */
+export interface ComparisonSides {
+  op: '<' | '<=' | '>' | '>=';
+  /** The left side: the quantity being checked. */
+  value: number;
+  /** The right side: its limit. */
+  limit: number;
+}
+
+/**
+ * A check written as one comparison (`residence >= required`, `dp < 0.5 *
+ * maxDp`), evaluated side by side, so the panel can show how close it runs to
+ * its limit rather than only pass or fail. Undefined for anything else (a
+ * conjunction, an equality, a bare boolean) or when a side is not a finite number.
+ */
+export function comparisonSides(src: string, scope: ExprScope): ComparisonSides | undefined {
+  const ast = parseExpression(src);
+  if (ast.k !== 'bin' || !['<', '<=', '>', '>='].includes(ast.op)) return undefined;
+  const a = evalAst(ast.a, scope, src);
+  const b = evalAst(ast.b, scope, src);
+  if (typeof a !== 'number' || typeof b !== 'number' || !Number.isFinite(a) || !Number.isFinite(b)) return undefined;
+  return { op: ast.op as ComparisonSides['op'], value: a, limit: b };
+}
+
 /**
  * Every name an expression reads. Used to verify at authoring time that a
  * contract only references things it actually declares, so a bad reference is
