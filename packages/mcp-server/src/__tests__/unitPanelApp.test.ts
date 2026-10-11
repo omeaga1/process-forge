@@ -15,6 +15,7 @@ import {
   UNIT_PANEL_META_KEY,
   UNIT_PANEL_URI,
   renderUnitPanel,
+  panelInputs,
   unitPanelFor,
   unitPanelHtml,
   type UnitPanelView
@@ -45,13 +46,25 @@ async function connected() {
 
 type Result = { content: { type: string; text: string }[]; structuredContent?: Record<string, unknown>; _meta?: Record<string, unknown> };
 
-/** The view's script, run against a stand-in host: what it posts, and what it has drawn. */
-function bootView(opts: { prefersLight?: boolean } = {}) {
+/**
+ * The view's script, run against a stand-in host: what it posts (or hands to
+ * `deliver`), what it has drawn, and a way to act as the engineer on it.
+ */
+function bootView(opts: { prefersLight?: boolean; deliver?: (m: Record<string, unknown>) => void } = {}) {
   const script = unitPanelHtml().match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const posted: Record<string, unknown>[] = [];
   const listeners: ((e: { data: unknown; source?: unknown }) => void)[] = [];
-  const panel = { innerHTML: '' };
-  const parent = { postMessage: (m: unknown, origin: string) => (assert.equal(origin, '*'), posted.push(JSON.parse(JSON.stringify(m)) as Record<string, unknown>)) };
+  const onPanel: Record<string, ((e: unknown) => void)[]> = {};
+  const panel = { innerHTML: '', addEventListener: (type: string, l: (e: unknown) => void) => (onPanel[type] ??= []).push(l) };
+  // Copy across the realm, so what the view posts compares like any object here.
+  const parent = {
+    postMessage: (m: unknown, origin: string) => {
+      assert.equal(origin, '*');
+      const copy = JSON.parse(JSON.stringify(m)) as Record<string, unknown>;
+      posted.push(copy);
+      opts.deliver?.(copy);
+    }
+  };
   const root = { dataset: {} as Record<string, string | undefined>, scrollHeight: 300 };
   const window = {
     parent,
@@ -59,9 +72,16 @@ function bootView(opts: { prefersLight?: boolean } = {}) {
     document: { documentElement: root, getElementById: (id: string) => (id === 'panel' ? panel : null) },
     matchMedia: () => ({ matches: Boolean(opts.prefersLight) })
   };
-  vm.runInNewContext(script, { window, Intl, Math, Number, String, JSON });
+  vm.runInNewContext(script, { window });
   const hostSays = (data: unknown, source: unknown = parent) => listeners.forEach((l) => l({ data, source }));
-  return { posted, panel, root, hostSays };
+  /** The engineer types a value into a field (or clicks a button). */
+  const engineer = (type: 'change' | 'click', target: { dataset: Record<string, string>; value?: string }) => (onPanel[type] ?? []).forEach((l) => l({ target }));
+  return { posted, panel, root, hostSays, engineer };
+}
+
+async function until(cond: () => boolean, what: string) {
+  for (let i = 0; i < 300 && !cond(); i++) await new Promise((r) => setTimeout(r, 10));
+  assert.ok(cond(), what);
 }
 
 describe('MCP Apps: the unit panel in the chat', () => {
@@ -193,5 +213,103 @@ describe('MCP Apps: the unit panel in the chat', () => {
     // A host that drops _meta: say so rather than draw nothing.
     hostSays({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { content: [{ type: 'text', text: '{}' }] } });
     assert.match(panel.innerHTML, /text answer has the details/);
+  });
+
+  it('offers the operating conditions as inputs: temperatures first, then flows and speeds; geometry under more settings', () => {
+    const { inputs, settings } = panelInputs(WAX_COOLING_BELT_CONTRACT.parameters);
+    const names = inputs.map((i) => i.name);
+    assert.ok(names.includes('waxInletTempC') && names.includes('waxMassFlowKgPerS') && names.includes('beltSpeedMPerMin'), names.join());
+    assert.equal(inputs[0]!.kind, 'temperature');
+    const kinds = inputs.map((i) => i.kind);
+    assert.ok(kinds.lastIndexOf('temperature') < kinds.indexOf('flow') && kinds.indexOf('flow') < kinds.indexOf('speed'), kinds.join());
+    assert.ok(settings.some((i) => i.name === 'beltLengthM'), 'a length is a design setting, not an operating condition');
+    assert.ok(!inputs.some((i) => i.name === 'beltLengthM'));
+    const pressure = panelInputs([
+      { name: 'p', label: 'Pressure', unit: 'psi', value: 30 },
+      { name: 'n', label: 'Nozzles', unit: '-', value: 4, min: 4, max: 4 }
+    ]);
+    assert.deepEqual(pressure.inputs.map((i) => [i.name, i.kind]), [['p', 'pressure']], 'a pressure is an input; a constant is not offered');
+    assert.deepEqual(pressure.settings, []);
+  });
+
+  it('shows the values the engineer set, marked as theirs', () => {
+    const view = unitPanelFor('validate_unit_op', { contract: WAX_COOLING_BELT_CONTRACT, parameterOverrides: { waxInletTempC: 110 } }, { verdict: 'ACCEPTED' })!;
+    assert.equal(view.inputs!.find((i) => i.name === 'waxInletTempC')!.value, 110);
+    assert.deepEqual(view.overrides, { waxInletTempC: 110 });
+    const live = renderUnitPanel(view, { live: true, ask: false });
+    assert.match(live, /<input type="number" inputmode="decimal" data-name="waxInletTempC" aria-label="Wax inlet temperature \(degC\)" value="110"/);
+    assert.match(live, /Wax inlet temperature <span class="pf-yours">yours<\/span>/);
+    assert.match(live, /<details class="pf-more"><summary>More settings/);
+    assert.doesNotMatch(live, / disabled/);
+    assert.match(renderUnitPanel(view, { live: false, ask: false }), /data-name="waxInletTempC"[^>]* disabled/, 'read only where the host cannot run the engine');
+    assert.match(renderUnitPanel(view, { live: false, ask: true }), /data-action="ask"/);
+  });
+
+  it("re-runs the engine at the engineer's values through a real MCP Apps host (ext-apps AppBridge)", async () => {
+    type Context = { structuredContent?: Record<string, unknown>; content?: { text: string }[] };
+    const { AppBridge } = (await import('@modelcontextprotocol/ext-apps/app-bridge')) as unknown as {
+      AppBridge: new (client: Client, hostInfo: object, caps: object, opts: object) => {
+        connect(t: object): Promise<void>;
+        sendToolInput(p: object): Promise<void>;
+        sendToolResult(p: object): Promise<void>;
+        onupdatemodelcontext: (p: Context) => Promise<object>;
+      };
+    };
+    const client = await connected();
+    const bridge = new AppBridge(client, { name: 'test host', version: '1' }, { serverTools: {}, updateModelContext: { text: {} } }, { hostContext: { theme: 'dark' } });
+    const context: Context[] = [];
+    bridge.onupdatemodelcontext = async (p) => (context.push(p), {});
+    // The bridge's side of the iframe: what it sends reaches the view, what the view posts reaches it.
+    let toView: (m: unknown) => void = () => undefined;
+    const transport: { start(): Promise<void>; send(m: unknown): Promise<void>; close(): Promise<void>; onmessage?: (m: unknown) => void } = {
+      start: async () => undefined,
+      send: async (m) => toView(JSON.parse(JSON.stringify(m))),
+      close: async () => undefined
+    };
+    await bridge.connect(transport);
+    const view = bootView({ deliver: (m) => queueMicrotask(() => transport.onmessage?.(m)) });
+    toView = (m) => view.hostSays(m);
+    await until(() => view.posted.some((m) => m.method === 'ui/notifications/initialized'), 'the view finishes the handshake with the real host');
+
+    const args = { contract: WAX_COOLING_BELT_CONTRACT };
+    await bridge.sendToolInput({ arguments: args });
+    await bridge.sendToolResult(await client.callTool({ name: 'validate_unit_op', arguments: args }));
+    await until(() => view.panel.innerHTML.includes('data-name="waxInletTempC"'), 'the panel draws its inputs');
+    assert.match(view.panel.innerHTML, /the engine re-checks the design at your values/);
+    const captions = () => (view.panel.innerHTML.match(/class="pf-caption">([^<]*)/g) ?? []).join('|');
+    const before = captions();
+
+    view.engineer('change', { dataset: { name: 'beltSpeedMPerMin' }, value: '40' });
+    assert.match(view.panel.innerHTML, /Re-checking with the engine/);
+    await until(() => /Checked by the engine at your values/.test(view.panel.innerHTML), 'the engine answers through the host');
+    assert.match(view.panel.innerHTML, /data-name="beltSpeedMPerMin"[^>]* value="40"/);
+    assert.match(view.panel.innerHTML, /Belt speed <span class="pf-yours">yours/);
+    assert.notEqual(captions(), before, 'the gauges moved');
+    await until(() => context.length > 0, 'the model is told');
+    assert.deepEqual(context[0]!.structuredContent!.parameterOverrides, { beltSpeedMPerMin: 40 });
+    assert.match(context[0]!.content![0]!.text, /the engineer set Belt speed = 40 m\/min/);
+
+    // A second value keeps the first.
+    view.engineer('change', { dataset: { name: 'waxInletTempC' }, value: '105' });
+    await until(() => context.length > 1, 'told again');
+    assert.deepEqual(context[1]!.structuredContent!.parameterOverrides, { beltSpeedMPerMin: 40, waxInletTempC: 105 });
+    view.engineer('change', { dataset: { name: 'waxInletTempC' }, value: 'hot' });
+    assert.match(view.panel.innerHTML, /Enter a number/);
+  });
+
+  it('asks Claude to re-check when the host takes messages but cannot run tools', () => {
+    const { posted, panel, hostSays, engineer } = bootView();
+    const init = posted.find((m) => m.method === 'ui/initialize')!;
+    hostSays({ jsonrpc: '2.0', id: init.id, result: { protocolVersion: LATEST_PROTOCOL_VERSION, hostInfo: { name: 'h', version: '1' }, hostCapabilities: { message: { text: {} } }, hostContext: {} } });
+    const r = { _meta: { [UNIT_PANEL_META_KEY]: unitPanelFor('validate_unit_op', { contract: WAX_COOLING_BELT_CONTRACT }, { verdict: 'ACCEPTED' }) }, content: [] };
+    hostSays({ jsonrpc: '2.0', method: 'ui/notifications/tool-input', params: { arguments: { contract: WAX_COOLING_BELT_CONTRACT } } });
+    hostSays({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: r });
+    engineer('change', { dataset: { name: 'waxInletTempC' }, value: '120' });
+    assert.ok(!posted.some((m) => m.method === 'tools/call'), 'no tool call the host cannot make');
+    assert.match(panel.innerHTML, /Not checked yet: Wax inlet temperature = 120 degC/);
+    engineer('click', { dataset: { action: 'ask' } });
+    const msg = posted.find((m) => m.method === 'ui/message') as { params: { role: string; content: { text: string }[] } } | undefined;
+    assert.equal(msg?.params.role, 'user');
+    assert.match(msg!.params.content[0]!.text, /Wax inlet temperature = 120 degC/);
   });
 });
