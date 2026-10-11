@@ -163,7 +163,46 @@ select option, select optgroup { background-color: var(--pf-bg-surface-elevated)
 .pf-chip:focus-visible { outline: 2px solid var(--pf-jade-400); outline-offset: 1px; }
 .pf-chip .pf-count { color: var(--pf-text-muted); font-variant-numeric: tabular-nums; }
 
+/* A spec sheet name that scrubs its value when dragged (studio/SpecSheet.tsx). */
+.pf-scrub { cursor: ew-resize; user-select: none; touch-action: none; border-bottom: 1px dotted var(--pf-border-strong); }
+.pf-scrub:hover { color: var(--pf-jade-glow); border-bottom-color: var(--pf-jade-500); }
+.pf-scrub[data-scrubbing] { color: var(--pf-jade-glow); }
+.pf-scrub-cursor { color: var(--pf-text-primary); filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5)); pointer-events: none; }
+
+/* The unit's panel at a glance (studio/UnitGlance.tsx). */
+.pf-glance { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.pf-glance-card {
+  box-sizing: border-box; min-width: 0; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid var(--pf-border-subtle); background: var(--pf-bg-surface);
+  font-family: ${fontFamily.sans}; color: var(--pf-text-primary); text-align: left;
+}
+.pf-glance-card[data-wide] { grid-column: 1 / -1; }
+button.pf-glance-card { cursor: pointer; font: inherit; transition: border-color 120ms ease, background-color 120ms ease; }
+button.pf-glance-card:hover { border-color: var(--pf-border-strong); background: var(--pf-bg-surface-hover); }
+button.pf-glance-card:focus-visible { outline: 2px solid var(--pf-jade-400); outline-offset: 1px; }
+.pf-glance-label { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--pf-text-muted); }
+.pf-glance-figure { margin-top: 4px; font: 600 20px/1.1 ${fontFamily.mono}; font-variant-numeric: tabular-nums; }
+.pf-glance-unit { margin-left: 5px; font: 400 12px/1 ${fontFamily.mono}; color: var(--pf-text-muted); }
+.pf-glance-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pf-glance-status { font: 600 11px/1 ${fontFamily.sans}; white-space: nowrap; }
+.pf-glance-status[data-status="ok"] { color: var(--pf-jade-500); }
+.pf-glance-status[data-status="tight"], .pf-glance-status[data-status="warning"] { color: var(--pf-status-blocked); }
+.pf-glance-status[data-status="error"] { color: var(--pf-status-failed); }
+.pf-meter-track { position: relative; height: 8px; margin: 9px 0 6px; border-radius: 999px; background: var(--pf-bg-surface-hover); overflow: visible; }
+.pf-meter-indicator { height: 100%; border-radius: 999px; background: var(--pf-jade-500); transition: width 220ms ease, background-color 220ms ease; }
+.pf-meter-indicator[data-status="tight"], .pf-meter-indicator[data-status="warning"] { background: var(--pf-status-blocked); }
+.pf-meter-indicator[data-status="error"] { background: var(--pf-status-failed); }
+.pf-meter-limit { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--pf-text-primary); transition: left 220ms ease; }
+.pf-meter-safe { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: color-mix(in srgb, var(--pf-jade-500) 14%, transparent); }
+.pf-glance-caption { font-size: 12px; line-height: 1.4; color: var(--pf-text-secondary); font-variant-numeric: tabular-nums; }
+.pf-glance-message { margin-top: 4px; font-size: 12px; line-height: 1.4; color: var(--pf-status-failed); }
+.pf-trend { display: block; width: 100%; height: auto; margin-top: 6px; overflow: visible; touch-action: none; cursor: crosshair; }
+.pf-trend:focus-visible { outline: 2px solid var(--pf-jade-400); outline-offset: 2px; border-radius: 4px; }
+.pf-glance-note { grid-column: 1 / -1; display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; border-radius: 8px; font: 400 13px/1.45 ${fontFamily.sans};
+  color: var(--pf-text-secondary); background: color-mix(in srgb, var(--pf-jade-500) 6%, transparent); border: 1px solid color-mix(in srgb, var(--pf-jade-500) 22%, transparent); }
+.pf-glance-note[data-tone="caution"] { background: color-mix(in srgb, var(--pf-status-blocked) 8%, transparent); border-color: color-mix(in srgb, var(--pf-status-blocked) 35%, transparent); }
+
 @media (prefers-reduced-motion: reduce) {
-  .pf-backdrop, .pf-dialog, .pf-sheet, .pf-tip, .pf-menu, .pf-tabs-indicator, .pf-switch-thumb { transition: none; }
+  .pf-backdrop, .pf-dialog, .pf-sheet, .pf-tip, .pf-menu, .pf-tabs-indicator, .pf-switch-thumb, .pf-meter-indicator, .pf-meter-limit { transition: none; }
 }
 `;
