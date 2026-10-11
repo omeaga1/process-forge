@@ -117,6 +117,12 @@ export interface DesignUnitOpResult {
    * meeting every requirement in phasePlan.archetype.requirements.
    */
   archetypeExample?: unknown;
+  /**
+   * The operating conditions to ask the engineer for before writing the
+   * contract (temperatures, pressures, flows, utilities), and the ones the
+   * open flowsheet already states. The model asks; it does not fill them in.
+   */
+  operatingConditions: OperatingConditionsBrief;
   /** What the surrounding process looks like, when a graph was supplied. */
   processContext: {
     available: boolean;
@@ -126,6 +132,49 @@ export interface DesignUnitOpResult {
     suggestedDesignInlet?: UnitOpDesignStream;
   };
   nextStep: string;
+}
+
+export interface OperatingConditionsBrief {
+  instruction: string;
+  /** What to ask the engineer for, stream by stream. */
+  ask: string[];
+  /** What the open flowsheet already says about the feed: confirm these rather than ask. */
+  fromFlowsheet: string[];
+}
+
+export const OPERATING_CONDITIONS_INSTRUCTION =
+  "Ask the engineer for these operating conditions before you write the contract, and use their numbers. Do not fill them in from typical values. If the engineer does not know one, propose a value, say it is your assumption, and write 'Assumed: confirm' in that parameter's description. Give each one a parameter in ui.group 'Operating conditions', so the engineer can change it on the unit's panel.";
+
+/**
+ * What to ask the engineer before designing: each inlet's flow, temperature
+ * and pressure (in the units its phase is stated in), what each outlet has to
+ * meet, the operating pressure and the utilities; and what the flowsheet
+ * feeding the unit already says.
+ */
+export function operatingConditionsFor(plan: PhasePlan, designInlet?: UnitOpDesignStream): OperatingConditionsBrief {
+  const ports = plan.archetype?.ports ?? [];
+  const inlets = ports.filter((p) => p.direction === 'INLET');
+  const outlets = ports.filter((p) => p.direction === 'OUTLET');
+  const ask = inlets.length
+    ? inlets.map((p) =>
+        p.phase === 'ITEMS'
+          ? `${p.name} (${p.id}): rate (${p.flowUnits})${p.optional ? ', if this design has it' : ''}`
+          : `${p.name} (${p.id}, ${p.phase.toLowerCase()}): flow (${p.flowUnits}), temperature and pressure${p.role === 'UTILITY' ? ' available' : ''}${p.optional ? ', if this design has it' : ''}`
+      )
+    : ['Feed: what it is, its flow rate, temperature and pressure (or items per minute for a machine)'];
+  ask.push(
+    outlets.length
+      ? `What each outlet has to meet (${outlets.map((p) => p.name).join(', ')}): a temperature, pressure, purity, moisture or rate`
+      : 'What the product has to meet: an outlet temperature, pressure, purity, moisture or rate'
+  );
+  ask.push('Operating pressure or vacuum, and the design temperature and pressure the equipment has to be rated for');
+  ask.push('Utilities on site: steam pressure, cooling water supply temperature, chilled water, power supply');
+  const fromFlowsheet: string[] = [];
+  if (designInlet?.temperatureC !== undefined) fromFlowsheet.push(`Feed temperature ${designInlet.temperatureC} °C`);
+  if (designInlet?.volumetricFlowGpm !== undefined) fromFlowsheet.push(`Feed flow ${designInlet.volumetricFlowGpm} gal/min`);
+  if (designInlet?.massFlowKgPerS !== undefined) fromFlowsheet.push(`Feed mass flow ${designInlet.massFlowKgPerS} kg/s`);
+  if (designInlet?.piecesPerMinute !== undefined) fromFlowsheet.push(`Feed rate ${designInlet.piecesPerMinute} items/min`);
+  return { instruction: OPERATING_CONDITIONS_INSTRUCTION, ask, fromFlowsheet };
 }
 
 export interface PhasePlan {
@@ -351,10 +400,17 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
   const archetypeExample =
     phasePlan.archetype?.example && !multiphase && !changesPhase ? ARCHETYPE_EXAMPLES[phasePlan.archetype.example] : undefined;
 
+  const processContext = buildProcessContext(graph, targetNodeId);
+  const operatingConditions = operatingConditionsFor(phasePlan, processContext.suggestedDesignInlet);
   const brief = [
     `Design a unit operation from this description: "${description}"`,
     '',
     modeLine,
+    '',
+    'Before you write anything, ask the engineer for the operating conditions (operatingConditions.ask):',
+    ...operatingConditions.ask.map((a) => `  - ${a}`),
+    ...(operatingConditions.fromFlowsheet.length ? [`The flowsheet already gives: ${operatingConditions.fromFlowsheet.join('; ')}. Confirm these rather than ask.`] : []),
+    "Use the engineer's numbers. Do not fill them in from typical values; where the engineer does not know one, propose a value, say it is an assumption, and write 'Assumed: confirm' in that parameter's description. Put them in ui.group 'Operating conditions'.",
     '',
     'Return a single UnitOpContract as JSON, including its drawing, then call',
     'validate_unit_op with it. The engine evaluates your expressions, checks your',
@@ -434,8 +490,9 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     ...(archetypeExample ? { archetypeExample } : {}),
     ...(multiphase && !changesPhase ? { gasSolidExample: DUST_COLLECTOR_CONTRACT } : {}),
     ...(changesPhase ? { phaseChangeExample: phasePlan.archetype?.example === 'VENTURI_SCRUBBER_CONTRACT' ? VENTURI_SCRUBBER_CONTRACT : SPRAY_DRYER_CONTRACT } : {}),
-    processContext: buildProcessContext(graph, targetNodeId),
+    operatingConditions,
+    processContext,
     nextStep:
-      'Author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'
+      'Ask the engineer for the operating conditions in operatingConditions.ask and wait for the answers. Then author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'
   };
 }
