@@ -24,14 +24,15 @@
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "^2.1.2",
+    "@modelcontextprotocol/ext-apps": "~1.7.5",
     "@process-forge/protocol": "workspace:*",
     "@process-forge/simulation-core": "workspace:*",
     "@process-forge/theme": "workspace:*",
+    "@process-forge/tools": "workspace:*",
     "@process-forge/typescript-config": "workspace:*",
     "@types/node": "^22.13.9",
     "esbuild": "^0.25.12",
-    "typescript": "^5.8.2",
-    "@process-forge/tools": "workspace:*"
+    "typescript": "^5.8.2"
   },
   "files": [
     "bundle",

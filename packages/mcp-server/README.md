@@ -46,6 +46,12 @@ Every tool has a title and read-only/write annotations, so clients can ask
 before a tool changes the flowsheet. Results come back as JSON text and as
 structured content.
 
+In clients that support [MCP Apps](https://github.com/modelcontextprotocol/ext-apps),
+`explore_unit_op` and `validate_unit_op` also show the unit's panel at a glance
+in the chat: a gauge for how close each check runs to its limit, its headline
+figures, trends and notes (`ui://process-forge/unit-panel.html`). Other clients
+get the same JSON answer as before.
+
 ## Prompts and resources
 
 The server also sends clients a short workflow guide (MCP `instructions`), and
