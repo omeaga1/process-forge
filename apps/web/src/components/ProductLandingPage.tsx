@@ -13,6 +13,9 @@ import { LineDemo } from '../landing/LineDemo.js';
 import { EquipmentExplorer } from '../landing/EquipmentExplorer.js';
 import { DesignLoop } from '../landing/DesignLoop.js';
 import { McpDemo } from '../landing/McpDemo.js';
+import { ControlDemo } from '../landing/ControlDemo.js';
+import { useInView } from '../landing/useInView.js';
+import { STANDARD_EQUIPMENT_CATALOG } from '@process-forge/protocol';
 
 /**
  * The public landing page, in the studio's own Osaka Jade: obsidian
@@ -51,6 +54,15 @@ const MCP_CONFIG = `{
     }
   }
 }`;
+/** The MCP server's tools, as an engineer would group them (packages/tools registry, and the server's own). */
+const MCP_TOOLS: [string, string[]][] = [
+  ['Read the line', ['get_open_flowsheet', 'list_flowsheets', 'open_flowsheet', 'simulate_process_line', 'diagnose_bottlenecks', 'compare_scenarios']],
+  ['Build it', ['new_flowsheet', 'list_standard_unit_ops', 'add_standard_unit_op', 'add_stream', 'route_stream', 'arrange_unit', 'update_unit', 'remove_unit', 'remove_stream', 'save_flowsheet']],
+  ['Design units', ['design_unit_op', 'validate_unit_op', 'explore_unit_op', 'hold_unit_result', 'calculate_stream', 'forge_equipment_drawing', 'add_unit_op_to_flowsheet', 'query_unit_subagent']],
+  ['Share them', ['search_community_unit_ops', 'add_community_unit_op', 'package_unit_op', 'publish_unit_op', 'list_digital_twin_templates']]
+];
+const MCP_TOOL_COUNT = MCP_TOOLS.reduce((n, [, t]) => n + t.length, 0);
+
 const FIRST_PROMPT = 'Build a paint line: batch reactor, tank, filler and labeler at 30 cans/min, then find the bottleneck.';
 
 const mono: React.CSSProperties = { fontFamily: fontFamily.mono, fontVariantNumeric: 'tabular-nums' };
@@ -59,8 +71,10 @@ const sans: React.CSSProperties = { fontFamily: fontFamily.sans };
 function Section({ id, n, kicker, title, note, children }: {
   id: string; n: string; kicker: string; title: string; note?: string; children: React.ReactNode;
 }) {
+  // Rises into place the first time it scrolls into view (and is simply there with reduced motion or no observer).
+  const [ref, inView] = useInView<HTMLElement>(0.08);
   return (
-    <section id={id} style={{ maxWidth: 1120, margin: '0 auto', padding: `clamp(56px, 9vw, 104px) ${GUTTER} 0` }}>
+    <section ref={ref} id={id} className="pf-reveal" {...(inView ? { 'data-in': '' } : {})} style={{ maxWidth: 1120, margin: '0 auto', padding: `clamp(56px, 9vw, 104px) ${GUTTER} 0` }}>
       <div style={{ ...mono, fontSize: 12, letterSpacing: '0.16em', color: D.jade.glow }}>
         {n} <span style={{ color: D.text.muted }}>·</span> {kicker}
       </div>
@@ -78,7 +92,7 @@ function CopyCommand({ text, prompt = '$' }: { text: string; prompt?: string | n
   const multiline = text.includes('\n');
   return (
     <div style={{ display: 'flex', alignItems: multiline ? 'flex-start' : 'stretch', border: `1px solid ${D.border.strong}`, borderRadius: 8, overflow: 'hidden', background: D.background.base }}>
-      <code style={{ ...mono, flex: 1, minWidth: 0, padding: '10px 12px', fontSize: 13, color: D.jade.glow, overflowX: 'auto', whiteSpace: multiline ? 'pre' : 'nowrap' }}>
+      <code tabIndex={0} aria-label={multiline ? 'Configuration' : 'Command'} style={{ ...mono, flex: 1, minWidth: 0, padding: '10px 12px', fontSize: 13, color: D.jade.glow, overflowX: 'auto', whiteSpace: multiline ? 'pre' : 'nowrap' }}>
         {prompt && <span style={{ color: D.text.muted }}>{prompt} </span>}
         {text}
       </code>
@@ -153,10 +167,12 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
   // One request to GitHub serves the hero's button and every link in the
   // install guide.
   const [installers, setInstallers] = useState<Partial<Record<DesktopOs, ResolvedInstaller>>>({});
+  const [releaseTag, setReleaseTag] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     void fetchLatestRelease().then((release) => {
       if (cancelled || !release) return;
+      setReleaseTag(release.tag_name);
       const found: Partial<Record<DesktopOs, ResolvedInstaller>> = {};
       for (const os of Object.keys(OS_LABELS) as DesktopOs[]) {
         const hit = selectAsset(release, os);
@@ -198,7 +214,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
       Open the studio (development)
     </button>
   );
-  const textLink: React.CSSProperties = { color: D.jade.glow, textDecoration: 'none' };
+  const textLink: React.CSSProperties = { color: D.jade.glow, textDecoration: 'underline', textDecorationColor: `${D.jade.glow}66`, textUnderlineOffset: 3 };
 
   return (
     // flexShrink 0: the app's frame is a fixed-height flex column, and a
@@ -226,7 +242,17 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         @keyframes pf-pop-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
         .pf-landing .pf-pop { animation: pf-pop-in .25s ease; }
         @media (max-width: 560px) { .pf-landing .pf-explorer-detail { grid-template-columns: 1fr !important; } }
-        @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } }
+        @media (max-width: 820px) { .pf-landing .pf-control-grid { grid-template-columns: 1fr !important; } }
+        .pf-landing .pf-reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1); }
+        .pf-landing .pf-reveal[data-in] { opacity: 1; transform: none; }
+        .pf-landing .pf-feature { transition: border-color .15s ease, transform .15s ease; }
+        .pf-landing .pf-feature:hover { border-color: ${D.jade[500]}88 !important; transform: translateY(-2px); }
+        .pf-landing .pf-pill:hover { border-color: ${D.jade.glow} !important; }
+        .pf-landing .pf-tool { display: inline-block; padding: 3px 8px; border-radius: 6px; border: 1px solid ${D.border.subtle}; background: ${D.background.base}; color: ${D.text.secondary}; font-size: 12px; }
+        .pf-landing .pf-range { width: 100%; accent-color: ${D.jade.glow}; cursor: pointer; }
+        @keyframes pf-glow-pulse { 0%, 100% { box-shadow: 0 0 0 0 ${D.jade.glow}55; } 50% { box-shadow: 0 0 0 5px ${D.jade.glow}00; } }
+        .pf-landing .pf-dot { width: 7px; height: 7px; border-radius: 4px; background: ${D.jade.glow}; animation: pf-glow-pulse 2.4s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } .pf-landing .pf-reveal { opacity: 1; transform: none; } }
       `}</style>
       <ThemeScope mode="dark">
         {/* Nav: stays in reach while the page scrolls. */}
@@ -251,6 +277,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
             <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
               {[
                 ['Equipment', '#equipment'],
+                ['Spec sheet', '#control'],
                 ['Design', '#design'],
                 ['Claude & MCP', '#ai'],
                 ['Install', '#install'],
@@ -272,14 +299,26 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
 
         {/* Hero, with the line running under it. */}
         <header id="top" style={{ maxWidth: 1120, margin: '0 auto', padding: `clamp(40px, 7vw, 80px) ${GUTTER} 0` }}>
+          <a
+            className="pf-pill"
+            href={RELEASES_PAGE}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 12px 5px 10px', borderRadius: 999, border: `1px solid ${D.border.strong}`, background: `${D.background.surface}cc`, color: D.text.secondary, fontSize: 13, textDecoration: 'none', marginBottom: 22, maxWidth: '100%', flexWrap: 'wrap' }}
+          >
+            <span className="pf-dot" aria-hidden />
+            <span style={{ color: D.text.primary, fontWeight: 600 }}>{releaseTag ? `${releaseTag} is out` : 'Latest release'}</span>
+            <span>Spec sheets, held results and generated unit panels</span>
+            <span aria-hidden style={{ color: D.jade.glow }}>→</span>
+          </a>
           <div style={{ ...mono, fontSize: 12, letterSpacing: '0.18em', color: D.jade.glow }}>OPEN-SOURCE PROCESS SIMULATION</div>
           <h1 style={{ margin: '14px 0 0', fontSize: 'clamp(2.2rem, 5.6vw, 3.8rem)', fontWeight: 680, letterSpacing: '-0.04em', lineHeight: 1.02, maxWidth: '21ch' }}>
             Find the bottleneck <span style={{ color: D.jade[400] }}>before you build the line.</span>
           </h1>
           <p style={{ margin: '20px 0 0', fontSize: 'clamp(1rem, 2vw, 1.14rem)', lineHeight: 1.6, color: D.text.secondary, maxWidth: '58ch' }}>
             Lay out reactors, tanks, fillers and conveyors, and simulate the shift: when each machine runs, waits or backs up,
-            and which one holds the line back. For equipment nobody ships a model for, your AI designs one, and the engine checks
-            its physics first.
+            and which one holds the line back. Set every unit from a simulator-style spec sheet. For equipment nobody ships a
+            model for, your AI designs one, and the engine checks its physics first.
           </p>
           <div style={{ display: 'flex', gap: 10, marginTop: 28, flexWrap: 'wrap', alignItems: 'center' }}>
             {primary}
@@ -303,6 +342,20 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
             </div>
             <LineDemo />
           </div>
+
+          <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 1, margin: 'clamp(28px, 5vw, 44px) 0 0', border: `1px solid ${D.border.subtle}`, borderRadius: 12, overflow: 'hidden', background: D.border.subtle }}>
+            {[
+              [String(STANDARD_EQUIPMENT_CATALOG.length), 'standard units, each with its model'],
+              [String(MCP_TOOL_COUNT), 'MCP tools for Claude and other clients'],
+              ['0', 'numbers guessed: the engine computes every one'],
+              ['Apache-2.0', 'free and open source, app and server']
+            ].map(([k, v]) => (
+              <div key={v} style={{ background: D.background.base, padding: '16px 18px' }}>
+                <dt style={{ ...mono, fontSize: 22, fontWeight: 600, color: D.text.primary }}>{k}</dt>
+                <dd style={{ margin: '4px 0 0', fontSize: 13, lineHeight: 1.45, color: D.text.secondary }}>{v}</dd>
+              </div>
+            ))}
+          </dl>
         </header>
 
         <Section
@@ -316,8 +369,18 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         </Section>
 
         <Section
-          id="design"
+          id="control"
           n="02"
+          kicker="SPEC SHEET"
+          title="Every unit, set like a simulator’s."
+          note="Each unit opens on a spec sheet: every setting in the unit you work in, the range where the design passes, and the results the engine works out from them. Its panel shows how close each check runs to its limit, laid out by the unit’s own contract, so a unit your AI designs gets a panel too."
+        >
+          <ControlDemo />
+        </Section>
+
+        <Section
+          id="design"
+          n="03"
           kicker="DESIGN"
           title="For equipment nobody ships, describe it."
           note="Your AI writes the unit as parameters, equations and limits. The engine evaluates every limit, and a design that breaks one goes back with the reason, until it holds."
@@ -327,7 +390,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
 
         <Section
           id="ai"
-          n="03"
+          n="04"
           kicker="CLAUDE & MCP"
           title="Run your line from Claude."
           note="The ProcessForge MCP server gives Claude, Cursor or any MCP client the studio's tools: build a flowsheet, place and pipe equipment, design units nobody ships, simulate the shift, find the bottleneck and compare scenarios. The engine does the physics; the AI drives."
@@ -368,11 +431,31 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
             </div>
             <McpDemo />
           </div>
+          <div style={{ ...card, marginTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'baseline' }}>
+              <div style={{ fontSize: 16, fontWeight: 650 }}>{MCP_TOOL_COUNT} tools, one engine</div>
+              <div style={{ fontSize: 13, color: D.text.muted }}>Every number a tool returns is computed, never estimated by the model.</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 16, marginTop: 14 }}>
+              {MCP_TOOLS.map(([group, tools]) => (
+                <div key={group}>
+                  <div style={{ ...mono, fontSize: 11, letterSpacing: '0.12em', color: D.jade.glow, marginBottom: 8 }}>{group.toUpperCase()}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {tools.map((t) => (
+                      <code key={t} className="pf-tool" style={mono}>
+                        {t}
+                      </code>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </Section>
 
         <Section
           id="install"
-          n="04"
+          n="05"
           kicker="INSTALL"
           title="Up and running in a few minutes."
           note="Install the desktop app to build and simulate lines. Add the MCP server to drive it from Claude. Both are free, and both update themselves."
@@ -472,7 +555,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
           </div>
         </Section>
 
-        <Section id="limits" n="05" kicker="HONESTLY" title="What it does not do yet.">
+        <Section id="limits" n="06" kicker="HONESTLY" title="What it does not do yet.">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
             {[
               ['Pressure', 'No pressure network is solved: flow is limited by each unit\'s rated capacity, not worked out from pressure drops and pump curves.'],
