@@ -44,9 +44,10 @@ export const PROMPTS: PromptDef[] = [
 
 1. First check it is not already available: list_standard_unit_ops, then search_community_unit_ops. If one fits, suggest it instead (community units are unreviewed; say so).
 2. Otherwise call design_unit_op with the description. It includes the stream conditions around the unit when a flowsheet is open, and a phase plan: which ports carry liquid, gas, solid or items for this kind of equipment, in which flow units, and what changes phase. Follow it, and convert any gas or solids flow with calculate_stream rather than by hand.
-3. Write the UnitOpContract (with each port's phase and any phaseChanges), parameters, derived values, constraints and a drawing with one nozzle per port, and call validate_unit_op. If it is REJECTED, fix exactly what the gates name and validate again.
-4. When it is ACCEPTED, show me its key numbers and constraints, then call add_unit_op_to_flowsheet and pipe it in with add_stream.
-5. Finish with simulate_process_line and tell me how the line changed.`
+3. Before writing anything, ask me for the operating conditions the brief lists under operatingConditions (flows, temperatures, pressures, what the outlets must meet, utilities) and wait for my answers. Use my numbers, not typical values; where I do not know one, propose it, say it is your assumption, and mark it 'Assumed: confirm'.
+4. Write the UnitOpContract (with each port's phase and any phaseChanges), parameters, derived values, constraints and a drawing with one nozzle per port, and call validate_unit_op. If it is REJECTED, fix exactly what the gates name and validate again.
+5. When it is ACCEPTED, show me its key numbers and constraints, then call add_unit_op_to_flowsheet and pipe it in with add_stream.
+6. Finish with simulate_process_line and tell me how the line changed.`
   },
   {
     name: 'build-line',
