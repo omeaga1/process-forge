@@ -20,6 +20,7 @@ import { executeForgeEquipmentDrawing } from './tools/forgeEquipmentDrawing.js';
 import { executeDesignUnitOp } from './tools/designUnitOp.js';
 import { bridgeHost, executeGetOpenFlowsheet } from './tools/desktopBridge.js';
 import { PROMPTS, renderPrompt } from './prompts.js';
+import { MCP_APP_MIME_TYPE, UNIT_PANEL_META_KEY, UNIT_PANEL_TOOLS, UNIT_PANEL_URI, unitPanelFor, unitPanelHtml, unitPanelToolMeta } from './apps/unitPanel.js';
 
 export const SERVER_VERSION = '0.17.0';
 
@@ -193,11 +194,14 @@ const RESOURCES = [
     title: EXAMPLE_LINES[key]!.name,
     mimeType: 'application/json',
     description: 'A built-in example line, as a ProcessGraph.'
-  }))
+  })),
+  // MCP Apps: the view explore_unit_op and validate_unit_op name in their _meta.
+  { uri: UNIT_PANEL_URI, name: 'unit-panel', title: 'Unit at a glance', mimeType: MCP_APP_MIME_TYPE, description: "A unit's panel drawn in the chat: gauges, figures, trends and notes.", _meta: { ui: { prefersBorder: true } } }
 ];
 
-async function readResource(uri: string): Promise<{ mimeType: string; text: string }> {
+async function readResource(uri: string): Promise<{ mimeType: string; text: string; _meta?: Json }> {
   const json = (v: unknown) => ({ mimeType: 'application/json', text: JSON.stringify(v, null, 2) });
+  if (uri === UNIT_PANEL_URI) return { mimeType: MCP_APP_MIME_TYPE, text: unitPanelHtml(), _meta: { ui: { prefersBorder: true } } };
   if (uri === 'processforge://guide/workflow') return { mimeType: 'text/markdown', text: SERVER_INSTRUCTIONS };
   if (uri === 'processforge://catalog/standard') return json(listStandardUnitOps({}));
   if (uri === 'processforge://guide/unit-op-contract') return json(executeDesignUnitOp({ description: 'Any unit operation' } as never));
@@ -222,11 +226,16 @@ export function toolResult(result: unknown) {
   };
 }
 
+const PANEL_TOOLS: readonly string[] = UNIT_PANEL_TOOLS;
+
 export async function callTool(name: string, args: Json = {}) {
   const tool = TOOLS.find((t) => t.name === name);
   if (!tool) throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
   try {
-    return toolResult(await tool.run(args ?? {}));
+    const result = await tool.run(args ?? {});
+    // For clients that draw MCP Apps: the panel in full, in _meta, which the model does not read.
+    const panel = PANEL_TOOLS.includes(name) ? unitPanelFor(name, args ?? {}, result) : undefined;
+    return panel ? { ...toolResult(result), _meta: { [UNIT_PANEL_META_KEY]: panel } } : toolResult(result);
   } catch (err) {
     return {
       isError: true,
@@ -250,7 +259,8 @@ export function createProcessForgeMcpServer(): Server {
       title,
       description,
       inputSchema,
-      annotations: { title, ...annotations }
+      annotations: { title, ...annotations },
+      ...(PANEL_TOOLS.includes(name) ? { _meta: unitPanelToolMeta() } : {})
     }))
   }));
 
@@ -271,8 +281,8 @@ export function createProcessForgeMcpServer(): Server {
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: RESOURCES }));
   server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-    const { mimeType, text } = await readResource(request.params.uri);
-    return { contents: [{ uri: request.params.uri, mimeType, text }] };
+    const { mimeType, text, _meta } = await readResource(request.params.uri);
+    return { contents: [{ uri: request.params.uri, mimeType, text, ...(_meta ? { _meta } : {}) }] };
   });
 
   return server;
