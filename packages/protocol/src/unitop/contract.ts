@@ -400,6 +400,35 @@ export const UnitOpProvenanceSchema = z.object({
 });
 export type UnitOpProvenance = z.infer<typeof UnitOpProvenanceSchema>;
 
+/**
+ * One widget on the unit's "at a glance" panel, from a fixed catalog the app
+ * knows how to draw: a contract names what to show, never how to draw it.
+ * `result` is a parameter, a derived value or an engine figure (engine.dutyKw,
+ * engine.unitsPerMinute...).
+ *
+ * figure -- a headline number (the duty, the rate, the residence time).
+ * gauge  -- how close a check runs to its limit (`check`: a constraint id
+ *           written as one comparison), or a result on a scale (`result`,
+ *           `max`, optional `min`).
+ * trend  -- a result across one parameter's range, with where the design
+ *           passes, warns and fails, and the design point marked.
+ * note   -- a line of guidance for whoever sets the unit up.
+ */
+export const UnitOpPanelWidgetSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('figure'), result: z.string().min(1), label: z.string().min(1).optional() }),
+  z.object({
+    kind: z.literal('gauge'),
+    check: z.string().min(1).optional(),
+    result: z.string().min(1).optional(),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    label: z.string().min(1).optional()
+  }),
+  z.object({ kind: z.literal('trend'), result: z.string().min(1), over: z.string().min(1), label: z.string().min(1).optional() }),
+  z.object({ kind: z.literal('note'), text: z.string().min(1).max(280), tone: z.enum(['info', 'caution']).optional() })
+]);
+export type UnitOpPanelWidget = z.infer<typeof UnitOpPanelWidgetSchema>;
+
 export const UnitOpContractSchema = z.object({
   contractVersion: z.literal(1),
   id: z.string().min(1),
@@ -468,7 +497,13 @@ export const UnitOpContractSchema = z.object({
    * Optional so older contracts still load; without it the unit is drawn as a
    * generic vessel with its connections spaced along the edges.
    */
-  drawing: UnitOpDrawingSchema.optional()
+  drawing: UnitOpDrawingSchema.optional(),
+  /**
+   * The unit's panel at a glance, in the order given (at most 12 widgets).
+   * Absent, the app builds one: the engine's figures and a gauge for every
+   * check written as a comparison.
+   */
+  panel: z.array(UnitOpPanelWidgetSchema).max(12).optional()
 });
 export type UnitOpContract = z.infer<typeof UnitOpContractSchema>;
 
@@ -809,6 +844,53 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
 
   issues.push(...dimensionIssues(contract));
   issues.push(...propertyUnitIssues(contract));
+  issues.push(...panelIssues(contract));
+  return issues;
+}
+
+/** The engine figures a panel can show, by behavior mode (explore.ts engineResults names them engine.<field>). */
+export const ENGINE_FIGURES: Record<UnitOpContract['behavior']['mode'], readonly string[]> = {
+  DISCRETE_CYCLE: ['unitsPerMinute', 'cycleSeconds', 'unitsPerCycle'],
+  CONTINUOUS_RATE: ['capacityGpm', 'capacityKgPerHour', 'dutyKw', 'residenceTimeSeconds'],
+  BATCH: ['batchGallons', 'cycleSecondsEstimate', 'gallonsPerMinute'],
+  STORAGE: ['capacityGallons', 'maxOutflowGpm']
+};
+
+/** Every name a panel widget points at has to exist: the app draws only what the contract declares. */
+function panelIssues(contract: UnitOpContract): ContractValidationIssue[] {
+  const issues: ContractValidationIssue[] = [];
+  const params = new Set(contract.parameters.map((p) => p.name));
+  const results = new Set([...params, ...contract.derived.map((d) => d.name), ...ENGINE_FIGURES[contract.behavior.mode].map((f) => `engine.${f}`)]);
+  const resultHint = () =>
+    `Use a parameter, a derived value or one of ${ENGINE_FIGURES[contract.behavior.mode].map((f) => `engine.${f}`).join(', ')}.`;
+  (contract.panel ?? []).forEach((w, i) => {
+    const path = `panel.${i}`;
+    if ((w.kind === 'figure' || w.kind === 'trend' || (w.kind === 'gauge' && w.result)) && !results.has(w.result!)) {
+      issues.push({ path, message: `shows "${w.result}", which the contract does not declare. ${resultHint()}` });
+    }
+    if (w.kind === 'trend' && !params.has(w.over)) {
+      issues.push({ path, message: `plots over "${w.over}", which is not a parameter. A trend runs one parameter across its range.` });
+    }
+    if (w.kind === 'gauge') {
+      if (w.check && w.result) issues.push({ path, message: 'a gauge shows either a check or a result, not both' });
+      else if (w.check) {
+        const c = contract.constraints.find((x) => x.id === w.check);
+        if (!c) issues.push({ path, message: `names check "${w.check}", which is not a constraint id. Constraints: ${contract.constraints.map((x) => x.id).join(', ') || 'none'}` });
+        else {
+          let comparison = false;
+          try {
+            const ast = parseExpression(c.expr);
+            comparison = ast.k === 'bin' && ['<', '<=', '>', '>='].includes(ast.op);
+          } catch {
+            comparison = true; // Reported with the constraint itself.
+          }
+          if (!comparison) issues.push({ path, message: `check "${w.check}" is not a single comparison (a < b, a >= b), so it has no limit to gauge against. Split it, or show a result instead.` });
+        }
+      } else if (!w.result) issues.push({ path, message: 'a gauge needs a check (a constraint id) or a result with a max' });
+      else if (w.max === undefined) issues.push({ path, message: `a gauge of "${w.result}" needs max: the top of its scale` });
+      else if (w.min !== undefined && !(w.max > w.min)) issues.push({ path, message: `max (${w.max}) must exceed min (${w.min})` });
+    }
+  });
   return issues;
 }
 
