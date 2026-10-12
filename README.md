@@ -29,7 +29,7 @@ Licence: [Apache-2.0](LICENSE)
   are evaluated at steady state. Runs are seeded and reproducible.
 - **Projects.** Save to a local `.pfg.json` file without an account. With
   optional Google sign-in, save projects to the cloud and publish unit ops to
-  the community library.
+  the ProcessForge Library.
 
 ## Install
 
@@ -104,7 +104,7 @@ packages/
   tools/                   The tools a model can call, defined once for MCP and the in-app assistant
   canvas-ui/               Flowsheet canvas (React Flow), unit-op creator, AI clients
   mcp-server/              MCP server published as @process-forge/mcp-server
-  community-library-api/   Cloudflare Worker + D1: sign-in, cloud projects, community library
+  community-library-api/   Cloudflare Worker + D1: sign-in, cloud projects, ProcessForge Library
   theme/                   "Osaka Jade" design tokens
 tooling/
   typescript-config/       Shared tsconfig

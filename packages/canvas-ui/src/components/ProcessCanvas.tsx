@@ -1455,7 +1455,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           ...[1, 2, 5].map((x): PaletteCommand => ({ id: `speed-${x}`, group: 'Line', title: `Play back at ${x}×`, keywords: 'speed fast slow', run: () => setSimSpeed(x) })),
           ...(onDesignUnitOp ? [{ id: 'design', group: 'Equipment', title: 'Design a unit op…', keywords: 'new custom ai contract create', run: onDesignUnitOp }] : []),
           { id: 'palette', group: 'Equipment', title: 'Browse standard equipment…', keywords: 'add catalog library', run: () => setIsEquipmentPaletteOpen(true) },
-          { id: 'community', group: 'Equipment', title: 'Browse the community library…', keywords: 'shared published', run: () => setIsForgeHubOpen(true) },
+          { id: 'community', group: 'Equipment', title: 'Browse the ProcessForge Library…', keywords: 'shared published', run: () => setIsForgeHubOpen(true) },
           ...STANDARD_EQUIPMENT_CATALOG.map(
             (item): PaletteCommand => ({
               id: `add-${item.id}`,

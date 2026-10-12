@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import fs from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -27,12 +28,21 @@ try {
     { name: 'public site', desktop: false, expect: /Describe the equipment/ },
     { name: 'desktop app', desktop: true, expect: /Your flowsheets/ }
   ];
+  // The website builds with base '/' (VITE_BASE_PATH), so each of its pages opens from its own address.
+  if (/src="\/assets\//.test(fs.readFileSync(path.join(web, 'dist', 'index.html'), 'utf8'))) {
+    cases.push(
+      { name: 'site: /example', path: '/example', desktop: false, expect: /freeze-concentrated/ },
+      { name: 'site: /library', path: '/library', desktop: false, expect: /ProcessForge Library/ },
+      { name: 'site: /claude', path: '/claude', desktop: false, expect: /tools, one engine/ },
+      { name: 'site: /download', path: '/download', desktop: false, expect: /Up and running/ }
+    );
+  }
   for (const c of cases) {
     const page = await browser.newPage();
     if (c.desktop) await page.addInitScript(() => { window.__TAURI__ = {}; });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(`http://localhost:${port}/`);
+    await page.goto(`http://localhost:${port}${c.path ?? '/'}`);
     let text = '';
     for (let i = 0; i < 20 && !c.expect.test(text); i++) {
       await page.waitForTimeout(250);

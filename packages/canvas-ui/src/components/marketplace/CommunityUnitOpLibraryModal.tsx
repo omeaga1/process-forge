@@ -165,7 +165,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
       }
       title={
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          Community library
+          ProcessForge Library
           <span
             style={{
               fontSize: size['2xs'],
@@ -194,7 +194,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
       }
       footer={
         <span style={{ fontSize: 12, color: OsakaJadePalette.text.muted, marginRight: 'auto', lineHeight: 1.5 }}>
-          To publish your own, or a new version of one you published, click the unit on the flowsheet and choose <strong>Publish to community library</strong>. You need to be signed in with Google.
+          To publish your own, or a new version of one you published, click the unit on the flowsheet and choose <strong>Publish to ProcessForge Library</strong>. You need to be signed in with Google.
         </span>
       }
     >
@@ -323,16 +323,16 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
           )}
           {tab === 'community' && isLoading ? (
             <div style={{ padding: 40, textAlign: 'center', color: OsakaJadePalette.text.secondary, fontSize: 13 }}>
-              Loading the community library...
+              Loading the ProcessForge Library...
             </div>
           ) : (tab === 'community' ? plugins : tab === 'examples' ? examples : mine).length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: OsakaJadePalette.text.secondary, fontSize: 13 }}>
               {tab === 'mine'
                 ? mineError
                   ? ''
-                  : 'You have not published anything yet. Click a unit on the flowsheet and choose Publish to community library.'
+                  : 'You have not published anything yet. Click a unit on the flowsheet and choose Publish to ProcessForge Library.'
                 : tab === 'community' && !searchQuery && selectedCategory === 'ALL'
-                  ? 'Nothing has been published yet. Be the first: click a unit on the flowsheet and choose Publish to community library, or start from an example.'
+                  ? 'Nothing has been published yet. Be the first: click a unit on the flowsheet and choose Publish to ProcessForge Library, or start from an example.'
                   : 'Nothing matches your filter. Try a different word or category.'}
               {/* An empty community is not a dead end: the worked examples are one click away. */}
               {tab === 'community' && !searchQuery && selectedCategory === 'ALL' && examples.length > 0 && (

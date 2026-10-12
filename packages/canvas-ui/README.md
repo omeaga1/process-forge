@@ -13,10 +13,10 @@ React components for the ProcessForge studio, built on React Flow.
   configured model writes a contract, and the protocol's review gates check it
   (`src/ai/unitOpAuthor.ts`).
 - **Unit pop-out studio:** click a unit to edit its parameters, see its
-  drawing, chat about it, and publish it to the community library.
+  drawing, chat about it, and publish it to the ProcessForge Library.
 - **Engineer Studio dock:** flowsheet status, bottleneck summary, run controls
   and a chat with the configured model.
-- **Community library modal:** browse published unit ops and insert them into
+- **ProcessForge Library modal:** browse published unit ops and insert them into
   the flowsheet (`src/marketplace/communityLibraryClient.ts`).
 - **Model client** (`src/ai`): OpenRouter, with OAuth sign-in (ADR-0009). The
   key is kept in the OS keychain on desktop and in local storage in the

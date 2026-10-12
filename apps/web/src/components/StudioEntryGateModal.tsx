@@ -63,7 +63,7 @@ export const StudioEntryGateModal: React.FC<StudioEntryGateModalProps> = ({ isOp
           [
             'Save to cloud keeps a copy under your account, only when you choose to',
             'Open the same projects in the desktop app and in the browser',
-            'Publish unit operations to the community library under your name'
+            'Publish unit operations to the ProcessForge Library under your name'
           ],
           <Button
             variant="primary"

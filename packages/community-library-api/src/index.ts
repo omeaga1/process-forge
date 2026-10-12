@@ -81,6 +81,49 @@ const CATEGORIES = ['PACKAGING', 'FLUID_PROCESSING', 'MATERIAL_HANDLING', 'QUALI
 const LISTING_COLUMNS =
   'id, name, author_id, author_name, category, description, version, download_count, tags, status, engine_checked, release_notes, created_at, updated_at';
 
+/** Words that say nothing about what a unit is. */
+const STOP_WORDS = new Set(
+  'the and for with from into onto that this then than are was were has have its our your their unit units equipment design designed make makes made using use used which where when what while like some any one two three per each a an of to in on at by or as is it be we'.split(' ')
+);
+
+/**
+ * The words of a description worth searching on, cut to a stem so that
+ * "concentrator", "concentrate" and "concentration" find each other.
+ */
+export function searchStems(text: string): { word: string; stem: string }[] {
+  const seen = new Set<string>();
+  const out: { word: string; stem: string }[] = [];
+  for (const word of text.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (word.length < 3 || STOP_WORDS.has(word) || /^\d+$/.test(word)) continue;
+    const stem = word.length > 6 ? word.slice(0, Math.max(5, word.length - 3)) : word.replace(/(es|s)$/, '');
+    if (stem.length < 3 || seen.has(stem)) continue;
+    seen.add(stem);
+    out.push({ word, stem });
+    if (out.length >= 12) break;
+  }
+  return out;
+}
+
+/**
+ * How alike a listing is to a description: each word that appears in its
+ * name counts most, then its tags and description, then anywhere in the
+ * unit itself (a parameter, a port, an equation). 0 to 1.
+ */
+export function similarity(stems: { stem: string }[], row: { name: string; description: string; tags?: string | null; bundle_json: string }): { score: number; matched: string[] } {
+  const name = row.name.toLowerCase();
+  const tags = (row.tags ?? '').toLowerCase();
+  const description = row.description.toLowerCase();
+  const unit = row.bundle_json.toLowerCase();
+  let points = 0;
+  const matched: string[] = [];
+  for (const { stem } of stems) {
+    const p = name.includes(stem) ? 3 : tags.includes(stem) || description.includes(stem) ? 2 : unit.includes(stem) ? 1 : 0;
+    if (p) matched.push(stem);
+    points += p;
+  }
+  return { score: stems.length ? Math.round((points / (3 * stems.length)) * 100) / 100 : 0, matched };
+}
+
 function checkListing(body: PublishBody, isNew: boolean): string | null {
   if (isNew && (!body.name || !body.category || !body.description)) {
     return 'Missing required fields: name, category, and description are required.';
@@ -341,6 +384,34 @@ export function createHandler(deps: { jwks?: JwksFetcher } = {}) {
         const query = url.searchParams.get('q') || '';
         const category = url.searchParams.get('category') || 'ALL';
         const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 100);
+
+        // ?similar=<a description>: listings that share its words, most alike first.
+        // How an AI client asks "has anyone designed something like this?" before designing.
+        const similar = url.searchParams.get('similar') || '';
+        if (similar) {
+          const stems = searchStems(similar);
+          if (!stems.length) return jsonResponse({ success: true, count: 0, unitops: [], searchedFor: [] });
+          let sql = `SELECT ${LISTING_COLUMNS}, bundle_json FROM unitops WHERE status = 'published'`;
+          const params: unknown[] = [];
+          if (category && category !== 'ALL') {
+            sql += ' AND category = ?';
+            params.push(category);
+          }
+          sql += ` AND (${stems.map(() => '(name LIKE ? OR description LIKE ? OR tags LIKE ? OR bundle_json LIKE ?)').join(' OR ')}) LIMIT 300`;
+          for (const { stem } of stems) params.push(...Array(4).fill(`%${stem}%`));
+          const rows = (await env.DB.prepare(sql).bind(...params).all<UnitOpRecord>()).results || [];
+          const ranked = rows
+            .map((r) => ({ r, ...similarity(stems, r) }))
+            .filter((x) => x.score > 0)
+            .sort((a, b) => b.score - a.score || (b.r.download_count ?? 0) - (a.r.download_count ?? 0))
+            .slice(0, limit)
+            .map(({ r: { bundle_json: _b, ...listing }, score, matched }) => ({
+              ...listing,
+              similarity: score,
+              matched: matched.map((s) => stems.find((x) => x.stem === s)!.word)
+            }));
+          return jsonResponse({ success: true, count: ranked.length, unitops: ranked, searchedFor: stems.map((s) => s.word) });
+        }
 
         let sql = `SELECT ${LISTING_COLUMNS} FROM unitops WHERE status = 'published'`;
         const params: unknown[] = [];

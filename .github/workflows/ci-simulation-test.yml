@@ -40,6 +40,10 @@ jobs:
       - name: Smoke-test the built app
         run: pnpm exec playwright install --with-deps chromium && pnpm --filter @process-forge/web run smoke
 
+      # The website builds with an absolute base so its pages (/library, /example...) open from their own address.
+      - name: Smoke-test the website build and its pages
+        run: VITE_BASE_PATH=/ pnpm --filter @process-forge/web exec vite build && pnpm --filter @process-forge/web run smoke
+
       # The npm package is one bundled file; check that it runs on its own
       # (MCP handshake over stdio, tools listed) before anyone publishes it.
       - name: Bundle & smoke-test the MCP server package

@@ -240,9 +240,27 @@ function processForgeCloudPlugin(): Plugin {
   };
 }
 
+/**
+ * index.html's own scripts (boot.js, the manifest) are copied as they are, so
+ * they are written relative. The website builds with base '/', so a page such
+ * as /library still finds them; the desktop app keeps './'.
+ */
+function publicFilesAtBase(): Plugin {
+  let base = './';
+  return {
+    name: 'process-forge-public-files-at-base',
+    configResolved(config) {
+      base = config.base;
+    },
+    transformIndexHtml(html) {
+      return base === './' ? html : html.replace(/(src|href)="\.\/(boot\.js|manifest\.json)"/g, `$1="${base}$2"`);
+    }
+  };
+}
+
 export default defineConfig({
   base: process.env.VITE_BASE_PATH || './',
-  plugins: [react(), processForgeCloudPlugin()],
+  plugins: [react(), processForgeCloudPlugin(), publicFilesAtBase()],
   resolve: {
     alias: {
       '@process-forge/canvas-ui': path.resolve(__dirname, '../../packages/canvas-ui/src'),

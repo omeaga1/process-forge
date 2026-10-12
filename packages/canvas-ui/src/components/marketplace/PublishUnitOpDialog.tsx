@@ -41,7 +41,7 @@ export function guessCategory(n: ProcessNode): Category {
 }
 
 /**
- * Publishing a unit to the community library: what will be public, the
+ * Publishing a unit to the ProcessForge Library: what will be public, the
  * details to publish it with, and -- when you have published one by this name
  * before -- the choice of a new version of it. Nothing is sent until you
  * confirm.
@@ -113,7 +113,7 @@ export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, 
       open={node !== null}
       onOpenChange={(o) => !o && onClose()}
       width={580}
-      title="Publish to the community library"
+      title="Publish to the ProcessForge Library"
       description={node ? node.name : undefined}
       footer={
         <>

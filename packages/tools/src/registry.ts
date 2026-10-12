@@ -21,7 +21,7 @@ import {
   resolveUnit,
   type ProcessGraph
 } from '@process-forge/protocol';
-import { addCommunityUnitOp, addStandardUnitOp, COMMUNITY_CATEGORIES, listStandardUnitOps, portsOf, searchCommunityUnitOps } from './catalog.js';
+import { addCommunityUnitOp, addStandardUnitOp, COMMUNITY_CATEGORIES, libraryMatchesFor, listStandardUnitOps, portsOf, searchCommunityUnitOps } from './catalog.js';
 import { resolveGraph, type ResolvedGraph } from './graphSource.js';
 import type { DecisionSource, ProjectRequest, Surface, ToolHost } from './host.js';
 import { compareScenarios, diagnoseBottlenecks, simulateLine } from './line.js';
@@ -52,7 +52,7 @@ export interface ForgeTool {
    * approval) but it is not a read either.
    */
   readOnly?: boolean;
-  /** Reaches past this computer (the community library). */
+  /** Reaches past this computer (the ProcessForge Library). */
   openWorld?: boolean;
   idempotent?: boolean;
   /**
@@ -234,20 +234,21 @@ export const FORGE_TOOLS: ForgeTool[] = [
   },
   {
     name: 'search_community_unit_ops',
-    title: 'Search the community library',
+    title: 'Search the ProcessForge Library',
     access: 'read',
     idempotent: true,
     openWorld: true,
     description:
-      'Searches the ProcessForge community library: unit ops other engineers have published from the app. Public and read-only. Listings are what their authors wrote; ProcessForge does not review or certify them, so say so when you suggest one.',
+      'Searches the ProcessForge library: unit ops other engineers have designed and published. Give similarTo a plain description of a unit to find the ones most like it, ranked by the words they share (design_unit_op does this for you). Public and read-only. Listings are what their authors wrote; ProcessForge does not review or certify them, so say so when you suggest one.',
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Words to search names, descriptions and tags for. Omit to list everything.' },
+        similarTo: { type: 'string', description: 'A description of the unit you need, in plain words: returns the listings most like it, with a similarity from 0 to 1 and the words they share.' },
+        query: { type: 'string', description: 'Words to search names, descriptions and tags for, as a phrase. Omit both to list everything.' },
         category: { type: 'string', enum: [...COMMUNITY_CATEGORIES] }
       }
     },
-    summarize: (a) => `Search the community library${a.query ? `: "${a.query}"` : ''}`,
+    summarize: (a) => `Search the ProcessForge library${a.similarTo ? ` for units like "${String(a.similarTo).slice(0, 50)}"` : a.query ? `: "${a.query}"` : ''}`,
     run: async (a, host) => searchCommunityUnitOps(a, host.communityApiBase)
   },
 
@@ -259,7 +260,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     idempotent: true,
     graphSource: true,
     description:
-      "Returns everything needed to author a UnitOpContract for a unit operation described in plain words: the schema, the expression language and its functions, the names the engine supplies, worked examples, the stream conditions at the unit's place in the open flowsheet, a phase plan (which ports carry liquid, gas, solid or items for this kind of equipment, the flow units of each, and the phase changes and governing relations, e.g. ACFM in and kg/h of powder out of a dust collector; liquid in, powder and humid air out of a spray dryer), and a checklist of what a complete design of this unit carries. You are the model: ask the engineer for the operating conditions it lists (operatingConditions: flows, temperatures, pressures, outlet specs, utilities) and use their numbers rather than typical values, then write the contract from this brief, check it with validate_unit_op, fix what fails, then place it with add_unit_op_to_flowsheet.",
+      "Returns everything needed to author a UnitOpContract for a unit operation described in plain words: the schema, the expression language and its functions, the names the engine supplies, worked examples, the stream conditions at the unit's place in the open flowsheet, a phase plan (which ports carry liquid, gas, solid or items for this kind of equipment, the flow units of each, and the phase changes and governing relations, e.g. ACFM in and kg/h of powder out of a dust collector; liquid in, powder and humid air out of a spray dryer), a checklist of what a complete design of this unit carries, and the units like it that other engineers have already published to the ProcessForge library (fromTheLibrary), to offer first. You are the model: ask the engineer for the operating conditions it lists (operatingConditions: flows, temperatures, pressures, outlet specs, utilities) and use their numbers rather than typical values, then write the contract from this brief, check it with validate_unit_op, fix what fails, then place it with add_unit_op_to_flowsheet.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -283,8 +284,15 @@ export const FORGE_TOOLS: ForgeTool[] = [
         ...(target && typeof target !== 'string' ? { targetNodeId: target.id } : {}),
         ...(a.preferredMode ? { preferredMode: a.preferredMode } : {})
       });
-      const profile = await host.decider.ask({ message: String(a.description ?? '') }, DESIGN_QUESTIONS);
-      return { ...brief, designChecklist: { decidedBy: decidedBy(host.decider), include: designChecklist(profile) } };
+      // Before anything is designed: has someone published a unit like this?
+      const [profile, fromTheLibrary] = await Promise.all([
+        host.decider.ask({ message: String(a.description ?? '') }, DESIGN_QUESTIONS),
+        libraryMatchesFor(String(a.description ?? ''), host.communityApiBase)
+      ]);
+      const offer = Array.isArray(fromTheLibrary.matches) && fromTheLibrary.matches.length
+        ? 'First, offer the engineer the units in fromTheLibrary. '
+        : '';
+      return { ...brief, fromTheLibrary, nextStep: offer + brief.nextStep, designChecklist: { decidedBy: decidedBy(host.decider), include: designChecklist(profile) } };
     }
   },
   {
@@ -476,7 +484,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     title: 'Add a community unit',
     access: 'write',
     openWorld: true,
-    description: 'Places a unit from the community library (by its id from search_community_unit_ops) on the open flowsheet, as its author published it, and optionally pipes it in.',
+    description: 'Places a unit from the ProcessForge Library (by its id from search_community_unit_ops) on the open flowsheet, as its author published it, and optionally pipes it in.',
     inputSchema: {
       type: 'object',
       properties: { id: { type: 'string', description: 'The listing id.' }, name: { type: 'string', description: 'Optional name for it on this flowsheet.' }, ...connect, position },
@@ -652,7 +660,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     readOnly: false,
     openWorld: true,
     description:
-      'Asks the engineer to publish a unit from the open flowsheet to the ProcessForge community library: it opens the publish dialog, filled in with the description, category and tags you suggest. Nothing is published unless the engineer reviews it and clicks Publish (signed in with Google). A designed unit is checked by the engine first. Only when the engineer wants to share the unit.',
+      'Asks the engineer to publish a unit from the open flowsheet to the ProcessForge Library: it opens the publish dialog, filled in with the description, category and tags you suggest. Nothing is published unless the engineer reviews it and clicks Publish (signed in with Google). A designed unit is checked by the engine first. Only when the engineer wants to share the unit.',
     inputSchema: {
       type: 'object',
       properties: {

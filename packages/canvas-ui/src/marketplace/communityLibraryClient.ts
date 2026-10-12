@@ -199,7 +199,7 @@ export class CommunityLibraryService {
   private static async send(method: 'POST' | 'PUT' | 'DELETE', route: string, body?: unknown): Promise<PublishResult> {
     const session = this.getSession();
     if (!session) {
-      return { success: false, message: 'Sign in with Google to publish to the community library. Nothing was changed.' };
+      return { success: false, message: 'Sign in with Google to publish to the ProcessForge Library. Nothing was changed.' };
     }
     try {
       const res = await withTimeout(`${API_BASE_URL}${route}`, {

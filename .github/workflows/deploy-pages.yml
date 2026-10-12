@@ -38,6 +38,9 @@ jobs:
       # dist/ of four workspace packages, so turbo has to build them first.
       - name: Build Workspace
         run: pnpm run build
+        # Absolute asset paths, so a page such as /library loads from its own address.
+        env:
+          VITE_BASE_PATH: /
 
       - name: Verify Build Output
         run: |
