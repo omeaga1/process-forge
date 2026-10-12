@@ -180,7 +180,7 @@ export function operatingConditionsFor(plan: PhasePlan, designInlet?: UnitOpDesi
 export interface PhasePlan {
   /** How the plan was reached. */
   decidedBy: 'archetype' | 'none';
-  archetype?: Omit<PhaseArchetype, 'keywords'>;
+  archetype?: Omit<PhaseArchetype, 'keywords' | 'notWhen'>;
   /** Other archetypes the description also matched, for the model to rule out. */
   alternatives: string[];
   notes: string[];
@@ -217,7 +217,7 @@ export function phasePlanFor(description: string): PhasePlan {
       ]
     };
   }
-  const { keywords: _k, ...archetype } = best;
+  const { keywords: _k, notWhen: _n, ...archetype } = best;
   return {
     decidedBy: 'archetype',
     archetype,

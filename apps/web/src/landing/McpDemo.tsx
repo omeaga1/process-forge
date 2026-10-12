@@ -25,31 +25,31 @@ interface Script {
 
 const SCRIPTS: Script[] = [
   {
-    label: 'Add a feed and an outlet',
-    ask: 'Pipe a latex feed into the reactor, and send the line to a product outlet.',
+    label: 'Design a unit',
+    ask: 'Design a freeze concentrator for our cold brew and put it on my flowsheet.',
     calls: [
-      { tool: 'add_standard_unit_op', args: '{ "unit": "feed", "material": "Latex base", "connectTo": "R-101" }', result: 'Added "Feed: Latex base", piped into Reactor R-101 (liquid)' },
-      { tool: 'add_standard_unit_op', args: '{ "unit": "product", "material": "Filled cans", "connectFrom": "L-400" }', result: 'Added "Product: Filled cans", piped from Labeler L-400 (items)' }
+      { tool: 'design_unit_op', args: '{ "description": "scraped-surface freeze concentrator for cold-brew coffee" }', result: 'Brief: schema, examples, and the operating conditions to ask you for' },
+      { tool: 'validate_unit_op', args: '{ "contract": { … 15 parameters, 15 equations, 8 limits } }', result: 'ACCEPTED · 84 kW refrigeration · 0.214 kg/s of ice' },
+      { tool: 'add_unit_op_to_flowsheet', args: '{ "contract": { … } }', result: 'Placed "Cold-Brew Freeze Concentrator", drawn, three nozzles' }
     ],
-    reply: 'Done. The feed supplies whatever R-101 draws, and only what reaches the product outlet counts as output.'
+    reply: 'It’s on your canvas. You gave the target strength and glycol temperature; the chiller, column and losses are my assumptions, marked “Assumed: confirm”.'
   },
   {
-    label: 'Find the bottleneck',
-    ask: 'What is holding my line back?',
+    label: 'Simulate the line',
+    ask: 'Run it for an hour. What comes out?',
     calls: [
-      { tool: 'get_open_flowsheet', args: '{}', result: '6 units, 5 streams' },
-      { tool: 'simulate_process_line', args: '{ "graph": { … }, "durationMinutes": 480 }', result: '11.9 cans/min over 8 h · Reactor R-101 busy 100%' }
+      { tool: 'simulate_process_line', args: '{ "durationMinutes": 60 }', result: 'Concentrate 154.3 kg/h at 30% TDS, −3.4 °C · melt water 772.3 kg/h · 84 kW · no check broken' }
     ],
-    reply: 'The reactor: one 1,000 gal batch about every 80 minutes, and everything after it waits for the next one. A second reactor in parallel nearly doubles the line.'
+    reply: 'About six times stronger than the cold brew, and the mass balance closes: 926.7 kg in, 926.6 kg out. The wash column runs at 91% of its ice limit, the tightest margin.'
   },
   {
-    label: 'Pull from the cloud',
-    ask: 'Find a case packer in the community library and put it after the labeler.',
+    label: 'Push it harder',
+    ask: 'What if we feed it 6 gal/min instead of 4?',
     calls: [
-      { tool: 'search_community_unit_ops', args: '{ "query": "case packer" }', result: 'PackSys Automatic 24-Can Case Packer · PackSys Global' },
-      { tool: 'add_community_unit_op', args: '{ "id": "plugin-case-packer", "connectFrom": "L-400" }', result: 'Added, piped from Labeler L-400 (items)' }
+      { tool: 'compare_scenarios', args: '{ "changes": { "feed": { "supplyRate": 6 } } }', result: 'Breaks chillerKeepsUp (124 kW > 120 kW) and columnIceLoad' },
+      { tool: 'explore_unit_op', args: '{ "contract": { … }, "parameters": ["chillerCapacityKw", "columnDiameterM"] }', result: 'Passes from 124 kW of chiller and a 0.75 m column' }
     ],
-    reply: 'Placed it as its author published it. Community listings are not reviewed by ProcessForge, so check its settings before trusting the results.'
+    reply: 'Not as it stands: you need about 125 kW of chiller and a 0.75 m wash column. Nothing on your flowsheet has changed; say the word and I’ll update the unit.'
   }
 ];
 
