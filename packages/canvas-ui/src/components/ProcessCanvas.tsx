@@ -828,8 +828,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         else if (key === 'f') setNodeLayouts(selectedNodeIds, (l) => flipLayout(l));
         else {
           const k = e.key === '-' ? 1 / 1.15 : 1.15;
-          // Feeds and outlets keep their size.
-          setNodeLayouts(selectedNodeIds, (l, n) => (n.kind === 'TERMINAL' ? l : scaleLayout(l, resolvedLayout(l).scale * k)));
+          setNodeLayouts(selectedNodeIds, (l) => scaleLayout(l, resolvedLayout(l).scale * k));
         }
       }
     };

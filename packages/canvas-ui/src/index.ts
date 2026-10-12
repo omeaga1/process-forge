@@ -26,6 +26,7 @@ export * from './components/palette/EquipmentPaletteModal.js';
 export * from './nozzles/nozzleLayout.js';
 export * from './nozzles/EquipmentFigure.js';
 export * from './nozzles/NozzlePlacementEditor.js';
+export * from './nozzles/TerminalNozzleEditor.js';
 export * from './unitop/contractToNode.js';
 export * from './library/savedUnitOps.js';
 export * from './library/unitOpCloudSync.js';

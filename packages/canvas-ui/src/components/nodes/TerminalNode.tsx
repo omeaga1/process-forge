@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Handle, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import {
+  TERMINAL_ARROW,
   TERMINAL_ROLE_LABEL,
   placePoint,
+  resolvedLayout,
+  terminalArrowGeometry,
+  terminalNozzle,
   terminalPhase,
   terminalCarries,
   terminalMaterial,
@@ -11,7 +15,9 @@ import {
 } from '@process-forge/protocol';
 import { useTheme, type ThemeContextValue } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
+import type { ProcessNode } from '@process-forge/protocol';
 import { LayoutToolbar } from './LayoutToolbar.js';
+import { SizeGrip, useSizeGrip } from './SizeGrip.js';
 
 /** Each role's color, from the theme's status colors so both themes read well. */
 export function terminalColor(role: TerminalRole, palette: ThemeContextValue['palette']): string {
@@ -28,8 +34,17 @@ export function terminalColor(role: TerminalRole, palette: ThemeContextValue['pa
 }
 
 const W_MIN = 168;
-const H = 52;
-const TIP = 18;
+const H = TERMINAL_ARROW.height;
+const TIP = TERMINAL_ARROW.tip;
+
+/** How long a feed's or outlet's arrow is at its natural size: as long as its words need, so "Evaporator condensate" is not cut short (168 to 300 px). */
+export function terminalArrowWidth(node: Pick<ProcessNode, 'kind' | 'config' | 'inputs' | 'outputs'>): number {
+  const role = terminalRole(node) ?? 'product';
+  const items = terminalCarries(node) === 'items';
+  const carriesWord = items ? 'items' : (terminalPhase(node) ?? 'liquid').toLowerCase();
+  const heading = `${TERMINAL_ROLE_LABEL[role]} · ${carriesWord}`;
+  return Math.round(Math.min(300, Math.max(W_MIN, 52 + Math.max(terminalMaterial(node).length * 7.4, heading.length * 6.6))));
+}
 
 /**
  * The arrow itself, pointing the way material flows (left to right). A feed
@@ -45,8 +60,7 @@ export const TerminalArrow: React.FC<{ role: TerminalRole; color: string; fill: 
   height = H,
   selected = false
 }) => {
-  const tip = Math.min(TIP, width / 4);
-  const notch = role === 'feed' ? 0 : Math.min(14, width / 6);
+  const { tip, notch } = terminalArrowGeometry(role, width);
   const points = `0,0 ${width - tip},0 ${width},${height / 2} ${width - tip},${height} 0,${height} ${notch},${height / 2}`;
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block', overflow: 'visible' }} aria-hidden="true">
@@ -93,31 +107,38 @@ export const TerminalNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         ? palette.streams.solid
         : palette.streams.continuousFluid;
 
+  // Its size: a live scale while the corner grip is dragged, else the flowsheet's.
+  const W = terminalArrowWidth(processNode);
+  const { layout, onGripDown } = useSizeGrip(id, processNode.layout, ((W + H) / 2) * resolvedLayout(processNode.layout).scale, onLayoutChange);
+  const { scale } = resolvedLayout(layout);
   // Which way the arrow points once turned or mirrored, and where its nozzle ends up.
-  const pointing = placePoint(100, 50, 'right', processNode.layout).side;
+  const pointing = placePoint(100, 50, 'right', layout).side;
   const vertical = pointing === 'top' || pointing === 'bottom';
-  // As long as its words need, so "Evaporator condensate" is not cut short: 168 to 300 px.
-  const heading = `${TERMINAL_ROLE_LABEL[role]} · ${carriesWord}`;
-  const W = Math.round(Math.min(300, Math.max(168, 52 + Math.max(material.length * 7.4, heading.length * 6.6))));
+  // The box at natural size, and on the sheet (sized).
   const boxW = vertical ? H : W;
   const boxH = vertical ? W : H;
-  const nozzle = role === 'feed' ? placePoint(100, 50, 'right', processNode.layout) : placePoint(0, 50, 'left', processNode.layout);
+  const outW = Math.round(boxW * scale);
+  const outH = Math.round(boxH * scale);
+  const own = terminalNozzle(processNode);
+  const nozzle = placePoint(own.x, own.y, own.side, layout);
   const handlePosition = { left: Position.Left, right: Position.Right, top: Position.Top, bottom: Position.Bottom }[nozzle.side];
   // Upright and pointing right, the arrow and its words; turned, the whole label turns with it (reading up the page when it points up).
   const contentTransform = pointing === 'bottom' ? 'rotate(90deg)' : pointing === 'top' ? 'rotate(-90deg)' : undefined;
   const mirrored = pointing === 'left';
   useEffect(() => {
     updateNodeInternals(id);
-  }, [id, pointing, updateNodeInternals]);
+  }, [id, pointing, outW, outH, nozzle.x, nozzle.y, nozzle.side, updateNodeInternals]);
 
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       title={`${processNode.name}: ${TERMINAL_ROLE_LABEL[role].toLowerCase()} (${carriesWord}). Click to open.`}
-      style={{ position: 'relative', width: boxW, height: boxH, fontFamily: font.sans, cursor: 'pointer', userSelect: 'none' }}
+      style={{ position: 'relative', width: outW, height: outH, fontFamily: font.sans, cursor: 'pointer', userSelect: 'none' }}
     >
-      <LayoutToolbar nodeId={id} layout={processNode.layout} onLayoutChange={onLayoutChange} sizable={false} />
+      <LayoutToolbar nodeId={id} layout={processNode.layout} onLayoutChange={onLayoutChange} />
+      {/* Drawn at natural size and grown as a picture, words and all, as a unit's drawing is. */}
+      <div style={{ position: 'absolute', left: 0, top: 0, width: boxW, height: boxH, ...(scale !== 1 ? { transform: `scale(${scale})`, transformOrigin: '0 0' } : {}) }}>
       <div
         style={{
           position: 'absolute',
@@ -155,12 +176,15 @@ export const TerminalNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         </div>
       </div>
       </div>
+      </div>
+
+      {selected && onLayoutChange && <SizeGrip scale={scale} label="Arrow size" inset={-10} onPointerDown={onGripDown} />}
 
       {running && (
         <div
           style={{
             position: 'absolute',
-            top: boxH + 4,
+            top: outH + 4,
             left: '50%',
             transform: 'translateX(-50%)',
             whiteSpace: 'nowrap',
@@ -187,8 +211,8 @@ export const TerminalNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           title={`${role === 'feed' ? 'Outlet' : 'Inlet'}: ${material}`}
           className="pf-nozzle-handle"
           style={{
-            left: (nozzle.x / 100) * boxW,
-            top: (nozzle.y / 100) * boxH,
+            left: (nozzle.x / 100) * outW,
+            top: (nozzle.y / 100) * outH,
             right: 'auto',
             bottom: 'auto',
             transform: 'translate(-50%, -50%)',

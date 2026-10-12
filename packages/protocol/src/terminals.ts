@@ -1,6 +1,7 @@
 import type { ProcessGraph } from './graph.js';
 import { idealGasDensity, mixtureMolarMass, PHASE_ARCHETYPES, scfmToKgPerS, STD_PRESSURE_KPA } from './unitop/phases.js';
-import type { NodePort, ProcessNode } from './nodes.js';
+import type { NodePort, NozzleDressing, ProcessNode, UnitOpDressing } from './nodes.js';
+import type { Side } from './equipment/nozzleLayout.js';
 import type { ProcessEdge } from './streams.js';
 
 /**
@@ -282,4 +283,109 @@ export function kindLabel(node: Pick<ProcessNode, 'kind' | 'config'>): string {
     return name ? name.toLowerCase() : 'designed unit';
   }
   return node.kind.replace(/_/g, ' ').toLowerCase();
+}
+
+/**
+ * The arrow's shape, in px at its natural size: its height, how long its tip
+ * is, and how deep an outlet's notched tail is. Its width follows its words
+ * (TerminalNode), so the tip and notch are capped by it.
+ */
+export const TERMINAL_ARROW = { height: 52, tip: 18, notch: 14 } as const;
+
+/** How long the tip and the notch are on an arrow this wide. */
+export function terminalArrowGeometry(role: TerminalRole, width: number): { tip: number; notch: number } {
+  return { tip: Math.min(TERMINAL_ARROW.tip, width / 4), notch: role === 'feed' ? 0 : Math.min(TERMINAL_ARROW.notch, width / 6) };
+}
+
+/**
+ * Where an arrow's pipe connects: a point in percent of the arrow's own box,
+ * drawn upright and pointing right, and the side the pipe leaves by. Like a
+ * unit's nozzles, it is kept in that frame, so turning or mirroring the arrow
+ * carries it along.
+ */
+export interface TerminalNozzle {
+  x: number;
+  y: number;
+  side: Side;
+}
+
+/** A feed connects at its tip, an outlet at its tail. */
+export function defaultTerminalNozzle(role: TerminalRole): TerminalNozzle {
+  return role === 'feed' ? { x: 100, y: 50, side: 'right' } : { x: 0, y: 50, side: 'left' };
+}
+
+/** The arrow's one port: a feed's outlet, or an outlet's inlet. */
+function terminalPort(node: Pick<ProcessNode, 'kind' | 'config' | 'inputs' | 'outputs'>): NodePort | undefined {
+  return terminalRole(node) === 'feed' ? node.outputs[0] : node.inputs[0];
+}
+
+/** Where this arrow's pipe connects: where the user put it, or the tip or tail. */
+export function terminalNozzle(node: Pick<ProcessNode, 'kind' | 'config' | 'inputs' | 'outputs' | 'dressing'>): TerminalNozzle {
+  const role = terminalRole(node) ?? 'product';
+  const port = terminalPort(node);
+  const nozzles = node.dressing?.nozzles ?? [];
+  const z = (port && nozzles.find((n) => n.portId === port.id)) ?? nozzles.find((n) => n.role === (role === 'feed' ? 'outlet' : 'inlet'));
+  return z ? { x: z.x, y: z.y, side: z.position } : defaultTerminalNozzle(role);
+}
+
+/**
+ * The point on the arrow's outline nearest (x, y), in percent of an arrow
+ * `width` px wide: on the tip, along its top or bottom edge, or across its
+ * tail (into the notch, for an outlet). Whole percent.
+ */
+export function snapTerminalNozzle(role: TerminalRole, x: number, y: number, width: number, height: number = TERMINAL_ARROW.height): TerminalNozzle {
+  const { tip, notch } = terminalArrowGeometry(role, width);
+  const tipPct = (tip / width) * 100;
+  const notchPct = (notch / width) * 100;
+  const cx = Math.min(100, Math.max(0, x));
+  const cy = Math.min(100, Math.max(0, y));
+  const edgeX = Math.min(100 - tipPct, cx);
+  const candidates: TerminalNozzle[] = [
+    { x: 100, y: 50, side: 'right' },
+    { x: edgeX, y: 0, side: 'top' },
+    { x: edgeX, y: 100, side: 'bottom' },
+    { x: notchPct * (1 - Math.abs(cy - 50) / 50), y: cy, side: 'left' }
+  ];
+  const dist = (c: TerminalNozzle) => Math.hypot(((c.x - x) * width) / 100, ((c.y - y) * height) / 100);
+  const best = candidates.reduce((a, b) => (dist(b) < dist(a) ? b : a));
+  return { x: Math.round(best.x), y: Math.round(best.y), side: best.side };
+}
+
+/**
+ * The arrow's dressing with its connection at `at`, or back at its tip or
+ * tail when `at` is undefined. The nozzle carries the port's id, so the pipe
+ * on it stays attached.
+ */
+export function withTerminalNozzle(
+  node: Pick<ProcessNode, 'kind' | 'config' | 'inputs' | 'outputs' | 'dressing'>,
+  at: TerminalNozzle | undefined
+): UnitOpDressing {
+  const role = terminalRole(node) ?? 'product';
+  const port = terminalPort(node);
+  const base: UnitOpDressing = {
+    internals: {
+      agitatorType: 'none',
+      hasJacket: false,
+      jacketType: 'none',
+      baffleCount: 0,
+      packingType: 'none',
+      hasDemister: false,
+      hasSprayHeader: false
+    },
+    ...node.dressing,
+    nozzles: []
+  };
+  if (!at) return base;
+  const nozzle: NozzleDressing = {
+    id: 'N1',
+    name: port?.name ?? (role === 'feed' ? 'Outlet' : 'Inlet'),
+    role: role === 'feed' ? 'outlet' : 'inlet',
+    x: Math.min(100, Math.max(0, at.x)),
+    y: Math.min(100, Math.max(0, at.y)),
+    position: at.side,
+    sizeInches: 2,
+    ratingPsi: 150,
+    ...(port ? { portId: port.id } : {})
+  };
+  return { ...base, nozzles: [nozzle] };
 }
