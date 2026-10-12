@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Handle, Position, useEdges, useStore, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
+import { Handle, Position, useEdges, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import { useLabelScale } from './labelScale.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import type { CanvasNodeData } from '../../types.js';
@@ -7,7 +7,6 @@ import { EquipmentFigure, flangePoint, STUB_PX } from '../../nozzles/EquipmentFi
 import { drawingSize, layoutNozzles, type Side } from '../../nozzles/nozzleLayout.js';
 import { Lock } from 'lucide-react';
 import {
-  clampScale,
   designSpecsOf,
   effectiveContract,
   resultLabel,
@@ -15,12 +14,12 @@ import {
   nodePortPhase,
   placePoint,
   placedSize,
-  resolvedLayout,
-  scaleLayout
+  resolvedLayout
 } from '@process-forge/protocol';
 import { unitTag } from '../../model/unitTag.js';
 import { PhaseTrack } from './PhaseTrack.js';
 import { LayoutToolbar } from './LayoutToolbar.js';
+import { SizeGrip, useSizeGrip } from './SizeGrip.js';
 
 const POSITION: Record<Side, Position> = {
   left: Position.Left,
@@ -67,7 +66,6 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const [hovered, setHovered] = useState(false);
   const updateNodeInternals = useUpdateNodeInternals();
   const edges = useEdges();
-  const zoom = useStore((st) => st.transform[2]);
 
   const visualState = machineVisuals[state] ?? machineVisuals['IDLE']!;
   const isBlocked = state === 'BLOCKED';
@@ -81,10 +79,10 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   }, [processNode]);
 
   // Size and orientation: a live scale while the corner grip is dragged, else the flowsheet's.
-  const [liveScale, setLiveScale] = useState<number | null>(null);
-  const layout = liveScale === null ? processNode.layout : scaleLayout(processNode.layout, liveScale);
-  const { scale, rotation, flipX } = resolvedLayout(layout);
   const natural = drawingSize(processNode.kind, processNode.dressing);
+  const stored = placedSize(natural.width, natural.height, processNode.layout);
+  const { layout, onGripDown } = useSizeGrip(id, processNode.layout, (stored.width + stored.height) / 2, onLayoutChange);
+  const { scale, rotation, flipX } = resolvedLayout(layout);
   const placed = placedSize(natural.width, natural.height, layout);
   // The box the unit takes on the sheet, turned.
   const { width, height } = placed;
@@ -125,35 +123,6 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   // Where each nozzle sits once the drawing is turned and mirrored.
   const placedAnchors = nozzles.anchors.map((a) => ({ ...a, ...placePoint(a.x, a.y, a.side, layout) }));
   const hasBottomNozzle = [...placedAnchors.map((a) => a.side), ...nozzles.decorative.map((z) => placePoint(z.x, z.y, z.position, layout).side)].includes('bottom');
-
-  // The corner grip: drag it to size the unit.
-  const onGrip = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!onLayoutChange) return;
-    e.stopPropagation();
-    e.preventDefault();
-    const el = e.currentTarget;
-    el.setPointerCapture(e.pointerId);
-    const x0 = e.clientX;
-    const y0 = e.clientY;
-    const s0 = scale;
-    const base = (width + height) / 2;
-    let last = s0;
-    const move = (ev: PointerEvent) => {
-      const d = (ev.clientX - x0 + (ev.clientY - y0)) / 2 / (zoom || 1);
-      last = clampScale((s0 * (base + d)) / base);
-      setLiveScale(last);
-    };
-    const up = () => {
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', up);
-      setLiveScale(null);
-      if (last !== s0) onLayoutChange(id, scaleLayout(processNode.layout, last));
-    };
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
-  };
 
   const tag = unitTag(processNode.name);
   const title = tag ? processNode.name.replace(tag, '').trim() : processNode.name;
@@ -267,30 +236,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
             );
           })}
         </div>
-        {selected && onLayoutChange && (
-          <div
-            className="nodrag nopan"
-            role="slider"
-            aria-label="Unit size"
-            aria-valuemin={50}
-            aria-valuemax={300}
-            aria-valuenow={Math.round(scale * 100)}
-            title={`Drag to size the unit (${Math.round(scale * 100)}%)`}
-            onPointerDown={onGrip}
-            style={{
-              position: 'absolute',
-              right: 3,
-              bottom: 3,
-              width: 11,
-              height: 11,
-              borderRight: `2px solid ${palette.border.glow}`,
-              borderBottom: `2px solid ${palette.border.glow}`,
-              borderBottomRightRadius: 3,
-              cursor: 'nwse-resize',
-              zIndex: 5
-            }}
-          />
-        )}
+        {selected && onLayoutChange && <SizeGrip scale={scale} label="Unit size" onPointerDown={onGripDown} />}
       </div>
 
       {/* Tag, name and state, under the drawing like a P&ID label. Opaque, so a

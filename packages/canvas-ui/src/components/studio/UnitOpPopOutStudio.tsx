@@ -9,6 +9,7 @@ import { UnitAnim, CustomEquipmentAnim } from '../animations/EquipmentAnimations
 import { TerminalArrow, terminalColor } from '../nodes/TerminalNode.js';
 import { terminalRole, TERMINAL_ROLE_LABEL } from '@process-forge/protocol';
 import { UnitOpDressingTab } from './UnitOpDressingTab.js';
+import { TerminalNozzleEditor } from '../../nozzles/TerminalNozzleEditor.js';
 import { UnitParametersPanel } from './UnitParametersPanel.js';
 import { useAssistantRoute } from '../../ai/assistantRoute.js';
 import {
@@ -145,8 +146,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   const tabs: { id: StudioTab; label: string; Icon: React.ElementType }[] = [
     ...(graph ? [{ id: 'OVERVIEW' as const, label: 'Overview', Icon: Workflow }] : []),
     { id: 'PARAMETERS', label: 'Design', Icon: Sliders },
-    // A feed or outlet is an arrow: it has no drawing or nozzles to edit.
-    ...(tRole ? [] : [{ id: 'DRESSING' as const, label: 'Drawing & nozzles', Icon: Palette }]),
+    // A feed or outlet is an arrow: no drawing to edit, but its one nozzle can move.
+    { id: 'DRESSING', label: tRole ? 'Nozzle' : 'Drawing & nozzles', Icon: Palette },
     ...(route === 'claude-desktop' ? [] : [{ id: 'CHAT' as const, label: 'Ask AI', Icon: MessageSquare }])
   ];
   const shownTab: StudioTab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0]!.id;
@@ -674,7 +675,12 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       )}
 
       {/* Tab 2: Custom UnitOp Dressing & Nozzle Manager */}
-      {shownTab === 'DRESSING' && (
+      {shownTab === 'DRESSING' && tRole && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+          <TerminalNozzleEditor node={node} onChange={(dressing) => onUpdateDressing?.(node.id, dressing)} />
+        </div>
+      )}
+      {shownTab === 'DRESSING' && !tRole && (
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <UnitOpDressingTab
             node={node}

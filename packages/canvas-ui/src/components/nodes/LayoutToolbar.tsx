@@ -6,16 +6,14 @@ import { useTheme } from '../../hooks/useTheme.js';
 import { Button } from '../../ui/index.js';
 
 /**
- * Turn, mirror and size a unit, over it while it is selected. The same moves
+ * Turn, mirror and size a unit or a feed or outlet arrow, over it while it is selected. The same moves
  * are on the right-click menu and the keyboard (R, Shift+R, F, + and -).
  */
 export const LayoutToolbar: React.FC<{
   nodeId: string;
   layout: NodeLayout | undefined;
   onLayoutChange?: ((nodeId: string, layout: NodeLayout | undefined) => void) | undefined;
-  /** Feeds and outlets turn and mirror but keep their size. */
-  sizable?: boolean;
-}> = ({ nodeId, layout, onLayoutChange, sizable = true }) => {
+}> = ({ nodeId, layout, onLayoutChange }) => {
   const { palette, radius: r, font } = useTheme();
   if (!onLayoutChange) return null;
   const l = resolvedLayout(layout);
@@ -55,15 +53,11 @@ export const LayoutToolbar: React.FC<{
         {B('Rotate left · Shift+R', <RotateCcw size={14} />, () => set(rotateLayout(layout, -1)))}
         {B('Rotate right · R', <RotateCw size={14} />, () => set(rotateLayout(layout, 1)))}
         {B('Mirror · F', <FlipHorizontal2 size={14} />, () => set(flipLayout(layout)))}
-        {sizable && (
-          <>
-            <span style={{ width: 1, height: 16, background: palette.border.subtle, margin: '0 3px' }} />
-            {B('Smaller · −', <Minus size={14} />, () => set(scaleLayout(layout, l.scale / 1.15)), l.scale <= 0.5)}
-            <span style={{ minWidth: 38, textAlign: 'center', fontSize: 11, fontFamily: font.mono, color: palette.text.secondary }}>{Math.round(l.scale * 100)}%</span>
-            {B('Larger · +', <Plus size={14} />, () => set(scaleLayout(layout, l.scale * 1.15)), l.scale >= 3)}
-            {B('Natural size and orientation', <Maximize2 size={13} />, () => set(undefined), l.scale === 1 && l.rotation === 0 && !l.flipX)}
-          </>
-        )}
+        <span style={{ width: 1, height: 16, background: palette.border.subtle, margin: '0 3px' }} />
+        {B('Smaller · −', <Minus size={14} />, () => set(scaleLayout(layout, l.scale / 1.15)), l.scale <= 0.5)}
+        <span style={{ minWidth: 38, textAlign: 'center', fontSize: 11, fontFamily: font.mono, color: palette.text.secondary }}>{Math.round(l.scale * 100)}%</span>
+        {B('Larger · +', <Plus size={14} />, () => set(scaleLayout(layout, l.scale * 1.15)), l.scale >= 3)}
+        {B('Natural size and orientation', <Maximize2 size={13} />, () => set(undefined), l.scale === 1 && l.rotation === 0 && !l.flipX)}
       </div>
     </NodeToolbar>
   );
