@@ -289,6 +289,33 @@ describe('Community library', () => {
     assert.deepEqual({ ...row }, { author_id: 'google:1001', author_name: 'Alice' });
   });
 
+  it('finds listings like a description, most alike first, by the words they share', async () => {
+    const { call, signIn } = setup();
+    const alice = await signIn();
+    const publish = (name: string, description: string, tags: string[], bundle: unknown) =>
+      call('POST', '/api/unitops/publish', { token: alice, body: { name, category: 'FLUID_PROCESSING', description, tags, bundle } });
+    const juice = await publish('Falling-film juice concentrator', 'Boils water off fruit juice with steam under vacuum.', ['evaporator', 'juice'], designedBundle);
+    assert.equal(juice.status, 201, JSON.stringify(juice.body));
+    await publish('Transfer pump', 'Moves liquid between tanks.', ['pump'], unitBundle);
+
+    const r = await call('GET', `/api/unitops?similar=${encodeURIComponent('an evaporator that concentrates orange juice with steam')}`);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.unitops[0].name, 'Falling-film juice concentrator');
+    assert.ok(r.body.unitops[0].similarity > 0 && r.body.unitops[0].similarity <= 1);
+    assert.ok(r.body.unitops[0].matched.includes('concentrates'), 'concentrates finds a concentrator');
+    assert.ok(r.body.unitops.every((u: any) => !('bundle_json' in u)), 'the unit itself is not sent with the list');
+    assert.ok(!r.body.unitops.some((u: any) => u.name === 'Transfer pump'), 'nothing in common, not listed');
+    assert.ok(r.body.searchedFor.includes('steam') && !r.body.searchedFor.includes('with'));
+
+    // A word only the contract has (a parameter of the evaporator) still finds it, ranked lower.
+    const inside = await call('GET', `/api/unitops?similar=${encodeURIComponent('vacuum steam boiling')}`);
+    assert.ok(inside.body.count >= 1);
+
+    // Unpublished listings never come back.
+    await call('DELETE', `/api/unitops/${juice.body.pluginId}`, { token: alice });
+    assert.equal((await call('GET', `/api/unitops?similar=juice`)).body.count, 0);
+  });
+
   it('does not echo internal error text', async () => {
     const { env, call, signIn } = setup();
     const alice = await signIn();

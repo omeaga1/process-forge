@@ -14,7 +14,7 @@ import type { AddUnitOptions, HostResult, ToolHost } from './host.js';
 
 /**
  * The equipment that ships with ProcessForge (the app's palette, the same
- * catalog: protocol/equipment/catalog.ts), and the community library.
+ * catalog: protocol/equipment/catalog.ts), and the ProcessForge Library.
  */
 
 /** A node's ports: what each carries, and its phase where it is a gas or bulk solids. */
@@ -142,11 +142,11 @@ export async function addStandardUnitOp(params: AddStandardParams, host: ToolHos
 // ------------------------------------------------------------- community
 
 export const COMMUNITY_CATEGORIES = ['PACKAGING', 'FLUID_PROCESSING', 'MATERIAL_HANDLING', 'QUALITY'] as const;
-const UNREACHABLE = 'The ProcessForge community library could not be reached. Check the internet connection, or try again later.';
+const UNREACHABLE = 'The ProcessForge Library could not be reached. Check the internet connection, or try again later.';
 
-async function getJson(url: string): Promise<{ ok: true; status: number; body: any } | { ok: false }> {
+async function getJson(url: string, timeoutMs = 10_000): Promise<{ ok: true; status: number; body: any } | { ok: false }> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     return { ok: true, status: res.status, body: await res.json().catch(() => null) };
   } catch {
     return { ok: false };
@@ -154,13 +154,14 @@ async function getJson(url: string): Promise<{ ok: true; status: number; body: a
 }
 
 /**
- * The community library: unit ops people have published from the app.
+ * The ProcessForge Library: unit ops people have published from the app.
  * Searching and pulling are public and read-only. A listing shows what its
  * author wrote; nothing is rated or certified by ProcessForge.
  */
-export async function searchCommunityUnitOps(args: { query?: string; category?: string }, apiBase: string): Promise<Record<string, unknown>> {
+export async function searchCommunityUnitOps(args: { query?: string; similarTo?: string; category?: string }, apiBase: string): Promise<Record<string, unknown>> {
   const params = new URLSearchParams();
-  if (typeof args.query === 'string' && args.query.trim()) params.set('q', args.query.trim());
+  if (typeof args.similarTo === 'string' && args.similarTo.trim()) params.set('similar', args.similarTo.trim());
+  else if (typeof args.query === 'string' && args.query.trim()) params.set('q', args.query.trim());
   const category = typeof args.category === 'string' ? args.category.trim().toUpperCase() : '';
   if (category) {
     if (!(COMMUNITY_CATEGORIES as readonly string[]).includes(category)) return { success: false, error: `Category is one of ${COMMUNITY_CATEGORIES.join(', ')}.` };
@@ -169,7 +170,7 @@ export async function searchCommunityUnitOps(args: { query?: string; category?: 
   const r = await getJson(`${apiBase.replace(/\/+$/, '')}/unitops?${params.toString()}`);
   if (!r.ok) return { success: false, error: UNREACHABLE };
   if (r.status !== 200 || !r.body?.success || !Array.isArray(r.body.unitops)) {
-    return { success: false, error: r.body?.error ?? `The community library answered HTTP ${r.status}.` };
+    return { success: false, error: r.body?.error ?? `The ProcessForge Library answered HTTP ${r.status}.` };
   }
   const units = (r.body.unitops as any[]).map((u) => ({
     id: u.id,
@@ -179,7 +180,9 @@ export async function searchCommunityUnitOps(args: { query?: string; category?: 
     description: u.description,
     version: u.version,
     tags: u.tags ? String(u.tags).split(',').filter(Boolean) : [],
-    downloads: u.download_count
+    downloads: u.download_count,
+    engineChecked: Boolean(u.engine_checked),
+    ...(typeof u.similarity === 'number' ? { similarity: u.similarity, sharedWords: u.matched ?? [] } : {})
   }));
   return {
     success: true,
@@ -192,13 +195,38 @@ export async function searchCommunityUnitOps(args: { query?: string; category?: 
   };
 }
 
+/**
+ * What the library holds that is like a description: the check an AI makes
+ * before designing a unit from scratch. Never fails the caller: a library
+ * that cannot be reached says so and the design goes ahead.
+ */
+export async function libraryMatchesFor(description: string, apiBase: string): Promise<Record<string, unknown>> {
+  const params = new URLSearchParams({ similar: description, limit: '5' });
+  const r = await getJson(`${apiBase.replace(/\/+$/, '')}/unitops?${params.toString()}`, 4000);
+  if (!r.ok || r.status !== 200 || !Array.isArray(r.body?.unitops)) {
+    return { checked: false, note: "The ProcessForge library could not be reached, so no one else's designs were checked. Design it, and offer to publish it." };
+  }
+  const matches = (r.body.unitops as any[])
+    .filter((u) => (u.similarity ?? 0) >= 0.25)
+    .slice(0, 3)
+    .map((u) => ({ id: u.id, name: u.name, author: u.author_name || 'Unknown author', description: u.description, similarity: u.similarity, sharedWords: u.matched ?? [], engineChecked: Boolean(u.engine_checked), version: u.version }));
+  return matches.length
+    ? {
+        checked: true,
+        matches,
+        instruction:
+          'Before you design, tell the engineer that the ProcessForge library already has units like this, by name and author, and ask whether to start from one: add_community_unit_op places it as published (then update_unit sets its operating conditions). Listings are what their authors wrote; ProcessForge does not review them, so say so.'
+      }
+    : { checked: true, matches: [], instruction: 'Nobody has published a unit like this to the ProcessForge library yet. Design it; once the engine accepts it, offer to publish it (publish_unit_op) so the next engineer can start from it.' };
+}
+
 /** One listing's unit, as its author published it, checked against the schema. */
 export async function fetchCommunityUnitOp(id: string, apiBase: string): Promise<{ node: ProcessNode; name: string; author: string } | { error: string }> {
   const r = await getJson(`${apiBase.replace(/\/+$/, '')}/unitops/${encodeURIComponent(id)}`);
   if (!r.ok) return { error: UNREACHABLE };
   if (r.status === 404) return { error: `No community unit op "${id}". search_community_unit_ops lists them.` };
   const unitop = r.body?.unitop;
-  if (r.status !== 200 || !unitop) return { error: r.body?.error ?? `The community library answered HTTP ${r.status}.` };
+  if (r.status !== 200 || !unitop) return { error: r.body?.error ?? `The ProcessForge Library answered HTTP ${r.status}.` };
   const parsed = ProcessNodeSchema.safeParse(unitop.bundle);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];

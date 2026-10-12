@@ -2,7 +2,7 @@ import { addCommunityUnitOp, searchCommunityUnitOps, type AddUnitOptions } from 
 import { bridgeHost } from './desktopBridge.js';
 
 /**
- * The community library for MCP clients: the shared tools (@process-forge/tools)
+ * The ProcessForge Library for MCP clients: the shared tools (@process-forge/tools)
  * against the cloud API, and the open flowsheet over the desktop bridge.
  */
 

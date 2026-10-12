@@ -191,7 +191,7 @@ export const LandingPageHub: React.FC<LandingPageHubProps> = ({
             {onOpenForgeHub && (
               <div style={card}>
                 <div style={cardTitle}>
-                  <Library size={16} color={palette.jade[500]} /> Community library
+                  <Library size={16} color={palette.jade[500]} /> ProcessForge Library
                 </div>
                 <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 6, lineHeight: 1.45 }}>
                   Unit ops other engineers have designed and published, ready to drop into a flowsheet.

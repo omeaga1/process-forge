@@ -248,8 +248,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           </Button>
         </Tooltip>
         <Tooltip content="Unit ops other engineers have published, and worked examples" side="bottom">
-          <Button variant="ghost" icon={<Layers size={14} />} onClick={onOpenForgeHub} aria-label="Community library">
-            {!compact && 'Community library'}
+          <Button variant="ghost" icon={<Layers size={14} />} onClick={onOpenForgeHub} aria-label="ProcessForge Library">
+            {!compact && 'ProcessForge Library'}
           </Button>
         </Tooltip>
 

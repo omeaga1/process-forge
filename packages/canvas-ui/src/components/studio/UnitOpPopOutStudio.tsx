@@ -347,7 +347,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           trigger={<Button variant="ghost" iconOnly icon={<MoreHorizontal size={16} />} label="More actions" />}
           items={[
             ...(onDuplicate ? [{ label: 'Duplicate · Ctrl+D', icon: <Copy size={14} />, onSelect: () => onDuplicate(node.id) }] : []),
-            { label: 'Publish to the community library', icon: <Upload size={14} />, onSelect: () => onPublishToForgeHub(node) },
+            { label: 'Publish to the ProcessForge Library', icon: <Upload size={14} />, onSelect: () => onPublishToForgeHub(node) },
             ...(onDelete ? [{ label: 'Delete · Delete', icon: <Trash2 size={14} />, onSelect: () => onDelete(node.id), danger: true, separatorBefore: true }] : [])
           ]}
         />

@@ -28,11 +28,11 @@ const SCRIPTS: Script[] = [
     label: 'Design a unit',
     ask: 'Design a freeze concentrator for our cold brew and put it on my flowsheet.',
     calls: [
-      { tool: 'design_unit_op', args: '{ "description": "scraped-surface freeze concentrator for cold-brew coffee" }', result: 'Brief: schema, examples, and the operating conditions to ask you for' },
+      { tool: 'design_unit_op', args: '{ "description": "scraped-surface freeze concentrator for cold-brew coffee" }', result: 'Nothing like it in the ProcessForge Library yet · brief, with the operating conditions to ask you for' },
       { tool: 'validate_unit_op', args: '{ "contract": { … 15 parameters, 15 equations, 8 limits } }', result: 'ACCEPTED · 84 kW refrigeration · 0.214 kg/s of ice' },
       { tool: 'add_unit_op_to_flowsheet', args: '{ "contract": { … } }', result: 'Placed "Cold-Brew Freeze Concentrator", drawn, three nozzles' }
     ],
-    reply: 'It’s on your canvas. You gave the target strength and glycol temperature; the chiller, column and losses are my assumptions, marked “Assumed: confirm”.'
+    reply: 'It’s on your canvas. You gave the target strength and glycol temperature; the chiller, column and losses are my assumptions, marked “Assumed: confirm”. Nobody had published one, so want me to publish it to the library?'
   },
   {
     label: 'Simulate the line',
