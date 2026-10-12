@@ -135,27 +135,45 @@ async function checkForUpdate(running: ServerInfo | undefined): Promise<void> {
   if (!res.ok) return;
   const remote = (await res.json()) as ServerInfo;
   if (!remote?.sha256 || !remote.version) return;
-  fs.writeFileSync(stampFile, JSON.stringify({ at: Date.now() }));
-  if ((remote.launcher ?? 1) > LAUNCHER_PROTOCOL) return log(`release ${remote.build ?? remote.version} needs a newer extension; reinstall it from the release page`);
-  if (remote.sha256 === running?.sha256) return;
-  if (shipped.info && compareVersions(remote.version, shipped.info.version) < 0) return;
+  // The check counts only once it has an answer. A check cut off part way
+  // (Claude closing or restarting the server mid-download, which it does
+  // often) leaves no stamp, so the next start tries again, not an hour later.
+  const checked = () => fs.writeFileSync(stampFile, JSON.stringify({ at: Date.now() }));
+  if ((remote.launcher ?? 1) > LAUNCHER_PROTOCOL) {
+    checked();
+    return log(`release ${remote.build ?? remote.version} needs a newer extension; reinstall it from the release page`);
+  }
+  if (remote.sha256 === running?.sha256) return checked();
+  if (shipped.info && compareVersions(remote.version, shipped.info.version) < 0) return checked();
+  const file = path.join(home, `server-${remote.sha256.slice(0, 16)}.mjs`);
+  // Another Claude session's server may have fetched it already.
+  if (readJson<ServerInfo>(path.join(home, 'current.json'))?.sha256 === remote.sha256 && fs.existsSync(file)) return checked();
 
   const bin = await fetch(RELEASE + 'mcp-server.mjs', { signal: AbortSignal.timeout(60000) });
   if (!bin.ok) return;
   const buf = Buffer.from(await bin.arrayBuffer());
   if (sha256(buf) !== remote.sha256) return log('downloaded server failed its checksum; kept the current one');
 
-  const file = path.join(home, `server-${remote.sha256.slice(0, 16)}.mjs`);
-  fs.writeFileSync(file, buf);
-  if (!(await probe(file))) {
-    fs.rmSync(file, { force: true });
+  // Written under a name of its own (still .mjs, so Node runs it as a module)
+  // and renamed into place once it starts cleanly, so several Claude sessions
+  // updating at once never start a file another is still writing.
+  const partial = file.replace(/\.mjs$/, `.${process.pid}.part.mjs`);
+  fs.writeFileSync(partial, buf);
+  if (!(await probe(partial))) {
+    fs.rmSync(partial, { force: true });
+    checked();
     return log(`server ${remote.build ?? remote.version} did not start cleanly; kept the current one`);
   }
+  fs.renameSync(partial, file);
   fs.writeFileSync(path.join(home, 'current.json'), JSON.stringify(remote, null, 2));
+  checked();
+  const stale = Date.now() - CHECK_EVERY_MS;
   for (const f of fs.readdirSync(home)) {
-    if (/^server-[0-9a-f]+\.mjs$/.test(f) && path.join(home, f) !== file && path.join(home, f) !== runningFile) {
-      fs.rmSync(path.join(home, f), { force: true });
-    }
+    const full = path.join(home, f);
+    const oldServer = /^server-[0-9a-f]+\.mjs$/.test(f) && full !== file && full !== runningFile;
+    // Left by a check that was cut off, once nobody can still be writing it.
+    const leftover = /\.part\.mjs$/.test(f) && fs.statSync(full).mtimeMs < stale;
+    if (oldServer || leftover) fs.rmSync(full, { force: true });
   }
   log(`downloaded ProcessForge MCP ${remote.build ?? remote.version}; it is used the next time Claude starts`);
 }
