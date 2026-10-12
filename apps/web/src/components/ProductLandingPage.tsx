@@ -9,22 +9,23 @@ import {
 } from '../downloads/latestRelease.js';
 import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
 import { ProcessForgeEmblem, ThemeScope } from '@process-forge/canvas-ui';
-import { LineDemo } from '../landing/LineDemo.js';
 import { EquipmentExplorer } from '../landing/EquipmentExplorer.js';
-import { DesignLoop } from '../landing/DesignLoop.js';
+import { WorkedExample } from '../landing/WorkedExample.js';
+import { ExampleGallery } from '../landing/ExampleGallery.js';
 import { McpDemo } from '../landing/McpDemo.js';
 import { ControlDemo } from '../landing/ControlDemo.js';
 import { useInView } from '../landing/useInView.js';
+import { COLD_BREW_PROMPT } from '../landing/coldBrew.js';
 import { STANDARD_EQUIPMENT_CATALOG } from '@process-forge/protocol';
 
 /**
- * The public landing page, in the studio's own Osaka Jade: obsidian
- * surfaces, jade for what matters, amber only for what limits the line.
+ * The public landing page, in the studio's own Osaka Jade, built around one
+ * worked example taken end to end: a cold-brew freeze concentrator Claude
+ * designed through the MCP server (landing/coldBrew.ts).
  *
- * Every section is something to use rather than read: the hero plays back a
- * shift the real engine simulates in the page (landing/demoLine.ts), the
- * equipment is the studio's catalog with its drawings, and the design loop
- * shows the engine's own verdicts.
+ * Nothing on it is a mock-up. The walkthrough, the panel and the gallery are
+ * worked out by the real engine in the page, and the clips are recordings of
+ * the current studio running the same example (scripts/record-landing.mjs).
  */
 
 export interface ProductLandingPageProps {
@@ -63,7 +64,13 @@ const MCP_TOOLS: [string, string[]][] = [
 ];
 const MCP_TOOL_COUNT = MCP_TOOLS.reduce((n, [, t]) => n + t.length, 0);
 
-const FIRST_PROMPT = 'Build a paint line: batch reactor, tank, filler and labeler at 30 cans/min, then find the bottleneck.';
+const FIRST_PROMPT = COLD_BREW_PROMPT;
+
+/** Clips of the studio, recorded from the current build by scripts/record-landing.mjs. */
+const CLIPS: { src: string; title: string; text: string }[] = [
+  { src: '/landing/studio-run', title: 'Run the line', text: 'The desktop app opens the example, runs it at 5×, and shows every stream: flow, temperature and composition, as on a PFD.' },
+  { src: '/landing/studio-unit', title: 'Open the unit', text: 'What comes in and goes out, then the panel its contract lays out. Cut the chiller to 80 kW and the engine fails that check, with the reason.' }
+];
 
 const mono: React.CSSProperties = { fontFamily: fontFamily.mono, fontVariantNumeric: 'tabular-nums' };
 const sans: React.CSSProperties = { fontFamily: fontFamily.sans };
@@ -84,6 +91,42 @@ function Section({ id, n, kicker, title, note, children }: {
       {note && <p style={{ ...sans, margin: '12px 0 0', fontSize: 16, lineHeight: 1.6, color: D.text.secondary, maxWidth: '62ch' }}>{note}</p>}
       <div style={{ marginTop: 28 }}>{children}</div>
     </section>
+  );
+}
+
+/** A recorded clip, framed like a desktop window. Plays muted and looped while on screen. */
+function Clip({ src, title, priority = false }: { src: string; title: string; priority?: boolean }) {
+  const [ref, inView] = useInView<HTMLDivElement>(0.25);
+  const video = React.useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = video.current;
+    if (!v) return;
+    const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (inView && !reduced) void v.play().catch(() => undefined);
+    else v.pause();
+  }, [inView]);
+  return (
+    <div ref={ref} style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${D.border.strong}`, background: D.background.base, boxShadow: `0 24px 60px -24px #000c, 0 0 0 1px ${D.jade.glow}10` }}>
+      <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderBottom: `1px solid ${D.border.default}`, background: D.background.surface }}>
+        {[D.status.failed, D.status.blocked, D.jade[500]].map((c) => (
+          <span key={c} style={{ width: 9, height: 9, borderRadius: 5, background: `${c}aa` }} />
+        ))}
+        <span style={{ ...mono, fontSize: 11, color: D.text.muted, marginLeft: 8 }}>ProcessForge · {title}</span>
+      </div>
+      <video
+        ref={video}
+        muted
+        loop
+        playsInline
+        controls
+        preload={priority ? 'auto' : 'metadata'}
+        poster={`${src}.jpg`}
+        aria-label={`Recording of the ProcessForge desktop app: ${title}`}
+        style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '16 / 10', background: D.background.canvas }}
+      >
+        <source src={`${src}.webm`} type="video/webm" />
+      </video>
+    </div>
   );
 }
 
@@ -242,7 +285,14 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         @keyframes pf-pop-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
         .pf-landing .pf-pop { animation: pf-pop-in .25s ease; }
         @media (max-width: 560px) { .pf-landing .pf-explorer-detail { grid-template-columns: 1fr !important; } }
-        @media (max-width: 820px) { .pf-landing .pf-control-grid { grid-template-columns: 1fr !important; } }
+        @media (max-width: 820px) { .pf-landing .pf-control-grid, .pf-landing .pf-worked { grid-template-columns: 1fr !important; } }
+        @keyframes pf-flow { to { stroke-dashoffset: -28; } }
+        .pf-landing .pf-flow { animation: pf-flow 1.1s linear infinite; }
+        @keyframes pf-type-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: none; } }
+        .pf-landing .pf-type { opacity: 0; animation: pf-type-in .35s ease forwards; }
+        @keyframes pf-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+        .pf-landing .pf-step-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: ${D.jade.glow}; transform-origin: left; animation: pf-progress linear forwards; }
+        .pf-landing .pf-step:hover, .pf-landing .pf-tile:hover { border-color: ${D.jade[600]} !important; }
         .pf-landing .pf-reveal { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1); }
         .pf-landing .pf-reveal[data-in] { opacity: 1; transform: none; }
         .pf-landing .pf-feature { transition: border-color .15s ease, transform .15s ease; }
@@ -252,7 +302,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         .pf-landing .pf-range { width: 100%; accent-color: ${D.jade.glow}; cursor: pointer; }
         @keyframes pf-glow-pulse { 0%, 100% { box-shadow: 0 0 0 0 ${D.jade.glow}55; } 50% { box-shadow: 0 0 0 5px ${D.jade.glow}00; } }
         .pf-landing .pf-dot { width: 7px; height: 7px; border-radius: 4px; background: ${D.jade.glow}; animation: pf-glow-pulse 2.4s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } .pf-landing .pf-reveal { opacity: 1; transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } .pf-landing .pf-reveal, .pf-landing .pf-type { opacity: 1; transform: none; } }
       `}</style>
       <ThemeScope mode="dark">
         {/* Nav: stays in reach while the page scrolls. */}
@@ -276,9 +326,9 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
             </a>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
               {[
-                ['Equipment', '#equipment'],
-                ['Spec sheet', '#control'],
-                ['Design', '#design'],
+                ['Worked example', '#example'],
+                ['In the app', '#app'],
+                ['Examples', '#examples'],
                 ['Claude & MCP', '#ai'],
                 ['Install', '#install'],
                 ['GitHub', REPO]
@@ -308,17 +358,17 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
           >
             <span className="pf-dot" aria-hidden />
             <span style={{ color: D.text.primary, fontWeight: 600 }}>{releaseTag ? `${releaseTag} is out` : 'Latest release'}</span>
-            <span>Spec sheets, held results and generated unit panels</span>
+            <span>Unit panels inside Claude, and operating conditions it asks you for</span>
             <span aria-hidden style={{ color: D.jade.glow }}>→</span>
           </a>
           <div style={{ ...mono, fontSize: 12, letterSpacing: '0.18em', color: D.jade.glow }}>OPEN-SOURCE PROCESS SIMULATION</div>
-          <h1 style={{ margin: '14px 0 0', fontSize: 'clamp(2.2rem, 5.6vw, 3.8rem)', fontWeight: 680, letterSpacing: '-0.04em', lineHeight: 1.02, maxWidth: '21ch' }}>
-            Find the bottleneck <span style={{ color: D.jade[400] }}>before you build the line.</span>
+          <h1 style={{ margin: '14px 0 0', fontSize: 'clamp(2.2rem, 5.6vw, 3.8rem)', fontWeight: 680, letterSpacing: '-0.04em', lineHeight: 1.02, maxWidth: '20ch' }}>
+            Describe the equipment. <span style={{ color: D.jade[400] }}>The engine checks the physics.</span>
           </h1>
-          <p style={{ margin: '20px 0 0', fontSize: 'clamp(1rem, 2vw, 1.14rem)', lineHeight: 1.6, color: D.text.secondary, maxWidth: '58ch' }}>
-            Lay out reactors, tanks, fillers and conveyors, and simulate the shift: when each machine runs, waits or backs up,
-            and which one holds the line back. Set every unit from a simulator-style spec sheet. For equipment nobody ships a
-            model for, your AI designs one, and the engine checks its physics first.
+          <p style={{ margin: '20px 0 0', fontSize: 'clamp(1rem, 2vw, 1.14rem)', lineHeight: 1.6, color: D.text.secondary, maxWidth: '60ch' }}>
+            Ask Claude for a unit no simulator ships, from a freeze concentrator to a pastillation belt. It asks for your operating conditions,
+            writes the unit as parameters, equations and limits, and ProcessForge checks every one before it goes on your flowsheet. Then
+            simulate the line, set every unit from a spec sheet, and see which check runs closest to its limit.
           </p>
           <div style={{ display: 'flex', gap: 10, marginTop: 28, flexWrap: 'wrap', alignItems: 'center' }}>
             {primary}
@@ -333,21 +383,18 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
           </div>
 
           <div style={{ marginTop: 'clamp(36px, 6vw, 56px)' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-              <div style={{ fontSize: 14, color: D.text.secondary }}>
-                <span style={{ color: D.text.primary, fontWeight: 600 }}>Try it:</span> a paint line, simulated in this page. Move a slider
-                and the shift runs again.
-              </div>
-              <div style={{ ...mono, fontSize: 11, letterSpacing: '0.1em', color: D.text.muted }}>THE APP’S OWN ENGINE</div>
+            <Clip src={CLIPS[0]!.src} title="Cold-brew freeze concentration" priority />
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 10, fontSize: 13, color: D.text.muted }}>
+              <span>The desktop app running the worked example below: a unit Claude designed, simulated on the canvas.</span>
+              <span style={{ ...mono, fontSize: 11, letterSpacing: '0.1em' }}>RECORDED FROM THE CURRENT BUILD</span>
             </div>
-            <LineDemo />
           </div>
 
           <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 1, margin: 'clamp(28px, 5vw, 44px) 0 0', border: `1px solid ${D.border.subtle}`, borderRadius: 12, overflow: 'hidden', background: D.border.subtle }}>
             {[
-              [String(STANDARD_EQUIPMENT_CATALOG.length), 'standard units, each with its model'],
-              [String(MCP_TOOL_COUNT), 'MCP tools for Claude and other clients'],
               ['0', 'numbers guessed: the engine computes every one'],
+              [String(MCP_TOOL_COUNT), 'MCP tools for Claude and other clients'],
+              [String(STANDARD_EQUIPMENT_CATALOG.length), 'standard units, each with its model'],
               ['Apache-2.0', 'free and open source, app and server']
             ].map(([k, v]) => (
               <div key={v} style={{ background: D.background.base, padding: '16px 18px' }}>
@@ -359,41 +406,65 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         </header>
 
         <Section
-          id="equipment"
+          id="example"
           n="01"
-          kicker="EQUIPMENT"
-          title="Standard units come with their model."
-          note="Drop them on the canvas, pipe them together, and they behave the way the equipment does. Point at one to see how."
+          kicker="WORKED EXAMPLE"
+          title="Cold brew, freeze-concentrated: from one sentence to a simulated line."
+          note="No simulator ships a model of this unit. Here is the whole loop as it ran, with every list, verdict and number worked out by the engine in this page."
         >
-          <EquipmentExplorer />
+          <WorkedExample />
         </Section>
 
         <Section
           id="control"
           n="02"
-          kicker="SPEC SHEET"
-          title="Every unit, set like a simulator’s."
-          note="Each unit opens on a spec sheet: every setting in the unit you work in, the range where the design passes, and the results the engine works out from them. Its panel shows how close each check runs to its limit, laid out by the unit’s own contract, so a unit your AI designs gets a panel too."
+          kicker="YOUR NUMBERS"
+          title="Then set the conditions yourself."
+          note="Operating conditions are inputs, not guesses. Change one and the engine re-checks the design and runs an hour of the line again. Try 6 gal/min of feed."
         >
           <ControlDemo />
         </Section>
 
+        <Section id="app" n="03" kicker="IN THE APP" title="The same example, in the desktop app." note="Recorded from the current build, working the line above.">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: 20 }}>
+            {CLIPS.map((c) => (
+              <figure key={c.src} style={{ margin: 0 }}>
+                <Clip src={c.src} title={c.title} />
+                <figcaption style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 15, fontWeight: 650 }}>{c.title}</div>
+                  <div style={{ fontSize: 13, lineHeight: 1.55, color: D.text.secondary, marginTop: 4 }}>{c.text}</div>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </Section>
+
         <Section
-          id="design"
-          n="03"
-          kicker="DESIGN"
-          title="For equipment nobody ships, describe it."
-          note="Your AI writes the unit as parameters, equations and limits. The engine evaluates every limit, and a design that breaks one goes back with the reason, until it holds."
+          id="examples"
+          n="04"
+          kicker="MORE WORKED EXAMPLES"
+          title="Every kind of unit the contracts can express."
+          note="These ship with the engine, and AI clients pattern-match against them when they design: phase changes, separations, reactions, batches, items. Pick one and the engine validates it here."
         >
-          <DesignLoop />
+          <ExampleGallery />
+        </Section>
+
+        <Section
+          id="equipment"
+          n="05"
+          kicker="STANDARD EQUIPMENT"
+          title="And a standard library, each unit with its model."
+          note="Pumps, tanks, exchangers, reactors, columns, dryers and packaging, ready to drop on the canvas and pipe to what your AI designs. Point at one to see how the engine models it."
+        >
+          <EquipmentExplorer />
         </Section>
 
         <Section
           id="ai"
-          n="04"
+          n="06"
           kicker="CLAUDE & MCP"
           title="Run your line from Claude."
-          note="The ProcessForge MCP server gives Claude, Cursor or any MCP client the studio's tools: build a flowsheet, place and pipe equipment, design units nobody ships, simulate the shift, find the bottleneck and compare scenarios. The engine does the physics; the AI drives."
+          note="The ProcessForge MCP server gives Claude, Cursor or any MCP client the studio's tools: design units nobody ships, place and pipe them, simulate the line and compare scenarios. In clients with MCP Apps, a unit's panel opens in the chat, with its operating conditions as inputs. The engine does the physics; the AI drives."
         >
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -455,7 +526,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
 
         <Section
           id="install"
-          n="05"
+          n="07"
           kicker="INSTALL"
           title="Up and running in a few minutes."
           note="Install the desktop app to build and simulate lines. Add the MCP server to drive it from Claude. Both are free, and both update themselves."
@@ -534,7 +605,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
                       <CopyCommand text={FIRST_PROMPT} prompt={null} />
                     </span>
                     <span style={{ display: 'block', marginTop: 8 }}>
-                      Keep the desktop app open and Claude builds the line on your canvas, where you can watch it run.
+                      Keep the desktop app open and Claude puts the unit on your canvas, where you can run it.
                     </span>
                   </Step>
                 </ol>
@@ -555,7 +626,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
           </div>
         </Section>
 
-        <Section id="limits" n="06" kicker="HONESTLY" title="What it does not do yet.">
+        <Section id="limits" n="08" kicker="HONESTLY" title="What it does not do yet.">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
             {[
               ['Pressure', 'No pressure network is solved: flow is limited by each unit\'s rated capacity, not worked out from pressure drops and pump curves.'],
@@ -576,7 +647,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         <section style={{ maxWidth: 1120, margin: '0 auto', padding: `clamp(64px, 10vw, 112px) ${GUTTER} clamp(48px, 7vw, 72px)`, textAlign: 'center' }}>
           <ProcessForgeEmblem size={44} />
           <h2 style={{ margin: '16px auto 0', fontSize: 'clamp(1.6rem, 3.4vw, 2.2rem)', fontWeight: 650, letterSpacing: '-0.025em', maxWidth: '22ch' }}>
-            Simulate your line before you pour the concrete.
+            Simulate the unit nobody sells a model of.
           </h2>
           <div style={{ display: 'flex', gap: 10, marginTop: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
             {primary}

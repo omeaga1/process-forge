@@ -282,6 +282,8 @@ export interface PhaseArchetype {
   id: string;
   name: string;
   keywords: string[];
+  /** Words that rule it out whatever else matches: a freeze concentrator is no evaporator. */
+  notWhen?: string[];
   summary: string;
   components: string[];
   ports: PhasePortPlan[];
@@ -401,6 +403,7 @@ const MULTIPHASE_ARCHETYPES: PhaseArchetype[] = [
     id: 'evaporator',
     name: 'Evaporator / concentrator',
     keywords: ['evaporator', 'concentrator', 'falling film', 'boil off', 'boiling'],
+    notWhen: ['freeze', 'freezing', 'frozen', 'ice', 'freezer'],
     summary: 'A liquid in; a concentrated liquid and vapour out. The water boils with steam heat.',
     components: ['water', 'solute'],
     ports: [
@@ -556,6 +559,7 @@ const MULTIPHASE_ARCHETYPES: PhaseArchetype[] = [
 export const PHASE_ARCHETYPES: readonly PhaseArchetype[] = [...MULTIPHASE_ARCHETYPES, ...EQUIPMENT_ARCHETYPES].map((a) => ({ ...a, ...(ARCHETYPE_PHYSICS[a.id] ?? {}) }));
 
 function score(text: string, a: PhaseArchetype): number {
+  if (a.notWhen?.some((w) => text.includes(` ${w} `))) return 0;
   // Whole words only, and a keyword inside a longer one that also matched ("condense" in
   // "condenser", "dryer" in "spray dryer") scores once, as the longer one.
   const hits = a.keywords.filter((k) => text.includes(` ${k} `) || (k.length >= 6 && new RegExp(` ${k}[a-z]* `).test(text)));

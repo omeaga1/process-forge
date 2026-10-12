@@ -24,7 +24,7 @@ try {
   await ready;
   const browser = await chromium.launch();
   const cases = [
-    { name: 'public site', desktop: false, expect: /Find the bottleneck/ },
+    { name: 'public site', desktop: false, expect: /Describe the equipment/ },
     { name: 'desktop app', desktop: true, expect: /Your flowsheets/ }
   ];
   for (const c of cases) {

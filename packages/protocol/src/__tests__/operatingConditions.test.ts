@@ -38,3 +38,11 @@ describe('the design brief asks for operating conditions instead of assuming the
     assert.match(r.brief, /The flowsheet already gives: .*Confirm these rather than ask/);
   });
 });
+
+describe('the phase plan does not mistake one concentrator for another', () => {
+  it('reads a freeze concentrator as no evaporator, and still finds the evaporator', () => {
+    assert.notEqual(phasePlanFor('scraped-surface freeze concentrator for cold-brew coffee').archetype?.id, 'evaporator');
+    assert.equal(phasePlanFor('falling-film evaporator to concentrate juice').archetype?.id, 'evaporator');
+    assert.ok(!executeDesignUnitOp({ description: 'freeze concentrator for cold brew' }).operatingConditions.ask.some((a) => /Vapour/.test(a)), 'no vapour outlet to ask about');
+  });
+});
