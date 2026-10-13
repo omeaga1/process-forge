@@ -20,6 +20,19 @@ on:
 # SignPath project 'process-forge', signing policy 'release-signing',
 # artifact configuration 'installer' (a zip holding the NSIS .exe). See docs/ops/desktop-releases.md.
 #
+# macOS: without Apple secrets the app is ad-hoc signed (signingIdentity "-"
+# in tauri.conf.json). Gatekeeper then asks once ("Open Anyway" in Privacy &
+# Security) instead of calling the app damaged, which is what an unsigned
+# bundle gets on Apple silicon. Developer ID signing plus notarization, which
+# removes the prompt entirely, needs an Apple Developer Program membership and:
+#     - APPLE_CERTIFICATE          — base64 of the "Developer ID Application" .p12
+#     - APPLE_CERTIFICATE_PASSWORD — password of that .p12
+#     - APPLE_SIGNING_IDENTITY     — e.g. "Developer ID Application: Name (TEAMID)"
+#     - APPLE_ID                   — Apple ID email used for notarization
+#     - APPLE_PASSWORD             — app-specific password for that Apple ID
+#     - APPLE_TEAM_ID              — 10-character team ID
+# Each is passed to `tauri build` only when set; see docs/ops/desktop-releases.md.
+#
 #   Tauri Updater:
 #     - TAURI_SIGNING_PRIVATE_KEY — Minisign private key for in-app updates
 #     - TAURI_KEY_PASSWORD        — Minisign password (if set)
@@ -103,7 +116,34 @@ jobs:
           # as a repository secret; a passphrase would only guard the file on a
           # developer's disk, and a mismatched one silently fails every release.
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-        run: pnpm exec tauri build
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        # An unset secret arrives as an empty variable, and tauri treats an empty
+        # APPLE_CERTIFICATE as a certificate to import (and an empty
+        # APPLE_SIGNING_IDENTITY as the identity), so drop the empty ones and
+        # fall back to ad-hoc signing.
+        run: |
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!v:-}" ]; then unset "$v"; fi
+          done
+          pnpm exec tauri build
+
+      # An unsigned bundle is what made macOS report the download as "damaged".
+      # Refuse to publish one: the .app must carry a valid signature, ad-hoc or
+      # Developer ID, sealed over the whole bundle.
+      - name: Verify macOS App Is Signed
+        if: matrix.platform == 'macos-latest'
+        run: |
+          app=$(find apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' | head -n 1)
+          test -n "$app" || { echo "::error::No .app bundle was produced"; exit 1; }
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv "$app" 2>&1 | tee codesign.txt
+          grep -q '^Sealed Resources' codesign.txt || { echo "::error::$app is not signed as a bundle"; exit 1; }
 
       - name: Verify Updater Artifacts Were Produced
         shell: bash

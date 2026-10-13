@@ -7,6 +7,9 @@ import { CopyCommand, MCPB, MCP_CONFIG, PageHeader, Section, Step, card, mono, t
 
 /** Installing the desktop app and the MCP server, and what neither does yet. */
 
+/** Clears the quarantine flag macOS puts on downloads, which is what blocks an app that is not notarized. */
+const MAC_UNQUARANTINE = 'xattr -dr com.apple.quarantine /Applications/ProcessForge.app';
+
 /** A platform's warning on first launch, and the way past it. */
 function FirstRunNote({ os, children }: { os: string; children: React.ReactNode }) {
   return (
@@ -63,7 +66,7 @@ export const DownloadPage: React.FC = () => {
                   })}
                 </span>
                 <span style={{ display: 'block', marginTop: 6 }}>
-                  Every file, including the .msi, .deb and Intel Mac builds, is on the{' '}
+                  The macOS build is for Apple silicon (M1 and later). Every file, including the .deb, is on the{' '}
                   <a href={RELEASES_PAGE} target="_blank" rel="noopener noreferrer" style={textLink}>
                     latest release
                   </a>
@@ -81,8 +84,13 @@ export const DownloadPage: React.FC = () => {
                     </a>
                   </FirstRunNote>
                   <FirstRunNote os="macOS">
-                    Open the .dmg and drag ProcessForge to Applications. If macOS says it cannot check the app, open <b>System Settings → Privacy &amp; Security</b>{' '}
-                    and click <b>Open Anyway</b>.
+                    Open the .dmg and drag ProcessForge to Applications, then open it once. When macOS says it cannot verify the app, open{' '}
+                    <b>System Settings → Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b>. If it says the app “is damaged and can’t be opened”
+                    instead, the file is fine: macOS says that about apps from outside the App Store that are not notarized. Run this in Terminal, then open it
+                    again:
+                    <span style={{ display: 'block', marginTop: 8 }}>
+                      <CopyCommand text={MAC_UNQUARANTINE} />
+                    </span>
                   </FirstRunNote>
                   <FirstRunNote os="Linux">
                     Make the AppImage executable (<code style={mono}>chmod +x ProcessForge_*.AppImage</code>) and run it, or install the .deb.
