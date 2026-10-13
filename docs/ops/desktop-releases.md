@@ -171,3 +171,38 @@ Microsoft (https://www.microsoft.com/wdsi/filesubmission) speeds it up.
 
 Without the secrets, those steps are skipped, except the updater re-signing,
 which runs on every release so it is proven before a certificate exists.
+
+## Why macOS called the app damaged, and how to stop the prompt
+
+Up to v0.1.85 `bundle.macOS.signingIdentity` was `null`, so the `.app` was not
+signed at all (the release's `ProcessForge.app.tar.gz` has no
+`Contents/_CodeSignature`). On Apple silicon, macOS reports a downloaded,
+quarantined app like that as **“ProcessForge.app” is damaged and can’t be
+opened**, with no way past it except Terminal.
+
+It is now `"-"`, which ad-hoc signs the bundle, and the release fails if the
+`.app` is not signed as a bundle (`codesign --verify --deep --strict`). An
+ad-hoc signed app still is not notarized, so macOS asks once: the user clicks
+**Open Anyway** under System Settings → Privacy & Security. Anyone holding an
+older download can clear the quarantine flag instead:
+
+    xattr -dr com.apple.quarantine /Applications/ProcessForge.app
+
+To remove the prompt entirely the app must be signed with a Developer ID
+certificate and notarized. That needs an Apple Developer Program membership
+(US$99 a year) and these repository secrets, which the release workflow passes
+to `tauri build` only when they are set:
+
+| Secret | What it is |
+| --- | --- |
+| `APPLE_CERTIFICATE` | base64 of the exported “Developer ID Application” certificate (.p12) |
+| `APPLE_CERTIFICATE_PASSWORD` | the password chosen when exporting the .p12 |
+| `APPLE_SIGNING_IDENTITY` | the certificate’s name, e.g. `Developer ID Application: Jane Doe (AB12CD34EF)` |
+| `APPLE_ID` | the Apple ID email of the developer account |
+| `APPLE_PASSWORD` | an app-specific password for that Apple ID (appleid.apple.com → Sign-In and Security) |
+| `APPLE_TEAM_ID` | the 10-character team ID from the developer account |
+
+With those set, tauri signs with the Developer ID (overriding `"-"`), submits
+the app to Apple's notary service and staples the ticket. Update the macOS note
+on the download page (`apps/web/src/landing/pages/DownloadPage.tsx`) once a
+notarized release is out.
