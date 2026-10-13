@@ -24,3 +24,14 @@
   s.defer = true;
   document.head.appendChild(s);
 })();
+
+// Cloudflare Web Analytics (cookieless visit counts), on the website only. The
+// desktop app is not a website and its CSP does not allow the beacon.
+(function () {
+  if (window.__TAURI_INTERNALS__) return;
+  var s = document.createElement('script');
+  s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+  s.defer = true;
+  s.setAttribute('data-cf-beacon', '{"token": "f2ed53e648c448d6b209861f03df450c"}');
+  document.head.appendChild(s);
+})();
