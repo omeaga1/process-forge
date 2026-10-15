@@ -19,6 +19,7 @@
     "@process-forge/theme": "workspace:*",
     "@process-forge/tools": "workspace:*",
     "@xyflow/react": "^12.4.4",
+    "html-to-image": "1.11.13",
     "lucide-react": "^1.16.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

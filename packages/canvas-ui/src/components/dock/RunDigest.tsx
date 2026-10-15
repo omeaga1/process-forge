@@ -21,7 +21,7 @@ const kg = (v: number) => (v >= 100 ? Math.round(v).toLocaleString() : v.toFixed
  * has received so far and is receiving now, and every check a unit broke.
  * Follows the same playhead as the canvas, so it moves with the line.
  */
-export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: boolean }> = ({ graph, run, stale }) => {
+export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: boolean; onSeek?: (fraction: number) => void }> = ({ graph, run, stale, onSeek }) => {
   const { palette, font } = useTheme();
   const { result, timeSeconds, snapshot } = run;
   const outlets = graph.nodes
@@ -60,9 +60,54 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: bo
             {clock(timeSeconds)} / {clock(result.simulatedTimeSeconds)}
           </span>
         </div>
-        <div style={{ height: 3, borderRadius: 2, backgroundColor: palette.border.default, overflow: 'hidden' }}>
-          <div style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: palette.jade[400], transition: 'width 0.3s linear' }} />
-        </div>
+        {onSeek ? (
+          // The run's timeline: drag (or arrow keys) to any moment; the canvas and every figure follow.
+          <div
+            role="slider"
+            tabIndex={0}
+            aria-label="Moment of the run"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(result.simulatedTimeSeconds)}
+            aria-valuenow={Math.round(timeSeconds)}
+            aria-valuetext={clock(timeSeconds)}
+            title="Drag to any moment of the run"
+            onPointerDown={(e) => {
+              const el = e.currentTarget;
+              el.setPointerCapture(e.pointerId);
+              const at = (x: number) => {
+                const r = el.getBoundingClientRect();
+                onSeek(r.width > 0 ? (x - r.left) / r.width : 0);
+              };
+              at(e.clientX);
+              const move = (ev: PointerEvent) => at(ev.clientX);
+              const up = () => {
+                el.removeEventListener('pointermove', move);
+                el.removeEventListener('pointerup', up);
+              };
+              el.addEventListener('pointermove', move);
+              el.addEventListener('pointerup', up);
+            }}
+            onKeyDown={(e) => {
+              const step = e.shiftKey ? 0.1 : 0.02;
+              if (e.key === 'ArrowRight') onSeek(Math.min(1, progress + step));
+              else if (e.key === 'ArrowLeft') onSeek(Math.max(0, progress - step));
+              else if (e.key === 'Home') onSeek(0);
+              else if (e.key === 'End') onSeek(1);
+              else return;
+              e.preventDefault();
+            }}
+            style={{ position: 'relative', height: 14, cursor: 'pointer', touchAction: 'none', outlineOffset: 2 }}
+          >
+            <div style={{ position: 'absolute', left: 0, right: 0, top: 5, height: 4, backgroundColor: palette.border.default }}>
+              <div style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: palette.jade[400] }} />
+            </div>
+            <div style={{ position: 'absolute', top: 1, left: `calc(${progress * 100}% - 3px)`, width: 6, height: 12, backgroundColor: palette.jade[300] ?? palette.jade[400], boxShadow: `0 0 0 2px ${palette.background.surface}` }} />
+          </div>
+        ) : (
+          <div style={{ height: 3, borderRadius: 2, backgroundColor: palette.border.default, overflow: 'hidden' }}>
+            <div style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: palette.jade[400], transition: 'width 0.3s linear' }} />
+          </div>
+        )}
       </div>
 
       {outlets.length > 0 && (

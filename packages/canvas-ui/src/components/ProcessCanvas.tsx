@@ -44,6 +44,8 @@ import { SimulationEngine, solveSteadyState, streamStates, type SimulationResult
 import { StatusBar } from './StatusBar.js';
 import { flowsheetStatus } from '../model/flowsheetStatus.js';
 import { cardsFromRun, cardsFromSteady, pipeFigure } from '../model/streamCards.js';
+import { copyPng, imageFileName, renderFlowsheetPng, saveBlob } from '../model/exportImage.js';
+import { RUN_LENGTHS, defaultRunMinutes, playbackStep } from '../model/runLength.js';
 import type { RunView } from './dock/RunDigest.js';
 import { Button, PointMenu, Tooltip } from '../ui/index.js';
 
@@ -471,6 +473,16 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [fingerprint, simResult, runFingerprint, steady]
   );
+  /** How long a run simulates, minutes: a batch line's batches take hours, so it starts longer. */
+  const [runMinutes, setRunMinutes] = useState(() => defaultRunMinutes(graph));
+  useEffect(() => setRunMinutes(defaultRunMinutes(graph)), [graph.id]);
+  /** A moment's message on the status bar ("Saved the flowsheet as …"). */
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
   /** The problem F4 last opened. */
   const [problemCursor, setProblemCursor] = useState(-1);
   useEffect(() => setProblemCursor(-1), [status]);
@@ -779,7 +791,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const compactToolbar = toolbarRoom < 1060;
   const tightToolbar = toolbarRoom < 820;
   // Narrowest (a small window with a unit open): the shortcut hint and playback speed go too; the command palette has both.
-  const crampedToolbar = toolbarRoom < 700;
+  const crampedToolbar = toolbarRoom < 780;
   const observerRef = useRef<ResizeObserver | null>(null);
   const canvasAreaRef = useCallback((el: HTMLDivElement | null) => {
     observerRef.current?.disconnect();
@@ -926,7 +938,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       // changes how fast the recording is replayed; it does not change the
       // numbers, because the run already happened.
       animTimerRef.current = setInterval(() => {
-        setPlayheadIndex((i) => (sampleTimes.length === 0 ? 0 : Math.min(i + 1, sampleTimes.length - 1)));
+        setPlayheadIndex((i) => (sampleTimes.length === 0 ? 0 : Math.min(i + playbackStep(sampleTimes.length), sampleTimes.length - 1)));
       }, intervalMs);
     } else {
       if (animTimerRef.current) {
@@ -936,14 +948,14 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     return () => {
       if (animTimerRef.current) clearInterval(animTimerRef.current);
     };
-  }, [isRunning, simSpeed]);
+  }, [isRunning, simSpeed, sampleTimes.length]);
 
   const handleToggleSimulation = () => {
     if (!isRunning && graph.nodes.length === 0) return;
     if (!isRunning) {
       // Execute the deterministic engine
       const sim = new SimulationEngine(graph);
-      const res = sim.run(30); // 30 minutes
+      const res = sim.run(runMinutes);
       const validation = validateProcessGraph(graph);
       setSimResult(res);
       setRunFingerprint(graphFingerprint(graph));
@@ -978,6 +990,38 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  const flowsheetImage = useCallback(async (): Promise<Blob> => {
+    const viewport = canvasElRef.current?.querySelector('.react-flow__viewport') as HTMLElement | null;
+    const all = flowRef.current?.getNodes() ?? [];
+    if (!viewport || all.length === 0) throw new Error('There is nothing on the flowsheet to draw.');
+    return renderFlowsheetPng(
+      viewport,
+      all,
+      {
+        title: graph.name,
+        lines: [`${graph.nodes.length} units, ${graph.edges.length} streams`, status.headline]
+      },
+      { background: OsakaJadePalette.background.canvas, ink: OsakaJadePalette.text.primary, muted: OsakaJadePalette.text.muted, rule: OsakaJadePalette.border.default, font: 'Inter, system-ui, sans-serif', mono: 'ui-monospace, monospace' }
+    );
+  }, [graph, status]);
+  const exportImage = useCallback(async () => {
+    try {
+      const name = imageFileName(graph.name);
+      saveBlob(await flowsheetImage(), name);
+      setNotice(`Saved the flowsheet as ${name}`);
+    } catch (e) {
+      setNotice(`Could not save the image: ${(e as Error).message}`);
+    }
+  }, [flowsheetImage, graph.name]);
+  const copyImage = useCallback(async () => {
+    try {
+      await copyPng(flowsheetImage());
+      setNotice('Copied the flowsheet as an image: paste it into a document or a chat');
+    } catch (e) {
+      setNotice(`Could not copy the image: ${(e as Error).message}`);
+    }
+  }, [flowsheetImage]);
 
   const openNextProblem = useCallback(() => {
     const withUnits = status.problems.filter((p) => p.nodeId && graph.nodes.some((n) => n.id === p.nodeId));
@@ -1289,6 +1333,52 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
             <div style={{ width: 1, height: 20, backgroundColor: OsakaJadePalette.border.subtle, flexShrink: 0 }} />
 
+            {/* Run length: how much time the next run simulates */}
+            <div
+              role="group"
+              aria-label="Run length"
+              title="How long the next run simulates"
+              style={{
+                display: crampedToolbar ? 'none' : 'flex',
+                alignItems: 'center',
+                gap: 2,
+                height: 32,
+                boxSizing: 'border-box',
+                padding: 2,
+                borderRadius: draftingRadius.soft,
+                backgroundColor: OsakaJadePalette.background.surface,
+                border: `1px solid ${OsakaJadePalette.border.subtle}`,
+                flexShrink: 0
+              }}
+            >
+              {RUN_LENGTHS.map((x) => (
+                <button
+                  key={x.minutes}
+                  type="button"
+                  onClick={() => setRunMinutes(x.minutes)}
+                  aria-pressed={runMinutes === x.minutes}
+                  title={`Run for ${x.long}`}
+                  style={{
+                    height: 26,
+                    minWidth: 32,
+                    padding: '0 6px',
+                    borderRadius: draftingRadius.soft,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    fontFamily: font.mono,
+                    border: 'none',
+                    backgroundColor: runMinutes === x.minutes ? OsakaJadePalette.jade.muted : 'transparent',
+                    color: runMinutes === x.minutes ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.muted,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {x.short}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ width: 1, height: 20, backgroundColor: OsakaJadePalette.border.subtle, flexShrink: 0 }} />
+
             {/* Readout */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, padding: '0 4px', flexShrink: 0 }}>
               <span
@@ -1455,7 +1545,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           />
         </ReactFlow>
 
-        <StatusBar status={status} cursor={problemCursor} onNext={openNextProblem} rightInset={panelOverlap} />
+        <StatusBar status={notice ? { ...status, detail: notice } : status} cursor={problemCursor} onNext={openNextProblem} rightInset={panelOverlap} />
 
         <PointMenu
           at={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : null}
@@ -1503,6 +1593,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         bulkLine={bulkLine}
         steady={steady}
         stale={status.tone === 'stale'}
+        onSeek={(fraction: number) => setPlayheadIndex(Math.round(Math.max(0, Math.min(1, fraction)) * Math.max(0, sampleTimes.length - 1)))}
         isCollapsed={isDockCollapsed}
         onToggleCollapse={handleToggleDock}
         onAddNode={handleAddNode}
@@ -1565,6 +1656,9 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           { id: 'run', group: 'Line', title: isRunning ? 'Pause the simulation' : 'Run the simulation', hint: 'Space', keywords: 'simulate start play stop', run: handleToggleSimulation },
           { id: 'reset', group: 'Line', title: 'Reset the simulation', keywords: 'restart clear', run: handleResetSimulation },
           { id: 'streams', group: 'Line', title: 'Show the stream table', keywords: 'streams flows report table temperatures', run: () => setIsStreamTableOpen(true) },
+          ...RUN_LENGTHS.map((x): PaletteCommand => ({ id: `length-${x.minutes}`, group: 'Line', title: `Run for ${x.long}`, keywords: 'duration length time shift hours', run: () => setRunMinutes(x.minutes) })),
+          { id: 'export-image', group: 'Flowsheet', title: 'Export the flowsheet as an image (PNG)', keywords: 'save picture png print report drawing pfd', run: () => void exportImage() },
+          { id: 'copy-image', group: 'Flowsheet', title: 'Copy the flowsheet as an image', keywords: 'clipboard picture png paste', run: () => void copyImage() },
           ...[1, 2, 5].map((x): PaletteCommand => ({ id: `speed-${x}`, group: 'Line', title: `Play back at ${x}×`, keywords: 'speed fast slow', run: () => setSimSpeed(x) })),
           ...(onDesignUnitOp ? [{ id: 'design', group: 'Equipment', title: 'Design a unit op…', keywords: 'new custom ai contract create', run: onDesignUnitOp }] : []),
           { id: 'palette', group: 'Equipment', title: 'Browse standard equipment…', keywords: 'add catalog library', run: () => setIsEquipmentPaletteOpen(true) },
