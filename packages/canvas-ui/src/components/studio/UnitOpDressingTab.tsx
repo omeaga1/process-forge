@@ -64,6 +64,8 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
     }
   }, [node.id, node.dressing]);
 
+  const drawsInternals = !dressing.customSvgShell && node.kind === 'BATCH_REACTOR' && !(node.config as { contract?: { drawing?: unknown } }).contract?.drawing;
+
   const handleForgeDrawing = (promptToUse?: string, family?: TemplateFamily) => {
     const text = promptToUse || aiPrompt;
     if (!text.trim()) return;
@@ -265,7 +267,8 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
           }}
         />
 
-        {/* Card 2: Vessel Internals & Jacket Dressing */}
+        {/* The agitator and jacket are drawn on the built-in reactor shell only: elsewhere they would change nothing. */}
+        {drawsInternals && (
         <div
           style={{
             width: '100%',
@@ -329,38 +332,9 @@ export const UnitOpDressingTab: React.FC<UnitOpDressingTabProps> = ({ node, onUp
               </select>
             </div>
 
-            {/* Wall Baffles */}
-            <div>
-              <label htmlFor="pf-dressing-3" style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
-                Anti-Swirl Wall Baffles
-              </label>
-              <select id="pf-dressing-3"
-                className="pf-select"
-                value={dressing.internals.baffleCount}
-                onChange={(e) => handleUpdateInternals({ baffleCount: parseInt(e.target.value, 10) })}
-              >
-                <option value="0">0 Baffles (Unbaffled)</option>
-                <option value="2">2 Standard Wall Baffles (180°)</option>
-                <option value="4">4 baffles (90° apart)</option>
-              </select>
-            </div>
-
-            {/* Demister Pad */}
-            <div>
-              <label htmlFor="pf-dressing-4" style={{ display: 'block', fontSize: 12, color: OsakaJadePalette.text.muted, marginBottom: '4px' }}>
-                Demister / Mist Eliminator
-              </label>
-              <select id="pf-dressing-4"
-                className="pf-select"
-                value={dressing.internals.hasDemister ? 'yes' : 'no'}
-                onChange={(e) => handleUpdateInternals({ hasDemister: e.target.value === 'yes' })}
-              >
-                <option value="no">None</option>
-                <option value="yes">Wire-mesh demister pad</option>
-              </select>
-            </div>
           </div>
         </div>
+        )}
 
       </div>
     </div>
