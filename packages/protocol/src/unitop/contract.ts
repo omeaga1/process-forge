@@ -4,6 +4,7 @@ import { MaterialPhaseSchema, PHASE_ARCHETYPES, UnitOpPhaseChangeSchema } from '
 import { phaseIssues } from './phaseBalance.js';
 import { parseExpression, referencedNames, ExpressionError, type Ast } from './expression.js';
 import { PROPERTY_FUNCTIONS } from './properties.js';
+import { findComponent, nearComponents } from '../thermo/components.js';
 import { convertUnit } from './unitConversion.js';
 import {
   checkDimension,
@@ -844,6 +845,7 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
 
   issues.push(...dimensionIssues(contract));
   issues.push(...propertyUnitIssues(contract));
+  issues.push(...componentNameIssues(contract));
   issues.push(...panelIssues(contract));
   return issues;
 }
@@ -963,6 +965,42 @@ function propertyUnitIssues(contract: UnitOpContract): ContractValidationIssue[]
       } else if (n.k === 'unary') walk(n.a);
     };
     walk(ast);
+  }
+  return issues;
+}
+
+/**
+ * A component property function (psat, hvap, cp_gas...) takes a component the
+ * database knows, by name in quotes: a name it does not know is caught here,
+ * with the names it probably meant, rather than failing mid-run. A quoted name
+ * anywhere else is an error too.
+ */
+function componentNameIssues(contract: UnitOpContract): ContractValidationIssue[] {
+  const issues: ContractValidationIssue[] = [];
+  for (const { path, expr } of contractExpressions(contract)) {
+    let ast: Ast;
+    try {
+      ast = parseExpression(expr);
+    } catch {
+      continue;
+    }
+    const walk = (n: Ast, componentArg: boolean): void => {
+      if (n.k === 'str') {
+        if (!componentArg) issues.push({ path, message: `a quoted name ("${n.v}") can only name a component, as the first argument of a property function such as psat('ethanol', T)` });
+        else if (!findComponent(n.v)) {
+          const near = nearComponents(n.v);
+          issues.push({ path, message: `"${n.v}" is not in the component database${near.length ? `; did you mean ${near.join(', ')}?` : ''} (lookup_component lists what is, with their properties)` });
+        }
+      } else if (n.k === 'call') {
+        const takesComponent = PROPERTY_FUNCTIONS[n.name]?.args[0] === 'component';
+        if (takesComponent && n.args[0]?.k !== 'str') issues.push({ path, message: `${n.name}() takes a component name first, in quotes: ${n.name}('ethanol', ...)` });
+        n.args.forEach((a, i) => walk(a, takesComponent && i === 0));
+      } else if (n.k === 'bin') {
+        walk(n.a, false);
+        walk(n.b, false);
+      } else if (n.k === 'unary') walk(n.a, false);
+    };
+    walk(ast, false);
   }
   return issues;
 }

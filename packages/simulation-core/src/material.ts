@@ -16,6 +16,7 @@ import {
   mixtureMolarMass,
   feedGasDensityGPerCm3,
   feedMassSupplyKgPerS,
+  feedPropertiesFromComposition,
   type EvaluatedBatchPhase,
   type EvaluatedReaction,
   type ProcessEdge,
@@ -467,10 +468,15 @@ export class MaterialNetwork {
         if (liquid.temperatureC !== undefined) props.tempC = liquid.temperatureC;
         if (liquid.densityGPerCm3 !== undefined) props.density = liquid.densityGPerCm3;
         if (liquid.specificHeatKjPerKgK !== undefined) props.cp = liquid.specificHeatKjPerKgK;
+        // What it does not state, its composition decides when every component is in the
+        // database (a 40 % ethanol feed is not water): ahead of a pipe's placeholder fluid.
+        const derived = feedPropertiesFromComposition(node, props.tempC ?? AMBIENT_C);
+        if (liquid.densityGPerCm3 === undefined && derived.densityGPerCm3 !== undefined) props.density = derived.densityGPerCm3;
+        if (liquid.specificHeatKjPerKgK === undefined && derived.specificHeatKjPerKgK !== undefined) props.cp = derived.specificHeatKjPerKgK;
         // A gas feed with no density of its own is an ideal gas at its temperature.
         const gas = liquid.densityGPerCm3 === undefined ? feedGasDensityGPerCm3(node, props.tempC ?? AMBIENT_C) : undefined;
         if (gas !== undefined) props.density = gas;
-        if (gas !== undefined && liquid.specificHeatKjPerKgK === undefined) props.cp = 1.006;
+        if (gas !== undefined && liquid.specificHeatKjPerKgK === undefined) props.cp = derived.specificHeatKjPerKgK ?? 1.006;
         u.feedStock = stock(1, props);
         u.hold.tempC = u.feedStock.tempC;
         // Supply stated as a mass flow (kg/h, or SCFM for a gas) wins over gal/min.

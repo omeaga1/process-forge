@@ -195,8 +195,9 @@ describe('Components: from a feed arrow, and the worked examples', () => {
     const product = r.nodeReports['product']!.fluid!;
     const vapour = r.nodeReports['vapour']!.fluid!;
     const sugarIn = fed.componentsKg!.sugar!;
-    // The pipes in this test carry liquid at 1 kg/L.
-    const sugarOut = product.composition!.sugar! * product.receivedGallons * 3.785411784;
+    const sugarOut = product.composition!.sugar! * product.receivedKg;
+    // The juice is 12 % sugar, so it is denser than water: the database says so, with no density stated.
+    assert.ok(fed.kg / (fed.gallons * 3.785411784) > 1.04, `juice at ${fed.kg / (fed.gallons * 3.785411784)} kg/L`);
     assert.ok(Math.abs(sugarOut - sugarIn) / sugarIn < 0.01, `sugar in ${sugarIn} kg, out ${sugarOut} kg`);
     assert.ok((vapour.composition!.water ?? 0) > 0.9999);
     assert.ok(product.composition!.sugar! > 0.12, 'the concentrate is more concentrated than the juice');

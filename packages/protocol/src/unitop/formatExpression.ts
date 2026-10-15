@@ -81,6 +81,9 @@ function walk(n: Ast, out: ExprToken[]): void {
     case 'num':
       out.push({ t: 'num', text: num(n.v) });
       return;
+    case 'str':
+      out.push({ t: 'num', text: n.v.replace(/_/g, ' ') });
+      return;
     case 'ref':
       out.push({ t: 'name', name: n.name });
       return;

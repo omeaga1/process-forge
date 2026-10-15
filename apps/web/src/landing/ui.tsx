@@ -21,7 +21,7 @@ export const MCP_CONFIG = `{
 export const MCP_TOOLS: [string, string[]][] = [
   ['Read the line', ['get_open_flowsheet', 'list_flowsheets', 'open_flowsheet', 'simulate_process_line', 'diagnose_bottlenecks', 'compare_scenarios']],
   ['Build it', ['new_flowsheet', 'list_standard_unit_ops', 'add_standard_unit_op', 'add_stream', 'route_stream', 'arrange_unit', 'update_unit', 'remove_unit', 'remove_stream', 'save_flowsheet']],
-  ['Design units', ['design_unit_op', 'validate_unit_op', 'explore_unit_op', 'hold_unit_result', 'calculate_stream', 'forge_equipment_drawing', 'add_unit_op_to_flowsheet', 'query_unit_subagent']],
+  ['Design units', ['design_unit_op', 'validate_unit_op', 'explore_unit_op', 'hold_unit_result', 'calculate_stream', 'lookup_component', 'forge_equipment_drawing', 'add_unit_op_to_flowsheet', 'query_unit_subagent']],
   ['The library', ['search_community_unit_ops', 'add_community_unit_op', 'package_unit_op', 'publish_unit_op', 'list_digital_twin_templates']]
 ];
 export const MCP_TOOL_COUNT = MCP_TOOLS.reduce((n, [, t]) => n + t.length, 0);

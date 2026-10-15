@@ -4,6 +4,23 @@ import { checkUnitOpDrawing } from './drawing.js';
 import { phaseEnergy, phaseEnergyWarnings, phaseWarnings, type PhaseEnergyCheck } from './phaseBalance.js';
 import { physicsAlignment, type PhysicsAlignment } from './physicsAlignment.js';
 import { suggestFixes, type Fix } from './explore.js';
+import { findComponent, nearComponents } from '../thermo/components.js';
+
+/**
+ * A component a contract names that is not in the database but is one letter
+ * or word away from one that is (ethonal, sugars): almost always a typo, and a
+ * stream that says "ethanol" would then never match it. A name nothing is
+ * close to (solids, dust, resin) is a pseudo-component and fine.
+ */
+function componentWarnings(contract: UnitOpContract): { path: string; message: string }[] {
+  return (contract.components ?? []).flatMap((c, i) => {
+    if (findComponent(c)) return [];
+    const near = nearComponents(c).filter((n) => n !== c);
+    return near.length
+      ? [{ path: `components[${i}]`, message: `"${c}" is not in the component database, and ${near.join(', ')} is: if you meant it, use that name so streams and properties match.` }]
+      : [];
+  });
+}
 
 /**
  * The engine's verdict on a proposed unit operation.
@@ -187,7 +204,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     );
   }
   gates.staticAnalysis.passed = true;
-  const unchecked = [...unitWarnings(contract), ...phaseWarnings(contract)].map((w) => `${w.path}: ${w.message}`);
+  const unchecked = [...unitWarnings(contract), ...phaseWarnings(contract), ...componentWarnings(contract)].map((w) => `${w.path}: ${w.message}`);
   if (unchecked.length) gates.staticAnalysis.warnings = unchecked;
 
   // Gate 4 -- the drawing. Checked here so its problems come back in the same
