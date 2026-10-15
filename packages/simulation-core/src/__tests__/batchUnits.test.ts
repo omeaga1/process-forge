@@ -139,23 +139,52 @@ describe('Designed batch units: each phase follows the batch in hand', () => {
     assert.ok(Math.abs(v.heat!.energyKwh - (200 * v.designedUnit!.secondsByPhase!['Heat']!) / 3600) < 1);
   });
 
-  it('drains to the port each phase names: 65% as liquor, the rest as slurry', () => {
+  it('crystal yield follows the solubility curve, not a typed-in split', () => {
     assert.equal(executeValidateUnitOp({ contract: CRYSTALLISER_CONTRACT }).verdict, 'ACCEPTED');
-    const g = line(
-      [
-        node('feed', 'SURGE_TANK', { capacityGallons: 1e5, initialLevelGallons: 1e5, maxDischargeRateGpm: 200 }, [L], [L]),
-        node('cryst', 'CUSTOM_UNIT_OP', { contract: CRYSTALLISER_CONTRACT }, [L], [L, L], { in: ['feed'], out: ['liquor', 'slurry'] }),
-        sink('liquor'),
-        sink('slurry')
-      ],
-      [pipe('feed', 'cryst', 'out-0', 'feed', 25), pipe('cryst', 'liquor', 'liquor'), pipe('cryst', 'slurry', 'slurry')]
-    );
-    const r = simulateProcess(g, 8 * 60);
-    const liquor = r.nodeReports['liquor']!.fluid!.receivedGallons;
-    const slurry = r.nodeReports['slurry']!.fluid!.receivedGallons;
-    assert.ok(r.nodeReports['cryst']!.fluid!.batches! >= 2);
-    assert.ok(Math.abs(liquor / (liquor + slurry) - 0.65) < 0.02, `liquor share ${liquor / (liquor + slurry)}`);
-    assert.ok(Math.abs(r.nodeReports['slurry']!.fluid!.temperatureC - 15) < 0.1, 'drops at the final temperature');
+    const run = (finalC: number, wMgso4: number) => {
+      const contract = {
+        ...CRYSTALLISER_CONTRACT,
+        parameters: CRYSTALLISER_CONTRACT.parameters.map((p) => (p.name === 'finalC' ? { ...p, value: finalC } : p))
+      } as UnitOpContract;
+      const g = line(
+        [
+          node(
+            'feed',
+            'SURGE_TANK',
+            { capacityGallons: 1e5, initialLevelGallons: 1e5, maxDischargeRateGpm: 200, fluid: { name: 'Brine', densityGPerCm3: 1.2, viscosityCentipoise: 1, temperatureCelsius: 25, composition: { water: 1 - wMgso4, mgso4: wMgso4 } } },
+            [L],
+            [L]
+          ),
+          node('cryst', 'CUSTOM_UNIT_OP', { contract }, [L], [L, L], { in: ['feed'], out: ['liquor', 'slurry'] }),
+          sink('liquor'),
+          sink('slurry')
+        ],
+        [pipe('feed', 'cryst', 'out-0', 'feed', 25), pipe('cryst', 'liquor', 'liquor'), pipe('cryst', 'slurry', 'slurry')]
+      );
+      const r = simulateProcess(g, 8 * 60);
+      const streams = r.nodeReports['cryst']!.designedUnit!.streams!;
+      const liquor = streams.find((s) => s.port === 'liquor')!;
+      const slurry = streams.find((s) => s.port === 'slurry')!;
+      const soluteKg = (s: typeof liquor) => (s.componentsKg?.['mgso4'] ?? 0) + (s.componentsKg?.['crystals'] ?? 0) / 2.0476;
+      return {
+        r,
+        crystalsKg: slurry.componentsKg?.['crystals'] ?? 0,
+        yieldFrac: (slurry.componentsKg?.['crystals'] ?? 0) / 2.0476 / (soluteKg(liquor) + soluteKg(slurry)),
+        liquorMgso4: (liquor.componentsKg?.['mgso4'] ?? 0) / liquor.kg
+      };
+    };
+    // 30% MgSO4 feed cooled to 15 °C. Hand calculation from the CRC curve (30.8 g/100 g water at 15 °C)
+    // and the heptahydrate (1.0476 kg water per kg MgSO4): 41.5% of the solute crystallises.
+    const cool = run(15, 0.3);
+    assert.ok(cool.r.nodeReports['cryst']!.fluid!.batches! >= 2);
+    assert.ok(cool.crystalsKg > 0, 'crystals come out of the slurry port');
+    assert.ok(Math.abs(cool.yieldFrac - 0.415) < 0.02, `yield ${cool.yieldFrac}`);
+    // Not cooling as far gives less; a weaker feed gives less.
+    const warm = run(30, 0.3);
+    assert.ok(warm.crystalsKg < cool.crystalsKg, 'cooling only to 30 °C crystallises less (about 16% of the solute, not 41%)');
+    // The mother liquor leaves saturated at the final temperature: 30.8 g/100 g water = 23.5% by mass.
+    const liquorW = cool.liquorMgso4;
+    assert.ok(Math.abs(liquorW - 0.2355) < 0.01, `liquor strength ${liquorW}`);
   });
 });
 

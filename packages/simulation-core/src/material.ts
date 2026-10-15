@@ -177,6 +177,54 @@ function takeFrom(a: Parcel, m3: number): Parcel {
   return { kg, m3: v, tempC: a.tempC, cp: a.cp, comp: { ...a.comp }, ...(a.offSpec ? { offSpec: a.offSpec } : {}), ...(gas ?? {}) };
 }
 
+/** Mass fraction of a holdup that is the named components (settled crystals): 0 with none named. */
+function retainedShare(a: Parcel, retain: readonly string[] | undefined): number {
+  if (!retain?.length) return 0;
+  return Math.min(1, retain.reduce((s, c) => s + (a.comp[c] ?? 0), 0));
+}
+
+/**
+ * Takes `m3` out of a holdup, but only the part that is not `retain`: settled
+ * crystals stay in the vessel. The volume and mass drawn are in proportion
+ * to the liquid there is (the solids take their share of the volume at the
+ * mixture's own density), and the drawn liquid's composition leaves the
+ * retained components out. Mass is conserved.
+ */
+function takeLiquidFrom(a: Parcel, m3: number, retain: readonly string[]): Parcel {
+  const r = retainedShare(a, retain);
+  const liquidM3 = a.m3 * (1 - r);
+  const liquidKg = a.kg * (1 - r);
+  const v = Math.max(0, Math.min(m3, liquidM3));
+  const f = liquidM3 > 0 ? v / liquidM3 : 0;
+  const kg = liquidKg * f;
+  const drawn: Composition = {};
+  const left: Composition = {};
+  const remaining = a.kg - kg;
+  for (const [c, x] of Object.entries(a.comp)) {
+    const mass = x * a.kg;
+    if (retain.includes(c)) {
+      left[c] = mass / remaining;
+    } else {
+      drawn[c] = mass;
+      const l = mass - mass * f;
+      if (l > 0) left[c] = l / remaining;
+    }
+  }
+  // Drawn composition: the non-retained components, renormalised to sum to 1.
+  const total = Object.values(drawn).reduce((s, x) => s + x, 0);
+  const comp: Composition = total > 0 ? Object.fromEntries(Object.entries(drawn).map(([c, x]) => [c, x / total])) : {};
+  const out: Parcel = { kg, m3: v, tempC: a.tempC, cp: a.cp, comp, ...(a.offSpec ? { offSpec: a.offSpec } : {}) };
+  a.m3 = Math.max(0, a.m3 - v);
+  a.kg = Math.max(0, remaining);
+  a.comp = remaining > 0 ? left : {};
+  if (a.m3 <= EPS_M3) {
+    a.m3 = 0;
+    a.kg = 0;
+    a.comp = {};
+  }
+  return out;
+}
+
 /** kg/m³ of a holdup, or of what would arrive when it is empty. */
 const densityOf = (p: Parcel, fallback = 1000) => (p.m3 > EPS_M3 && p.kg > 0 ? p.kg / p.m3 : fallback);
 
@@ -597,9 +645,7 @@ export class MaterialNetwork {
           ? phase.gallons * M3_PER_GALLON
           : Math.max(0, u.capacity - u.hold.m3)
         : phase.kind === 'DRAIN'
-          ? phase.gallons !== undefined
-            ? phase.gallons * M3_PER_GALLON
-            : u.hold.m3
+          ? Math.min(phase.gallons !== undefined ? phase.gallons * M3_PER_GALLON : Infinity, u.hold.m3 * (1 - retainedShare(u.hold, phase.retain)))
           : 0;
     u.batchRun = {
       index,
@@ -1317,7 +1363,8 @@ export class MaterialNetwork {
       const p = stock(m3, { tempC: source.tempC, density: densityOf(u.feedStock!) / 1000, cp: source.cp, comp: source.comp });
       return densityOf(u.feedStock!) < GAS_LIKE_KG_PER_M3 ? allGas(p) : p;
     }
-    return takeFrom(u.hold, m3);
+    const retain = u.role === 'batch' && u.batchRun?.phase.kind === 'DRAIN' ? u.batchRun.phase.retain : undefined;
+    return retain?.length ? takeLiquidFrom(u.hold, m3, retain) : takeFrom(u.hold, m3);
   }
 
   /** The operating state a unit's liquid implies. Drawers are the engine's to set. */

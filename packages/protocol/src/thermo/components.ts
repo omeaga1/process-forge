@@ -119,7 +119,24 @@ const EXTRA: ComponentData[] = [
     cpLiquidKjPerKgK: 1.130,
     rhoLiquid20KgPerM3: 2165,
     source: 'Heat capacity in solution: Choi & Okos (1986) ash model at 20 °C; density: the crystal (CRC).'
-  }
+  },
+  ...[
+    { id: 'magnesium_sulfate', name: 'Magnesium sulfate', formula: 'MgSO4', molarMass: 120.366, aliases: ['mgso4', 'epsom_salt', 'epsom_salts', 'magnesium_sulphate'], rho: 2660 },
+    { id: 'potassium_nitrate', name: 'Potassium nitrate', formula: 'KNO3', molarMass: 101.103, aliases: ['kno3', 'saltpetre', 'saltpeter'], rho: 2109 },
+    { id: 'potassium_chloride', name: 'Potassium chloride', formula: 'KCl', molarMass: 74.551, aliases: ['kcl'], rho: 1984 }
+  ].map(
+    (s): ComponentData => ({
+      id: s.id,
+      name: s.name,
+      formula: s.formula,
+      molarMass: s.molarMass,
+      aliases: s.aliases,
+      nonVolatile: true,
+      cpLiquidKjPerKgK: 1.13,
+      rhoLiquid20KgPerM3: s.rho,
+      source: 'Heat capacity in solution: Choi & Okos (1986) ash model at 20 °C; density: the crystal (CRC). Solubility: thermo/solubility.ts.'
+    })
+  )
 ];
 
 const POLING = 'Antoine and heat capacities: Poling, Prausnitz & O\'Connell, The Properties of Gases and Liquids, 5th ed.; critical constants: PSRK rev. 4; ΔHvap at Tb: CRC Handbook; via chemicals (MIT).';
