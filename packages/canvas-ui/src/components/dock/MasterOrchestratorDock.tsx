@@ -20,6 +20,7 @@ import { SplitFlap } from './SplitFlap.js';
 import { unitTag } from '../../model/unitTag.js';
 import { AgentChat } from './AgentChat.js';
 import { RunDigest, type RunView } from './RunDigest.js';
+import { liquidLimit } from '@process-forge/tools';
 import { Button, Chip, Tooltip } from '../../ui/index.js';
 import { supportsAgent } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
@@ -303,9 +304,12 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         }}
       >
         {(() => {
-          const limitName = bottlenecks.bottleneckNodeId ? graph.nodes.find((n) => n.id === bottlenecks.bottleneckNodeId)?.name : undefined;
+          // A liquid line no unit holds back: what sets its rate (a feed's supply, a unit at its rating), as the MCP tools say it.
+          const lineLimit = !bottlenecks.bottleneckNodeId && run ? liquidLimit(graph, run.result, run.result.durationMinutes) : undefined;
+          const limitId = bottlenecks.bottleneckNodeId ?? (lineLimit?.by !== 'none' ? lineLimit?.nodeId : undefined);
+          const limitName = limitId ? graph.nodes.find((n) => n.id === limitId)?.name : undefined;
           // The unit's tag (P-227) when it has one; its name otherwise.
-          const limit = bottlenecks.bottleneckNodeId ? (limitName ? unitTag(limitName) ?? limitName : 'NONE') : 'NONE';
+          const limit = limitId ? (limitName ? unitTag(limitName) ?? limitName : 'NONE') : 'NONE';
           const rate = telemetry.averageRatePerMin;
           // A line that makes no items (a powder or liquid line) is read in kg.
           // Decided by the whole run, so the board does not switch from units to kg as the first kg arrive.
@@ -350,9 +354,9 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                   value={limit.toUpperCase()}
                   width={6}
                   align="left"
-                  color={bottlenecks.bottleneckNodeId ? OsakaJadePalette.status.blocked : OsakaJadePalette.jade.glow}
+                  color={bottlenecks.bottleneckNodeId || lineLimit?.by === 'unit' ? OsakaJadePalette.status.blocked : lineLimit?.by === 'feed' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow}
                 />,
-                limitName ?? 'Nothing limits the line in the static analysis'
+                lineLimit ? lineLimit.summary : limitName ?? 'Nothing limits the line in the static analysis'
               )}
             </div>
           );

@@ -171,7 +171,7 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
     { component: 'solids', from: 'LIQUID', to: 'SOLID', mechanism: 'DRYING', latentHeatKjPerKg: '0' }
   ],
   parameters: [
-    { name: 'airInletC', label: 'Air inlet temperature', unit: '°C', value: 200, min: 80, max: 350 },
+    { name: 'airInletC', label: 'Air inlet temperature', unit: '°C', value: 193, min: 80, max: 350, description: 'Set so the heat the air gives up, less the wall loss, is the heat the drying takes at the outlet temperature: hotter and the exhaust would leave above outletC.' },
     { name: 'outletC', label: 'Outlet temperature', unit: '°C', value: 90, min: 40, max: 150 },
     { name: 'ambientC', label: 'Air before the heater', unit: '°C', value: 25, min: -20, max: 50 },
     { name: 'feedC', label: 'Feed temperature', unit: '°C', value: 25, min: 1, max: 95 },

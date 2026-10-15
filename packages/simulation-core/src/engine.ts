@@ -19,6 +19,7 @@ import {
 } from '@process-forge/protocol';
 import type { PortStreamReport } from './types.js';
 import { PriorityQueue } from './priority-queue.js';
+import { lineBalance } from './balance.js';
 import { M3_PER_GALLON, MaterialNetwork, gallonsOf, gasKgOf, liquidM3, type MaterialUnit, type Parcel } from './material.js';
 import { isCycleSource, isFluidEdge } from './roles.js';
 import { createRng, seedFromString, type SeededRng } from './rng.js';
@@ -988,7 +989,8 @@ export class SimulationEngine {
       totalFluidOffSpecKg: round1(offSpecKg),
       terminals,
       nodeReports,
-      telemetryLog: this.telemetry
+      telemetryLog: this.telemetry,
+      balance: lineBalance(this.graph, this.material)
     };
   }
 }

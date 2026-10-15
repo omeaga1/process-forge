@@ -244,6 +244,45 @@ with $c_p$ from the fluid's `specificHeatKjPerKgK`, else water's 4.186 kJ/kg·K.
 and tank outlets into containers per minute: their gallons per minute divided
 by the container volume of the pipe-fed filler.
 
+## Heat and mass balance
+
+Every run closes its own books (`packages/simulation-core/src/balance.ts`,
+`result.balance`). Mixing conserves mass and heat content
+($m\,c_p\,T$), so the aggregates each unit keeps are exact:
+
+$$\underbrace{\text{feeds} + \text{self-charged} + \text{held at start} + \text{made by reactions}}_{\text{in}} = \underbrace{\text{outlets} + \text{left the line} + \text{lost} + \text{into containers}}_{\text{out}} + \text{held at end}$$
+
+overall and per component (mass of no stated kind is `unspecified`). It must
+close to one part in $10^6$; in practice it closes to $10^{-13}$. A line
+that does not close is an engine fault, and the run says so
+(`MASS_BALANCE_OPEN`).
+
+For each continuous unit that changes temperature or phase (an outlet
+temperature, a declared phase change, or channels), the heat its streams say
+it took from outside is
+
+$$Q_{implied} = H_{out} + \Delta H_{held} + \sum_{changes} \lambda\, m_{changed} - H_{in}, \qquad H = m\,c_p\,T$$
+
+with $m_{changed}$ the kg of the component that left in the new phase less
+what arrived already in it, and $\lambda$ the contract's
+`latentHeatKjPerKg` (taken in for evaporation and melting, given out for
+condensation and freezing). It is judged by what kind of unit it is:
+
+- **heater** (a duty from outside): $|Q_{implied}|$ should equal the stated
+  duty integrated over the run;
+- **exchanger** (channels, or a `UTILITY` port): its streams trade heat, so
+  $Q_{implied}$ should be zero;
+- **machine** (a pump, fan, compressor): its duty is shaft work, of which
+  only part warms the fluid: $0 \le Q_{implied} \le W_{shaft}$.
+
+Within 10 % (or 1 kWh) is consistent. Ten, not less: each stream carries one
+specific heat (its mix's, by mass), and a contract may allow for a wall loss
+the engine does not model. A phase change with no latent heat stated is
+reported as not checked. The tools turn these into the run's `status` and
+`issues` (`packages/tools/src/audit.ts`), with the line's steadiness: a liquid
+line whose product rate over the last fifth of the run differs by more than
+2 % from the fifth before had not settled (`NOT_STEADY`).
+
 ## Components
 
 A liquid can carry components: mass fractions by name, such as

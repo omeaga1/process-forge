@@ -29,9 +29,12 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView }> = ({ gra
     .filter((x): x is { n: (typeof graph.nodes)[number]; role: 'product' | 'byproduct' | 'waste' } => x.role !== null && x.role !== 'feed');
   const roleColor = { product: palette.jade.glow, byproduct: palette.status.blocked, waste: palette.status.failed } as const;
   const progress = result.simulatedTimeSeconds > 0 ? Math.min(1, timeSeconds / result.simulatedTimeSeconds) : 0;
-  const checks = graph.nodes.flatMap((n) =>
-    (result.nodeReports[n.id]?.designedUnit?.brokenConstraints ?? []).map((c) => ({ unit: unitTag(n.name) ?? n.name, ...c }))
-  );
+  const checks: { unit: string; message: string; severity: 'ERROR' | 'WARNING'; seconds?: number }[] = [
+    ...graph.nodes.flatMap((n) => (result.nodeReports[n.id]?.designedUnit?.brokenConstraints ?? []).map((c) => ({ unit: unitTag(n.name) ?? n.name, ...c }))),
+    // A duty the unit's streams do not bear out: the engine's own heat balance, not a check the contract wrote.
+    ...(result.balance?.energy ?? []).filter((e) => e.verdict === 'mismatch').map((e) => ({ unit: unitTag(e.name) ?? e.name, message: e.note, severity: 'WARNING' as const }))
+  ];
+  const mass = result.balance?.mass;
 
   const label: React.CSSProperties = {
     fontSize: 10,
@@ -88,8 +91,18 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView }> = ({ gra
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={label}>Checks</span>
+        {mass && (mass.inKg > 0 || mass.outKg > 0) && (
+          <span
+            style={{ fontSize: 11, fontFamily: font.mono, fontVariantNumeric: 'tabular-nums', color: mass.closes ? palette.text.secondary : palette.status.failed }}
+            title="The whole run's mass balance: what came in = what went out + what units hold more than they started with."
+          >
+            Whole run: mass {mass.closes ? 'balances' : 'does not balance'}, {kg(mass.inKg)} kg in = {kg(mass.outKg)} out
+            {Math.abs(mass.accumulatedKg) >= 0.05 ? ` ${mass.accumulatedKg >= 0 ? '+' : '−'} ${kg(Math.abs(mass.accumulatedKg))} held` : ''}
+            {mass.closes ? '' : ` (${kg(mass.closureKg)} kg unaccounted)`}
+          </span>
+        )}
         {checks.length === 0 ? (
-          <span style={{ fontSize: 12, color: palette.jade.glow }}>Every unit kept to its contract.</span>
+          <span style={{ fontSize: 12, color: palette.jade.glow }}>Every unit kept to its contract, and every duty matches its streams.</span>
         ) : (
           checks.slice(0, 6).map((c, i) => {
             const color = c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked;
@@ -106,8 +119,8 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView }> = ({ gra
                   borderLeft: `2px solid ${color}`
                 }}
               >
-                <span style={{ fontFamily: font.mono, color, fontWeight: 700 }}>{c.unit}</span> {c.message}{' '}
-                <span style={{ color: palette.text.muted }}>({c.seconds} s)</span>
+                <span style={{ fontFamily: font.mono, color, fontWeight: 700 }}>{c.unit}</span> {c.message}
+                {c.seconds !== undefined && <span style={{ color: palette.text.muted }}> ({c.seconds} s)</span>}
               </div>
             );
           })
