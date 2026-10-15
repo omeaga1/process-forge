@@ -10,6 +10,7 @@ import {
   type ProcessGraph,
   type ProcessNode
 } from '@process-forge/protocol';
+import { auditHeadline, auditRun, type RunAudit, type RunIssue } from './audit.js';
 import { averageStreamStates, simulateProcess, type HeatReport, type MachineOeeReport, type StreamState, type TerminalReport } from '@process-forge/simulation-core';
 
 /**
@@ -43,6 +44,14 @@ export function bottleneckAdvice(node: ProcessNode | undefined, unitsPerMin: num
 
 export interface SimulationResultPayload {
   success: boolean;
+  /**
+   * The run's verdict on itself: failed (a unit broke an ERROR check, a
+   * contract failed to evaluate, or mass did not balance), warnings, or ok.
+   * Lead with it; never present a failed run's figures as a result.
+   */
+  status: RunAudit['status'];
+  /** What the status rests on, each with a code, worst first. */
+  issues: RunIssue[];
   facilityName: string;
   durationMinutes: number;
   simulatedSeconds: number;
@@ -79,6 +88,10 @@ export interface SimulationResultPayload {
   streams: TerminalReport[];
   /** Every pipe averaged over the run, as a stream report lists it: from and to, phase, kg/h, gal/min, items/min, and the °C and mass fractions of what flowed. */
   pipes: StreamState[];
+  /** The run's heat and mass balance: mass across the line, and each heating, cooling or phase-changing unit's duty against its streams. */
+  balance: RunAudit['balance'];
+  /** Liquid lines: whether the output rate had settled by the end of the run. */
+  steady?: RunAudit['steady'];
   engineeringDiagnosis: string;
 }
 
@@ -298,10 +311,13 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
   // A liquid-only line finishes no items: say what it did make.
   const items = result.totalUnitsPackaged > 0 || !liquid ? ` ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.` : '';
   const limitText = limit ? limit.summary : bottleneckAdvice(bottleneckNode, bottleneckRate, graph, observedLiquid ? 'gal/min' : 'units/min');
-  const diagnosis = `Simulated ${duration} minutes:${items}${liquid}${offSpec}${fed}${side}${notes.length ? ` ${notes.join(' ')}` : ''} ${limitText}`;
+  const audit = auditRun(graph, result);
+  const diagnosis = `${auditHeadline(audit)} Simulated ${duration} minutes:${items}${liquid}${offSpec}${fed}${side}${notes.length ? ` ${notes.join(' ')}` : ''} ${limitText}`;
 
   return {
     success: true,
+    status: audit.status,
+    issues: audit.issues,
     facilityName: name || (graph.metadata?.facility as string) || graph.name,
     durationMinutes: duration,
     simulatedSeconds: result.simulatedTimeSeconds,
@@ -318,6 +334,8 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
     machineMetrics,
     streams: result.terminals,
     pipes: averageStreamStates(graph, result.telemetryLog),
+    balance: audit.balance,
+    ...(audit.steady ? { steady: audit.steady } : {}),
     engineeringDiagnosis: diagnosis
   };
 }
@@ -433,6 +451,7 @@ function measure(graph: ProcessGraph, minutes: number, seed?: number) {
     staticCapacityPerMinute: round(stat.maximumSystemThroughputUnitsPerMin, 2),
     bottleneck: bottleneck ? { id: bottleneck.id, name: bottleneck.name } : null,
     limit: bottleneck ? undefined : liquidLimit(graph, run, minutes),
+    audit: auditRun(graph, run),
     run
   };
 }
@@ -515,12 +534,17 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
       bottleneckMoved: m.bottleneck?.id !== base.bottleneck?.id,
       /** Checks failing anywhere on the line in this run (designed units' constraints). */
       checksFailing: Object.values(m.run.nodeReports).reduce((n, r) => n + (r?.designedUnit?.brokenConstraints.length ?? 0), 0),
-      changedUnits: touched
+      changedUnits: touched,
+      /** This run's verdict on itself (see simulate_process_line): a failed scenario is not a candidate, however much it makes. */
+      status: m.audit.status,
+      ...(m.audit.issues.some((x) => x.severity !== 'info') ? { issues: m.audit.issues.filter((x) => x.severity !== 'info').map((x) => ({ code: x.code, ...(x.unit ? { unit: x.unit } : {}), message: x.message })) } : {})
     };
   });
 
   // The most output; on a tie, the one that leaves fewest checks failing.
-  const best = [...scenarios].sort((a, b) => b.unitsPerMinute - a.unitsPerMinute || b.liquidOutKg - a.liquidOutKg || a.checksFailing - b.checksFailing)[0]!;
+  // A failed run is never the best, however much it makes; then the most output, then the fewest checks failing.
+  const failed = (s: { status: string }) => (s.status === 'failed' ? 1 : 0);
+  const best = [...scenarios].sort((a, b) => failed(a) - failed(b) || b.unitsPerMinute - a.unitsPerMinute || b.liquidOutKg - a.liquidOutKg || a.checksFailing - b.checksFailing)[0]!;
   // A line that finishes no items is judged by what it sends out, by mass.
   const byMass = base.unitsPerMinute === 0 && scenarios.every((s) => s.unitsPerMinute === 0) && (base.liquidOutKg > 0 || scenarios.some((s) => s.liquidOutKg > 0));
   const headline = (units: number, kg: number) => (byMass ? `${Math.round((kg / minutes) * 60 * 10) / 10} kg/h out` : `${units}/min`);
@@ -530,14 +554,15 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
     const cleared = s.changedUnits.flatMap((u) => ('checksCleared' in u && u.checksCleared?.length ? [`${u.unit} clears ${u.checksCleared.join(', ')}`] : []));
     const broke = s.changedUnits.flatMap((u) => ('checksNowFailing' in u && u.checksNowFailing?.length ? [`${u.unit} now fails ${u.checksNowFailing.map((c) => c.id).join(', ')}`] : []));
     const checks = [...cleared, ...broke].length ? `; ${[...cleared, ...broke].join('; ')}` : '';
-    return `${s.name}: ${headline(s.unitsPerMinute, s.liquidOutKg)} (${s.noEffect ? 'no effect' : d === null ? 'new output' : `${d >= 0 ? '+' : ''}${d}%`})${moved}${checks}.`;
+    return `${s.name}: ${headline(s.unitsPerMinute, s.liquidOutKg)} (${s.noEffect ? 'no effect' : d === null ? 'new output' : `${d >= 0 ? '+' : ''}${d}%`})${moved}${checks}${s.status === 'failed' ? `; the run FAILED (${(s.issues ?? []).map((x) => x.code).join(', ')})` : ''}.`;
   });
   // A scenario that changes nothing for the better is not "best", even if it is the only one.
   const baseChecks = Object.values(base.run.nodeReports).reduce((n, r) => n + (r?.designedUnit?.brokenConstraints.length ?? 0), 0);
   const beatsBaseline =
-    best.unitsPerMinute > base.unitsPerMinute ||
-    best.liquidOutKg > base.liquidOutKg ||
-    (best.unitsPerMinute === base.unitsPerMinute && best.liquidOutKg === base.liquidOutKg && best.checksFailing < baseChecks);
+    best.status !== 'failed' &&
+    (best.unitsPerMinute > base.unitsPerMinute ||
+      best.liquidOutKg > base.liquidOutKg ||
+      (best.unitsPerMinute === base.unitsPerMinute && best.liquidOutKg === base.liquidOutKg && best.checksFailing < baseChecks));
   return {
     success: true,
     durationMinutes: minutes,
@@ -550,7 +575,8 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
       liquidOutKg: base.liquidOutKg,
       staticCapacityPerMinute: base.staticCapacityPerMinute,
       bottleneck: base.bottleneck,
-      checksFailing: Object.values(base.run.nodeReports).reduce((n, r) => n + (r?.designedUnit?.brokenConstraints.length ?? 0), 0)
+      checksFailing: Object.values(base.run.nodeReports).reduce((n, r) => n + (r?.designedUnit?.brokenConstraints.length ?? 0), 0),
+      status: base.audit.status
     },
     scenarios,
     summary: `Baseline: ${headline(base.unitsPerMinute, base.liquidOutKg)}, limited by ${base.bottleneck?.name ?? (base.limit?.by === 'feed' ? `the supply of ${base.limit.name}` : base.limit?.by === 'unit' ? base.limit.name : 'nothing in the static analysis')}. ${lines.join(' ')} ${beatsBaseline ? `Best: ${best.name}.` : "None beats the baseline."} Each run used seed ${seed} over ${minutes} min; nothing on the flowsheet was changed.`

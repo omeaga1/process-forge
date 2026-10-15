@@ -11,6 +11,7 @@ import {
   terminalRole,
   terminalSupplyRate,
   componentPhaseAt,
+  isEndothermic,
   idealGasDensity,
   mixtureMolarMass,
   feedGasDensityGPerCm3,
@@ -205,6 +206,7 @@ export interface LiveContract {
   dutyKw?: number;
   outlets: UnitOpEvaluation['outlets'];
   reactions?: EvaluatedReaction[];
+  phaseChanges?: UnitOpEvaluation['phaseChanges'];
 }
 
 export interface ContractRunTally {
@@ -288,6 +290,24 @@ export interface MaterialUnit {
   live?: LiveContract;
   /** A pass-through: the last inlet it was evaluated at, per tick, whole and by port. */
   lastInlet?: { inbox: Parcel; byPort: Record<string, Parcel> };
+  /**
+   * The balance's books, over the run. Mass and heat content (kg·cp·T) are
+   * conserved by mixing, so these aggregates are exact:
+   *  - startHold: what it held when the run began (a tank's initial level);
+   *  - outflow: everything that left it, to a unit, out of the line, or lost;
+   *  - selfCharged: what a batch with no feed pipe charged from outside the line;
+   *  - packed: liquid a cycle drew into containers (a filler's bowl);
+   *  - generatedKg: kg of each component its reactions made (negative: consumed);
+   *  - latentKj: heat its declared phase changes took in (negative: gave out);
+   *  - latentMissing: phase changes that happened with no latent heat stated.
+   */
+  startHold: Parcel;
+  outflow: Parcel;
+  selfCharged: Parcel;
+  packed: Parcel;
+  generatedKg: Composition;
+  latentKj: number;
+  latentMissing: Set<string>;
   run?: ContractRunTally;
   batchRun?: BatchRun;
   /** A STORAGE unit's outflow limit, m³/s. */
@@ -426,7 +446,14 @@ export class MaterialNetwork {
         heat: { energyKwh: 0, activeSeconds: 0, heatingSeconds: 0, sent: emptyParcel() },
         accept: 0,
         inbox: emptyParcel(),
-        down: false
+        down: false,
+        startHold: emptyParcel(),
+        outflow: emptyParcel(),
+        selfCharged: emptyParcel(),
+        packed: emptyParcel(),
+        generatedKg: {},
+        latentKj: 0,
+        latentMissing: new Set()
       };
       // What it starts holding at, so a unit's temperature reads sensibly before liquid arrives.
       u.hold.tempC = fromPipesIn.tempC ?? designStock.tempC ?? AMBIENT_C;
@@ -470,6 +497,7 @@ export class MaterialNetwork {
       this.units.set(node.id, u);
     }
     this.order = this.topologicalOrder();
+    for (const u of this.units.values()) u.startHold = { ...u.hold, comp: { ...u.hold.comp } };
     for (const u of this.units.values()) if (u.role === 'batch') this.startPhase(u, 0, 0);
   }
 
@@ -492,7 +520,7 @@ export class MaterialNetwork {
   /** Takes one cycle's liquid out of a drawer's bowl. */
   drawCycle(nodeId: string): void {
     const u = this.units.get(nodeId);
-    if (u?.role === 'drawer') takeFrom(u.hold, u.perCycle ?? 0);
+    if (u?.role === 'drawer') mixInto(u.packed, takeFrom(u.hold, u.perCycle ?? 0));
   }
 
   /** A breakdown: the unit passes nothing until it is repaired, and a batch's clock stops. */
@@ -618,9 +646,7 @@ export class MaterialNetwork {
       u.hold.tempC = ph.temperatureC;
     }
     if (run.reactions?.length) {
-      const r = react(u.hold.comp, run.reactions);
-      u.hold.comp = r.composition;
-      for (const id of r.short) u.run!.shortReactions[id] = (u.run!.shortReactions[id] ?? 0) + 1;
+      for (const id of this.reactHold(u, run.reactions)) u.run!.shortReactions[id] = (u.run!.shortReactions[id] ?? 0) + 1;
     }
     this.nextPhase(u, now);
   }
@@ -667,6 +693,7 @@ export class MaterialNetwork {
       });
       mixInto(u.hold, parcel);
       mixInto(u.received, parcel);
+      mixInto(u.selfCharged, parcel);
       u.inRate = add / dt;
       u.inLiquidRate = add / dt;
       run.moved += add;
@@ -696,9 +723,7 @@ export class MaterialNetwork {
     mixInto(u.hold, u.inbox);
     const reactions = u.live?.reactions;
     if (reactions?.length) {
-      const r = react(u.hold.comp, reactions);
-      u.hold.comp = r.composition;
-      for (const id of r.short) u.run!.shortReactions[id] = (u.run!.shortReactions[id] ?? 0) + dt;
+      for (const id of this.reactHold(u, reactions)) u.run!.shortReactions[id] = (u.run!.shortReactions[id] ?? 0) + dt;
     }
   }
 
@@ -765,6 +790,45 @@ export class MaterialNetwork {
       else top = mid;
     }
     return lo;
+  }
+
+  /**
+   * The heat a pass-through's declared phase changes took this tick: for
+   * each, the kg of its component that left in the new phase less the kg that
+   * arrived already in it, times its latent heat (taken in for an evaporation
+   * or a melting, given out for a condensation or a freezing, whatever sign
+   * the contract wrote). Read before the tick's port tallies become rates.
+   */
+  private tallyLatent(u: MaterialUnit): void {
+    const changes = u.live?.phaseChanges;
+    if (!changes?.length || !u.contract) return;
+    for (const pc of changes) {
+      let made = 0;
+      for (const port of u.contract.ports) {
+        if (port.flowDimension !== 'CONTINUOUS_FLUID' || componentPhaseAt(port, pc.component) !== pc.to) continue;
+        const q = port.direction === 'OUTLET' ? u.tickPort[port.id] : u.inboxByPort[port.id];
+        const kg = (q?.comp[pc.component] ?? 0) * (q?.kg ?? 0);
+        made += port.direction === 'OUTLET' ? kg : -kg;
+      }
+      if (Math.abs(made) <= 1e-12) continue;
+      if (pc.latentHeatKjPerKg === undefined) {
+        u.latentMissing.add(`${pc.component} ${pc.from.toLowerCase()} to ${pc.to.toLowerCase()}`);
+        continue;
+      }
+      u.latentKj += Math.abs(pc.latentHeatKjPerKg) * made * (isEndothermic(pc.from, pc.to) ? 1 : -1);
+    }
+  }
+
+  /** Runs reactions on what a unit holds, and books the kg of each component they made or used. Returns the reactions that ran short. */
+  private reactHold(u: MaterialUnit, reactions: EvaluatedReaction[]): string[] {
+    const before = u.hold.comp;
+    const r = react(before, reactions);
+    for (const c of new Set([...Object.keys(before), ...Object.keys(r.composition)])) {
+      const d = ((r.composition[c] ?? 0) - (before[c] ?? 0)) * u.hold.kg;
+      if (d !== 0) u.generatedKg[c] = (u.generatedKg[c] ?? 0) + d;
+    }
+    u.hold.comp = r.composition;
+    return r.short;
   }
 
   private evaluateLive(u: MaterialUnit, dt: number): void {
@@ -960,12 +1024,17 @@ export class MaterialNetwork {
       if (total <= EPS_M3) continue;
       const p = takeFrom(held, total);
       if (temp !== undefined) p.tempC = temp;
-      if (!edges.length) mixInto(u.leftLine, this.inPhase(u, ch.outlet, p));
+      if (!edges.length) {
+        const gone = this.inPhase(u, ch.outlet, p);
+        mixInto(u.leftLine, gone);
+        mixInto(u.outflow, gone);
+      }
       for (const e of edges) {
         const f = 1 / edges.length;
         const piece = this.inPhase(u, ch.outlet, scaled(p, f));
         remaining.set(e.targetNodeId, remaining.get(e.targetNodeId)! - p.m3 * f);
         this.receive(this.units.get(e.targetNodeId)!, piece, dt, e.targetPortId);
+        mixInto(u.outflow, piece);
       }
       const out = this.inPhase(u, ch.outlet, p);
       mixInto(u.heat.sent, out);
@@ -1114,7 +1183,8 @@ export class MaterialNetwork {
         const { m3, kg } = this.sendChannels(u, dt, remaining);
         u.outRate = m3 / dt;
         u.outKgRate = kg / dt;
-        if (dt > 0) for (const t of Object.values(u.tickPort)) ((t.kg /= dt), (t.m3 /= dt));
+        if (u.role === 'pass') this.tallyLatent(u);
+      if (dt > 0) for (const t of Object.values(u.tickPort)) ((t.kg /= dt), (t.m3 /= dt));
         continue;
       } else if (u.role === 'pass') {
         this.condition(u, dt);
@@ -1142,11 +1212,15 @@ export class MaterialNetwork {
           mixInto(u.delivered, parcel);
           // Out of the line by its declared ports, in their proportions, each in its own phase.
           const declared = plan.unpiped.reduce((a, x) => a + x.share, 0);
-          if (declared <= 0) mixInto(u.leftLine, parcel);
+          if (declared <= 0) {
+            mixInto(u.leftLine, parcel);
+            mixInto(u.outflow, parcel);
+          }
           for (const x of plan.unpiped) {
             const f = declared > 0 ? x.share / declared : 0;
             const out = this.inPhase(u, x.port, { ...scaled(parcel, f), ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) });
             mixInto(u.leftLine, out);
+            mixInto(u.outflow, out);
             tallyPort(u, x.port, out);
           }
           u.outLiquidRate += liquidM3(parcel) / dt;
@@ -1185,6 +1259,7 @@ export class MaterialNetwork {
           else if (parcel.gasM3 && total > 0) piece = { ...piece, gasM3: parcel.gasM3 * (v / total), gasKg: (parcel.gasKg ?? 0) * (v / total) };
           u.outLiquidRate += liquidM3(piece) / dt;
           this.receive(o.target, piece, dt, o.targetPort);
+          mixInto(u.outflow, piece);
           mixInto(u.heat.sent, piece);
           tallyPort(u, o.port, piece);
         }
@@ -1193,15 +1268,21 @@ export class MaterialNetwork {
           for (const x of plan.unpiped) {
             const out = this.inPhase(u, x.port, { ...scaled(parcel, x.share), ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) });
             mixInto(u.leftLine, out);
+            mixInto(u.outflow, out);
             tallyPort(u, x.port, out);
           }
-          if (plan.lossShare > 0) mixInto(u.lost, scaled(parcel, plan.lossShare));
+          if (plan.lossShare > 0) {
+            const lost = scaled(parcel, plan.lossShare);
+            mixInto(u.lost, lost);
+            mixInto(u.outflow, lost);
+          }
         }
         mixInto(u.delivered, parcel);
         sent = total;
       }
       u.outRate = sent / dt;
       u.outKgRate = sentKg / dt;
+      if (u.role === 'pass') this.tallyLatent(u);
       if (dt > 0) for (const t of Object.values(u.tickPort)) ((t.kg /= dt), (t.m3 /= dt));
       if (u.role === 'batch') u.batchRun!.moved += sent;
     }
@@ -1259,7 +1340,13 @@ export class MaterialNetwork {
 /** What a continuous contract evaluates to, in the terms the liquid step uses. */
 function liveOf(ev: UnitOpEvaluation): LiveContract {
   const b = ev.behavior;
-  const live: LiveContract = { capacity: Infinity, capacityKgPerS: Infinity, outlets: ev.outlets ?? {}, ...(ev.reactions?.length ? { reactions: ev.reactions } : {}) };
+  const live: LiveContract = {
+    capacity: Infinity,
+    capacityKgPerS: Infinity,
+    outlets: ev.outlets ?? {},
+    ...(ev.reactions?.length ? { reactions: ev.reactions } : {}),
+    ...(ev.phaseChanges?.length ? { phaseChanges: ev.phaseChanges } : {})
+  };
   if (b.mode === 'CONTINUOUS_RATE') {
     if (b.capacityGpm !== undefined) live.capacity = (Math.max(0, b.capacityGpm) * M3_PER_GALLON) / 60;
     if (b.capacityKgPerHour !== undefined) live.capacityKgPerS = Math.max(0, b.capacityKgPerHour) / 3600;

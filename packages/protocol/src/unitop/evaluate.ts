@@ -130,6 +130,8 @@ export interface UnitOpEvaluation {
   outlets: Record<string, { share?: number; temperatureC?: number; recovery?: Record<string, number> }>;
   /** The contract's reactions, with conversions evaluated. */
   reactions: EvaluatedReaction[];
+  /** The contract's phase changes, with their latent heats evaluated (kJ/kg of the component changed) where they could be. */
+  phaseChanges?: { component: string; from: 'LIQUID' | 'GAS' | 'SOLID' | 'ITEMS'; to: 'LIQUID' | 'GAS' | 'SOLID' | 'ITEMS'; latentHeatKjPerKg?: number }[];
   /** Populated when an expression failed to evaluate; evaluation stops there. */
   error?: { path: string; message: string };
 }
@@ -477,6 +479,22 @@ export function evaluateUnitOp(
     }
   }
 
+  // Latent heats, for the engine's energy balance. A phase change whose heat
+  // does not evaluate is left without one (the balance then says it could
+  // not be checked) rather than failing the unit.
+  const phaseChanges: NonNullable<UnitOpEvaluation['phaseChanges']> = [];
+  for (const pc of contract.phaseChanges ?? []) {
+    let latent: number | undefined;
+    if (pc.latentHeatKjPerKg) {
+      try {
+        latent = evaluateNumber(pc.latentHeatKjPerKg, scope);
+      } catch {
+        latent = undefined;
+      }
+    }
+    phaseChanges.push({ component: pc.component, from: pc.from, to: pc.to, ...(latent !== undefined && Number.isFinite(latent) ? { latentHeatKjPerKg: latent } : {}) });
+  }
+
   let reliability: UnitOpEvaluation['reliability'];
   if (contract.reliability) {
     try {
@@ -509,7 +527,8 @@ export function evaluateUnitOp(
     physicallyValid: constraints.every((c) => c.satisfied || c.severity === 'WARNING'),
     behavior,
     outlets,
-    reactions
+    reactions,
+    ...(phaseChanges.length ? { phaseChanges } : {})
   };
 }
 

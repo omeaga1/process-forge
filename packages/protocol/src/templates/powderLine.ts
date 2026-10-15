@@ -75,6 +75,7 @@ function buildPowderLine(): ProcessGraph {
     phase: 'GAS',
     supplyKgPerHour: 1633,
     temperatureC: 25,
+    specificHeatKjPerKgK: 1.02,
     composition: { air: 0.99206, water: 0.00794 },
     position: { x: 40, y: 300 }
   });

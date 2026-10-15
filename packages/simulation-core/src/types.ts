@@ -1,3 +1,5 @@
+import type { LineBalance } from './balance.js';
+
 export type MachineOperationalState = 'IDLE' | 'BUSY' | 'BLOCKED' | 'STARVED' | 'FAILED';
 
 export interface SimEvent {
@@ -179,6 +181,12 @@ export interface TerminalReport {
 }
 
 export interface SimulationResult {
+  /**
+   * The run's heat and mass balance: mass across the line (it must close; when
+   * it does not, the engine lost or made material), and each heating, cooling
+   * or phase-changing unit's stated duty against what its streams carried.
+   */
+  balance: LineBalance;
   /**
    * The seed this run used. Pass it back to simulateProcess to replay the run
    * exactly. Present so that a reported result is reproducible by whoever

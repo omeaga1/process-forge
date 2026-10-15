@@ -6,3 +6,4 @@ export * from './material.js';
 export * from './roles.js';
 export * from './describe.js';
 export * from './streams.js';
+export * from './balance.js';
