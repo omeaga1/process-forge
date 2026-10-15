@@ -15,6 +15,10 @@
 - [Layout and routing](architecture/07-layout-and-routing.md): sizing, turning
   and mirroring units, and how pipes route around the equipment or through
   the bends an engineer draws.
+- [Components and physical properties](architecture/08-components-and-properties.md):
+  the component database contracts call by name (psat('ethanol', T) and the
+  rest), its sources and correlations, and how feeds take their properties
+  from their composition.
 - [Osaka Jade design](architecture/05-osaka-jade-design.md): the colour tokens
   for dark and light themes and what the status colours mean.
 
@@ -45,8 +49,18 @@ each says so at the top.
 - [ADR-0012](adr/0012-physics-alignment-and-engine-solved-parameters.md):
   contracts are held to the physics of the equipment they describe, and the
   parameter panel shows and solves what the engine accepts.
+- [ADR-0013](adr/0013-runs-audit-themselves-and-plans-before-acts.md): every
+  run closes its own heat and mass balance and leads with its status; writes
+  refuse what they cannot do; multi-step changes are planned, then applied.
 
 ADR-0004 was removed along with the tooling it described.
+
+## Research
+
+- [AI and process simulation, October 2026](research/2026-10-ai-process-simulation-landscape.md):
+  who is putting AI on a process simulator (Reflux, DWSIM, AVEVA, Sketch2Simulation,
+  CRAFTS), how Aspen, DWSIM, IDAES and the rest work underneath, what to
+  borrow and skip, where ProcessForge wins, and what comes next.
 
 ## Plans
 

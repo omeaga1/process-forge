@@ -26,9 +26,11 @@
 })();
 
 // Cloudflare Web Analytics (cookieless visit counts), on the website only. The
-// desktop app is not a website and its CSP does not allow the beacon.
+// desktop app is not a website and its CSP does not allow the beacon; a local
+// dev server or smoke test is not a visit (and the beacon's CORS fails there).
 (function () {
   if (window.__TAURI_INTERNALS__) return;
+  if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return;
   var s = document.createElement('script');
   s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
   s.defer = true;

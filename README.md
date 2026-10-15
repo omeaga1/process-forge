@@ -24,9 +24,24 @@ Licence: [Apache-2.0](LICENSE)
   gives every port a nozzle.
 - **AI writes contracts, the engine judges them.** Use your own model inside
   the app, or drive ProcessForge from an MCP client (see below).
-- **Simulation.** A TypeScript discrete-event engine reports throughput,
-  busy/blocked/starved time per unit, the bottleneck and OEE. Continuous units
-  are evaluated at steady state. Runs are seeded and reproducible.
+- **Simulation.** A TypeScript discrete-event engine runs items and liquid
+  (mass basis: liquids, gases and solids, with temperatures, compositions and
+  reactions) in one event loop, and reports throughput, busy/blocked/starved
+  time per unit, the bottleneck and OEE. Runs are seeded and reproducible.
+- **Every run audits itself.** It closes its own heat and mass balance (mass
+  to about one part in 10¹³; each heater, exchanger and machine's stated duty
+  against what its streams carried) and leads with a status: ok, warnings or
+  failed, with the issue behind each.
+- **Physical properties.** A component database (35 chemicals from the Poling,
+  PSRK and CRC tables, plus air, sugars and salt) that contracts call by name,
+  e.g. psat('ethanol', T), so a model looks properties up instead of
+  recalling them.
+- **Studies and design specs.** Sweep a setting across the line, or solve for
+  the value that brings a result to a target ("what steam duty gives 50 °Brix?"),
+  run by the engine over full simulations.
+- **Plan, then act.** A multi-step change is applied to a copy first and shown
+  as a diff with a run before and after; applied for real in one step, only if
+  the flowsheet has not changed since, and read back.
 - **Projects.** Save to a local `.pfg.json` file without an account. With
   optional Google sign-in, save projects to the cloud and publish unit ops to
   the ProcessForge Library.
