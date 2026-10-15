@@ -25,6 +25,7 @@ import { useTheme } from '../../hooks/useTheme.js';
 import { Button, Chip, Switch } from '../../ui/index.js';
 import { controlFor, displayUnitsFor, feasibleBand, formatQuantity, statusAt, stepFor, type ParameterGroup } from '../../model/parameterUi.js';
 import { QuantityText } from './ParameterControl.js';
+import { distinctResults } from '../../model/specLayout.js';
 
 /** A design spec: keep a result at its target by varying one setting (protocol's DesignSpec). */
 export type HeldSpec = DesignSpec;
@@ -54,7 +55,7 @@ export interface SpecSheetProps {
   onHold: (h: HeldSpec) => void;
   onRelease: (vary: string) => void;
   /** What arrives at the design point (a designed unit's feed), edited on the same sheet. */
-  feed?: { params: UnitOpParameter[]; baseline: Record<string, number>; onChange: (name: string, value: number) => void };
+  feed?: { params: UnitOpParameter[]; baseline: Record<string, number>; onChange: (name: string, value: number) => void; fromLine?: boolean };
 }
 
 /**
@@ -140,7 +141,16 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
       return k !== 'fixed' && k !== 'toggle' && k !== 'select' && movedBy(props, p.name).includes(result);
     });
   const { defs, values } = useMemo(() => allResults(contract, evaluation, props.engineMovers), [contract, evaluation, props.engineMovers]);
-  const derivedRows = defs.filter((d) => values[d.name] !== undefined);
+  // Each result once: one that is a setting, the feed or a result above it again in other units is left out.
+  const derivedRows = useMemo(
+    () =>
+      distinctResults(
+        defs.filter((d) => values[d.name] !== undefined).map((d) => ({ ...d, value: values[d.name]! })),
+        [...contract.parameters, ...(props.feed?.params ?? [])]
+      ),
+    [defs, values, contract.parameters, props.feed?.params]
+  );
+  const [toolsOpen, setToolsOpen] = useState(false);
   // Settings worth stepping: continuous ones that move at least one result.
   const studyable = contract.parameters.filter((p) => {
     const k = controlFor(p);
@@ -234,10 +244,23 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
             <tbody>
               <tr>
                 <th scope="colgroup" colSpan={5} style={groupHead}>
-                  Feed at the design point
+                  {props.feed.fromLine ? (
+                    <button
+                      type="button"
+                      className="pf-focus"
+                      aria-expanded={Boolean(open.__feed)}
+                      onClick={() => setOpen((o) => ({ ...o, __feed: !o.__feed }))}
+                      style={{ all: 'inherit', padding: 0, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      title="The pipe in brings the real feed. These figures are only used to check the design before the line runs."
+                    >
+                      {open.__feed ? '▾' : '▸'} Design feed · the line supplies it
+                    </button>
+                  ) : (
+                    'Feed at the design point'
+                  )}
                 </th>
               </tr>
-              {props.feed.params.map((p) => (
+              {(!props.feed.fromLine || open.__feed) && props.feed.params.map((p) => (
                 <SpecRow key={p.name} p={p} {...props} sweeps={{}} baselineParams={props.feed!.baseline} setParam={props.feed!.onChange} />
               ))}
             </tbody>
@@ -300,6 +323,7 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
                         variant="ghost"
                         icon={<Crosshair size={13} />}
                         onClick={() => {
+                          setToolsOpen(true);
                           setSolveFor(d.name);
                           requestAnimationFrame(() => solverRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
                         }}
@@ -313,13 +337,30 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
         </table>
       )}
 
-      {specifiable.length > 0 && (
-        <div ref={solverRef}>
-          <TargetSolver {...props} results={specifiable} moversOf={moversOf} picked={solveFor} onPick={setSolveFor} radius={r.md} />
+      {/* The solver and the study are tools for a question, not part of the sheet: folded until asked for. */}
+      {(specifiable.length > 0 || (studyable.length > 0 && derivedRows.length > 0)) && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            className="pf-focus"
+            aria-expanded={toolsOpen || props.holds.length > 0}
+            onClick={() => setToolsOpen((o) => !o)}
+            style={{ ...th, border: 'none', background: 'transparent', padding: '6px 0', cursor: 'pointer', color: palette.text.secondary }}
+          >
+            {toolsOpen || props.holds.length > 0 ? '▾' : '▸'} Solve for a result · sensitivity study
+          </button>
+          {(toolsOpen || props.holds.length > 0) && (
+            <>
+              {specifiable.length > 0 && (
+                <div ref={solverRef}>
+                  <TargetSolver {...props} results={specifiable} moversOf={moversOf} picked={solveFor} onPick={setSolveFor} radius={r.md} />
+                </div>
+              )}
+              {studyable.length > 0 && derivedRows.length > 0 && <CaseStudy {...props} settings={studyable} radius={r.md} />}
+            </>
+          )}
         </div>
       )}
-
-      {studyable.length > 0 && derivedRows.length > 0 && <CaseStudy {...props} settings={studyable} radius={r.md} />}
     </div>
   );
 };
@@ -484,7 +525,15 @@ const UnitCell: React.FC<{ label: string; unit: string; shown: string; choices: 
   const { palette } = useTheme();
   if (choices.length > 1)
     return (
-      <select className="pf-select" aria-label={`${label} unit`} value={shown} onChange={(e) => onPick(e.target.value)} style={{ height: 28, width: 'auto', minWidth: 76, fontSize: 12 }}>
+      // Reads as the unit, not a control: click it for the others (the US/SI switch above sets them all).
+      <select
+        className="pf-focus"
+        aria-label={`${label} unit`}
+        title="Show in another unit"
+        value={shown}
+        onChange={(e) => onPick(e.target.value)}
+        style={{ appearance: 'none', WebkitAppearance: 'none', border: 'none', background: 'transparent', color: palette.text.muted, fontSize: 12, padding: '2px 0', cursor: 'pointer', fontFamily: 'inherit' }}
+      >
         {choices.map((u) => (
           <option key={u} value={u}>
             {u}

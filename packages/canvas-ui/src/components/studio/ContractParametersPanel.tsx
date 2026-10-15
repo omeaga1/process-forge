@@ -21,9 +21,11 @@ import {
 import { AlertTriangle, CheckCircle2, ChevronRight, RotateCcw, XCircle } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
-import { controlFor, displayUnitsFor, formatQuantity, groupParameters, isConstantParameter, unitPreferenceKey } from '../../model/parameterUi.js';
+import { controlFor, displayUnitsFor, formatQuantity, isConstantParameter, unitPreferenceKey } from '../../model/parameterUi.js';
 import { FEASIBLE_RANGE_CSS, ParameterControl } from './ParameterControl.js';
 import { SpecSheet } from './SpecSheet.js';
+import { layoutGroups } from '../../model/specLayout.js';
+import { UNIT_SYSTEMS, unitSystemPrefs, type UnitSystem } from '../../model/unitSystems.js';
 import { UnitGlance } from './UnitGlance.js';
 import { engineLabel, engineValue, ExpressionView, PhysicsSection, Section, SectionNav, SpecHeader, StreamsSection, type Lookup, type SectionId } from './UnitSpecSections.js';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
@@ -36,6 +38,8 @@ interface ContractParametersPanelProps {
   onUpdateConfig: (nodeId: string, newConfig: Record<string, unknown>) => void;
   /** The unit's state at the simulation's playhead, when there is a run: its streams show what is moving. */
   live?: NodeTelemetrySnapshot | undefined;
+  /** Ports with a pipe on them. */
+  connectedPortIds?: ReadonlySet<string>;
 }
 
 const PREF_KEY = 'pf.displayUnits';
@@ -95,8 +99,24 @@ function useDisplayUnits() {
       return next;
     });
   }, []);
-  return { unitFor, setUnit };
+  // One switch for every quantity at once: the units the contract was written in, US or SI.
+  const system: UnitSystem = (['us', 'si'] as const).find((s) => sameEntries(prefs, unitSystemPrefs(s))) ?? (Object.keys(prefs).length ? 'mixed' : 'design');
+  const setSystem = useCallback((s: Exclude<UnitSystem, 'mixed'>) => {
+    const next = unitSystemPrefs(s);
+    setPrefs(next);
+    try {
+      window.localStorage.setItem(PREF_KEY, JSON.stringify(next));
+    } catch {
+      // Storage off: the choice holds for this session.
+    }
+  }, []);
+  return { unitFor, setUnit, system, setSystem };
 }
+
+const sameEntries = (a: Record<string, string>, b: Record<string, string>) => {
+  const ka = Object.keys(a);
+  return ka.length === Object.keys(b).length && ka.every((k) => a[k] === b[k]);
+};
 
 /**
  * A contract's parameters as an engineer edits them: each knob the right
@@ -107,10 +127,10 @@ function useDisplayUnits() {
  * Every number on it is computed by evaluating the contract, the same way
  * the simulation does.
  */
-export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = ({ node, contract, own, onUpdateConfig, live }) => {
+export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = ({ node, contract, own, onUpdateConfig, live, connectedPortIds }) => {
   const { palette, font, radius: r } = useTheme();
   const config = node.config as Record<string, unknown>;
-  const { unitFor, setUnit } = useDisplayUnits();
+  const { unitFor, setUnit, system, setSystem } = useDisplayUnits();
   const [view, setView] = useSettingsView();
 
   // What it was when the panel opened, to show what has moved and to put it back.
@@ -151,12 +171,16 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
     sectionRefs.current[id] = el;
   };
   const [active, setActive] = useState<SectionId>('settings');
+  // The reference sections start folded; jumping to one opens it.
+  const [unfolded, setUnfolded] = useState<Partial<Record<SectionId, boolean>>>({});
+  const fold = (id: SectionId) => ({ open: Boolean(unfolded[id]), onToggle: () => setUnfolded((u) => ({ ...u, [id]: !u[id] })) });
   // While a jump scrolls, the bar keeps the section asked for rather than each one passed.
   const jumping = useRef(0);
   const go = useCallback((id: SectionId) => {
     setActive(id);
+    setUnfolded((u) => ({ ...u, [id]: true }));
     jumping.current = Date.now();
-    sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    requestAnimationFrame(() => sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }, []);
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return;
@@ -257,7 +281,9 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
   };
 
   const kpis = behaviorKpis(evaluation);
-  const groups = groupParameters(contract.parameters);
+  const groups = layoutGroups(contract, influence, engineMovers);
+  // A pipe brings the feed in: the design-point feed only matters until the line runs.
+  const fedByLine = contract.ports.some((p) => p.direction === 'INLET' && p.role !== 'ENERGY' && connectedPortIds?.has(p.id));
   const inert = own
     ? []
     : (Object.entries(config).filter(([k, v]) => typeof v === 'number' && !contract.parameters.some((p) => p.name === k)) as [string, number][]);
@@ -424,6 +450,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
         title="Settings"
         hint={view === 'sheet' ? 'Type a value in any unit of its kind; Enter moves to the next.' : 'Each knob shows where along its range the design passes.'}
       >
+        <div style={{ display: 'flex', flexWrap: 'wrap' }}>
         {contract.parameters.length > 0 && (
           <div role="group" aria-label="Show settings as" style={{ display: 'inline-flex', alignSelf: 'flex-start', gap: 2, padding: 2, margin: '2px 0 6px', borderRadius: r.md, border: `1px solid ${palette.border.default}` }}>
             {(['sheet', 'sliders'] as const).map((v) => (
@@ -449,6 +476,33 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
             ))}
           </div>
         )}
+        {contract.parameters.length > 0 && (
+          <div role="group" aria-label="Units" style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 2, padding: 2, margin: '2px 0 6px 8px', borderRadius: r.md, border: `1px solid ${palette.border.default}` }}>
+            {(['design', 'us', 'si'] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                aria-pressed={system === s}
+                className="pf-focus"
+                onClick={() => setSystem(s)}
+                title={UNIT_SYSTEMS[s].title}
+                style={{
+                  border: 'none',
+                  borderRadius: r.sm,
+                  padding: '3px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: system === s ? tint(palette.jade[500], 0.16) : 'transparent',
+                  color: system === s ? palette.text.primary : palette.text.secondary
+                }}
+              >
+                {UNIT_SYSTEMS[s].label}
+              </button>
+            ))}
+          </div>
+        )}
+        </div>
         {/* The engine's counter-offers: one knob, the value that clears a check. */}
         {visibleFixes.length > 0 && (
           <div style={{ margin: '4px 0 6px', padding: '10px 12px', borderRadius: r.md, border: `1px dashed ${tint(palette.jade[500], 0.5)}`, background: tint(palette.jade[500], 0.04) }}>
@@ -525,6 +579,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
             {...(own && contract.designInlet
               ? {
                   feed: {
+                    fromLine: fedByLine,
                     params: designFields(contract.designInlet).map((f) => f.param),
                     baseline: Object.fromEntries(baseline.current!.design ? designFields(baseline.current!.design).map((f) => [f.param.name, f.param.value]) : []),
                     onChange: (name: string, v: number) => {
@@ -589,12 +644,12 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
         )}
       </Section>
 
-      <Section ref={refFor('streams')} id="streams" title="Streams" hint={live?.portFlows ? 'Design point, and what is moving now.' : 'What each connection carries, at the design point.'}>
+      <Section ref={refFor('streams')} id="streams" {...fold('streams')} title="Streams" hint={live?.portFlows ? 'Design point, and what is moving now.' : 'What each connection carries, at the design point.'}>
         <StreamsSection contract={contract} evaluation={evaluation} live={live} unitFor={unitFor} />
       </Section>
 
       {contract.derived.length > 0 && (
-        <Section ref={refFor('equations')} id="equations" title="Equations" hint="Worked out in order, each from the ones above it. Click a setting to change it.">
+        <Section ref={refFor('equations')} id="equations" {...fold('equations')} title="Equations" hint="Worked out in order, each from the ones above it. Click a setting to change it.">
           {contract.derived.map((d) => {
             const v = evaluation.derived[d.name];
             const before = baseline.current!.derived[d.name];
@@ -724,7 +779,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
       )}
 
       {alignment && (
-        <Section ref={refFor('physics')} id="physics" title="Physics" hint={alignment.archetype ? alignment.archetype.name : undefined}>
+        <Section ref={refFor('physics')} id="physics" {...fold('physics')} title="Physics" hint={alignment.archetype ? alignment.archetype.name : undefined}>
           <PhysicsSection alignment={alignment} lookup={lookup} />
         </Section>
       )}

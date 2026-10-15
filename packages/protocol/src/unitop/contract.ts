@@ -122,7 +122,14 @@ export const UnitOpParameterSchema = z.object({
       /** Log for a range spanning decades (a particle size, a viscosity). */
       scale: z.enum(['linear', 'log']).optional(),
       /** Tucked under "Advanced": rarely changed (a correlation constant, a fouling factor). */
-      advanced: z.boolean().optional()
+      advanced: z.boolean().optional(),
+      /**
+       * One of the few specifications that define the equipment (a pump's
+       * pressure rise and efficiency): shown first, the rest under "More".
+       * Absent on every parameter, the app picks the settings that move the
+       * unit's checks and what the engine runs it at.
+       */
+      primary: z.boolean().optional()
     })
     .optional()
 });

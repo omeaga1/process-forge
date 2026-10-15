@@ -215,21 +215,41 @@ export const SectionNav: React.FC<{
   );
 };
 
-export const Section = React.forwardRef<HTMLElement, { id: SectionId; title: string; hint?: string; children: React.ReactNode; right?: React.ReactNode }>(
-  ({ id, title, hint, children, right }, ref) => {
-    const { palette } = useTheme();
-    return (
-      <section ref={ref} id={`unit-${id}`} data-section={id} style={{ scrollMarginTop: 52, paddingTop: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-          <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: palette.text.primary }}>{title}</h3>
-          {hint && <span style={{ fontSize: 12, color: palette.text.muted, flex: 1 }}>{hint}</span>}
-          {right}
-        </div>
-        {children}
-      </section>
-    );
-  }
-);
+/**
+ * One section of the sheet. With onToggle it folds: the reference sections
+ * (streams, equations, physics) start folded, so the sheet opens on what the
+ * engineer sets and what the engine says about it.
+ */
+export const Section = React.forwardRef<
+  HTMLElement,
+  { id: SectionId; title: string; hint?: string; children: React.ReactNode; right?: React.ReactNode; open?: boolean; onToggle?: () => void }
+>(({ id, title, hint, children, right, open = true, onToggle }, ref) => {
+  const { palette } = useTheme();
+  const heading = <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: palette.text.primary }}>{title}</h3>;
+  return (
+    <section ref={ref} id={`unit-${id}`} data-section={id} style={{ scrollMarginTop: 52, paddingTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: open ? 6 : 0 }}>
+        {onToggle ? (
+          <button
+            type="button"
+            className="pf-focus"
+            aria-expanded={open}
+            onClick={onToggle}
+            style={{ all: 'unset', cursor: 'pointer', display: 'inline-flex', alignItems: 'baseline', gap: 6 }}
+          >
+            <span aria-hidden style={{ fontSize: 10, color: palette.text.muted, width: 8 }}>{open ? '▾' : '▸'}</span>
+            {heading}
+          </button>
+        ) : (
+          heading
+        )}
+        {hint && open && <span style={{ fontSize: 12, color: palette.text.muted, flex: 1 }}>{hint}</span>}
+        {right}
+      </div>
+      {open && children}
+    </section>
+  );
+});
 Section.displayName = 'Section';
 
 // ------------------------------------------------------------------ equations

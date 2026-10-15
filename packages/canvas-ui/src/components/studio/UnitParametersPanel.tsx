@@ -22,6 +22,8 @@ interface UnitParametersPanelProps {
   onUpdateConfig: (nodeId: string, newConfig: Record<string, unknown>) => void;
   /** The unit's state at the simulation's playhead, when there is a run. */
   live?: NodeTelemetrySnapshot | undefined;
+  /** Ports with a pipe on them: what the line supplies is not asked for. */
+  connectedPortIds?: ReadonlySet<string>;
 }
 
 /** Unit words at the end of a built-in config key, and how they are shown. */
@@ -64,7 +66,7 @@ export function describeConfigKey(key: string): { label: string; unit: string } 
  * both are edited in ContractParametersPanel, with the engine's verdict on
  * every knob. Feeds and outlets have their own settings below.
  */
-export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, onUpdateConfig, live: telemetry }) => {
+export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, onUpdateConfig, live: telemetry, connectedPortIds }) => {
   const { palette, font, radius: r } = useTheme();
   const config = node.config as Record<string, unknown>;
   const parsed = useMemo(() => UnitOpContractSchema.safeParse(config.contract), [config.contract]);
@@ -125,7 +127,7 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
 
   // ---- a unit run by a contract: designed, or a standard unit built from its config ----
   if (contract && !terminalRole(node)) {
-    return <ContractParametersPanel node={node} contract={contract} own={own} onUpdateConfig={onUpdateConfig} live={telemetry} />;
+    return <ContractParametersPanel node={node} contract={contract} own={own} onUpdateConfig={onUpdateConfig} live={telemetry} {...(connectedPortIds ? { connectedPortIds } : {})} />;
   }
 
   // ---- a feed or outlet arrow -------------------------------------------------

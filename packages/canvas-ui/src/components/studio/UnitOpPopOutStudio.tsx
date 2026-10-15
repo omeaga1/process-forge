@@ -694,7 +694,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       {/* Parameters */}
       {shownTab === 'PARAMETERS' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 20px 20px' }}>
-          <UnitParametersPanel node={node} onUpdateConfig={onUpdateConfig} live={live} />
+          <UnitParametersPanel node={node} onUpdateConfig={onUpdateConfig} live={live} {...(connectedPortIds ? { connectedPortIds } : {})} />
         </div>
       )}
 
