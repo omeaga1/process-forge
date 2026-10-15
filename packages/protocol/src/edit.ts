@@ -2,6 +2,7 @@ import type { ProcessGraph } from './graph.js';
 import type { ProcessNode } from './nodes.js';
 import { resolveUnit } from './connect.js';
 import { didYouMean } from './nearest.js';
+import { applyPlanEdit, type PlanChange, type PlanStep } from './plan.js';
 import { FEED_LIQUID_KEYS, terminalRole } from './terminals.js';
 import type { UnitOpContract } from './unitop/contract.js';
 import { executeValidateUnitOp } from './unitop/review.js';
@@ -31,7 +32,12 @@ export type FlowsheetEdit =
    * design spec), or release it. The setting is solved now and re-solved after
    * every later change to the unit.
    */
-  | { op: 'hold-result'; unit: string; result: string; target?: number; vary?: string; release?: boolean };
+  | { op: 'hold-result'; unit: string; result: string; target?: number; vary?: string; release?: boolean }
+  /**
+   * A whole plan (plan.ts): every change applied in order, all or none, and
+   * only if planId still matches the flowsheet and the changes.
+   */
+  | { op: 'apply-plan'; changes: PlanChange[]; planId: string };
 
 export interface ParameterChange {
   parameter: string;
@@ -44,7 +50,7 @@ export interface ParameterChange {
 }
 
 export type EditOutcome =
-  | { ok: true; graph: ProcessGraph; message: string; unit?: { id: string; name: string }; changes?: ParameterChange[]; removedStreams?: string[]; warnings?: string[] }
+  | { ok: true; graph: ProcessGraph; message: string; unit?: { id: string; name: string }; changes?: ParameterChange[]; removedStreams?: string[]; warnings?: string[]; steps?: PlanStep[] }
   | { ok: false; error: string };
 
 const NESTED_LIMIT = 4;
@@ -408,6 +414,8 @@ export function applyFlowsheetEdit(graph: ProcessGraph, edit: FlowsheetEdit): Ed
       return removeUnit(graph, edit);
     case 'remove-stream':
       return removeStream(graph, edit);
+    case 'apply-plan':
+      return applyPlanEdit(graph, edit);
     default:
       return { ok: false, error: `Unknown edit "${String((edit as { op?: unknown })?.op)}".` };
   }

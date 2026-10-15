@@ -192,6 +192,7 @@ export function useMcpBridge(
         ...(r.unit ? { unit: r.unit } : {}),
         ...(r.changes ? { changes: r.changes } : {}),
         ...(r.removedStreams ? { removedStreams: r.removedStreams } : {}),
+        ...(r.steps ? { steps: r.steps } : {}),
         ...(r.warnings ? { warnings: r.warnings } : {})
       };
     };

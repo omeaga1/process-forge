@@ -237,20 +237,18 @@ fn handle(mut stream: TcpStream, bridge: Bridge) {
         }
         ("POST", "/v1/edits") => {
             // A change to what is already on the flowsheet: a unit's settings
-            // or name, removing a unit, removing a stream, arranging a unit or
-            // routing a stream on the sheet. The web view applies
-            // it with protocol's applyFlowsheetEdit and says what it did.
+            // or name, removing a unit or a stream, arranging a unit, routing a
+            // stream, holding a result, or a whole plan. The web view applies
+            // it with protocol's applyFlowsheetEdit, which alone decides which
+            // ops exist and refuses the rest. (A list kept here as well fell
+            // behind it: hold-result was refused here from the day it shipped.)
             let payload: Value = match serde_json::from_slice(&req.body) {
                 Ok(v) => v,
                 Err(e) => return respond(&mut stream, 400, &json!({ "error": format!("body is not JSON: {e}") })),
             };
             let op = payload.get("op").and_then(Value::as_str).unwrap_or("");
-            if !matches!(op, "update-unit" | "remove-unit" | "remove-stream" | "arrange-unit" | "route-stream") {
-                return respond(
-                    &mut stream,
-                    400,
-                    &json!({ "error": "expected { \"op\": \"update-unit\" | \"remove-unit\" | \"remove-stream\" | \"arrange-unit\" | \"route-stream\", ... }" }),
-                );
+            if op.is_empty() || op.len() > 64 {
+                return respond(&mut stream, 400, &json!({ "error": "expected { \"op\": \"update-unit\" | \"remove-unit\" | ..., ... }" }));
             }
             let (code, body) = queue_and_wait(&bridge, "edit", payload);
             respond(&mut stream, code, &body)
