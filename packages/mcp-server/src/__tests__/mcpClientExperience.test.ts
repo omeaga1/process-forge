@@ -171,7 +171,9 @@ describe('compare_scenarios: designed units', () => {
       ]
     });
     assert.equal(r.scenarios[0]!.applied[0]!.designParameter, true);
-    assert.equal(r.scenarios[0]!.warnings, undefined);
+    // Nothing is piped to it, so no liquid reaches it: the change is applied, and the result says it moved nothing.
+    assert.equal(r.scenarios[0]!.noEffect, true);
+    assert.match(r.scenarios[0]!.warnings![0]!, /identical to the baseline/);
     assert.equal(r.scenarios[1]!.applied.length, 0, 'a change that breaks the design is not applied');
     assert.match(r.scenarios[1]!.warnings![0]!, /fail its checks/);
   });

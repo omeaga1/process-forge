@@ -82,6 +82,14 @@ export interface Parcel {
    * share a plant would divert rather than ship. Mixes by mass like the rest.
    */
   offSpec?: number;
+  /**
+   * The part of it that is gas (vapour off an evaporator, air through a
+   * dryer), kg and m³. Volume follows the phase, so a parcel of vapour and
+   * cooling water has a liquid volume and a gas volume that must not be
+   * added up as gallons. Mixes and splits with the parcel.
+   */
+  gasKg?: number;
+  gasM3?: number;
 }
 
 const emptyParcel = (): Parcel => ({ kg: 0, m3: 0, tempC: AMBIENT_C, cp: DEFAULT_SPECIFIC_HEAT, comp: {} });
@@ -118,19 +126,53 @@ function mixInto(a: Parcel, b: Parcel): void {
   }
   a.kg = kg;
   a.m3 += b.m3;
+  if (b.gasM3 || b.gasKg) {
+    a.gasM3 = (a.gasM3 ?? 0) + (b.gasM3 ?? 0);
+    a.gasKg = (a.gasKg ?? 0) + (b.gasKg ?? 0);
+  }
 }
+
+/** A share `f` of a parcel: mass, volume and the gas within it scale; the rest is the same. */
+function scaled(p: Parcel, f: number): Parcel {
+  const out: Parcel = { ...p, kg: p.kg * f, m3: p.m3 * f, comp: { ...p.comp } };
+  if (p.gasM3 !== undefined) out.gasM3 = p.gasM3 * f;
+  if (p.gasKg !== undefined) out.gasKg = p.gasKg * f;
+  return out;
+}
+
+/** The parcel as all gas (it left by a gas port, or a gas feed supplied it). */
+function allGas(p: Parcel): Parcel {
+  return { ...p, gasKg: p.kg, gasM3: p.m3 };
+}
+
+/** The parcel with no gas in it (it left by a liquid or solid port). */
+function noGas(p: Parcel): Parcel {
+  const { gasKg: _k, gasM3: _m, ...rest } = p;
+  return rest;
+}
+
+/** m³ of a parcel that is not gas. */
+export const liquidM3 = (p: Parcel) => Math.max(0, p.m3 - (p.gasM3 ?? 0));
 
 /** Takes `m3` of a holdup's liquid out (in place) and returns it as a parcel. */
 function takeFrom(a: Parcel, m3: number): Parcel {
   const v = Math.max(0, Math.min(m3, a.m3));
-  const kg = a.m3 > 0 ? (a.kg * v) / a.m3 : 0;
+  const f = a.m3 > 0 ? v / a.m3 : 0;
+  const kg = a.kg * f;
+  const gas = a.gasM3 || a.gasKg ? { gasKg: (a.gasKg ?? 0) * f, gasM3: (a.gasM3 ?? 0) * f } : undefined;
   a.m3 -= v;
   a.kg = Math.max(0, a.kg - kg);
+  if (gas) {
+    a.gasKg = Math.max(0, (a.gasKg ?? 0) - gas.gasKg);
+    a.gasM3 = Math.max(0, (a.gasM3 ?? 0) - gas.gasM3);
+  }
   if (a.m3 <= EPS_M3) {
     a.m3 = 0;
     a.kg = 0;
+    delete a.gasKg;
+    delete a.gasM3;
   }
-  return { kg, m3: v, tempC: a.tempC, cp: a.cp, comp: { ...a.comp }, ...(a.offSpec ? { offSpec: a.offSpec } : {}) };
+  return { kg, m3: v, tempC: a.tempC, cp: a.cp, comp: { ...a.comp }, ...(a.offSpec ? { offSpec: a.offSpec } : {}), ...(gas ?? {}) };
 }
 
 /** kg/m³ of a holdup, or of what would arrive when it is empty. */
@@ -202,6 +244,9 @@ export interface MaterialUnit {
   /** m³/s in and out, this tick. */
   inRate: number;
   outRate: number;
+  /** The same, counting only what is not gas: what a level or a gal/min reading means. */
+  inLiquidRate: number;
+  outLiquidRate: number;
   /** Over the run. */
   received: Parcel;
   delivered: Parcel;
@@ -241,6 +286,8 @@ export interface MaterialUnit {
   /** Down (a breakdown): passes nothing, and a batch's clock stops. */
   down: boolean;
   live?: LiveContract;
+  /** A pass-through: the last inlet it was evaluated at, per tick, whole and by port. */
+  lastInlet?: { inbox: Parcel; byPort: Record<string, Parcel> };
   run?: ContractRunTally;
   batchRun?: BatchRun;
   /** A STORAGE unit's outflow limit, m³/s. */
@@ -360,6 +407,8 @@ export class MaterialNetwork {
         capacity: Infinity,
         inRate: 0,
         outRate: 0,
+        inLiquidRate: 0,
+        outLiquidRate: 0,
         received: emptyParcel(),
         delivered: emptyParcel(),
         leftLine: emptyParcel(),
@@ -619,6 +668,7 @@ export class MaterialNetwork {
       mixInto(u.hold, parcel);
       mixInto(u.received, parcel);
       u.inRate = add / dt;
+      u.inLiquidRate = add / dt;
       run.moved += add;
     }
   }
@@ -652,9 +702,8 @@ export class MaterialNetwork {
     }
   }
 
-  private evaluateLive(u: MaterialUnit, dt: number): void {
-    const p = u.inbox;
-    const run = u.run!;
+  /** The contract evaluated at an inlet: the whole of it, and what reached each inlet port. */
+  private evaluateAt(u: MaterialUnit, inbox: Parcel, byPort: Record<string, Parcel>, dt: number): UnitOpEvaluation {
     const state = (q: Parcel) => ({
       temperatureC: q.tempC,
       volumetricFlowGpm: (q.m3 / dt / M3_PER_GALLON) * 60,
@@ -667,11 +716,68 @@ export class MaterialNetwork {
     const ports: Record<string, ReturnType<typeof state> | { massFlowKgPerS: number; volumetricFlowGpm: number }> = {};
     for (const port of u.contract!.ports) {
       if (port.direction !== 'INLET' || port.flowDimension !== 'CONTINUOUS_FLUID') continue;
-      const q = u.inboxByPort[port.id];
+      const q = byPort[port.id];
       ports[port.id] = q && q.kg > 0 ? state(q) : { massFlowKgPerS: 0, volumetricFlowGpm: 0 };
     }
-    const ev = evaluateUnitOp(u.contract!, { inlet: state(p), ...(Object.keys(ports).length ? { ports } : {}) });
+    return evaluateUnitOp(u.contract!, { inlet: state(inbox), ...(Object.keys(ports).length ? { ports } : {}) });
+  }
+
+  /**
+   * What the contract would do if `m3` arrived this tick: the last inlet it
+   * saw, scaled to that flow (its temperature and mix move slowly; its flow is
+   * what the backward pass is choosing). Undefined if it has seen no inlet or
+   * cannot be evaluated there.
+   */
+  private liveAtFlow(u: MaterialUnit, m3: number, dt: number): LiveContract | undefined {
+    const last = u.lastInlet;
+    if (!last || last.inbox.m3 <= EPS_M3) return undefined;
+    const f = Math.max(m3, EPS_M3) / last.inbox.m3;
+    const byPort = Object.fromEntries(Object.entries(last.byPort).map(([k, q]) => [k, scaled(q, f)]));
+    const ev = this.evaluateAt(u, scaled(last.inbox, f), byPort, dt);
+    return ev.error ? undefined : liveOf(ev);
+  }
+
+  /**
+   * How much a pass-through whose outlet split depends on its flow (an
+   * evaporator: the more juice, the larger the share that leaves as
+   * concentrate) can send this tick without overfilling what is downstream.
+   * The split is the contract's own at that flow, so the flow chosen here is
+   * the one the forward pass will find consistent: choosing it from last
+   * tick's split made the flow flip between two values every other second.
+   * Largest T up to `hi` with T <= (what each outlet's target takes) / (its share at T).
+   */
+  private consistentSend(u: MaterialUnit, hi: number, known: Set<string>, dt: number): number {
+    const limitAt = (total: number): number => {
+      const live = this.liveAtFlow(u, Math.max(0, total - u.hold.m3), dt);
+      if (!live) return Infinity;
+      const saved = u.live;
+      u.live = live;
+      const { outs } = this.split(u);
+      u.live = saved;
+      return outs.length ? Math.min(...outs.map((o) => (o.share > 0 && known.has(o.target.id) ? o.target.accept / o.share : Infinity))) : Infinity;
+    };
+    if (hi <= limitAt(hi)) return hi;
+    let lo = 0;
+    let top = hi;
+    for (let i = 0; i < 12; i++) {
+      const mid = (lo + top) / 2;
+      if (mid <= limitAt(mid)) lo = mid;
+      else top = mid;
+    }
+    return lo;
+  }
+
+  private evaluateLive(u: MaterialUnit, dt: number): void {
+    const p = u.inbox;
+    const run = u.run!;
+    const ev = this.evaluateAt(u, p, u.inboxByPort, dt);
     run.evaluations++;
+    if (!ev.error) {
+      u.lastInlet = {
+        inbox: { ...p, comp: { ...p.comp } },
+        byPort: Object.fromEntries(Object.entries(u.inboxByPort).map(([k, q]) => [k, { ...q, comp: { ...q.comp } }]))
+      };
+    }
     if (ev.error) {
       run.errorSeconds += dt;
       if (!run.firstError) run.firstError = `${ev.error.path}: ${ev.error.message}`;
@@ -854,17 +960,18 @@ export class MaterialNetwork {
       if (total <= EPS_M3) continue;
       const p = takeFrom(held, total);
       if (temp !== undefined) p.tempC = temp;
-      if (!edges.length) mixInto(u.leftLine, p);
+      if (!edges.length) mixInto(u.leftLine, this.inPhase(u, ch.outlet, p));
       for (const e of edges) {
         const f = 1 / edges.length;
-        const piece = this.inPhase(u, ch.outlet, { ...p, kg: p.kg * f, m3: p.m3 * f, comp: { ...p.comp } });
+        const piece = this.inPhase(u, ch.outlet, scaled(p, f));
         remaining.set(e.targetNodeId, remaining.get(e.targetNodeId)! - p.m3 * f);
         this.receive(this.units.get(e.targetNodeId)!, piece, dt, e.targetPortId);
       }
       const out = this.inPhase(u, ch.outlet, p);
       mixInto(u.heat.sent, out);
       tallyPort(u, ch.outlet, out);
-      mixInto(u.delivered, p);
+      mixInto(u.delivered, out);
+      u.outLiquidRate += liquidM3(out) / dt;
       m3 += p.m3;
       kg += p.kg;
     }
@@ -873,12 +980,16 @@ export class MaterialNetwork {
 
   /** A parcel leaving by a port, with the volume of the port's phase. */
   private inPhase(u: MaterialUnit, port: string, p: Parcel): Parcel {
+    const spec = u.contract?.ports.find((x) => x.id === port);
     const rho = this.portDensity(u, port, p.comp, p.tempC);
-    if (rho) return { ...p, m3: p.kg / rho };
+    if (rho) {
+      const out = { ...p, m3: p.kg / rho };
+      return spec?.phase === 'GAS' ? allGas(out) : noGas(out);
+    }
     // A liquid outlet carrying what came in as a gas (a condenser's condensate)
     // takes a liquid's volume, not the vapour's: 1000 kg/m3 unless the port says.
-    const spec = u.contract?.ports.find((x) => x.id === port);
-    if (spec?.phase === 'LIQUID' && p.m3 > 0 && p.kg / p.m3 < GAS_LIKE_KG_PER_M3) return { ...p, m3: p.kg / (spec.densityKgPerM3 ?? 1000) };
+    if (spec?.phase === 'LIQUID' && p.m3 > 0 && p.kg / p.m3 < GAS_LIKE_KG_PER_M3) return noGas({ ...p, m3: p.kg / (spec.densityKgPerM3 ?? 1000) });
+    if (spec?.phase === 'LIQUID' && (p.gasKg ?? 0) > 0) return noGas({ ...p, m3: liquidM3(p) + (p.gasKg ?? 0) / (spec.densityKgPerM3 ?? 1000) });
     return p;
   }
 
@@ -901,11 +1012,13 @@ export class MaterialNetwork {
       if (port) mixInto((late.byPort[port] ??= emptyParcel()), parcel);
       target.inKgRate += parcel.kg / dt;
       target.inRate += parcel.m3 / dt;
+      target.inLiquidRate += liquidM3(parcel) / dt;
       return;
     }
     if (target.role === 'pass' && port) mixInto((target.inboxByPort[port] ??= emptyParcel()), parcel);
     if (target.role === 'batch' && port) mixInto((target.chargedByPort[port] ??= emptyParcel()), parcel);
     target.inRate += parcel.m3 / dt;
+    target.inLiquidRate += liquidM3(parcel) / dt;
     target.inKgRate += parcel.kg / dt;
     if (target.role === 'pass') mixInto(target.inbox, parcel);
     else mixInto(target.hold, parcel);
@@ -919,6 +1032,8 @@ export class MaterialNetwork {
       u.inbox = u.late?.inbox ?? emptyParcel();
       u.inRate = 0;
       u.outRate = 0;
+      u.inLiquidRate = 0;
+      u.outLiquidRate = 0;
       u.inKgRate = 0;
       u.outKgRate = 0;
       u.tickPort = {};
@@ -967,7 +1082,13 @@ export class MaterialNetwork {
           const massCap = u.live && Number.isFinite(u.live.capacityKgPerS) ? (u.live.capacityKgPerS / u.inDensity) * dt : Infinity;
           const cap = Math.min((u.live?.capacity ?? Infinity) * dt, massCap);
           const inChannels = Object.values(u.channelHold).reduce((a, p) => a + p.m3, 0);
-          u.accept = Math.max(0, Math.min(cap, downstream) - u.hold.m3 - inChannels);
+          let send = Math.min(cap, downstream);
+          // Downstream binds, and the split it was judged by is last tick's: find the flow whose own split fits.
+          if (downstream < cap && Number.isFinite(downstream) && u.lastInlet && this.hasOutletPlan(u) && !u.contract?.channels?.length) {
+            const hi = Number.isFinite(cap) ? cap : Math.max(downstream, u.lastInlet.inbox.m3 + u.hold.m3) * 4;
+            send = Math.min(hi, this.consistentSend(u, hi, known, dt));
+          }
+          u.accept = Math.max(0, send - u.hold.m3 - inChannels);
           break;
         }
       }
@@ -1017,15 +1138,18 @@ export class MaterialNetwork {
           const parcel = this.take(u, source, sent);
           if (u.offSpecNow) parcel.offSpec = 1;
           sentKg = parcel.kg;
-          mixInto(u.leftLine, parcel);
           mixInto(u.heat.sent, parcel);
           mixInto(u.delivered, parcel);
-          // Out of the line by its declared ports, in their proportions.
+          // Out of the line by its declared ports, in their proportions, each in its own phase.
           const declared = plan.unpiped.reduce((a, x) => a + x.share, 0);
+          if (declared <= 0) mixInto(u.leftLine, parcel);
           for (const x of plan.unpiped) {
             const f = declared > 0 ? x.share / declared : 0;
-            tallyPort(u, x.port, this.inPhase(u, x.port, { ...parcel, kg: parcel.kg * f, m3: parcel.m3 * f, ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) }));
+            const out = this.inPhase(u, x.port, { ...scaled(parcel, f), ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) });
+            mixInto(u.leftLine, out);
+            tallyPort(u, x.port, out);
           }
+          u.outLiquidRate += liquidM3(parcel) / dt;
         }
       } else {
         // A port that states its phase sends the volume of that phase; a unit that holds what it
@@ -1055,17 +1179,23 @@ export class MaterialNetwork {
           // Mass splits by the plan; a port that states its phase gets the volume of that phase.
           const kg = v * kgPerM3;
           const rho = this.portDensity(u, o.port, comp, tempC);
-          const piece: Parcel = { kg, m3: rho ? kg / rho : v, tempC, cp: parcel.cp, comp, ...(parcel.offSpec ? { offSpec: parcel.offSpec } : {}) };
+          let piece: Parcel = { kg, m3: rho ? kg / rho : v, tempC, cp: parcel.cp, comp, ...(parcel.offSpec ? { offSpec: parcel.offSpec } : {}) };
+          const portPhase = u.contract?.ports.find((x) => x.id === o.port)?.phase;
+          if (rho) piece = portPhase === 'GAS' ? allGas(piece) : piece;
+          else if (parcel.gasM3 && total > 0) piece = { ...piece, gasM3: parcel.gasM3 * (v / total), gasKg: (parcel.gasKg ?? 0) * (v / total) };
+          u.outLiquidRate += liquidM3(piece) / dt;
           this.receive(o.target, piece, dt, o.targetPort);
           mixInto(u.heat.sent, piece);
           tallyPort(u, o.port, piece);
         }
         if (this.hasOutletPlan(u) && !u.batchRun?.phase.port) {
           // A declared outlet with no pipe leaves the line; the unclaimed remainder is lost.
-          const scale = (f: number): Parcel => ({ ...parcel, kg: parcel.kg * f, m3: parcel.m3 * f, comp: { ...parcel.comp } });
-          if (plan.unpipedShare > 0) mixInto(u.leftLine, scale(plan.unpipedShare));
-          for (const x of plan.unpiped) tallyPort(u, x.port, this.inPhase(u, x.port, { ...scale(x.share), ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) }));
-          if (plan.lossShare > 0) mixInto(u.lost, scale(plan.lossShare));
+          for (const x of plan.unpiped) {
+            const out = this.inPhase(u, x.port, { ...scaled(parcel, x.share), ...(x.comp ? { comp: x.comp } : {}), ...(x.temp !== undefined ? { tempC: x.temp } : {}) });
+            mixInto(u.leftLine, out);
+            tallyPort(u, x.port, out);
+          }
+          if (plan.lossShare > 0) mixInto(u.lost, scaled(parcel, plan.lossShare));
         }
         mixInto(u.delivered, parcel);
         sent = total;
@@ -1092,7 +1222,10 @@ export class MaterialNetwork {
 
   /** Takes `m3` from what a unit offers: its holdup, or a feed's endless stock. */
   private take(u: MaterialUnit, source: Parcel, m3: number): Parcel {
-    if (u.role === 'feed') return stock(m3, { tempC: source.tempC, density: densityOf(u.feedStock!) / 1000, cp: source.cp, comp: source.comp });
+    if (u.role === 'feed') {
+      const p = stock(m3, { tempC: source.tempC, density: densityOf(u.feedStock!) / 1000, cp: source.cp, comp: source.comp });
+      return densityOf(u.feedStock!) < GAS_LIKE_KG_PER_M3 ? allGas(p) : p;
+    }
     return takeFrom(u.hold, m3);
   }
 
@@ -1135,5 +1268,8 @@ function liveOf(ev: UnitOpEvaluation): LiveContract {
   return live;
 }
 
-/** Gallons of a parcel. */
-export const gallonsOf = (p: Parcel) => p.m3 / M3_PER_GALLON;
+/** Gallons of a parcel: its liquid (and solid) volume. Gas is never counted in gallons. */
+export const gallonsOf = (p: Parcel) => liquidM3(p) / M3_PER_GALLON;
+
+/** kg of a parcel that is gas. */
+export const gasKgOf = (p: Parcel) => p.gasKg ?? 0;

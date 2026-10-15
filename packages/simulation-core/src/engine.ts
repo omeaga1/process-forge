@@ -19,7 +19,7 @@ import {
 } from '@process-forge/protocol';
 import type { PortStreamReport } from './types.js';
 import { PriorityQueue } from './priority-queue.js';
-import { M3_PER_GALLON, MaterialNetwork, gallonsOf, type MaterialUnit, type Parcel } from './material.js';
+import { M3_PER_GALLON, MaterialNetwork, gallonsOf, gasKgOf, liquidM3, type MaterialUnit, type Parcel } from './material.js';
 import { isCycleSource, isFluidEdge } from './roles.js';
 import { createRng, seedFromString, type SeededRng } from './rng.js';
 import type {
@@ -84,12 +84,22 @@ type CycleBehavior = Extract<UnitOpEvaluation['behavior'], { mode: 'DISCRETE_CYC
 const round1 = (x: number) => Math.round(x * 10) / 10;
 const round4 = (x: number) => Math.round(x * 1e4) / 1e4;
 
-/** Mass fractions rounded for a report, largest first; undefined when there are none. */
+/**
+ * Mass fractions rounded for a report, largest first; undefined when there
+ * are none. Liquid from a feed that names no components (cooling water with
+ * no composition) mixes in as mass of no stated kind: it is reported as
+ * `unspecified`, so the fractions add up to 1 rather than claiming a stream
+ * is 3 % water and nothing else.
+ */
+export const UNSPECIFIED_COMPONENT = 'unspecified';
 function fractions(comp: Record<string, number>): Record<string, number> | undefined {
   const entries = Object.entries(comp)
     .filter(([, v]) => v > 1e-6)
     .sort((a, b) => b[1] - a[1]);
-  return entries.length ? Object.fromEntries(entries.map(([k, v]) => [k, round4(v)])) : undefined;
+  if (!entries.length) return undefined;
+  const rest = 1 - entries.reduce((a, [, v]) => a + v, 0);
+  if (rest > 1e-4) entries.push([UNSPECIFIED_COMPONENT, rest]);
+  return Object.fromEntries(entries.sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, round4(v)]));
 }
 
 /** kg of each component in a parcel. */
@@ -802,7 +812,7 @@ export class SimulationEngine {
       levelGallons: round1(gallonsOf(level)),
       levelKg: round1(level.kg),
       ...(Number.isFinite(u.capacity) ? { levelFraction: Math.min(1, u.hold.m3 / u.capacity) } : {}),
-      flowGpm: round1(((u.role === 'sink' ? u.inRate : u.outRate) / M3_PER_GALLON) * 60),
+      flowGpm: round1(((u.role === 'sink' ? u.inLiquidRate : u.outLiquidRate) / M3_PER_GALLON) * 60),
       temperatureC: round1(u.role === 'feed' ? u.feedStock!.tempC : u.hold.tempC),
       kgPerHour: round1((u.role === 'sink' ? u.inKgRate : u.outKgRate) * 3600),
       ...(fractions(u.role === 'feed' ? u.feedStock!.comp : level.comp) ? { composition: fractions(u.role === 'feed' ? u.feedStock!.comp : level.comp)! } : {}),
@@ -905,6 +915,8 @@ export class SimulationEngine {
                 receivedKg: round1(unit.received.kg),
                 deliveredKg: round1(unit.delivered.kg),
                 levelKg: round1(unit.hold.kg),
+                ...(gasKgOf(unit.received) > 1e-6 ? { receivedGasKg: round1(gasKgOf(unit.received)) } : {}),
+                ...(gasKgOf(unit.delivered) > 1e-6 ? { deliveredGasKg: round1(gasKgOf(unit.delivered)) } : {}),
                 ...(unit.role === 'batch' ? { batches: unit.batches } : {}),
                 temperatureC: round1(unit.role === 'sink' && unit.received.m3 > 0 ? unit.received.tempC : unit.role === 'feed' ? unit.feedStock!.tempC : unit.hold.tempC),
                 ...(fractions(unit.role === 'sink' ? unit.received.comp : unit.hold.comp) ? { composition: fractions(unit.role === 'sink' ? unit.received.comp : unit.hold.comp) } : {}),
@@ -931,6 +943,7 @@ export class SimulationEngine {
           units: r.unitsProduced,
           gallons: moved ? round1(gallonsOf(moved)) : 0,
           kg: moved ? round1(moved.kg) : 0,
+          ...(moved && gasKgOf(moved) > 1e-6 ? { gasKg: round1(gasKgOf(moved)) } : {}),
           ...(moved && moved.m3 > 1e-9 ? { temperatureC: round1(moved.tempC) } : {}),
           ...(moved && componentKg(moved) ? { componentsKg: componentKg(moved) } : {}),
           ...(r.terminal === 'product' && moved?.offSpec
@@ -942,16 +955,16 @@ export class SimulationEngine {
         if (r.terminal === 'product') {
           totalPackaged += report.units;
           const off = unit?.received.offSpec ?? 0;
-          fluidOutM3 += (unit?.received.m3 ?? 0) * (1 - off);
+          fluidOutM3 += (unit ? liquidM3(unit.received) : 0) * (1 - off);
           fluidOutKg += (unit?.received.kg ?? 0) * (1 - off);
-          offSpecM3 += (unit?.received.m3 ?? 0) * off;
+          offSpecM3 += (unit ? liquidM3(unit.received) : 0) * off;
           offSpecKg += (unit?.received.kg ?? 0) * off;
         }
         continue;
       }
 
       if (unit) {
-        fluidOutM3 += unit.leftLine.m3;
+        fluidOutM3 += liquidM3(unit.leftLine);
         fluidOutKg += unit.leftLine.kg;
       }
       // Output is what leaves the line: product outlets, and every unit at the
