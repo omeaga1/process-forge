@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../hooks/useTheme.js';
-import type { ProcessGraph, ProcessNode, BottleneckAnalysis } from '@process-forge/protocol';
+import { terminalRole, type ProcessGraph, type ProcessNode, type BottleneckAnalysis } from '@process-forge/protocol';
+import type { SteadyResult } from '@process-forge/simulation-core';
 import type { ChatMessage, PlantTelemetryState } from '../../types.js';
 import {
   getAiConfig,
@@ -40,6 +41,10 @@ interface MasterOrchestratorDockProps {
   run?: RunView;
   /** The line's product is bulk (liquid, powder): read in kg before a run as well as during one. */
   bulkLine?: boolean;
+  /** The line solved at steady state, before a run: the board reads its figures rather than zeros. */
+  steady?: SteadyResult | null;
+  /** The run shown was made on a flowsheet that has since changed. */
+  stale?: boolean;
 }
 
 export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
@@ -52,7 +57,9 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   onToggleCollapse,
   agentHost,
   run,
-  bulkLine
+  bulkLine,
+  steady,
+  stale
 }) => {
   const { palette, font, size, space, radius: r } = useTheme();
   const OsakaJadePalette = palette;
@@ -306,7 +313,16 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         {(() => {
           // A liquid line no unit holds back: what sets its rate (a feed's supply, a unit at its rating), as the MCP tools say it.
           const lineLimit = !bottlenecks.bottleneckNodeId && run ? liquidLimit(graph, run.result, run.result.durationMinutes) : undefined;
-          const limitId = bottlenecks.bottleneckNodeId ?? (lineLimit?.by !== 'none' ? lineLimit?.nodeId : undefined);
+          // Before a run, the steady state: the product rate it settles to, and what holds it there
+          // (a unit at its rating, else the feed that reaches a product).
+          const solved = !run && steady?.status === 'converged' ? steady : undefined;
+          const productIds = new Set(graph.nodes.filter((n) => terminalRole(n) === 'product').map((n) => n.name));
+          const steadyProduct = solved ? solved.streams.filter((x) => productIds.has(x.to)).reduce((a, x) => a + x.kgPerHour, 0) : 0;
+          const steadyLimit = solved
+            ? (solved.units.filter((u) => (u.capacityUsedPercent ?? 0) >= 95).sort((a, b) => (b.capacityUsedPercent ?? 0) - (a.capacityUsedPercent ?? 0))[0]?.nodeId ??
+              graph.nodes.find((n) => terminalRole(n) === 'feed' && (((n.config as { supplyRate?: number }).supplyRate ?? 0) > 0 || (n.config as { supplyKgPerHour?: number }).supplyKgPerHour !== undefined) && solved.streams.some((x) => x.from === n.name && x.kgPerHour > 0))?.id)
+            : undefined;
+          const limitId = bottlenecks.bottleneckNodeId ?? (lineLimit?.by !== 'none' ? lineLimit?.nodeId : undefined) ?? steadyLimit;
           const limitName = limitId ? graph.nodes.find((n) => n.id === limitId)?.name : undefined;
           // The unit's tag (P-227) when it has one; its name otherwise.
           const limit = limitId ? (limitName ? unitTag(limitName) ?? limitName : 'NONE') : 'NONE';
@@ -317,8 +333,8 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           // kg/h reaching the product outlets right now.
           const kgNow = run
             ? graph.nodes.reduce((a, n) => a + ((n.kind === 'TERMINAL' && (n.config as { role?: string }).role === 'product' ? run.snapshot.get(n.id)?.kgPerHour : 0) ?? 0), 0)
-            : 0;
-          const kgPerHour = bulk && telemetry.simulatedTimeSeconds > 0 ? ((telemetry.productKg ?? 0) / telemetry.simulatedTimeSeconds) * 3600 : 0;
+            : steadyProduct;
+          const kgPerHour = bulk && telemetry.simulatedTimeSeconds > 0 ? ((telemetry.productKg ?? 0) / telemetry.simulatedTimeSeconds) * 3600 : solved ? steadyProduct : 0;
           const cell = (label: string, unit: string, flap: React.ReactNode, title?: string) => (
             <div title={title} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: font.mono }}>
@@ -356,14 +372,19 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                   align="left"
                   color={bottlenecks.bottleneckNodeId || lineLimit?.by === 'unit' ? OsakaJadePalette.status.blocked : lineLimit?.by === 'feed' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow}
                 />,
-                lineLimit ? lineLimit.summary : limitName ?? 'Nothing limits the line in the static analysis'
+                lineLimit ? lineLimit.summary : limitName ? (solved && !bottlenecks.bottleneckNodeId ? limitName + ' holds the line at its steady state' : limitName) : 'Nothing limits the line in the static analysis'
+              )}
+              {solved && (
+                <div style={{ gridColumn: '1 / -1', fontSize: 11, color: OsakaJadePalette.text.muted }}>
+                  At steady state, solved before a run. Run to see it over time.
+                </div>
               )}
             </div>
           );
         })()}
       </div>
 
-      {run && <RunDigest graph={graph} run={run} />}
+      {run && <RunDigest graph={graph} run={run} stale={stale} />}
 
       {agentMode && agentHost && <AgentChat host={agentHost} modelLabel={agentCreds.modelId} />}
 

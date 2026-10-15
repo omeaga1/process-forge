@@ -95,6 +95,12 @@ export interface MachineOeeReport {
 export interface DesignedUnitReport {
   /** Times it was evaluated: at live inlet conditions (once per second of flow), or at each batch phase's start. */
   liveEvaluations: number;
+  /**
+   * Its derived values at the last conditions it actually saw (the live
+   * inlet, or the batch in hand): what it was doing at the end of the run,
+   * where its design values are what it would do at its design inlet.
+   */
+  operatingPoint?: Record<string, number>;
   /** Constraints broken at some point in the run, with for how long. ERROR ones first. */
   brokenConstraints: { id: string; message: string; severity: 'ERROR' | 'WARNING'; seconds: number }[];
   /** The first live evaluation that failed (it kept its last good values), and for how long. */

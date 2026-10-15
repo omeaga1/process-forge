@@ -843,6 +843,7 @@ export class SimulationEngine {
     const run = u.run!;
     return {
       liveEvaluations: run.evaluations,
+      ...(u.lastDerived ? { operatingPoint: Object.fromEntries(Object.entries(u.lastDerived).filter(([, v]) => Number.isFinite(v)).map(([k, v]) => [k, Number(v.toPrecision(6))])) } : {}),
       brokenConstraints: Object.entries(run.broken)
         .map(([id, b]) => ({ id, message: b.message, severity: b.severity, seconds: Math.round(b.seconds) }))
         .sort((a, b) => (a.severity === b.severity ? b.seconds - a.seconds : a.severity === 'ERROR' ? -1 : 1)),

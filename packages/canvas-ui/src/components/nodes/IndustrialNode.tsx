@@ -47,7 +47,7 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { palette, machineVisuals, font, size, weight, radius: r, motion } = useTheme();
   const k = useLabelScale();
   const nodeData = data as unknown as CanvasNodeData;
-  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, kgPerHour, phase, phaseName, onLayoutChange } = nodeData;
+  const { processNode, state, instantaneousRate, bufferLevel, levelFraction, levelGallons, flowGpm, kgPerHour, phase, phaseName, onLayoutChange, issue, shares } = nodeData;
   const holdNote = useMemo(() => {
     const holds = designSpecsOf(processNode.config as Record<string, unknown>);
     if (!holds.length) return null;
@@ -259,6 +259,15 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
         }}
       >
         <div style={{ fontFamily: font.mono, fontSize: size['2xs'], letterSpacing: '0.08em', color: palette.jade[400], fontWeight: weight.bold }}>
+          {/* Its worst open problem, as a square mark (the status bar and F4 lead here). */}
+          {issue && (
+            <span
+              role="img"
+              aria-label={(issue.severity === 'error' ? 'Error: ' : 'Warning: ') + issue.message}
+              title={issue.message}
+              style={{ display: 'inline-block', width: 7, height: 7, marginRight: 5, verticalAlign: 'middle', backgroundColor: issue.severity === 'error' ? palette.status.failed : palette.status.blocked }}
+            />
+          )}
           {tag ?? processNode.kind.replace(/_/g, ' ')}
           {holdNote && (
             // The unit holds results at targets: say so on the sheet, as a simulator marks a controlled unit.
@@ -268,6 +277,19 @@ export const IndustrialNode: React.FC<NodeProps> = ({ id, data, selected }) => {
           )}
         </div>
         <div style={{ fontSize: size.sm, fontWeight: weight.semibold, color: palette.text.primary }}>{title}</div>
+        {/* Over the run: working, starved, blocked, down, as one strip (Plant Simulation and FlexSim's state bar). */}
+        {shares && (
+          <div
+            role="img"
+            aria-label={'Over the run: ' + Math.round(shares.busy * 100) + '% working, ' + Math.round(shares.starved * 100) + '% starved, ' + Math.round(shares.blocked * 100) + '% blocked, ' + Math.round(shares.down * 100) + '% down'}
+            title={'Over the run: ' + Math.round(shares.busy * 100) + '% working, ' + Math.round(shares.starved * 100) + '% starved, ' + Math.round(shares.blocked * 100) + '% blocked, ' + Math.round(shares.down * 100) + '% down'}
+            style={{ display: 'flex', height: 3, marginTop: 3, backgroundColor: palette.border.subtle, overflow: 'hidden' }}
+          >
+            {([['busy', palette.status.busy], ['starved', palette.status.starved], ['blocked', palette.status.blocked], ['down', palette.status.failed]] as const).map(([k, c]) =>
+              shares[k] > 0.002 ? <span key={k} style={{ width: (shares[k] * 100).toFixed(1) + '%', backgroundColor: c }} /> : null
+            )}
+          </div>
+        )}
         {(state !== 'IDLE' || instantaneousRate > 0 || isLiquid) && (
           <div
             style={{

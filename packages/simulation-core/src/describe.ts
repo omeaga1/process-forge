@@ -47,7 +47,7 @@ export interface UnitBehavior {
   engineKeys: string[];
   role: 'source' | 'inline' | 'end' | 'unconnected';
   /** The contract's computed values worth showing up front. */
-  keyFigures?: { label: string; value: number; unit: string }[];
+  keyFigures?: { name: string; label: string; value: number; unit: string }[];
   /** A unit the engine cannot evaluate. */
   error?: string;
   /** Units that state their phases: each port's phase, and what changes phase inside. */
@@ -234,7 +234,7 @@ export function describeUnit(node: ProcessNode, graph: ProcessGraph): UnitBehavi
   const keys = own ? ['contract'] : contract.parameters.map((p) => p.name);
   const keyFigures = rankDerived(contract)
     .slice(0, 6)
-    .map((d) => ({ label: d.label ?? d.name, value: ev.derived[d.name] ?? NaN, unit: d.unit }));
+    .map((d) => ({ name: d.name, label: d.label ?? d.name, value: ev.derived[d.name] ?? NaN, unit: d.unit }));
   const phases = phasesOf(contract, { ...Object.fromEntries(contract.parameters.map((p) => [p.name, p.value])), ...ev.derived });
   const figures = { ...(keyFigures.length ? { keyFigures } : {}), ...(phases ? { phases } : {}) };
   if (ev.error) {

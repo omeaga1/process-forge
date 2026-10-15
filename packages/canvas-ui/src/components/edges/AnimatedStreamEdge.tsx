@@ -3,7 +3,7 @@ import { getSmoothStepPath, EdgeLabelRenderer, Position, useReactFlow, useStore,
 import { labelSpot, moveRun, placedSize, roundedPath, routePipe, routeThrough, type Point, type ProcessNode, type Rect } from '@process-forge/protocol';
 import { drawingSize } from '../../nozzles/nozzleLayout.js';
 import { useTheme } from '../../hooks/useTheme.js';
-import type { CanvasEdgeData } from '../../types.js';
+import type { CanvasEdgeData, StreamCard } from '../../types.js';
 import { flowPeriodSeconds, liveLabel, pipeColor } from './streamLook.js';
 
 /**
@@ -46,7 +46,10 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   const flowing = !isBlocked && rate > 0;
   const stream = edgeData?.processEdge.stream;
   const isFluid = stream?.type === 'CONTINUOUS_FLUID';
-  const temperatureC = flowing && isFluid ? edgeData?.temperatureC : undefined;
+  // While it runs, the engine's live figure; before, the line's steady state (its colour follows the temperature either way).
+  const steadyFigure = !flowing && !isBlocked ? edgeData?.steady : undefined;
+  const temperatureC = flowing && isFluid ? edgeData?.temperatureC : isFluid ? steadyFigure?.temperatureC : undefined;
+  const card = edgeData?.card;
 
   const phase = edgeData?.phase;
   const color = isBlocked
@@ -122,7 +125,7 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   // A gas or solids pipe is not sized in gal/min: name what it carries instead.
   const designLabel =
     phase === 'GAS' ? 'gas' : phase === 'SOLID' ? 'solids' : isFluid ? `${stream.designFlowRateGpm} gpm` : stream ? `${stream.targetPiecesPerMinute} cpm` : '';
-  const labelText = isBlocked ? 'BLOCKED' : flowing ? (edgeData?.liveText ?? liveLabel(isFluid, rate, temperatureC)) : designLabel;
+  const labelText = isBlocked ? 'BLOCKED' : flowing ? (edgeData?.liveText ?? liveLabel(isFluid, rate, temperatureC)) : steadyFigure?.label ?? designLabel;
   const emphasis = selected || hovered;
   // On the pipe where the tag clears every unit (10 px mono: ~6.1 px a character, plus padding and the swatch).
   const labelAt = useMemo(
@@ -233,7 +236,13 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
         </EdgeLabelRenderer>
       )}
 
-      {labelText && (emphasis || flowing || isBlocked) && !dragging && (
+      {hovered && card && !dragging && (
+        <EdgeLabelRenderer>
+          <StreamCardView card={card} x={labelX} y={labelY} color={color} />
+        </EdgeLabelRenderer>
+      )}
+
+      {labelText && (emphasis || flowing || isBlocked || steadyFigure) && !dragging && !(hovered && card) && (
         <EdgeLabelRenderer>
           <div
             style={{
@@ -242,7 +251,7 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
               pointerEvents: 'none',
               backgroundColor: palette.background.surfaceElevated,
               border: `1px solid ${isBlocked ? palette.status.blocked : `${color}88`}`,
-              color: isBlocked ? palette.status.blocked : palette.text.secondary,
+              color: isBlocked ? palette.status.blocked : steadyFigure && !emphasis ? palette.text.muted : palette.text.secondary,
               fontSize: 10,
               fontWeight: 600,
               padding: '1px 6px',
@@ -252,7 +261,7 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
               fontVariantNumeric: 'tabular-nums'
             }}
           >
-            {flowing && isFluid && temperatureC !== undefined && (
+            {(flowing || steadyFigure) && isFluid && temperatureC !== undefined && (
               <span aria-hidden style={{ display: 'inline-block', width: 6, height: 6, marginRight: 5, backgroundColor: color, verticalAlign: 'middle' }} />
             )}
             {labelText}
@@ -260,6 +269,66 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
         </EdgeLabelRenderer>
       )}
     </>
+  );
+};
+
+/**
+ * What a pipe carries, on hover: its number and ends, its phase, its flows and
+ * temperature, and what it is made of, with where the figures come from.
+ */
+const StreamCardView: React.FC<{ card: StreamCard; x: number; y: number; color: string }> = ({ card, x, y, color }) => {
+  const { palette, font } = useTheme();
+  // Read at screen size whatever the zoom: the canvas scales what is drawn in it.
+  const zoom = useStore((st: ReactFlowState) => st.transform[2]);
+  return (
+    <div style={{ position: 'absolute', transform: 'translate(' + x + 'px,' + y + 'px) scale(' + 1 / Math.max(0.2, zoom) + ')', transformOrigin: '0 0', pointerEvents: 'none', zIndex: 20 }}>
+    <div
+      role="tooltip"
+      style={{
+        position: 'absolute',
+        transform: 'translate(-50%, calc(-100% - 10px))',
+        pointerEvents: 'none',
+        minWidth: 200,
+        maxWidth: 280,
+        backgroundColor: palette.background.surfaceElevated,
+        border: '1px solid ' + palette.border.default,
+        borderTop: '2px solid ' + color,
+        boxShadow: '0 6px 18px rgba(0,0,0,0.35)',
+        padding: '8px 10px',
+        fontSize: 11,
+        color: palette.text.secondary
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+        <span style={{ fontFamily: font.mono, fontWeight: 700, color: palette.text.primary }}>
+          {card.number} <span style={{ fontWeight: 500, color }}>{card.phase}</span>
+        </span>
+        <span style={{ color: palette.text.muted }}>{card.source}</span>
+      </div>
+      <div style={{ lineHeight: 1.4, marginBottom: 6 }}>
+        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>from {card.from}</div>
+        <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>to {card.to}</div>
+      </div>
+      {card.rows.map(([k, v]) => (
+        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, lineHeight: 1.6 }}>
+          <span>{k}</span>
+          <span style={{ fontFamily: font.mono, color: palette.text.primary, fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+        </div>
+      ))}
+      {card.composition && (
+        <div style={{ marginTop: 6 }}>
+          <div style={{ display: 'flex', height: 4, overflow: 'hidden', backgroundColor: palette.border.subtle }}>
+            {card.composition.map(([c, f], i) => (
+              <span key={c} style={{ width: (f * 100).toFixed(2) + '%', backgroundColor: i === 0 ? color : i === 1 ? palette.text.gold : palette.text.muted }} />
+            ))}
+          </div>
+          <div style={{ marginTop: 3, color: palette.text.muted }}>
+            {card.composition.map(([c, f]) => c.replace(/_/g, ' ') + ' ' + (f * 100).toFixed(f < 0.01 ? 2 : 1) + '%').join(' · ')}
+          </div>
+        </div>
+      )}
+    </div>
+    </div>
   );
 };
 

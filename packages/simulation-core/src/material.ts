@@ -291,6 +291,8 @@ export interface MaterialUnit {
   live?: LiveContract;
   /** A pass-through: the last inlet it was evaluated at, per tick, whole and by port. */
   lastInlet?: { inbox: Parcel; byPort: Record<string, Parcel> };
+  /** Its derived values at the last conditions it was evaluated at: what it is doing, not what it was designed for. */
+  lastDerived?: Record<string, number>;
   /**
    * The balance's books, over the run. Mass and heat content (kg·cp·T) are
    * conserved by mixing, so these aggregates are exact:
@@ -579,6 +581,7 @@ export class MaterialNetwork {
     });
     const run = u.run!;
     run.evaluations++;
+    if (!ev.error) u.lastDerived = ev.derived;
     const declared = (u.contract!.behavior as { phases: { name: string; kind: EvaluatedBatchPhase['kind']; react?: boolean }[] }).phases[index]!;
     let phase: EvaluatedBatchPhase = { name: declared.name, kind: declared.kind };
     if (ev.error) {
@@ -853,6 +856,7 @@ export class MaterialNetwork {
       if (!run.firstError) run.firstError = `${ev.error.path}: ${ev.error.message}`;
       return;
     }
+    u.lastDerived = ev.derived;
     u.offSpecNow = ev.constraints.some((c) => !c.satisfied && c.severity === 'ERROR');
     for (const c of ev.constraints) {
       if (c.satisfied) continue;

@@ -41,6 +41,44 @@ export interface GraphValidationResult {
 /**
  * Validates a process simulation graph against physical and topological constraints.
  */
+/**
+ * Whether the flowsheet is complete, as a simulator checks before it runs
+ * (Aspen Plus: "Flowsheet Not Complete"): a unit piped to nothing, a feed that
+ * feeds nothing, an outlet nothing reaches, and a designed unit's required
+ * port with no pipe. Warnings: the line still runs (the unit simply idles),
+ * but each is almost always a step not yet taken.
+ */
+export function completenessDiagnostics(graph: ProcessGraph): GraphDiagnostic[] {
+  const out: GraphDiagnostic[] = [];
+  for (const node of graph.nodes) {
+    const ins = graph.edges.filter((e) => e.targetNodeId === node.id);
+    const outs = graph.edges.filter((e) => e.sourceNodeId === node.id);
+    const role = terminalRole(node);
+    if (role === 'feed') {
+      if (!outs.length) out.push({ severity: 'WARNING', nodeId: node.id, code: 'FEED_NOT_PIPED', message: `${node.name} feeds nothing: pipe it into the unit it supplies.` });
+      continue;
+    }
+    if (role) {
+      if (!ins.length) out.push({ severity: 'WARNING', nodeId: node.id, code: 'OUTLET_NOT_PIPED', message: `Nothing reaches ${node.name}: pipe the stream it receives into it.` });
+      continue;
+    }
+    if (!ins.length && !outs.length) {
+      out.push({ severity: 'WARNING', nodeId: node.id, code: 'UNIT_NOT_CONNECTED', message: `${node.name} is not connected: it does nothing in the line until it is piped in.` });
+      continue;
+    }
+    const contract = (node.config as { contract?: UnitOpContract }).contract;
+    for (const port of contract?.ports ?? []) {
+      if (port.required === false || port.role === 'ENERGY') continue;
+      const piped = port.direction === 'INLET' ? ins.some((e) => e.targetPortId === port.id) : outs.some((e) => e.sourcePortId === port.id);
+      // An outlet may leave the line by design (a vent); a required inlet with nothing piped starves the unit.
+      if (!piped && port.direction === 'INLET') {
+        out.push({ severity: 'WARNING', nodeId: node.id, code: 'REQUIRED_PORT_UNPIPED', message: `${node.name}'s inlet "${port.name}" has nothing piped to it.` });
+      }
+    }
+  }
+  return out;
+}
+
 export function validateProcessGraph(graph: ProcessGraph): GraphValidationResult {
   const diagnostics: GraphDiagnostic[] = [];
   const nodeMap = new Map<string, ProcessNode>();
@@ -117,6 +155,8 @@ export function validateProcessGraph(graph: ProcessGraph): GraphValidationResult
       }
     }
   }
+
+  diagnostics.push(...completenessDiagnostics(graph));
 
   // Bottleneck & Capacity Analysis
   const bottleneckAnalysis = computeBottlenecks(graph);
