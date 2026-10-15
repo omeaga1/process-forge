@@ -23,6 +23,10 @@ jobs:
           node-version: 22
           cache: 'pnpm'
 
+      # Every desktop version says what changed: the app shows it after updating.
+      - name: Release notes for the desktop version
+        run: node apps/web/scripts/check-release-notes.mjs
+
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 

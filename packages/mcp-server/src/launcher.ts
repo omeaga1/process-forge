@@ -32,11 +32,38 @@ interface ServerInfo {
   build?: string;
 }
 
-const log = (msg: string): void => {
-  process.stderr.write(`[process-forge updater] ${msg}\n`);
-};
 const here = path.dirname(fileURLToPath(import.meta.url));
 const home = process.env.PROCESS_FORGE_MCP_HOME ?? path.join(os.homedir(), '.process-forge', 'mcp');
+
+/**
+ * Every decision goes to stderr and to updater.log in the updater's folder.
+ * Claude keeps an extension's stderr only in some hosts, and an updater that
+ * quietly keeps an old server is exactly the failure that needs a record
+ * (0.18 stayed in place for four releases in Oct 2026 and nothing said why).
+ */
+const log = (msg: string): void => {
+  process.stderr.write(`[process-forge updater] ${msg}\n`);
+  try {
+    fs.mkdirSync(home, { recursive: true });
+    const file = path.join(home, 'updater.log');
+    // Kept short: the last few hundred lines are all anyone reads.
+    if (fs.existsSync(file) && fs.statSync(file).size > 64 * 1024) fs.renameSync(file, `${file}.1`);
+    fs.appendFileSync(file, `${new Date().toISOString()} [${process.pid}] ${msg}\n`);
+  } catch {
+    // The log is a convenience; the updater works without it.
+  }
+};
+
+/**
+ * The environment for a server this one starts. Claude can run extensions on
+ * its own built-in runtime, where process.execPath is Claude's program, not
+ * node: it runs as node only when told to.
+ */
+const childEnv = (extra: Record<string, string>): NodeJS.ProcessEnv => ({
+  ...process.env,
+  ...(/^node(\.exe)?$/i.test(path.basename(process.execPath)) ? {} : { ELECTRON_RUN_AS_NODE: '1' }),
+  ...extra
+});
 const autoUpdate = process.env.PROCESS_FORGE_MCP_AUTO_UPDATE !== '0';
 
 const readJson = <T>(file: string): T | undefined => {
@@ -83,18 +110,27 @@ function downloaded(): { file: string; info: ServerInfo } | undefined {
 function probe(file: string): Promise<boolean> {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [file], {
-      stdio: ['pipe', 'pipe', 'ignore'],
-      env: { ...process.env, PROCESS_FORGE_MCP_AUTO_UPDATE: '0' }
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: childEnv({ PROCESS_FORGE_MCP_AUTO_UPDATE: '0' })
     });
     let buf = '';
-    const done = (ok: boolean) => {
+    // What it said on its way down, for the log when it fails.
+    let errText = '';
+    child.stderr.on('data', (d) => {
+      errText = (errText + d).slice(-600);
+    });
+    let settled = false;
+    const done = (ok: boolean, why = '') => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       child.kill();
+      if (!ok) log(`test start of ${path.basename(file)} failed (${why}) with ${process.execPath}${errText.trim() ? `: ${errText.trim().split('\n').slice(-3).join(' | ')}` : ''}`);
       resolve(ok);
     };
-    const timer = setTimeout(() => done(false), 20000);
-    child.on('error', () => done(false));
-    child.on('exit', () => done(false));
+    const timer = setTimeout(() => done(false, 'no answer in 20 s'), 20000);
+    child.on('error', (e) => done(false, e.message));
+    child.on('exit', (code) => done(false, `exited with ${code}`));
     child.stdout.on('data', (d) => {
       buf += d;
       let i;
@@ -107,9 +143,9 @@ function probe(file: string): Promise<boolean> {
           if (msg.id === 1) {
             child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
             child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }) + '\n');
-          } else if (msg.id === 2) done(Array.isArray(msg.result?.tools) && msg.result.tools.length > 0);
+          } else if (msg.id === 2) done(Array.isArray(msg.result?.tools) && msg.result.tools.length > 0, 'listed no tools');
         } catch {
-          done(false);
+          done(false, 'wrote something that is not MCP');
         }
       }
     });
@@ -197,6 +233,7 @@ if (latest) {
 }
 
 if (autoUpdate) {
+  log(`started ${runningInfo?.build ?? runningInfo?.version ?? 'the shipped server'} (${runningFile === shipped.file ? 'shipped with the extension' : 'downloaded'}) on ${process.execPath} ${process.version}`);
   // After the server is up, so a slow network never delays Claude.
   setTimeout(() => {
     checkForUpdate(runningInfo).catch((error) => log(`update check skipped: ${(error as Error).message}`));
