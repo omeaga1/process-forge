@@ -209,6 +209,32 @@ export function portStreams(contract: UnitOpContract, byPort: Record<string, Par
   return out;
 }
 
+/**
+ * Every unit's contract, evaluated at its design point before anything runs,
+ * so a physically incoherent unit fails before the clock starts rather than
+ * partway through a run. Shared by the dynamic run and the steady-state solve.
+ */
+export function prepareContracts(graph: ProcessGraph): { contracts: Map<string, UnitOpContract>; evaluations: Map<string, UnitOpEvaluation> } {
+  const contracts = new Map<string, UnitOpContract>();
+  const evaluations = new Map<string, UnitOpEvaluation>();
+  for (const node of graph.nodes) {
+    if (node.kind === 'TERMINAL') continue;
+    const contract = effectiveContract(node, graph.edges);
+    if (!contract) continue;
+    const ev = evaluateUnitOp(contract);
+    if (ev.error) {
+      throw new Error(`Node "${node.id}" contract "${contract.id}" failed to evaluate at ${ev.error.path}: ${ev.error.message}`);
+    }
+    const blocking = blockingViolations(ev);
+    if (blocking.length > 0) {
+      throw new Error(`Node "${node.id}" contract "${contract.id}" is not physically valid: ` + blocking.map((c) => c.message).join(' | '));
+    }
+    contracts.set(node.id, contract);
+    evaluations.set(node.id, ev);
+  }
+  return { contracts, evaluations };
+}
+
 /** Event types that are a unit's own cycle, and so pause while it is down. */
 const CYCLE_EVENTS = new Set<SimEvent['type']>(['CYCLE_COMPLETE']);
 
@@ -268,24 +294,13 @@ export class SimulationEngine {
   }
 
   private initializeNodes(contracts: Map<string, UnitOpContract>, evaluations: Map<string, UnitOpEvaluation>): void {
+    const prepared = prepareContracts(this.graph);
+    for (const [k, v] of prepared.contracts) contracts.set(k, v);
+    for (const [k, v] of prepared.evaluations) evaluations.set(k, v);
     for (const node of this.graph.nodes) {
       const terminal = node.kind === 'TERMINAL' ? terminalRole(node) ?? 'product' : null;
-      const contract = terminal ? undefined : effectiveContract(node, this.graph.edges);
-      let ev: UnitOpEvaluation | undefined;
-      if (contract) {
-        // Evaluated once, up front, so a physically incoherent unit fails
-        // before the clock starts rather than partway through a run.
-        ev = evaluateUnitOp(contract);
-        if (ev.error) {
-          throw new Error(`Node "${node.id}" contract "${contract.id}" failed to evaluate at ${ev.error.path}: ${ev.error.message}`);
-        }
-        const blocking = blockingViolations(ev);
-        if (blocking.length > 0) {
-          throw new Error(`Node "${node.id}" contract "${contract.id}" is not physically valid: ` + blocking.map((c) => c.message).join(' | '));
-        }
-        contracts.set(node.id, contract);
-        evaluations.set(node.id, ev);
-      }
+      const contract = contracts.get(node.id);
+      const ev = evaluations.get(node.id);
       const b = ev?.behavior;
       const cycle = b?.mode === 'DISCRETE_CYCLE' ? b : undefined;
       const configured = (node.config as { bufferCapacity?: unknown }).bufferCapacity;

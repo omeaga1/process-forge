@@ -244,6 +244,56 @@ with $c_p$ from the fluid's `specificHeatKjPerKgK`, else water's 4.186 kJ/kg·K.
 and tank outlets into containers per minute: their gallons per minute divided
 by the container volume of the pipe-fed filler.
 
+## Steady state
+
+`solveSteadyState` (`packages/simulation-core/src/steady.ts`, the MCP tool
+`solve_steady_state`) finds the state a long run settles to, without running
+the clock. It is not a second engine: it steps the same material network.
+
+What it changes from a dynamic run:
+
+- tanks start empty;
+- nothing waits on an item event.
+
+Each step sends every stream on in flow order. A line without recycles
+settles in one sweep, as in a sequential-modular simulator.
+
+**Recycles.** A recycle's return reaches its unit after that unit has
+stepped (the network's `late` arrivals). Those arrivals are the tear streams,
+and they are accelerated by bounded Wegstein, applied per variable (kg of
+each component, heat content, volume):
+
+$$s = \frac{g(x_k) - g(x_{k-1})}{x_k - x_{k-1}},\quad q = \text{clamp}\!\left(\frac{s}{s-1}, -5, 0\right),\quad x_{k+1} = q\,x_k + (1-q)\,g(x_k)$$
+
+It starts after two direct substitutions, as Aspen Plus does by default.
+How much this saves depends on the recycle ratio:
+
+| Recycle around a mixer | Wegstein | Direct substitution |
+| --- | --- | --- |
+| 80 % | 8 steps | 59 steps |
+| 95 % | 42 steps | 215 steps |
+
+**Converged** means no stream moves by more than 1e-6 (relative) for three
+steps running. The report then gives:
+
+- every stream, and each unit's flows, outlet temperature, duty and share of
+  its rating;
+- the checks each unit fails at that point;
+- mass in and out, and the energy verdict per thermal unit (per hour, in kW).
+
+**No steady state** is reported, not waited for, in two cases:
+
+- **A tank fills.** The report says how fast, and when it is full.
+- **Mass in exceeds mass out once the streams have settled.** This happens
+  with a recycle nothing leaves, or a unit at its rating that cannot pass what
+  reaches it. The report names that unit.
+
+**Not converged** comes with the convergence history and a pattern: slow,
+oscillating or diverging.
+
+**Not applicable:** lines with batch units, or with machines that draw liquid
+per cycle, run in cycles. Use the dynamic run for those.
+
 ## Heat and mass balance
 
 Every run closes its own books (`packages/simulation-core/src/balance.ts`,

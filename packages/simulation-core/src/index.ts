@@ -7,3 +7,4 @@ export * from './roles.js';
 export * from './describe.js';
 export * from './streams.js';
 export * from './balance.js';
+export * from './steady.js';

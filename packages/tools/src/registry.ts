@@ -28,6 +28,7 @@ import { compareScenarios, diagnoseBottlenecks, simulateLine } from './line.js';
 import { lookupComponent } from './components.js';
 import { applyChanges, planChanges } from './plan.js';
 import { solveLineTarget, sweepLine } from './study.js';
+import { steadyState } from './steady.js';
 
 /**
  * Every tool a model can call, defined once. The MCP server lists these to
@@ -217,6 +218,27 @@ export const FORGE_TOOLS: ForgeTool[] = [
     }
   },
 
+  {
+    name: 'solve_steady_state',
+    title: 'Solve the line at steady state',
+    access: 'read',
+    idempotent: true,
+    graphSource: true,
+    description:
+      'The line\'s heat and mass balance at steady state, solved in milliseconds rather than waited for: every stream (kg/h, gal/min, °C, composition), each unit\'s flows, outlet temperature, duty, share of its rating and the checks it fails there, mass in and out, and each heating, cooling or phase-changing unit\'s duty against its streams; with status and coded issues as simulate_process_line gives them. It steps the same engine a run does, so its answer is the one a long run settles to; recycles are torn and converged by Wegstein, with the convergence history. Says "no steady state" when a tank fills (how fast, and when it is full) or a recycle cannot close, and "not applicable" for lines with batch units or machines that draw liquid per cycle (use simulate_process_line). Use it for a liquid, gas or powder line\'s balance and stream table; use simulate_process_line for what happens over time.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tolerance: { type: 'number', description: 'Relative change below which a stream has settled (default 1e-6).' },
+        maxIterations: { type: 'number', description: 'Most steps to take (default 4000).' }
+      }
+    },
+    summarize: () => 'Solve the line at steady state',
+    run: async (a, host) => {
+      const r = await graphOf(a, host);
+      return withSource(r, steadyState(r.graph, a as never));
+    }
+  },
   {
     name: 'sweep_line',
     title: 'Sweep one setting across the line',
