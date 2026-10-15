@@ -45,6 +45,8 @@ interface MasterOrchestratorDockProps {
   steady?: SteadyResult | null;
   /** The run shown was made on a flowsheet that has since changed. */
   stale?: boolean;
+  /** Move the run's playhead to a fraction of it (the digest's timeline). */
+  onSeek?: (fraction: number) => void;
 }
 
 export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
@@ -59,7 +61,8 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   run,
   bulkLine,
   steady,
-  stale
+  stale,
+  onSeek
 }) => {
   const { palette, font, size, space, radius: r } = useTheme();
   const OsakaJadePalette = palette;
@@ -384,7 +387,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         })()}
       </div>
 
-      {run && <RunDigest graph={graph} run={run} stale={stale} />}
+      {run && <RunDigest graph={graph} run={run} stale={stale} {...(onSeek ? { onSeek } : {})} />}
 
       {agentMode && agentHost && <AgentChat host={agentHost} modelLabel={agentCreds.modelId} />}
 
