@@ -381,7 +381,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
         name === 'interp'
           ? 'interp(x, x1, y1, x2, y2, ...): piecewise-linear table, x ascending, clamped at the ends'
           : PROPERTY_FUNCTIONS[name]
-            ? `${name}(${PROPERTY_FUNCTIONS[name]!.argNames.map((a, i) => `${a} in ${PROPERTY_FUNCTIONS[name]!.args[i]}`).join(', ')}) -> ${PROPERTY_FUNCTIONS[name]!.returns}: ${PROPERTY_FUNCTIONS[name]!.what}`
+            ? `${name}(${PROPERTY_FUNCTIONS[name]!.argNames.map((a, i) => (PROPERTY_FUNCTIONS[name]!.args[i] === 'component' ? "'component' in quotes" : `${a} in ${PROPERTY_FUNCTIONS[name]!.args[i]}`)).join(', ')}) -> ${PROPERTY_FUNCTIONS[name]!.returns}: ${PROPERTY_FUNCTIONS[name]!.what}`
             : Array.isArray(def.arity)
             ? `${def.arity[0]}-${def.arity[1]} args`
             : `${def.arity} arg(s)`
@@ -433,6 +433,15 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     'inlet.x.<name> and change them with reactions and recovery. During a run the engine evaluates your design every',
     'second at the stream that actually reaches it, so write the physics in terms',
     'of inlet.* wherever the feed matters, rather than as fixed parameters.',
+    '',
+    'Do not type in physical properties from memory. For a real chemical, call the',
+    "engine's component database: psat('ethanol', T) and tsat('ethanol', P) for",
+    "boiling, hvap('ethanol', T) for latent heat, cp_liquid('ethanol'),",
+    "cp_gas('nitrogen', T), rho_liquid('toluene', T), molar_mass('co2'). Name the",
+    'component in quotes; lookup_component lists the components and their figures,',
+    'and validate_unit_op rejects a name the database does not know. Give a phase',
+    "change's latentHeatKjPerKg from hvap() so the engine's energy balance can check",
+    "the unit's duty against its streams.",
     '',
     'Phases decide the physics. phasePlan says which phase each port carries for',
     'this kind of unit (LIQUID, GAS, SOLID or ITEMS), what is carried in another',

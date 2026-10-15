@@ -43,7 +43,7 @@ export interface ExprScope {
 
 // ---------------------------------------------------------------- tokenizer
 
-type TokenType = 'num' | 'ident' | 'op' | 'lparen' | 'rparen' | 'comma' | 'eof';
+type TokenType = 'num' | 'str' | 'ident' | 'op' | 'lparen' | 'rparen' | 'comma' | 'eof';
 
 interface Token {
   type: TokenType;
@@ -108,6 +108,20 @@ function tokenize(src: string): Token[] {
       continue;
     }
 
+    // A quoted name: only ever a component, the first argument of a property
+    // function such as psat('ethanol', T). Letters, digits, _ - , and spaces.
+    if (c === "'" || c === '"') {
+      let j = i + 1;
+      while (j < src.length && src[j] !== c) {
+        if (!/[A-Za-z0-9_\- ,]/.test(src[j] as string)) throw new ExpressionError(`Unexpected character "${src[j]}" in a quoted name`, src, j);
+        j++;
+      }
+      if (j >= src.length) throw new ExpressionError('A quoted name is not closed', src, i);
+      tokens.push({ type: 'str', value: src.slice(i + 1, j), pos: i });
+      i = j + 1;
+      continue;
+    }
+
     if (c === '(') { tokens.push({ type: 'lparen', value: c, pos: i }); i++; continue; }
     if (c === ')') { tokens.push({ type: 'rparen', value: c, pos: i }); i++; continue; }
     if (c === ',') { tokens.push({ type: 'comma', value: c, pos: i }); i++; continue; }
@@ -131,6 +145,8 @@ function tokenize(src: string): Token[] {
 
 export type Ast =
   | { k: 'num'; v: number }
+  /** A quoted component name, as a property function's first argument. */
+  | { k: 'str'; v: string; pos: number }
   | { k: 'ref'; name: string; pos: number }
   | { k: 'unary'; op: string; a: Ast; pos: number }
   | { k: 'bin'; op: string; a: Ast; b: Ast; pos: number }
@@ -232,6 +248,11 @@ class Parser {
       return { k: 'num', v: Number(t.value) };
     }
 
+    if (t.type === 'str') {
+      this.i++;
+      return { k: 'str', v: t.value, pos: t.pos };
+    }
+
     if (t.type === 'ident') {
       this.i++;
       if (this.peek().type === 'lparen') {
@@ -269,7 +290,7 @@ class Parser {
  * ambient state. Adding a function to this table is the only way to widen what
  * a contract can compute.
  */
-export const EXPRESSION_FUNCTIONS: Record<string, { arity: number | [number, number]; fn: (...a: number[]) => number }> = {
+export const EXPRESSION_FUNCTIONS: Record<string, { arity: number | [number, number]; fn: (...a: number[]) => number; component?: boolean }> = {
   min: { arity: [2, 8], fn: (...a) => Math.min(...a) },
   max: { arity: [2, 8], fn: (...a) => Math.max(...a) },
   abs: { arity: 1, fn: (a) => Math.abs(a as number) },
@@ -289,7 +310,7 @@ export const EXPRESSION_FUNCTIONS: Record<string, { arity: number | [number, num
    */
   interp: { arity: [5, 41], fn: interpolate },
   // Physical properties (properties.ts): water on the saturation line and as a liquid, ideal gases.
-  ...Object.fromEntries(Object.entries(PROPERTY_FUNCTIONS).map(([name, f]) => [name, { arity: f.args.length, fn: f.fn }]))
+  ...Object.fromEntries(Object.entries(PROPERTY_FUNCTIONS).map(([name, f]) => [name, { arity: f.args.length, fn: f.fn as (...a: number[]) => number, ...(f.args[0] === 'component' ? { component: true } : {}) }]))
 };
 
 /**
@@ -359,6 +380,9 @@ function evalAst(node: Ast, scope: ExprScope, src: string): ExprValue {
   switch (node.k) {
     case 'num':
       return node.v;
+
+    case 'str':
+      throw new ExpressionError(`A quoted name ("${node.v}") can only name a component, as the first argument of a property function such as psat('ethanol', T)`, src, node.pos);
 
     case 'ref':
       return lookup(scope, node.name, src, node.pos);
@@ -434,10 +458,14 @@ function evalAst(node: Ast, scope: ExprScope, src: string): ExprValue {
           node.pos
         );
       }
-      const args = node.args.map((a) => asNumber(evalAst(a, scope, src), src, node.pos));
+      // A component function's first argument is a quoted component name; the rest, and every other function's, are numbers.
+      if (def.component && node.args[0]?.k !== 'str') {
+        throw new ExpressionError(`"${node.name}" takes a component name first, in quotes, e.g. ${node.name}('ethanol', ...)`, src, node.pos);
+      }
+      const args: (number | string)[] = node.args.map((a, i) => (def.component && i === 0 && a.k === 'str' ? a.v : asNumber(evalAst(a, scope, src), src, node.pos)));
       let out: number;
       try {
-        out = def.fn(...args);
+        out = def.fn(...(args as number[]));
       } catch (e) {
         throw new ExpressionError(`"${node.name}": ${(e as Error).message}`, src, node.pos);
       }
@@ -526,6 +554,7 @@ export function referencedNames(src: string): string[] {
       case 'bin': walk(n.a); walk(n.b); break;
       case 'call': n.args.forEach(walk); break;
       case 'num': break;
+      case 'str': break;
     }
   };
   walk(parseExpression(src));

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ARCHETYPE_PHYSICS, EQUIPMENT_ARCHETYPES, type BehaviorMode, type PhysicsRequirement } from './archetypes.js';
+import { findComponent } from '../thermo/components.js';
 
 /**
  * Phases: what physical state a stream is in, and therefore which physics,
@@ -175,12 +176,20 @@ export const COMPONENT_MOLAR_MASS: Record<string, number> = {
   argon: 39.948, hcl: 36.461, so2: 64.066, ethanol: 46.07, helium: 4.003, propane: 44.1
 };
 
-/** Mean molar mass of a gas mixture from mass fractions: M = sum(w) / sum(w / M_i). */
+/**
+ * A component's molar mass, kg/kmol: the names above, then the component
+ * database (any of its names, aliases or formulas), else undefined.
+ */
+export function molarMassOf(component: string): number | undefined {
+  return COMPONENT_MOLAR_MASS[component.toLowerCase()] ?? findComponent(component)?.molarMass;
+}
+
+/** Mean molar mass of a gas mixture from mass fractions: M = sum(w) / sum(w / M_i). Unknown components count as air. */
 export function mixtureMolarMass(composition: Record<string, number> | undefined): number {
   const entries = Object.entries(composition ?? {}).filter(([, w]) => w > 0);
   if (!entries.length) return MOLAR_MASS_AIR;
   const total = entries.reduce((a, [, w]) => a + w, 0);
-  const kmol = entries.reduce((a, [c, w]) => a + w / (COMPONENT_MOLAR_MASS[c.toLowerCase()] ?? MOLAR_MASS_AIR), 0);
+  const kmol = entries.reduce((a, [c, w]) => a + w / (molarMassOf(c) ?? MOLAR_MASS_AIR), 0);
   return total / kmol;
 }
 

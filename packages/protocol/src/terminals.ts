@@ -3,6 +3,7 @@ import { idealGasDensity, mixtureMolarMass, PHASE_ARCHETYPES, scfmToKgPerS, STD_
 import type { NodePort, NozzleDressing, ProcessNode, UnitOpDressing } from './nodes.js';
 import type { Side } from './equipment/nozzleLayout.js';
 import type { ProcessEdge } from './streams.js';
+import { gasMixtureCp, liquidMixture } from './thermo/components.js';
 
 /**
  * Where material enters and leaves the flowsheet: feeds, products,
@@ -92,6 +93,26 @@ export function feedGasDensityGPerCm3(node: Pick<ProcessNode, 'config'>, tempera
   if (terminalPhase(node) !== 'GAS') return undefined;
   const c = node.config as { composition?: Record<string, number> };
   return idealGasDensity(temperatureC, STD_PRESSURE_KPA, mixtureMolarMass(c.composition)) / 1000;
+}
+
+/**
+ * What a feed's own composition says about what it supplies, when every
+ * component is in the component database: a liquid's density and specific
+ * heat (ideal mixing), a gas's specific heat. Empty when it names no
+ * composition or a component the database does not hold. A feed that states
+ * a density or specific heat of its own keeps it; this is for one that does
+ * not, which would otherwise be taken for water (1.0 g/cm3, 4.186 kJ/kg·K)
+ * or for air (1.006 kJ/kg·K).
+ */
+export function feedPropertiesFromComposition(node: Pick<ProcessNode, 'config'>, temperatureC: number): { densityGPerCm3?: number; specificHeatKjPerKgK?: number } {
+  const comp = (node.config as { composition?: Record<string, number> }).composition;
+  if (!comp || typeof comp !== 'object' || !Object.keys(comp).length) return {};
+  if (terminalPhase(node) === 'GAS') {
+    const cp = gasMixtureCp(comp, temperatureC);
+    return cp !== undefined ? { specificHeatKjPerKgK: cp } : {};
+  }
+  const mix = liquidMixture(comp, temperatureC);
+  return mix ? { densityGPerCm3: mix.densityKgPerM3 / 1000, specificHeatKjPerKgK: mix.cpKjPerKgK } : {};
 }
 
 /** The settings that describe the liquid a feed supplies. */

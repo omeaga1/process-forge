@@ -4,6 +4,7 @@ import {
   addStreamToGraph,
   createStandardUnitOp,
   findStandardUnitOp,
+  liquidMixture,
   type ProcessEdge,
   type ProcessGraph,
   type ProcessNode
@@ -60,7 +61,12 @@ describe('Standard designed units in a run', () => {
     const g = build([water, brine, mixer, out], [pipe(water, mixer, undefined, 'a'), pipe(brine, mixer, undefined, 'b'), pipe(mixer, out)]);
     const t = simulateProcess(g, 30).terminals.find((x) => x.nodeId === 'out')!;
     const salt = t.componentsKg!.salt! / (t.componentsKg!.salt! + t.componentsKg!.water!);
-    assert.ok(Math.abs(salt - 0.05) < 0.002, `salt ${salt}`);
+    // 30 and 10 gal/min by volume; by mass the brine weighs more, as its composition says (no density stated).
+    const rhoWater = liquidMixture({ water: 1 }, 20)!.densityKgPerM3;
+    const rhoBrine = liquidMixture({ water: 0.8, salt: 0.2 }, 20)!.densityKgPerM3;
+    assert.ok(rhoBrine > 1100, `brine ${rhoBrine} kg/m3`);
+    const want = (10 * rhoBrine * 0.2) / (30 * rhoWater + 10 * rhoBrine);
+    assert.ok(Math.abs(salt - want) < 0.002, `salt ${salt}, want ${want}`);
     assert.ok(Math.abs(t.gallons - 40 * 30) / (40 * 30) < 0.02, `blend ${t.gallons} gal`);
   });
 

@@ -25,6 +25,7 @@ import { addCommunityUnitOp, addStandardUnitOp, COMMUNITY_CATEGORIES, libraryMat
 import { resolveGraph, type ResolvedGraph } from './graphSource.js';
 import type { DecisionSource, ProjectRequest, Surface, ToolHost } from './host.js';
 import { compareScenarios, diagnoseBottlenecks, simulateLine } from './line.js';
+import { lookupComponent } from './components.js';
 
 /**
  * Every tool a model can call, defined once. The MCP server lists these to
@@ -322,6 +323,25 @@ export const FORGE_TOOLS: ForgeTool[] = [
     },
     summarize: (a) => `Convert ${a.flow?.value ?? '?'} ${a.flow?.unit ?? ''} of ${String(a.phase ?? 'stream').toLowerCase()}`,
     run: async (a) => calculateStream(a as never)
+  },
+  {
+    name: 'lookup_component',
+    title: 'Look up a chemical component',
+    access: 'read',
+    idempotent: true,
+    description:
+      "The engine's component database (water, alcohols, hydrocarbons, solvents, glycols, common gases, sugars, salt; Antoine, critical constants, heat capacities and densities from Poling, PSRK and CRC). Name a component (or an alias, formula or CAS number) for its molar mass, boiling and critical points, vapour pressure, latent heat, densities and specific heats at a temperature; give a composition (mass fractions) for a liquid mixture's density, specific heat and ideal bubble point; give nothing for the list. Use it instead of recalling a property, and to check a component name before a contract uses it: contracts call the same data as psat('ethanol', T), hvap(...), cp_gas(...), rho_liquid(...). An unknown name is refused with the names it probably meant.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        component: { type: 'string', description: 'A name, alias, formula or CAS number, e.g. "ethanol", "IPA", "CO2", "64-17-5".' },
+        composition: { type: 'object', description: 'Instead: a liquid mixture as mass fractions, e.g. { "water": 0.6, "ethanol": 0.4 }.' },
+        temperatureC: { type: 'number', description: 'Temperature for the properties, °C (default 25).' },
+        pressureKpa: { type: 'number', description: 'Absolute pressure for the boiling point, kPa (default 101.325).' }
+      }
+    },
+    summarize: (a) => (a.composition ? 'Look up a mixture' : a.component ? `Look up ${a.component}` : 'List the components'),
+    run: async (a) => lookupComponent(a as never)
   },
   {
     name: 'validate_unit_op',

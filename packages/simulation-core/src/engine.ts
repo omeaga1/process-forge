@@ -2,7 +2,7 @@ import type { ProcessGraph, ProcessNode, UnitOpContract, UnitOpEvaluation } from
 import {
   blockingViolations,
   componentPhaseAt,
-  COMPONENT_MOLAR_MASS,
+  molarMassOf,
   effectiveContract,
   idealGasDensity,
   isPhaseAware,
@@ -120,7 +120,7 @@ function phaseSplit(port: UnitOpContract['ports'][number], p: Parcel, phase: str
     if (componentPhaseAt(port, c) !== phase) dispersedKg[c] = f * p.kg;
     else {
       ownFraction += f;
-      kmolPerKg += f / (COMPONENT_MOLAR_MASS[c.toLowerCase()] ?? 28.96);
+      kmolPerKg += f / (molarMassOf(c) ?? 28.96);
     }
   }
   if (Object.keys(p.comp).length === 0) {
