@@ -45,6 +45,7 @@ export * from './decisions/designQuestions.js';
 export * from './connect.js';
 export * from './edit.js';
 export * from './nearest.js';
+export * from './plan.js';
 export * from './thermo/index.js';
 export * from './terminals.js';
 export * from './thermal.js';

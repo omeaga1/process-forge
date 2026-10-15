@@ -93,7 +93,7 @@ function edit(host: AgentHost, e: FlowsheetEdit) {
   const r = applyFlowsheetEdit(host.getGraph(), e);
   if (!r.ok) return { success: false, changed: false, error: r.error };
   host.commit(r.graph);
-  return { success: true, changed: true, message: r.message, ...(r.changes ? { changes: r.changes } : {}), ...(r.warnings ? { warnings: r.warnings } : {}) };
+  return { success: true, changed: true, message: r.message, ...(r.changes ? { changes: r.changes } : {}), ...(r.warnings ? { warnings: r.warnings } : {}), ...(r.steps ? { steps: r.steps } : {}) };
 }
 
 /** The studio as a host for the shared tools: the canvas's own flowsheet, changed in place. */

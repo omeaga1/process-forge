@@ -26,6 +26,7 @@ import { resolveGraph, type ResolvedGraph } from './graphSource.js';
 import type { DecisionSource, ProjectRequest, Surface, ToolHost } from './host.js';
 import { compareScenarios, diagnoseBottlenecks, simulateLine } from './line.js';
 import { lookupComponent } from './components.js';
+import { applyChanges, planChanges } from './plan.js';
 
 /**
  * Every tool a model can call, defined once. The MCP server lists these to
@@ -435,6 +436,70 @@ export const FORGE_TOOLS: ForgeTool[] = [
   },
 
   // ── Changing the flowsheet
+  {
+    name: 'plan_changes',
+    title: 'Plan changes to the flowsheet',
+    access: 'read',
+    idempotent: true,
+    graphSource: true,
+    description:
+      'Plan, then act: for any change of more than one step (building a section of line, re-piping, retuning several units), plan it here first. Applies the changes to a copy of the flowsheet, in order, all or nothing, and reports what they would do: each step, the diff (units added and removed, settings changed from and to, streams added and removed), new and cleared static-check errors, and a run of the line before and after on the same seed (status, issues, output, bottleneck). Nothing on the flowsheet changes. Returns a planId bound to the flowsheet as it is and to these exact changes: show the engineer the plan, and when they agree, apply_changes with the same changes and planId. Each change is { "op": ... }: "add-unit" (unit: a catalog id from list_standard_unit_ops, name, parameters, and for feeds material, supplyRate, composition, phase...), "add-designed-unit" (contract, name), "add-stream" (from, to, fromPort, toPort), "update-unit" (unit, parameters, name), "hold-result" (unit, result, target, vary), "remove-unit" (unit), "remove-stream" (stream, or from and to). Later steps name units by the names earlier steps gave them.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        changes: {
+          type: 'array',
+          description:
+            'In order, e.g. [{ "op": "add-unit", "unit": "pump", "name": "Transfer Pump P-201" }, { "op": "add-stream", "from": "T-101", "to": "P-201" }, { "op": "update-unit", "unit": "P-201", "parameters": { "designFlowRateGpm": 60 } }].',
+          items: { type: 'object', properties: { op: { type: 'string', enum: ['add-unit', 'add-designed-unit', 'add-stream', 'update-unit', 'hold-result', 'remove-unit', 'remove-stream', 'arrange-unit', 'route-stream'] } }, required: ['op'] }
+        },
+        durationMinutes: { type: 'number', description: 'Simulated minutes for the before and after runs (default 60).' }
+      },
+      required: ['changes']
+    },
+    summarize: (a) => `Plan ${Array.isArray(a.changes) ? a.changes.length : 0} change(s)`,
+    run: async (a, host) => {
+      const r = await graphOf(a, host);
+      return withSource(r, planChanges(r.graph, a as never));
+    }
+  },
+  {
+    name: 'apply_changes',
+    destructive: true,
+    title: 'Apply a planned set of changes',
+    access: 'write',
+    description:
+      'Applies the changes plan_changes planned, in one step: pass the same changes and its planId. Refused, with nothing changed, if the flowsheet has changed since the plan or the changes differ from the planned ones (plan again). After applying, reads the flowsheet back from the app and reports whether every planned change is there (readBack.verified); if not, it says what is missing. The engineer can undo the whole plan in one step on the canvas.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        changes: { type: 'array', description: 'The same changes given to plan_changes.', items: { type: 'object' } },
+        planId: { type: 'string', description: 'The planId plan_changes returned.' }
+      },
+      required: ['changes', 'planId']
+    },
+    summarize: (a) => {
+      const list = Array.isArray(a.changes) ? a.changes : [];
+      const what = list.slice(0, 6).map((c: Record<string, any>) => {
+        switch (c.op) {
+          case 'add-unit':
+            return `add ${c.name ?? c.unit}`;
+          case 'add-designed-unit':
+            return `add ${c.name ?? c.contract?.name ?? 'a designed unit'}`;
+          case 'add-stream':
+            return `pipe ${c.from} → ${c.to}`;
+          case 'update-unit':
+            return `change ${c.unit}`;
+          case 'remove-unit':
+            return `remove ${c.unit}`;
+          default:
+            return String(c.op);
+        }
+      });
+      return `Apply ${list.length} change(s): ${what.join(', ')}${list.length > 6 ? ', ...' : ''}`;
+    },
+    run: async (a, host) => applyChanges(a as never, host)
+  },
   {
     name: 'add_standard_unit_op',
     title: 'Add standard equipment',

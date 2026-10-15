@@ -40,6 +40,7 @@ describe('What any MCP client sees', () => {
       'add_standard_unit_op',
       'add_stream',
       'add_unit_op_to_flowsheet',
+      'apply_changes',
       'arrange_unit',
       'hold_unit_result',
       'new_flowsheet',
@@ -52,7 +53,7 @@ describe('What any MCP client sees', () => {
       'update_unit'
     ]);
     const destructive = tools.filter((t) => t.annotations?.destructiveHint).map((t) => t.name).sort();
-    assert.deepEqual(destructive, ['remove_stream', 'remove_unit'], 'only the removals delete');
+    assert.deepEqual(destructive, ['apply_changes', 'remove_stream', 'remove_unit'], 'only the removals, and a plan that may hold some, delete');
   });
 
   it('returns structured content alongside the text', async () => {

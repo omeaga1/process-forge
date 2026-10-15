@@ -222,6 +222,14 @@ export async function executeFlowsheetEdit(edit: FlowsheetEdit): Promise<Record<
   if (r.status === 404) {
     return { success: false, changed: false, error: 'This ProcessForge Desktop is too old to edit the flowsheet from an MCP client. Update it (0.1.33 or later).' };
   }
+  // Desktop 0.1.86 and older list the edits they pass on, and that list lacks hold-result and apply-plan.
+  if (r.status === 400 && /^expected \{ "op"/.test(String(r.body?.error ?? '')) && (edit.op === 'hold-result' || edit.op === 'apply-plan')) {
+    return {
+      success: false,
+      changed: false,
+      error: `This ProcessForge Desktop is too old for ${edit.op === 'hold-result' ? 'holding a result' : 'applying a plan'} from an MCP client. Update it (0.1.87 or later: it updates itself on restart).`
+    };
+  }
   if (r.status !== 200) return { success: false, changed: false, error: r.body?.error ?? `HTTP ${r.status}` };
   return { success: Boolean(r.body?.changed), ...r.body };
 }
