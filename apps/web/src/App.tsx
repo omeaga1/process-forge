@@ -31,6 +31,8 @@ import { contractToProcessNode } from './unitop/contractToNode.js';
 import { DialogShell, saveUnitOp, useUnitOpCloudSync } from '@process-forge/canvas-ui';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
+import { WhatsNewDialog } from './components/WhatsNewDialog.js';
+import { useWhatsNew } from './hooks/useWhatsNew.js';
 import { AccountModal } from './components/AccountModal.js';
 import { ProjectBrowser, useProjectBrowserShortcut } from './components/ProjectBrowser.js';
 import { findTemplate, uniqueName, PROJECT_TEMPLATES } from './projects/templates.js';
@@ -56,6 +58,7 @@ import {
 const AppInner: React.FC = () => {
   const { theme } = useTheme();
   const updater = useAppUpdater();
+  const whatsNew = useWhatsNew();
   const assistantRoute = useAssistantRoute();
   const { isAccountModalOpen, accountModalTab, openAccountModal, closeAccountModal, isAuthenticated, user } = useAccount();
   // My unit ops follow the account between devices while signed in.
@@ -567,6 +570,7 @@ const AppInner: React.FC = () => {
               onGraphChange={handleGraphChange}
               historyKey={project.id}
               onDesignUnitOp={() => setIsUnitOpCreatorOpen(true)}
+              {...(isDesktopRuntime() ? { onShowWhatsNew: whatsNew.show } : {})}
               isDockCollapsed={isDockCollapsed}
               onToggleDockCollapse={() => setIsDockCollapsed((prev) => !prev)}
             />
@@ -587,6 +591,8 @@ const AppInner: React.FC = () => {
       />
 
       <McpArrivalNotice arrival={mcpBridge.lastArrival} onDismiss={mcpBridge.dismiss} />
+
+      <WhatsNewDialog open={whatsNew.open} onOpenChange={whatsNew.setOpen} notes={whatsNew.notes} currentVersion={whatsNew.version} claudeTools={whatsNew.claudeTools} />
 
 
       {/* Modals */}

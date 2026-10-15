@@ -270,7 +270,8 @@ export const UpdateNotificationBanner: React.FC<UpdateBannerProps> = ({
             }}
           >
             {statusMessage ||
-              updateInfo?.release_notes ||
+              // The notes' title ("A short spec sheet for every unit"); the whole notes show after the restart.
+              updateInfo?.release_notes?.replace(/\r\n/g, '\n').trim().split('\n')[0]?.replace(/^#\s*/, '') ||
               (status === 'up-to-date'
                 ? 'You have the latest release.'
                 : status === 'checking'

@@ -97,6 +97,8 @@ export interface ProcessCanvasProps {
    * empty canvas; the stock list is the secondary option.
    */
   onDesignUnitOp?: () => void;
+  /** Opens the app's "What's new" (the desktop app's release notes). */
+  onShowWhatsNew?: () => void;
   isDockCollapsed?: boolean;
   onToggleDockCollapse?: () => void;
   /**
@@ -200,6 +202,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   graph: externalGraph,
   onGraphChange,
   onDesignUnitOp,
+  onShowWhatsNew,
   isDockCollapsed: externalIsDockCollapsed,
   onToggleDockCollapse: externalOnToggleDockCollapse,
   historyKey
@@ -1659,6 +1662,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           ...RUN_LENGTHS.map((x): PaletteCommand => ({ id: `length-${x.minutes}`, group: 'Line', title: `Run for ${x.long}`, keywords: 'duration length time shift hours', run: () => setRunMinutes(x.minutes) })),
           { id: 'export-image', group: 'Flowsheet', title: 'Export the flowsheet as an image (PNG)', keywords: 'save picture png print report drawing pfd', run: () => void exportImage() },
           { id: 'copy-image', group: 'Flowsheet', title: 'Copy the flowsheet as an image', keywords: 'clipboard picture png paste', run: () => void copyImage() },
+          ...(onShowWhatsNew ? [{ id: 'whats-new', group: 'Help', title: "What's new in ProcessForge", keywords: 'release notes changes update version changelog claude tools', run: onShowWhatsNew } satisfies PaletteCommand] : []),
           ...[1, 2, 5].map((x): PaletteCommand => ({ id: `speed-${x}`, group: 'Line', title: `Play back at ${x}×`, keywords: 'speed fast slow', run: () => setSimSpeed(x) })),
           ...(onDesignUnitOp ? [{ id: 'design', group: 'Equipment', title: 'Design a unit op…', keywords: 'new custom ai contract create', run: onDesignUnitOp }] : []),
           { id: 'palette', group: 'Equipment', title: 'Browse standard equipment…', keywords: 'add catalog library', run: () => setIsEquipmentPaletteOpen(true) },

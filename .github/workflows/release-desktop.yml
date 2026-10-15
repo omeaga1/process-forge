@@ -212,6 +212,14 @@ jobs:
           # Proof in the log that Windows sees a valid signature.
           powershell -NoProfile -Command "Get-ChildItem '$nsis/*.exe' | Get-AuthenticodeSignature | Format-Table Status, SignerCertificate, Path -AutoSize"
 
+      # The release's text is the version's notes, the same file the app shows after updating.
+      - name: Release notes
+        id: notes
+        shell: bash
+        run: |
+          TAG="${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}"
+          echo "path=apps/web/src/releaseNotes/${TAG#v}.md" >> "$GITHUB_OUTPUT"
+
       - name: Upload Platform Release Assets
         uses: softprops/action-gh-release@v2
         if: success()
@@ -222,6 +230,7 @@ jobs:
           name: "ProcessForge ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'v0.1.4' }}"
           draft: false
           prerelease: false
+          body_path: ${{ steps.notes.outputs.path }}
           files: |
             apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
             apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
@@ -289,6 +298,13 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
+      # The notes file only: the updater shows its text before you restart.
+      - name: Checkout release notes
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: apps/web/src/releaseNotes
+          path: src
+
       - name: Download Release Assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -344,7 +360,14 @@ jobs:
 
           const manifest = {
             version: VERSION,
-            notes: `ProcessForge ${TAG}`,
+            // What changed, from the version's notes file (CI requires one): the update banner shows it.
+            notes: (() => {
+              try {
+                return fs.readFileSync(`src/apps/web/src/releaseNotes/${VERSION}.md`, 'utf8').trim();
+              } catch {
+                return `ProcessForge ${TAG}`;
+              }
+            })(),
             pub_date: new Date().toISOString(),
             platforms
           };

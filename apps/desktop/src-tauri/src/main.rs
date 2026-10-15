@@ -3,6 +3,7 @@
 
 mod oauth_loopback;
 mod mcp_bridge;
+mod claude_tools;
 
 /// Opens an https link in the user's browser. The web view is not a browser:
 /// without this, links such as "Get an API key" or a release download do
@@ -168,6 +169,7 @@ fn main() {
             mcp_bridge::bridge_report,
             mcp_bridge::bridge_set_flowsheet,
             mcp_bridge::bridge_status,
+            claude_tools::claude_tools_status,
             open_external
         ])
         .setup(|app| {
