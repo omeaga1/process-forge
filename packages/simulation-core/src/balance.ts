@@ -134,6 +134,103 @@ function isExchanger(c: UnitOpContract): boolean {
   return Boolean(c.channels?.length) || c.ports.some((p) => p.role === 'UTILITY');
 }
 
+/** What one unit's streams carried, in kJ: over a run (basis "run"), or per hour of steady operation (basis "hour"). */
+export interface UnitEnergyInput {
+  nodeId: string;
+  name: string;
+  contract: UnitOpContract;
+  inKj: number;
+  outKj: number;
+  accKj: number;
+  latentKj: number;
+  /** Its contract's duty over the same span, kJ (absent when it states none). */
+  statedKj?: number;
+  flowedKg: number;
+  latentMissing: string[];
+  basis: 'run' | 'hour';
+}
+
+/**
+ * A heating, cooling or phase-changing unit's stated duty judged against what
+ * its streams carried (see the file comment). Over a run the figures are kWh;
+ * per hour of steady operation, kWh per hour, i.e. kW.
+ */
+export function judgeUnitEnergy(e: UnitEnergyInput): UnitEnergyBalance {
+  const c = e.contract;
+  const U = e.basis === 'hour' ? 'kW' : 'kWh';
+  const total = e.basis === 'hour' ? 'is' : 'added up to';
+  const implied = e.outKj + e.accKj + e.latentKj - e.inKj;
+  const kind = isExchanger(c) ? 'exchanger' : isMachine(c) ? 'machine' : 'heater';
+  const kwh = (kj: number) => kj / 3600;
+  const stated = e.statedKj !== undefined ? kwh(e.statedKj) : undefined;
+  const row: UnitEnergyBalance = {
+    nodeId: e.nodeId,
+    name: e.name,
+    kind,
+    inKwh: sig(kwh(e.inKj)),
+    outKwh: sig(kwh(e.outKj)),
+    accumulatedKwh: sig(kwh(e.accKj)),
+    latentKwh: sig(kwh(e.latentKj)),
+    impliedHeatKwh: sig(kwh(implied)),
+    ...(stated !== undefined ? { statedDutyKwh: sig(stated) } : {}),
+    verdict: 'consistent',
+    note: ''
+  };
+  const impliedKwh = kwh(implied);
+  if (e.flowedKg <= 1e-9) {
+    row.verdict = 'not-checked';
+    row.note = 'Nothing flowed through it.';
+  } else if (e.latentMissing.length) {
+    row.verdict = 'not-checked';
+    row.note = `A phase change happened with no latent heat stated (${e.latentMissing.join(', ')}): give its latentHeatKjPerKg so the engine can check this unit's energy balance.`;
+  } else if (kind === 'machine') {
+    const work = stated ?? 0;
+    if (impliedKwh < -1 || impliedKwh > work * 1.05 + 1) {
+      row.verdict = 'mismatch';
+      row.note =
+        impliedKwh < 0
+          ? `Its streams left ${sig(-impliedKwh)} ${U} cooler than they came: a machine's shaft work cannot cool what it moves.`
+          : `Its streams took ${sig(impliedKwh)} ${U} of heat, more than its ${sig(work)} ${U} of shaft work: the outlet temperature does not follow from its power.`;
+    } else {
+      row.note = `Of its ${sig(work)} ${U} of shaft work, ${sig(Math.max(0, impliedKwh))} ${U} warmed the fluid; the rest went into pressure and motion, which the engine does not track.`;
+    }
+  } else if (kind === 'exchanger') {
+    // Its streams trade heat; none should come from outside. Judged against the heat it moved.
+    const moved = Math.max(stated ?? 0, Math.abs(kwh(e.outKj - e.inKj)), 1e-9);
+    const pct = (Math.abs(impliedKwh) / moved) * 100;
+    row.mismatchPercent = r1(pct);
+    if (pct > 10 && Math.abs(impliedKwh) > 1) {
+      row.verdict = 'mismatch';
+      row.note =
+        impliedKwh > 0
+          ? `Its streams left with ${sig(impliedKwh)} ${U} more heat than they brought, and an exchanger has no heat of its own: a stream gains heat no other stream gives up. Declare the phase change that releases it (a condensing vapour) or correct the outlet temperatures.`
+          : `Its streams left with ${sig(-impliedKwh)} ${U} less heat than they brought, and an exchanger has nowhere to put it: a stream gives up heat no other stream takes. Declare the phase change that absorbs it or correct the outlet temperatures.`;
+    } else {
+      row.note = 'The heat one side gives up is the heat the other takes.';
+    }
+  } else if (stated === undefined) {
+    if (Math.abs(impliedKwh) > 1) {
+      row.verdict = 'mismatch';
+      row.note = `Its streams need ${sig(impliedKwh)} ${U} ${impliedKwh > 0 ? 'from' : 'taken away by'} a heat source, and its contract states no duty: give it a dutyKw (or the heat source's stream).`;
+    } else row.note = 'No heat needed, none stated.';
+  } else {
+    const pct = (Math.abs(Math.abs(impliedKwh) - stated) / Math.max(stated, 1e-9)) * 100;
+    row.mismatchPercent = r1(pct);
+    if (pct > 10 && Math.abs(Math.abs(impliedKwh) - stated) > 1) {
+      row.verdict = 'mismatch';
+      row.note = `Its stated duty ${total} ${sig(stated)} ${U}, but its streams carried ${sig(Math.abs(impliedKwh))} ${U} ${impliedKwh >= 0 ? 'more' : 'less'} heat out than in (latent heat included): the duty does not follow from its temperatures and flows. Write dutyKw from them, e.g. m·cp·(T_out − T_in) + evaporated × latent heat.`;
+    } else {
+      row.note = 'Its stated duty is the heat its streams took.';
+    }
+  }
+  return row;
+}
+
+/** Whether a contract changes temperature or phase, and so has an energy balance to check. */
+export function isThermalContract(c: UnitOpContract | undefined): boolean {
+  return isThermal(c);
+}
+
 export function lineBalance(graph: ProcessGraph, network: MaterialNetwork): LineBalance {
   const b = { feedsKg: 0, selfChargedKg: 0, heldAtStartKg: 0, toOutletsKg: 0, leftLineKg: 0, lostKg: 0, intoContainersKg: 0, heldAtEndKg: 0 };
   const ins: Record<string, number> = {};
@@ -190,75 +287,21 @@ export function lineBalance(graph: ProcessGraph, network: MaterialNetwork): Line
   for (const u of network.units.values()) {
     const c = u.contract;
     if (u.role !== 'pass' || !c || !isThermal(c)) continue;
-    const node = graph.nodes.find((n) => n.id === u.id);
-    const inKj = heatKj(u.received);
-    const outKj = heatKj(u.outflow);
-    const accKj = heldNow(u).reduce((a, p) => a + heatKj(p), 0) - heatKj(u.startHold);
-    const implied = outKj + accKj + u.latentKj - inKj;
-    const kind = isExchanger(c) ? 'exchanger' : isMachine(c) ? 'machine' : 'heater';
-    const stated = c.behavior.mode === 'CONTINUOUS_RATE' && c.behavior.dutyKw ? u.heat.energyKwh : undefined;
-    const kwh = (kj: number) => kj / 3600;
-    const row: UnitEnergyBalance = {
-      nodeId: u.id,
-      name: node?.name ?? u.id,
-      kind,
-      inKwh: sig(kwh(inKj)),
-      outKwh: sig(kwh(outKj)),
-      accumulatedKwh: sig(kwh(accKj)),
-      latentKwh: sig(kwh(u.latentKj)),
-      impliedHeatKwh: sig(kwh(implied)),
-      ...(stated !== undefined ? { statedDutyKwh: sig(stated) } : {}),
-      verdict: 'consistent',
-      note: ''
-    };
-    const impliedKwh = kwh(implied);
-    if (u.received.kg <= 1e-9) {
-      row.verdict = 'not-checked';
-      row.note = 'Nothing flowed through it.';
-    } else if (u.latentMissing.size) {
-      row.verdict = 'not-checked';
-      row.note = `A phase change happened with no latent heat stated (${[...u.latentMissing].join(', ')}): give its latentHeatKjPerKg so the engine can check this unit's energy balance.`;
-    } else if (kind === 'machine') {
-      const work = stated ?? 0;
-      if (impliedKwh < -1 || impliedKwh > work * 1.05 + 1) {
-        row.verdict = 'mismatch';
-        row.note =
-          impliedKwh < 0
-            ? `Its streams left ${sig(-impliedKwh)} kWh cooler than they came: a machine's shaft work cannot cool what it moves.`
-            : `Its streams took ${sig(impliedKwh)} kWh of heat, more than its ${sig(work)} kWh of shaft work: the outlet temperature does not follow from its power.`;
-      } else {
-        row.note = `Of its ${sig(work)} kWh of shaft work, ${sig(Math.max(0, impliedKwh))} kWh warmed the fluid; the rest went into pressure and motion, which the engine does not track.`;
-      }
-    } else if (kind === 'exchanger') {
-      // Its streams trade heat; none should come from outside. Judged against the heat it moved.
-      const moved = Math.max(stated ?? 0, Math.abs(kwh(outKj - inKj)), 1e-9);
-      const pct = (Math.abs(impliedKwh) / moved) * 100;
-      row.mismatchPercent = r1(pct);
-      if (pct > 10 && Math.abs(impliedKwh) > 1) {
-        row.verdict = 'mismatch';
-        row.note =
-          impliedKwh > 0
-            ? `Its streams left with ${sig(impliedKwh)} kWh more heat than they brought, and an exchanger has no heat of its own: a stream gains heat no other stream gives up. Declare the phase change that releases it (a condensing vapour) or correct the outlet temperatures.`
-            : `Its streams left with ${sig(-impliedKwh)} kWh less heat than they brought, and an exchanger has nowhere to put it: a stream gives up heat no other stream takes. Declare the phase change that absorbs it or correct the outlet temperatures.`;
-      } else {
-        row.note = 'The heat one side gives up is the heat the other takes.';
-      }
-    } else if (stated === undefined) {
-      if (Math.abs(impliedKwh) > 1) {
-        row.verdict = 'mismatch';
-        row.note = `Its streams need ${sig(impliedKwh)} kWh ${impliedKwh > 0 ? 'from' : 'taken away by'} a heat source, and its contract states no duty: give it a dutyKw (or the heat source's stream).`;
-      } else row.note = 'No heat needed, none stated.';
-    } else {
-      const pct = (Math.abs(Math.abs(impliedKwh) - stated) / Math.max(stated, 1e-9)) * 100;
-      row.mismatchPercent = r1(pct);
-      if (pct > 10 && Math.abs(Math.abs(impliedKwh) - stated) > 1) {
-        row.verdict = 'mismatch';
-        row.note = `Its stated duty added up to ${sig(stated)} kWh, but its streams carried ${sig(Math.abs(impliedKwh))} kWh ${impliedKwh >= 0 ? 'more' : 'less'} heat out than in (latent heat included): the duty does not follow from its temperatures and flows. Write dutyKw from them, e.g. m·cp·(T_out − T_in) + evaporated × latent heat.`;
-      } else {
-        row.note = 'Its stated duty is the heat its streams took.';
-      }
-    }
-    energy.push(row);
+    energy.push(
+      judgeUnitEnergy({
+        nodeId: u.id,
+        name: graph.nodes.find((n) => n.id === u.id)?.name ?? u.id,
+        contract: c,
+        inKj: heatKj(u.received),
+        outKj: heatKj(u.outflow),
+        accKj: heldNow(u).reduce((a, p) => a + heatKj(p), 0) - heatKj(u.startHold),
+        latentKj: u.latentKj,
+        ...(c.behavior.mode === 'CONTINUOUS_RATE' && c.behavior.dutyKw ? { statedKj: u.heat.energyKwh * 3600 } : {}),
+        flowedKg: u.received.kg,
+        latentMissing: [...u.latentMissing],
+        basis: 'run'
+      })
+    );
   }
 
   return {
