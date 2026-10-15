@@ -1,6 +1,7 @@
 import type { ProcessGraph } from './graph.js';
 import type { ProcessNode } from './nodes.js';
 import { resolveUnit } from './connect.js';
+import { didYouMean } from './nearest.js';
 import { FEED_LIQUID_KEYS, terminalRole } from './terminals.js';
 import type { UnitOpContract } from './unitop/contract.js';
 import { executeValidateUnitOp } from './unitop/review.js';
@@ -75,6 +76,37 @@ function validPath(path: string): string | null {
   return null;
 }
 
+/**
+ * Settings the engine reads on a unit when they are present, though a unit
+ * need not carry them: a liquid's own properties, an item queue's size,
+ * breakdowns, and what a feed or an outlet supplies and carries.
+ */
+const OPTIONAL_SETTINGS = ['fluid', 'bufferCapacity', 'meanTimeBetweenFailuresMinutes', 'meanTimeToRepairMinutes', 'designSpecs'] as const;
+const TERMINAL_SETTINGS = ['role', 'material', 'supplyRate', 'supplyKgPerHour', 'supplyScfm', 'composition', 'phase', ...FEED_LIQUID_KEYS] as const;
+
+/**
+ * What can be set on a unit (its config, its contract's parameters, and the
+ * optional settings the engine reads) and what cannot because the engine
+ * works it out (derived values, engine figures).
+ */
+export function knownSettings(node: ProcessNode, edges: ProcessGraph['edges'], own?: UnitOpContract): { settings: Set<string>; results: Set<string> } {
+  const settings = new Set<string>(Object.keys(node.config as Record<string, unknown>));
+  const results = new Set<string>();
+  if (terminalRole(node)) {
+    for (const k of TERMINAL_SETTINGS) settings.add(k);
+    return { settings, results };
+  }
+  for (const k of OPTIONAL_SETTINGS) settings.add(k);
+  const contract = own ?? effectiveContract(node, edges);
+  if (contract) {
+    for (const p of contract.parameters) settings.add(p.name);
+    for (const d of contract.derived) results.add(d.name);
+    const ev = evaluateUnitOp(contract);
+    if (!ev.error) for (const r of engineResults(ev)) results.add(r.name);
+  }
+  return { settings, results };
+}
+
 function updateUnit(graph: ProcessGraph, edit: Extract<FlowsheetEdit, { op: 'update-unit' }>): EditOutcome {
   const found = resolveUnit(graph, String(edit.unit ?? ''));
   if (typeof found === 'string') return { ok: false, error: found };
@@ -114,12 +146,26 @@ function updateUnit(graph: ProcessGraph, edit: Extract<FlowsheetEdit, { op: 'upd
     if (typeof before === 'number' && (typeof value !== 'number' || !Number.isFinite(value))) {
       return { ok: false, error: `"${path}" on ${found.name} is a number (now ${before}); ${JSON.stringify(value)} is not.` };
     }
-    const feedSetting = terminalRole(found) === 'feed' && (FEED_LIQUID_KEYS as readonly string[]).includes(path);
-    if (!feedSetting && !(path.split('.')[0]! in config)) {
-      warnings.push(
-        `${found.name} had no setting "${path.split('.')[0]}"; it was added. If the engine does not read it, it changes nothing.` +
-          (contract ? ` Its design parameters are: ${contract.parameters.map((p) => p.name).join(', ')}.` : '')
-      );
+    const top = path.split('.')[0]!;
+    if (!(top in config)) {
+      // A name the unit does not have would be stored and never read: the
+      // change would report success and do nothing. Refuse it, and say what
+      // the name probably meant.
+      const known = knownSettings(found, graph.edges, contract);
+      if (!known.settings.has(top)) {
+        if (known.results.has(path) || known.results.has(top)) {
+          return {
+            ok: false,
+            error: `${found.name}'s ${path} is a result the engine works out, not a setting, so it cannot be set. To keep it at a value, use hold_unit_result (result "${path}") and the engine varies a setting to hold it.`
+          };
+        }
+        return {
+          ok: false,
+          error:
+            `${found.name} has no setting "${top}", so nothing was changed.${didYouMean(top, known.settings)}` +
+            ` Its settings: ${[...known.settings].filter((k) => k !== 'contract' && k !== 'designSpecs').join(', ') || 'none'}.`
+        };
+      }
     }
     config = withSetting(config, path, value);
     changes.push({ parameter: path, from: before, to: value });

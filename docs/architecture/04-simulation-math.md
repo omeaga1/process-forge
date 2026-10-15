@@ -196,6 +196,28 @@ leaves from is continuous. Each second has two passes:
 So a full tank backs up whatever feeds it, and an empty tank starves whatever
 it feeds.
 
+**A split that depends on the flow.** A pass-through's outlet shares can
+depend on how much reaches it: an evaporator with fixed steam sends a larger
+share of its feed on as concentrate the more feed it gets. When what is
+downstream limits it, the backward pass does not judge that limit by last
+second's shares: it finds the largest flow $T$ (bisection, 12 steps, at the
+last inlet's temperature and mix scaled to $T$) with
+$T \le \text{accept}_{target} / \text{share}_{target}(T)$ for every outlet.
+Judging it by last second's shares made the flow alternate between two values
+every other second, and the unit's checks fail at both.
+
+**Gas is never counted in gallons.** A parcel keeps the part of it that is gas
+(`gasKg`, `gasM3`): what a gas feed supplies and what leaves by a `GAS` port.
+Gallons in every report (levels, flows, totals, terminals) are the liquid and
+solid volume only, and a unit or terminal that moved gas says how much in kg
+(`receivedGasKg`, `deliveredGasKg`, `gasKg`). A condenser that takes in vapour
+and cooling water reports the cooling water's gallons, not millions of
+gallons of vapour.
+
+**Mass of no stated kind.** A feed that names no components (cooling water)
+adds mass with no composition. Mixed with a stream that has one, the report
+names the rest `unspecified`, so mass fractions add up to 1.
+
 **Heat.** Temperature travels with the liquid. Liquid from a feed is at its
 pipe's temperature; a self-charging batch charges at its design inlet
 temperature (20 °C unless stated). Arriving liquid mixes with what a unit

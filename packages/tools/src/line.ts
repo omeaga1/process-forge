@@ -2,7 +2,9 @@ import {
   applyFlowsheetEdit,
   effectiveContract,
   evaluateUnitOp,
+  feedMassSupplyKgPerS,
   terminalRole,
+  terminalSupplyRate,
   validateProcessGraph,
   type GraphDiagnostic,
   type ProcessGraph,
@@ -56,6 +58,8 @@ export interface SimulationResultPayload {
   offSpecKg?: number;
   identifiedBottleneckNodeId: string;
   identifiedBottleneckMachine: string;
+  /** A liquid line no unit was seen holding back: what sets its rate (a feed's supply, a unit at capacity) and every rated unit's headroom. */
+  lineLimit?: LineLimit;
   machineMetrics: Array<{
     nodeId: string;
     machineName: string;
@@ -101,6 +105,85 @@ export function observedBottleneck(graph: ProcessGraph, result: ReturnType<typeo
   return best?.node;
 }
 
+/** What sets a liquid line's rate when no unit was seen holding it back. */
+export interface LineLimit {
+  /** A feed's supply, a unit at its capacity, or nothing the run could see. */
+  by: 'feed' | 'unit' | 'none';
+  nodeId?: string;
+  name?: string;
+  summary: string;
+  /** Each unit with a rated capacity: what it passed against what it can, most used first. */
+  headroom: { unitId: string; unit: string; capacityGpm: number; flowGpm: number; usedPercent: number }[];
+}
+
+/** Units reachable downstream of a node. */
+function downstreamOf(graph: ProcessGraph, id: string): Set<string> {
+  const seen = new Set<string>();
+  const todo = [id];
+  while (todo.length) {
+    const at = todo.pop()!;
+    for (const e of graph.edges) {
+      if (e.sourceNodeId === at && !seen.has(e.targetNodeId)) {
+        seen.add(e.targetNodeId);
+        todo.push(e.targetNodeId);
+      }
+    }
+  }
+  return seen;
+}
+
+/**
+ * For a line whose run shows no unit holding it back (no unit busy and
+ * waited on, no static bottleneck): what sets its rate. A unit that passed
+ * 95 % or more of its rated flow; otherwise the feeds that reach a product
+ * and have a supply rate set (a utility feed, such as cooling water that only
+ * reaches a return, does not set the product rate); otherwise nothing.
+ * Either way, every rated unit's headroom, so "what limits next" is a figure.
+ */
+export function liquidLimit(graph: ProcessGraph, result: ReturnType<typeof simulateProcess>, minutes: number): LineLimit | undefined {
+  const r1 = (x: number) => Math.round(x * 10) / 10;
+  const headroom = graph.nodes
+    .filter((n) => n.kind !== 'TERMINAL')
+    .flatMap((n) => {
+      const rep = result.nodeReports[n.id];
+      const cap = rep?.designedUnit?.capacityGpm;
+      if (!rep?.fluid || !(cap !== undefined && cap > 0) || minutes <= 0) return [];
+      const flow = rep.fluid.receivedGallons / minutes;
+      return [{ unitId: n.id, unit: n.name, capacityGpm: cap, flowGpm: r1(flow), usedPercent: Math.round((flow / cap) * 100) }];
+    })
+    .sort((a, b) => b.usedPercent - a.usedPercent);
+  const liquidTerminals = result.terminals.filter((t) => t.carries !== 'items' && t.kg > 0);
+  if (!liquidTerminals.length) return undefined;
+  const top = headroom[0];
+  const next = top ? ` First to limit if it rises: "${top.unit}", rated ${top.capacityGpm} gal/min, now passing ${top.flowGpm} (${top.usedPercent}% used).` : '';
+  if (top && top.usedPercent >= 95) {
+    return { by: 'unit', nodeId: top.unitId, name: top.unit, headroom, summary: `"${top.unit}" runs at ${top.usedPercent}% of its rated ${top.capacityGpm} gal/min: it sets the line's rate. Raise its capacity, or run a second one in parallel.` };
+  }
+  const products = new Set(result.terminals.filter((t) => t.role === 'product').map((t) => t.nodeId));
+  const feeds = graph.nodes.filter((n) => {
+    if (terminalRole(n) !== 'feed') return false;
+    if (!(terminalSupplyRate(n) > 0 || feedMassSupplyKgPerS(n) !== undefined)) return false;
+    const reaches = downstreamOf(graph, n.id);
+    return products.size === 0 || [...products].some((p) => reaches.has(p));
+  });
+  const rate = (id: string) => {
+    const t = result.terminals.find((x) => x.nodeId === id);
+    if (!t || minutes <= 0) return '';
+    return t.gallons > 0 ? `${r1(t.gallons / minutes)} gal/min` : `${r1((t.kg / minutes) * 60)} kg/h`;
+  };
+  if (feeds.length) {
+    const names = feeds.map((f) => `"${f.name}" (${rate(f.id)})`).join(', ');
+    return {
+      by: 'feed',
+      nodeId: feeds[0]!.id,
+      name: feeds[0]!.name,
+      headroom,
+      summary: `No unit reached its capacity: the line runs at what ${feeds.length === 1 ? 'its feed supplies' : 'its feeds supply'}, ${names}.${next}`
+    };
+  }
+  return { by: 'none', headroom, summary: `No unit reached its capacity and no feed limits its supply.${next}` };
+}
+
 export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed?: number, name?: string): SimulationResultPayload {
   const duration = durationMinutes && durationMinutes > 0 ? Math.min(durationMinutes, 24 * 60) : 30;
   const result = simulateProcess(graph, duration, seed !== undefined ? { seed } : {});
@@ -108,7 +191,8 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
   const validation = validateProcessGraph(graph);
   // What the run showed first; the static capacities when the run shows nothing clear.
   const observed = observedBottleneck(graph, result, duration * 60);
-  const bottleneckId = observed?.id ?? validation.bottlenecks.bottleneckNodeId ?? 'unknown-bottleneck';
+  const limit = observed || validation.bottlenecks.bottleneckNodeId ? undefined : liquidLimit(graph, result, duration);
+  const bottleneckId = observed?.id ?? validation.bottlenecks.bottleneckNodeId ?? limit?.nodeId ?? 'none';
   const bottleneckNode = graph.nodes.find((n) => n.id === bottleneckId);
   const observedReport = observed ? result.nodeReports[observed.id] : undefined;
   const observedLiquid = Boolean(observedReport?.fluid);
@@ -213,12 +297,8 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
   const fed = feeds.length ? ` Fed: ${feeds.map((t) => `${amount(t)} of ${t.material}`).join('; ')}.` : '';
   // A liquid-only line finishes no items: say what it did make.
   const items = result.totalUnitsPackaged > 0 || !liquid ? ` ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.` : '';
-  const diagnosis = `Simulated ${duration} minutes:${items}${liquid}${offSpec}${fed}${side}${notes.length ? ` ${notes.join(' ')}` : ''} ${bottleneckAdvice(
-    bottleneckNode,
-    bottleneckRate,
-    graph,
-    observedLiquid ? 'gal/min' : 'units/min'
-  )}`;
+  const limitText = limit ? limit.summary : bottleneckAdvice(bottleneckNode, bottleneckRate, graph, observedLiquid ? 'gal/min' : 'units/min');
+  const diagnosis = `Simulated ${duration} minutes:${items}${liquid}${offSpec}${fed}${side}${notes.length ? ` ${notes.join(' ')}` : ''} ${limitText}`;
 
   return {
     success: true,
@@ -234,6 +314,7 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
     ...(result.totalFluidOffSpecKg > 0 ? { offSpecGallons: result.totalFluidOffSpecGallons, offSpecKg: result.totalFluidOffSpecKg } : {}),
     identifiedBottleneckNodeId: bottleneckId,
     identifiedBottleneckMachine: bottleneckNode ? bottleneckNode.name : bottleneckId,
+    ...(limit ? { lineLimit: limit } : {}),
     machineMetrics,
     streams: result.terminals,
     pipes: averageStreamStates(graph, result.telemetryLog),
@@ -348,8 +429,10 @@ function measure(graph: ProcessGraph, minutes: number, seed?: number) {
     unitsFinished: run.totalUnitsPackaged,
     unitsScrapped: run.totalUnitsScrapped,
     liquidOutGallons: run.totalFluidDeliveredGallons,
+    liquidOutKg: run.totalFluidDeliveredKg,
     staticCapacityPerMinute: round(stat.maximumSystemThroughputUnitsPerMin, 2),
     bottleneck: bottleneck ? { id: bottleneck.id, name: bottleneck.name } : null,
+    limit: bottleneck ? undefined : liquidLimit(graph, run, minutes),
     run
   };
 }
@@ -371,6 +454,11 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
   const scenarios = params.scenarios.slice(0, 8).map((s, i) => {
     const { graph: changed, applied, warnings } = applyScenario(graph, s);
     const m = measure(changed, minutes, seed);
+    // A change the engine does not read moves nothing at all: say so, rather
+    // than let "+0%" read as a measured effect.
+    const fingerprint = (run: typeof m.run) => JSON.stringify(Object.values(run.nodeReports).map((r) => ({ ...r, terminal: undefined })));
+    const noEffect = applied.length > 0 && fingerprint(m.run) === fingerprint(base.run);
+    if (noEffect) warnings.push('The run is identical to the baseline in every unit: at this operating point, these settings change nothing the engine measures.');
     // Throughput is not the only thing a change moves: a heater can pass the
     // same flow and still miss its temperature. Every unit the scenario
     // touches, and every unit whose checks change, reports both.
@@ -418,7 +506,10 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
       unitsPerMinuteChangePercent: pct(m.unitsPerMinute, base.unitsPerMinute),
       unitsFinished: m.unitsFinished,
       liquidOutGallons: m.liquidOutGallons,
-      liquidOutChangePercent: pct(m.liquidOutGallons, base.liquidOutGallons),
+      liquidOutKg: m.liquidOutKg,
+      /** By mass: a powder or a gas product has no meaningful gallons. */
+      liquidOutChangePercent: pct(m.liquidOutKg, base.liquidOutKg),
+      ...(noEffect ? { noEffect: true } : {}),
       staticCapacityPerMinute: m.staticCapacityPerMinute,
       bottleneck: m.bottleneck,
       bottleneckMoved: m.bottleneck?.id !== base.bottleneck?.id,
@@ -429,21 +520,24 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
   });
 
   // The most output; on a tie, the one that leaves fewest checks failing.
-  const best = [...scenarios].sort((a, b) => b.unitsPerMinute - a.unitsPerMinute || b.liquidOutGallons - a.liquidOutGallons || a.checksFailing - b.checksFailing)[0]!;
+  const best = [...scenarios].sort((a, b) => b.unitsPerMinute - a.unitsPerMinute || b.liquidOutKg - a.liquidOutKg || a.checksFailing - b.checksFailing)[0]!;
+  // A line that finishes no items is judged by what it sends out, by mass.
+  const byMass = base.unitsPerMinute === 0 && scenarios.every((s) => s.unitsPerMinute === 0) && (base.liquidOutKg > 0 || scenarios.some((s) => s.liquidOutKg > 0));
+  const headline = (units: number, kg: number) => (byMass ? `${Math.round((kg / minutes) * 60 * 10) / 10} kg/h out` : `${units}/min`);
   const lines = scenarios.map((s) => {
-    const d = s.unitsPerMinuteChangePercent;
+    const d = byMass ? s.liquidOutChangePercent : s.unitsPerMinuteChangePercent;
     const moved = s.bottleneckMoved && s.bottleneck ? `; the bottleneck moves to ${s.bottleneck.name}` : '';
     const cleared = s.changedUnits.flatMap((u) => ('checksCleared' in u && u.checksCleared?.length ? [`${u.unit} clears ${u.checksCleared.join(', ')}`] : []));
     const broke = s.changedUnits.flatMap((u) => ('checksNowFailing' in u && u.checksNowFailing?.length ? [`${u.unit} now fails ${u.checksNowFailing.map((c) => c.id).join(', ')}`] : []));
     const checks = [...cleared, ...broke].length ? `; ${[...cleared, ...broke].join('; ')}` : '';
-    return `${s.name}: ${s.unitsPerMinute}/min (${d === null ? 'new output' : `${d >= 0 ? '+' : ''}${d}%`})${moved}${checks}.`;
+    return `${s.name}: ${headline(s.unitsPerMinute, s.liquidOutKg)} (${s.noEffect ? 'no effect' : d === null ? 'new output' : `${d >= 0 ? '+' : ''}${d}%`})${moved}${checks}.`;
   });
   // A scenario that changes nothing for the better is not "best", even if it is the only one.
   const baseChecks = Object.values(base.run.nodeReports).reduce((n, r) => n + (r?.designedUnit?.brokenConstraints.length ?? 0), 0);
   const beatsBaseline =
     best.unitsPerMinute > base.unitsPerMinute ||
-    best.liquidOutGallons > base.liquidOutGallons ||
-    (best.unitsPerMinute === base.unitsPerMinute && best.liquidOutGallons === base.liquidOutGallons && best.checksFailing < baseChecks);
+    best.liquidOutKg > base.liquidOutKg ||
+    (best.unitsPerMinute === base.unitsPerMinute && best.liquidOutKg === base.liquidOutKg && best.checksFailing < baseChecks);
   return {
     success: true,
     durationMinutes: minutes,
@@ -453,11 +547,12 @@ export function compareScenarios(graph: ProcessGraph, params: CompareScenariosPa
       unitsFinished: base.unitsFinished,
       unitsScrapped: base.unitsScrapped,
       liquidOutGallons: base.liquidOutGallons,
+      liquidOutKg: base.liquidOutKg,
       staticCapacityPerMinute: base.staticCapacityPerMinute,
       bottleneck: base.bottleneck,
       checksFailing: Object.values(base.run.nodeReports).reduce((n, r) => n + (r?.designedUnit?.brokenConstraints.length ?? 0), 0)
     },
     scenarios,
-    summary: `Baseline: ${base.unitsPerMinute}/min, limited by ${base.bottleneck?.name ?? 'nothing in the static analysis'}. ${lines.join(' ')} ${beatsBaseline ? `Best: ${best.name}.` : "None beats the baseline."} Each run used seed ${seed} over ${minutes} min; nothing on the flowsheet was changed.`
+    summary: `Baseline: ${headline(base.unitsPerMinute, base.liquidOutKg)}, limited by ${base.bottleneck?.name ?? (base.limit?.by === 'feed' ? `the supply of ${base.limit.name}` : base.limit?.by === 'unit' ? base.limit.name : 'nothing in the static analysis')}. ${lines.join(' ')} ${beatsBaseline ? `Best: ${best.name}.` : "None beats the baseline."} Each run used seed ${seed} over ${minutes} min; nothing on the flowsheet was changed.`
   };
 }

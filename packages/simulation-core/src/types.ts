@@ -67,6 +67,9 @@ export interface MachineOeeReport {
     receivedKg: number;
     deliveredKg: number;
     levelKg: number;
+    /** Of the kg received and delivered, what was gas (vapour, air). Gas is never counted in the gallons. */
+    receivedGasKg?: number;
+    deliveredGasKg?: number;
     /** Batch units: batches completed (fully discharged). */
     batches?: number;
     /** °C of what the unit holds at the end of the run. */
@@ -156,10 +159,12 @@ export interface TerminalReport {
   phase?: 'LIQUID' | 'GAS' | 'SOLID';
   /** Items supplied (a feed) or received (an outlet). */
   units: number;
-  /** Gallons supplied or received. */
+  /** Gallons supplied or received: liquid (and solid) volume only. A gas is counted in kg, never in gallons. */
   gallons: number;
   /** kg supplied or received. */
   kg: number;
+  /** Of those kg, what was gas. */
+  gasKg?: number;
   /** Liquid outlets: °C of what arrived, mixed by heat content. Liquid feeds: °C supplied. */
   temperatureC?: number;
   /** Liquid outlets and feeds with a composition: kg of each component received or supplied. */

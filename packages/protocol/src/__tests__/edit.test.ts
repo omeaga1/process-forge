@@ -40,7 +40,8 @@ describe('Flowsheet edits', () => {
     assert.equal(c.fluid.temperatureCelsius, 90);
     assert.equal(c.fluid.name, 'Reaction Mixture', 'the rest of the fluid is kept');
     assert.equal((g.nodes[0]!.config as { fluid: { temperatureCelsius: number } }).fluid.temperatureCelsius, 65);
-    assert.match(r.warnings![0]!, /no setting "jacketDutyKw"; it was added/);
+    assert.equal(r.warnings, undefined, 'jacketDutyKw is a reactor setting the engine reads, though this one had none yet');
+    assert.equal((r.graph.nodes[0]!.config as { jacketDutyKw: number }).jacketDutyKw, 300);
   });
 
   it('renames', () => {
@@ -119,10 +120,24 @@ describe('Flowsheet edits: designed units', () => {
     assert.ok(!weak.ok && /fail its checks/.test(weak.error), !weak.ok ? weak.error : '');
   });
 
-  it('names the design parameters when asked for a setting it does not have', async () => {
-    const r = applyFlowsheetEdit(await designedLine(), { op: 'update-unit', unit: 'evap', parameters: { steamKw: 1 } });
-    assert.ok(r.ok);
-    assert.match(r.warnings![0]!, /design parameters are: steamDutyKw, maxFeedGpm/);
+  it('refuses a setting it does not have, says what was meant, and changes nothing', async () => {
+    const g = await designedLine();
+    const r = applyFlowsheetEdit(g, { op: 'update-unit', unit: 'evap', parameters: { steamKw: 1 } });
+    assert.ok(!r.ok);
+    assert.match(r.error, /has no setting "steamKw", so nothing was changed/);
+    assert.match(r.error, /Did you mean steamDutyKw/);
+    const typo = applyFlowsheetEdit(g, { op: 'update-unit', unit: 'evap', parameters: { maxFedGpm: 30 } });
+    assert.ok(!typo.ok && /Did you mean maxFeedGpm\?/.test(typo.error), !typo.ok ? typo.error : '');
+  });
+
+  it('refuses to set a result the engine works out, and points at holding it instead', async () => {
+    const g = await designedLine();
+    const contract = (g.nodes[0]!.config as { contract: { derived: { name: string }[] } }).contract;
+    const derived = contract.derived[0]!.name;
+    const r = applyFlowsheetEdit(g, { op: 'update-unit', unit: 'evap', parameters: { [derived]: 1 } });
+    assert.ok(!r.ok);
+    assert.match(r.error, /is a result the engine works out, not a setting/);
+    assert.match(r.error, /hold_unit_result/);
   });
 });
 

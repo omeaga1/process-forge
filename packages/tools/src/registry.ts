@@ -149,7 +149,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     idempotent: true,
     graphSource: true,
     description:
-      'Runs the deterministic simulation of the line over time and returns throughput, units finished and scrapped, each unit\'s busy, starved, blocked and broken-down time, liquid in gallons and kg, temperatures, heat duty, constraints a unit\'s contract broke at the conditions it actually saw, every pipe averaged over the run (pipes: from, to, phase, kg/h, gal/min, items/min, and the temperature and composition of what flowed, as a stream report), and the bottleneck with advice. Nothing on the flowsheet changes.',
+      'Runs the deterministic simulation of the line over time and returns throughput, units finished and scrapped, each unit\'s busy, starved, blocked and broken-down time, liquid in gallons and kg, temperatures, heat duty, constraints a unit\'s contract broke at the conditions it actually saw, every pipe averaged over the run (pipes: from, to, phase, kg/h, gal/min, items/min, and the temperature and composition of what flowed, as a stream report), and the bottleneck with advice. For a line no unit was seen holding back, lineLimit says what sets its rate (a feed\'s supply, or a unit at its rated flow) and every rated unit\'s headroom. Gallons are liquid (and solid) volume only: a gas is reported in kg (gasKg) and, at a gas port, ACFM. Nothing on the flowsheet changes.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -184,7 +184,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     idempotent: true,
     graphSource: true,
     description:
-      'What-if analysis: simulates the line as it is, then once per scenario with some unit settings changed, all on the same random seed, and reports throughput, liquid output, the bottleneck and whether it moved, against the baseline. Nothing on the flowsheet changes, so use it before recommending or making a change. Name units by id, name or tag; settings by the names get_open_flowsheet or list_standard_unit_ops show (dotted names reach nested settings, e.g. "fluid.temperatureCelsius"); for a unit with its own contract, its parameters by name (a change that breaks the design is reported in warnings and not applied).',
+      'What-if analysis: simulates the line as it is, then once per scenario with some unit settings changed, all on the same random seed, and reports throughput, liquid output, the bottleneck and whether it moved, against the baseline. Nothing on the flowsheet changes, so use it before recommending or making a change. Name units by id, name or tag; settings by the names get_open_flowsheet or list_standard_unit_ops show (dotted names reach nested settings, e.g. "fluid.temperatureCelsius"); for a unit with its own contract, its parameters by name (a change that breaks the design, or names a setting the unit does not have, is reported in warnings and not applied; a scenario whose run is identical to the baseline is marked noEffect). A line that finishes no items is compared by its output in kg.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -523,7 +523,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     access: 'write',
     idempotent: true,
     description:
-      "Changes settings of one unit on the open flowsheet, or renames it. Name the unit by id, name or tag; settings by the names get_open_flowsheet shows (dotted names reach nested ones, e.g. \"fluid.temperatureCelsius\"). For a unit with its own contract, a name that matches one of its parameters sets that parameter: it must lie in its declared range, and the change is refused if the design would then fail validate_unit_op. A unit can hold results at targets (design specs the engineer set in the app, in its config as designSpecs): the settings they vary are re-solved after your change and reported with heldFor, and setting a held one yourself releases its hold (a warning says so). Returns each change with its old and new value. Test a change with compare_scenarios first when its effect matters.",
+      "Changes settings of one unit on the open flowsheet, or renames it. Name the unit by id, name or tag; settings by the names get_open_flowsheet shows (dotted names reach nested ones, e.g. \"fluid.temperatureCelsius\"). For a unit with its own contract, a name that matches one of its parameters sets that parameter: it must lie in its declared range, and the change is refused if the design would then fail validate_unit_op. A name the unit does not have is refused (with the names it probably meant), and so is a result the engine works out (a derived value, engine.*): hold those with hold_unit_result instead. A unit can hold results at targets (design specs the engineer set in the app, in its config as designSpecs): the settings they vary are re-solved after your change and reported with heldFor, and setting a held one yourself releases its hold (a warning says so). Returns each change with its old and new value. Test a change with compare_scenarios first when its effect matters.",
     inputSchema: {
       type: 'object',
       properties: {
