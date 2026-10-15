@@ -57,6 +57,13 @@ export function closestNames(name: string, candidates: Iterable<string>, max = 3
     const sameWords = wordsWithin(name, c) || wordsWithin(c, name);
     if (dist <= limit || contains || sameWords) scored.push({ c, score: contains || sameWords ? Math.min(dist, 1.5) : dist });
   }
+  if (!scored.length) {
+    // Nothing close in spelling: names that start with the same word (targetTemp → targetC).
+    const head = words(name)[0];
+    if (head && head.length >= 4) {
+      for (const c of new Set(candidates)) if (words(c)[0] === head) scored.push({ c, score: 9 });
+    }
+  }
   return scored
     .sort((a, b) => a.score - b.score || a.c.localeCompare(b.c))
     .slice(0, max)

@@ -15,6 +15,9 @@ describe('Did you mean', () => {
     assert.deepEqual(closestNames('steamKw', names), ['steamDutyKw']);
     assert.deepEqual(closestNames('max_feed_gpm', names), ['maxFeedGpm']);
     assert.deepEqual(closestNames('flowRateGpm', names), ['designFlowRateGpm']);
+    // Nothing close in spelling, but the same leading word: offered last, as a hint.
+    assert.deepEqual(closestNames('outletTemp', ['outletC', 'ratedKw']), ['outletC']);
+    assert.deepEqual(closestNames('targetTemp', ['targetC', 'ratedKw', 'ratedFlowGpm']), ['targetC']);
   });
 
   it('offers nothing when nothing is close, rather than a guess', () => {

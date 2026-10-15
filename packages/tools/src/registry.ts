@@ -27,6 +27,7 @@ import type { DecisionSource, ProjectRequest, Surface, ToolHost } from './host.j
 import { compareScenarios, diagnoseBottlenecks, simulateLine } from './line.js';
 import { lookupComponent } from './components.js';
 import { applyChanges, planChanges } from './plan.js';
+import { solveLineTarget, sweepLine } from './study.js';
 
 /**
  * Every tool a model can call, defined once. The MCP server lists these to
@@ -213,6 +214,65 @@ export const FORGE_TOOLS: ForgeTool[] = [
     run: async (a, host) => {
       const r = await graphOf(a, host);
       return withSource(r, compareScenarios(r.graph, a as never));
+    }
+  },
+
+  {
+    name: 'sweep_line',
+    title: 'Sweep one setting across the line',
+    access: 'read',
+    idempotent: true,
+    graphSource: true,
+    description:
+      'A sensitivity study of the whole line: one setting of one unit across a range (values, or from/to/steps; by default its declared range), the line simulated at each value on the same seed, and the results you name in a table, with each run\'s status. Use it instead of guessing how a result responds, and before recommending a value. Metrics: output.unitsPerMinute, output.kgPerHour, output.gallonsPerMinute; for any unit or outlet (id, name or tag) <unit>.outletTemperatureC, .dutyKw, .kgPerHour, .unitsPerMinute, .oee, .busyPercent, .fraction.<component> (e.g. "P-600.fraction.sugar"). At most 15 values. Nothing on the flowsheet changes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        vary: { type: 'object', properties: { unit: unit(), parameter: { type: 'string', description: 'The setting, by the name update_unit takes.' } }, required: ['unit', 'parameter'] },
+        values: { type: 'array', items: { type: 'number' }, description: 'The values to run at. Or give from, to and steps.' },
+        from: { type: 'number' },
+        to: { type: 'number' },
+        steps: { type: 'number', description: 'How many values from "from" to "to" (2 to 15, default 7).' },
+        metrics: { type: 'array', items: { type: 'string' }, description: 'Up to 8 results to tabulate (default output.unitsPerMinute and output.kgPerHour).' },
+        durationMinutes: { type: 'number', description: 'Simulated minutes per run (default 60).' }
+      },
+      required: ['vary']
+    },
+    summarize: (a) => `Sweep ${a.vary?.parameter ?? '?'} on ${a.vary?.unit ?? '?'}`,
+    run: async (a, host) => {
+      const r = await graphOf(a, host);
+      return withSource(r, sweepLine(r.graph, a as never));
+    }
+  },
+  {
+    name: 'solve_line_target',
+    title: 'Solve for a target across the line',
+    access: 'read',
+    idempotent: true,
+    graphSource: true,
+    description:
+      'A design spec for the line, as a simulator\'s "vary X so that Y = target": finds the value of one unit\'s setting that brings a result of the whole line to a target, by bracketed regula falsi (Illinois) over full runs on the same seed, within the setting\'s declared range or the min/max you give (narrowed to where the unit\'s own design holds, and said so). Returns the value, what it achieved, the run\'s status, and every try (history). A target out of reach is reported with the nearest value; a result that does not respond to the setting is reported as insensitive. Metrics as sweep_line. Nothing on the flowsheet changes: apply the value with update_unit or plan_changes. Use it whenever the engineer asks what a setting must be for a result, rather than iterating by hand.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        vary: {
+          type: 'object',
+          properties: { unit: unit(), parameter: { type: 'string' }, min: { type: 'number' }, max: { type: 'number' } },
+          required: ['unit', 'parameter']
+        },
+        target: {
+          type: 'object',
+          properties: { metric: { type: 'string', description: 'e.g. "output.kgPerHour" or "P-600.fraction.sugar".' }, value: { type: 'number' }, tolerance: { type: 'number', description: 'Absolute, in the metric\'s unit (default 0.5 % of the target).' } },
+          required: ['metric', 'value']
+        },
+        durationMinutes: { type: 'number', description: 'Simulated minutes per run (default 60).' }
+      },
+      required: ['vary', 'target']
+    },
+    summarize: (a) => `Solve ${a.target?.metric ?? '?'} = ${a.target?.value ?? '?'} by ${a.vary?.parameter ?? '?'} on ${a.vary?.unit ?? '?'}`,
+    run: async (a, host) => {
+      const r = await graphOf(a, host);
+      return withSource(r, solveLineTarget(r.graph, a as never));
     }
   },
 
