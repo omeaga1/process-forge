@@ -21,7 +21,7 @@ const kg = (v: number) => (v >= 100 ? Math.round(v).toLocaleString() : v.toFixed
  * has received so far and is receiving now, and every check a unit broke.
  * Follows the same playhead as the canvas, so it moves with the line.
  */
-export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView }> = ({ graph, run }) => {
+export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: boolean }> = ({ graph, run, stale }) => {
   const { palette, font } = useTheme();
   const { result, timeSeconds, snapshot } = run;
   const outlets = graph.nodes
@@ -47,6 +47,12 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView }> = ({ gra
 
   return (
     <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12, borderBottom: `1px solid ${palette.border.default}` }}>
+      {stale && (
+        <div role="note" style={{ fontSize: 12, lineHeight: 1.4, padding: '6px 8px', color: palette.status.blocked, backgroundColor: tint(palette.status.blocked, 0.08), borderLeft: `2px solid ${palette.status.blocked}` }}>
+          These figures are from before your last edit. Run again for the line as it is now.
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, opacity: stale ? 0.55 : 1 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <span style={label}>This run</span>
@@ -125,6 +131,7 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView }> = ({ gra
             );
           })
         )}
+      </div>
       </div>
     </div>
   );

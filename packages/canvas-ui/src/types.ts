@@ -54,6 +54,10 @@ export interface CanvasNodeData extends Record<string, unknown> {
   onOpenPopOutStudio?: (nodeId: string) => void;
   /** Size, turn or mirror the unit on the flowsheet (undefined: natural size, upright). */
   onLayoutChange?: (nodeId: string, layout: NodeLayout | undefined) => void;
+  /** Its worst open problem (a check it fails, a port with nothing piped), for the mark on its drawing. */
+  issue?: { severity: 'error' | 'warning'; message: string };
+  /** After a run: the share of it the unit spent working, starved, blocked and down (Plant Simulation's state bar). */
+  shares?: { busy: number; starved: number; blocked: number; down: number };
 }
 
 export interface CanvasEdgeData extends Record<string, unknown> {
@@ -69,6 +73,22 @@ export interface CanvasEdgeData extends Record<string, unknown> {
   liveText?: string;
   /** Store the pipe's hand-drawn bends; undefined routes it around the equipment by itself. */
   onRouteChange?: (edgeId: string, waypoints: { x: number; y: number }[] | undefined) => void;
+  /** Before a run: the pipe at the line's steady state (its figure, and °C for its colour). */
+  steady?: { label: string; temperatureC?: number };
+  /** What the pipe carries, for the card on hover: from the run at the playhead, else the steady state. */
+  card?: StreamCard;
+}
+
+export interface StreamCard {
+  number: string;
+  from: string;
+  to: string;
+  phase: string;
+  /** How the figures were got: "at 5:00 of the run", "steady state". */
+  source: string;
+  rows: [string, string][];
+  /** Mass fractions, largest first. */
+  composition?: [string, number][];
 }
 
 export interface PlantTelemetryState {

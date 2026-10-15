@@ -282,9 +282,13 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
 
   // ---- a unit -------------------------------------------------------------------
   const rate = formatRate(behavior.capacityPerMin, behavior.rateUnit);
+  // What it is doing in the line, where the run has it; what it was designed for, where not.
+  const operating = result?.nodeReports[node.id]?.designedUnit?.operatingPoint;
+  const asRun = Boolean(operating && (behavior.keyFigures ?? []).some((f) => operating[f.name] !== undefined));
   const unitTiles = [
     ...(behavior.capacityPerMin !== null ? [{ label: `${behavior.rateUnit === 'gal' ? 'Most it moves' : 'Top rate'}${behavior.uptime !== undefined ? `, after breakdowns (${formatQuantity(behavior.uptime * 100)}% up)` : ''}`, value: rate.value, unit: rate.per.trim().startsWith('/') ? `items${rate.per.trim()}` : rate.per.trim() || 'items/min' }] : []),
-    ...(behavior.keyFigures ?? []).slice(0, 5).map((f) => {
+    ...(behavior.keyFigures ?? []).slice(0, 5).map((d) => {
+      const f = { ...d, value: operating?.[d.name] ?? d.value };
       // A dimensionless share (0..1) reads as a percentage.
       const share = (!f.unit || f.unit === '-') && Number.isFinite(f.value) && f.value >= 0 && f.value <= 1 && /share|fraction|efficien|ratio|yield|recovery/i.test(f.label);
       return { label: f.label, value: !Number.isFinite(f.value) ? '—' : share ? formatQuantity(f.value * 100) : formatQuantity(f.value), unit: share ? '%' : f.unit === '-' ? '' : f.unit };
@@ -316,7 +320,15 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
 
       {unitTiles.length > 0 && (
         <div style={{ ...card, background: tint(palette.jade[500], 0.05), borderColor: isBottleneck ? palette.status.blocked : tint(palette.jade[500], 0.4) }}>
-          <div style={{ ...label, padding: '10px 14px 0' }}>In the unit</div>
+          <div style={{ ...label, padding: '10px 14px 0', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span>In the unit</span>
+            <span
+              title={asRun ? 'Worked out by the engine at the stream that actually reaches it in the line' : 'Worked out at its design inlet: run the line to see it at the stream it actually gets'}
+              style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500, color: asRun ? palette.jade.glow : palette.text.muted }}
+            >
+              {asRun ? 'as it runs in the line' : running ? 'working it out…' : 'at its design point'}
+            </span>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(unitTiles.length, 3)}, minmax(0, 1fr))` }}>
             {unitTiles.map((x, i) => (
               <div key={x.label} style={{ padding: '6px 14px 12px', borderLeft: i % 3 ? `1px solid ${palette.border.subtle}` : 'none', borderTop: i >= 3 ? `1px solid ${palette.border.subtle}` : 'none' }}>

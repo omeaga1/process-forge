@@ -34,12 +34,16 @@ import {
   scaleLayout,
   placeNextTo,
   terminalRole,
+  graphFingerprint,
   type NodeLayout,
   type ProcessGraph,
   type ProcessNode,
   type ProcessEdge
 } from '@process-forge/protocol';
-import { SimulationEngine, type SimulationResult, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
+import { SimulationEngine, solveSteadyState, streamStates, type SimulationResult, type NodeTelemetrySnapshot, type SteadyResult } from '@process-forge/simulation-core';
+import { StatusBar } from './StatusBar.js';
+import { flowsheetStatus } from '../model/flowsheetStatus.js';
+import { cardsFromRun, cardsFromSteady, pipeFigure } from '../model/streamCards.js';
 import type { RunView } from './dock/RunDigest.js';
 import { Button, PointMenu, Tooltip } from '../ui/index.js';
 
@@ -59,7 +63,7 @@ import { MobileFieldView } from './mobile/MobileFieldView.js';
 import { useMobileViewport } from '../hooks/useMobileViewport.js';
 import { useTheme } from '../hooks/useTheme.js';
 import { useAssistantRoute } from '../ai/assistantRoute.js';
-import type { CanvasNodeData, CanvasEdgeData, PlantTelemetryState } from '../types.js';
+import type { CanvasNodeData, CanvasEdgeData, PlantTelemetryState, StreamCard } from '../types.js';
 import { draftingRadius, tint } from '@process-forge/theme';
 
 /** Feeds and outlets are arrows; everything else is its equipment drawing. */
@@ -448,6 +452,28 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
    * canvas comes from SimulationResult.
    */
   const [simResult, setSimResult] = useState<SimulationResult | null>(null);
+  /** The flowsheet the last run was made on (its process content, not its drawing): results go stale when it changes. */
+  const [runFingerprint, setRunFingerprint] = useState<string | null>(null);
+  const fingerprint = useMemo(() => graphFingerprint(graph), [graph]);
+  // The steady state of the flowsheet as it is, solved (in milliseconds) whenever its process content changes.
+  // Not while a run is shown: the run's figures are the ones on the canvas then.
+  const steady = useMemo<SteadyResult | null>(() => {
+    if (simResult || graph.nodes.length === 0) return null;
+    try {
+      return solveSteadyState(graph, { maxIterations: 2000 });
+    } catch {
+      return null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fingerprint, simResult]);
+  const status = useMemo(
+    () => flowsheetStatus({ graph, result: simResult, stale: Boolean(simResult && runFingerprint !== fingerprint), steady }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fingerprint, simResult, runFingerprint, steady]
+  );
+  /** The problem F4 last opened. */
+  const [problemCursor, setProblemCursor] = useState(-1);
+  useEffect(() => setProblemCursor(-1), [status]);
   const [playheadIndex, setPlayheadIndex] = useState(0);
 
   /** Distinct sample times in the recorded telemetry, ascending. */
@@ -629,6 +655,33 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       }))
     );
   }, [snapshotByNode, isRunning]);
+
+  // What each pipe carries: the card on hover (the run at the playhead, else the steady state),
+  // and before a run the steady figure drawn on it in place of its design flow.
+  const streamCards = useMemo(() => {
+    if (runView) {
+      const t = runView.timeSeconds;
+      return cardsFromRun(streamStates(graph, snapshotByNode), 'at ' + Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0') + ' of the run');
+    }
+    return steady?.status === 'converged' ? cardsFromSteady(graph, steady) : new Map<string, StreamCard>();
+  }, [runView, steady, graph, snapshotByNode]);
+  const steadyFigures = useMemo(
+    () =>
+      steady?.status === 'converged'
+        ? new Map(steady.streams.map((x) => [x.id, { label: pipeFigure(x.phase, x), ...(x.temperatureC !== undefined ? { temperatureC: x.temperatureC } : {}) }]))
+        : new Map<string, { label: string; temperatureC?: number }>(),
+    [steady]
+  );
+  useEffect(() => {
+    setEdges((eds) =>
+      eds.map((e) => {
+        const { card: _c, steady: _s, ...rest } = e.data as CanvasEdgeData;
+        const card = streamCards.get(e.id);
+        const fig = simResult ? undefined : steadyFigures.get(e.id);
+        return { ...e, data: { ...rest, ...(card ? { card } : {}), ...(fig?.label ? { steady: fig } : {}) } };
+      })
+    );
+  }, [streamCards, steadyFigures, simResult, graph]);
 
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
@@ -893,6 +946,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       const res = sim.run(30); // 30 minutes
       const validation = validateProcessGraph(graph);
       setSimResult(res);
+      setRunFingerprint(graphFingerprint(graph));
       setPlayheadIndex(0);
 
       setTelemetry({
@@ -925,6 +979,59 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  const openNextProblem = useCallback(() => {
+    const withUnits = status.problems.filter((p) => p.nodeId && graph.nodes.some((n) => n.id === p.nodeId));
+    if (!withUnits.length) return;
+    const next = (problemCursor + 1) % withUnits.length;
+    const id = withUnits[next]!.nodeId!;
+    setProblemCursor(next);
+    setPopOutNodeId(id);
+    flowRef.current?.fitView({ nodes: [{ id }], duration: 300, maxZoom: 1.2, padding: 0.8 });
+  }, [status, problemCursor, graph.nodes]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F4' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        openNextProblem();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openNextProblem]);
+
+  // After a run, each unit's share of it working, starved, blocked and down.
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((n) => {
+        const r = simResult?.nodeReports[n.id];
+        const { shares: _drop, ...rest } = n.data as CanvasNodeData;
+        if (!r || n.type !== 'industrialNode' || r.totalTimeSeconds <= 0) return (n.data as CanvasNodeData).shares ? { ...n, data: rest } : n;
+        const t = r.totalTimeSeconds;
+        return { ...n, data: { ...rest, shares: { busy: r.busyTimeSeconds / t, starved: r.starvedTimeSeconds / t, blocked: r.blockedTimeSeconds / t, down: r.downTimeSeconds / t } } };
+      })
+    );
+  }, [simResult, graph]);
+
+  // Each unit's worst problem, for the mark on its drawing.
+  useEffect(() => {
+    const worst = new Map<string, { severity: 'error' | 'warning'; message: string }>();
+    for (const p of status.problems) {
+      if (!p.nodeId) continue;
+      const had = worst.get(p.nodeId);
+      if (!had || (had.severity === 'warning' && p.severity === 'error')) worst.set(p.nodeId, { severity: p.severity, message: p.message });
+    }
+    setNodes((nds) =>
+      nds.map((n) => {
+        const issue = worst.get(n.id);
+        const had = (n.data as CanvasNodeData).issue;
+        if (!issue && !had) return n;
+        if (issue && had && issue.message === had.message && issue.severity === had.severity) return n;
+        const { issue: _drop, ...rest } = n.data as CanvasNodeData;
+        return { ...n, data: issue ? { ...rest, issue } : rest };
+      })
+    );
+  }, [status]);
+
   const handleResetSimulation = () => {
     setIsRunning(false);
     setTelemetry({
@@ -937,6 +1044,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       bottlenecks: validateProcessGraph(graph).bottlenecks
     });
     setSimResult(null);
+    setRunFingerprint(null);
     setPlayheadIndex(0);
   };
 
@@ -1340,10 +1448,14 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
               backgroundColor: OsakaJadePalette.background.surface,
               border: `1px solid ${OsakaJadePalette.border.default}`,
               borderRadius: draftingRadius.soft,
-              fill: OsakaJadePalette.text.primary
+              fill: OsakaJadePalette.text.primary,
+              // Above the status bar.
+              marginBottom: 40
             }}
           />
         </ReactFlow>
+
+        <StatusBar status={status} cursor={problemCursor} onNext={openNextProblem} rightInset={panelOverlap} />
 
         <PointMenu
           at={contextMenu ? { x: contextMenu.x, y: contextMenu.y } : null}
@@ -1389,6 +1501,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         telemetry={liveTelemetry}
         {...(runView ? { run: runView } : {})}
         bulkLine={bulkLine}
+        steady={steady}
+        stale={status.tone === 'stale'}
         isCollapsed={isDockCollapsed}
         onToggleCollapse={handleToggleDock}
         onAddNode={handleAddNode}
@@ -1465,8 +1579,19 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             })
           ),
           ...graph.nodes.map(
-            (n): PaletteCommand => ({ id: `open-${n.id}`, group: 'Open a unit', title: `Open ${n.name}`, keywords: `go unit ${n.kind.replace(/_/g, ' ')}`, run: () => setPopOutNodeId(n.id) })
+            (n): PaletteCommand => ({
+              id: `open-${n.id}`,
+              group: 'Open a unit',
+              title: `Open ${n.name}`,
+              keywords: `go find zoom unit ${n.kind.replace(/_/g, ' ')}`,
+              // Open it, and bring it into view on the sheet.
+              run: () => {
+                setPopOutNodeId(n.id);
+                flowRef.current?.fitView({ nodes: [{ id: n.id }], duration: 300, maxZoom: 1.2, padding: 0.8 });
+              }
+            })
           ),
+          ...(status.problems.some((p) => p.nodeId) ? [{ id: 'next-problem', group: 'Line', title: 'Open the next unit with a problem', hint: 'F4', keywords: 'error warning check fix next issue', run: openNextProblem }] : []),
           { id: 'undo', group: 'Edit', title: 'Undo', hint: 'Ctrl+Z', run: undo },
           { id: 'redo', group: 'Edit', title: 'Redo', hint: 'Ctrl+Y', run: redo }
         ]}
