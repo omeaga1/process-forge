@@ -11,7 +11,7 @@ import {
   type UnitOpEvaluation
 } from '@process-forge/protocol';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
-import { ArrowDownRight, ArrowUpRight, CheckCircle2, AlertTriangle, XCircle, Sigma, Gauge, Waves, ShieldCheck, Settings2, ListChecks, CircleDashed, LayoutDashboard } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, CircleDashed } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
@@ -47,97 +47,53 @@ export const SpecHeader: React.FC<{
   kpis: { label: string; value: string; unit: string }[];
   actions?: React.ReactNode;
 }> = ({ node, contract, own, alignment, verdict, kpis, actions }) => {
-  const { palette, font, radius: r } = useTheme();
+  const { palette, font } = useTheme();
   const toneColor = verdict.tone === 'ok' ? palette.jade[500] : verdict.tone === 'warn' ? palette.status.blocked : palette.status.failed;
   const Icon = verdict.tone === 'ok' ? CheckCircle2 : verdict.tone === 'warn' ? AlertTriangle : XCircle;
   const archetype = alignment?.archetype;
   return (
-    <div style={{ borderRadius: r.lg, border: `1px solid ${palette.border.default}`, background: palette.background.surface, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', gap: 12, padding: 12, alignItems: 'center' }}>
-        <div
-          aria-hidden="true"
-          style={{
-            flex: '0 0 auto',
-            width: 76,
-            height: 76,
-            borderRadius: r.md,
-            background: palette.background.canvas,
-            border: `1px solid ${palette.border.subtle}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden'
-          }}
-        >
-          <EquipmentFigure kind={node.kind} dressing={node.dressing} width={58} style={{ maxHeight: 64 }} />
+    <div style={{ paddingBottom: 20, borderBottom: `1px solid ${palette.border.subtle}` }}>
+      <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
+        <div aria-hidden="true" style={{ flex: '0 0 auto', width: 72, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.95 }}>
+          <EquipmentFigure kind={node.kind} dressing={node.dressing} width={60} style={{ maxHeight: 70 }} />
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                padding: '2px 7px',
-                borderRadius: r.full,
-                color: palette.jade[400],
-                background: tint(palette.jade[500], 0.12),
-                border: `1px solid ${tint(palette.jade[500], 0.3)}`
-              }}
-            >
-              {archetype ? archetype.name.replace(/ \(.*\)$/, '') : own ? 'Custom unit' : 'Standard unit'}
-            </span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px', alignItems: 'center', marginBottom: 6, fontSize: 12, color: palette.text.muted }}>
+            <span style={{ color: palette.text.secondary, fontWeight: 600 }}>{archetype ? archetype.name.replace(/ \(.*\)$/, '') : own ? 'Custom unit' : 'Standard unit'}</span>
+            <span aria-hidden>·</span>
+            <span>{modeName(contract.behavior.mode)}</span>
             {alignment?.decidedBy === 'declared' && (
-              <span title="The contract declares this equipment, so the engine holds it to that physics." style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: palette.text.secondary }}>
-                <ShieldCheck size={12} color={palette.jade[500]} /> held to its physics
-              </span>
+              <>
+                <span aria-hidden>·</span>
+                <span title="The contract declares this equipment, so the engine holds it to that physics." style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <ShieldCheck size={12} color={palette.jade[500]} /> held to its physics
+                </span>
+              </>
             )}
-            <span style={{ fontSize: 11, color: palette.text.muted }}>{modeName(contract.behavior.mode)}</span>
           </div>
           {contract.description && (
             <div
               title={contract.description}
-              style={{
-                fontSize: 13,
-                lineHeight: 1.45,
-                color: palette.text.secondary,
-                display: '-webkit-box',
-                WebkitLineClamp: 3,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden'
-              }}
+              style={{ fontSize: 14, lineHeight: 1.6, color: palette.text.primary, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', maxWidth: 620 }}
             >
               {contract.description}
             </div>
           )}
         </div>
       </div>
-      <div
-        role="status"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '8px 12px',
-          fontSize: 13,
-          borderTop: `1px solid ${palette.border.subtle}`,
-          background: tint(toneColor, 0.08),
-          color: palette.text.primary
-        }}
-      >
-        <Icon size={15} color={toneColor} style={{ flexShrink: 0 }} />
+      <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, fontSize: 13, color: palette.text.primary }}>
+        <Icon size={16} color={toneColor} style={{ flexShrink: 0 }} />
         <span style={{ flex: 1 }}>{verdict.text}</span>
         {actions}
       </div>
       {kpis.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(kpis.length, 3)}, minmax(0, 1fr))`, borderTop: `1px solid ${palette.border.subtle}` }}>
-          {kpis.map((k, i) => (
-            <div key={k.label} style={{ padding: '8px 12px', borderLeft: i ? `1px solid ${palette.border.subtle}` : 'none' }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: palette.text.muted }}>{k.label}</div>
-              <div style={{ fontFamily: font.mono, fontSize: 16, fontWeight: 600, color: palette.text.primary, fontVariantNumeric: 'tabular-nums' }}>
-                {k.value} <span style={{ fontSize: 11, color: palette.text.muted, fontWeight: 400 }}>{k.unit}</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px 40px', marginTop: 20 }}>
+          {kpis.map((k) => (
+            <div key={k.label}>
+              <div style={{ fontFamily: font.mono, fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em', color: palette.text.primary, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
+                {k.value} <span style={{ fontSize: 12, color: palette.text.muted, fontWeight: 400, letterSpacing: 0 }}>{k.unit}</span>
               </div>
+              <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 4 }}>{k.label}</div>
             </div>
           ))}
         </div>
@@ -157,8 +113,7 @@ export const SectionNav: React.FC<{
   active: SectionId;
   onGo: (id: SectionId) => void;
 }> = ({ sections, active, onGo }) => {
-  const { palette, radius: r } = useTheme();
-  const ICON: Record<SectionId, React.ElementType> = { glance: LayoutDashboard, settings: Settings2, streams: Waves, equations: Sigma, checks: ListChecks, physics: Gauge };
+  const { palette } = useTheme();
   return (
     <nav
       aria-label="Unit sections"
@@ -168,9 +123,9 @@ export const SectionNav: React.FC<{
         top: -8,
         zIndex: 5,
         display: 'flex',
-        gap: 4,
-        padding: '14px 0 8px',
-        margin: '4px 0 2px',
+        gap: 2,
+        padding: '8px 0 0',
+        margin: '0 0 4px',
         background: palette.background.surfaceElevated,
         borderBottom: `1px solid ${palette.border.subtle}`,
         overflowX: 'auto',
@@ -179,7 +134,6 @@ export const SectionNav: React.FC<{
     >
       {sections.map((s) => {
         const on = s.id === active;
-        const Icon = ICON[s.id];
         const badgeColor =
           s.badge?.tone === 'ok' ? palette.jade[500] : s.badge?.tone === 'warn' ? palette.status.blocked : s.badge?.tone === 'fail' ? palette.status.failed : palette.text.muted;
         return (
@@ -191,23 +145,21 @@ export const SectionNav: React.FC<{
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 5,
+              gap: 6,
               flex: '0 0 auto',
-              padding: '5px 9px',
-              borderRadius: r.full,
-              border: `1px solid ${on ? tint(palette.jade[500], 0.5) : 'transparent'}`,
-              background: on ? tint(palette.jade[500], 0.12) : 'transparent',
-              color: on ? palette.text.primary : palette.text.secondary,
-              fontSize: 12,
-              fontWeight: on ? 700 : 500,
+              padding: '8px 12px',
+              marginBottom: -1,
+              border: 'none',
+              borderBottom: `2px solid ${on ? palette.jade[500] : 'transparent'}`,
+              background: 'transparent',
+              color: on ? palette.text.primary : palette.text.muted,
+              fontSize: 13,
+              fontWeight: on ? 600 : 500,
               cursor: 'pointer'
             }}
           >
-            <Icon size={13} />
             {s.label}
-            {s.badge && (
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '0 5px', borderRadius: r.full, color: s.badge.tone === 'ok' ? palette.jade.glow : s.badge.tone === 'muted' ? palette.text.secondary : badgeColor, background: tint(badgeColor, 0.14) }}>{s.badge.text}</span>
-            )}
+            {s.badge && <span style={{ fontSize: 12, fontWeight: 500, color: s.badge.tone === 'muted' ? palette.text.muted : badgeColor }}>{s.badge.text}</span>}
           </button>
         );
       })}
@@ -225,10 +177,10 @@ export const Section = React.forwardRef<
   { id: SectionId; title: string; hint?: string; children: React.ReactNode; right?: React.ReactNode; open?: boolean; onToggle?: () => void }
 >(({ id, title, hint, children, right, open = true, onToggle }, ref) => {
   const { palette } = useTheme();
-  const heading = <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: palette.text.primary }}>{title}</h3>;
+  const heading = <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', color: palette.text.primary }}>{title}</h3>;
   return (
-    <section ref={ref} id={`unit-${id}`} data-section={id} style={{ scrollMarginTop: 52, paddingTop: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: open ? 6 : 0 }}>
+    <section ref={ref} id={`unit-${id}`} data-section={id} style={{ scrollMarginTop: 52, paddingTop: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: open ? 14 : 0, flexWrap: 'wrap' }}>
         {onToggle ? (
           <button
             type="button"
