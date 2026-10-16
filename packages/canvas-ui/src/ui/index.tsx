@@ -333,3 +333,4 @@ export const PointMenu: React.FC<{ at: { x: number; y: number } | null; onClose:
     </BaseMenu.Root>
   );
 };
+export { Brief, splitBrief, type BriefProps } from './Brief.js';

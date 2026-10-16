@@ -15,7 +15,7 @@ import {
   type ReactFlowInstance
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Rows3, Layers, Play, Pause, RotateCcw, RotateCw, FlipHorizontal2, Maximize2, Route, AlertTriangle, Plus, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil } from 'lucide-react';
+import { Rows3, Layers, Play, Pause, RotateCcw, RotateCw, FlipHorizontal2, Maximize2, Route, AlertTriangle, Plus, Undo2, Redo2, Trash2, Copy, SquarePen, Pencil, Search } from 'lucide-react';
 
 import {
   validateProcessGraph,
@@ -1223,13 +1223,12 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 6,
               padding: 6,
-              borderRadius: draftingRadius.soft,
+              borderRadius: 14,
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
-              // The run state is carried by the rule colour.
-              border: `1px solid ${isRunning ? OsakaJadePalette.jade[500] : OsakaJadePalette.border.default}`,
-              transition: 'border-color 0.15s ease',
+              border: `1px solid ${OsakaJadePalette.border.subtle}`,
+              boxShadow: '0 6px 24px rgba(0, 0, 0, 0.22)',
               pointerEvents: 'auto',
               whiteSpace: 'nowrap',
               maxWidth: '100%',
@@ -1251,28 +1250,28 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
 
             {onDesignUnitOp && (
               <Tooltip content="Describe equipment that has no model yet: your AI model writes it and the engine checks the physics">
-                <Button icon={<SquarePen size={15} />} onClick={onDesignUnitOp} aria-label="Design unit op">
+                <Button variant="ghost" icon={<SquarePen size={15} />} onClick={onDesignUnitOp} aria-label="Design unit op">
                   {!compactToolbar && 'Design unit op'}
                 </Button>
               </Tooltip>
             )}
 
             <Tooltip content="Pumps, tanks, reactors, fillers, conveyors, and your own designs">
-              <Button icon={<Plus size={15} color={OsakaJadePalette.jade[400]} />} onClick={() => setIsEquipmentPaletteOpen(true)} aria-label="Add equipment">
+              <Button variant="ghost" icon={<Plus size={15} />} onClick={() => setIsEquipmentPaletteOpen(true)} aria-label="Add equipment">
                 {!compactToolbar && 'Add equipment'}
               </Button>
             </Tooltip>
 
             <Tooltip content="Every stream: where it runs, its phase, flow and temperature">
-              <Button variant="ghost" size="sm" icon={<Rows3 size={15} />} onClick={() => setIsStreamTableOpen(true)} aria-label="Stream table">
+              <Button variant="ghost" icon={<Rows3 size={15} />} onClick={() => setIsStreamTableOpen(true)} aria-label="Stream table">
                 {!compactToolbar && 'Streams'}
               </Button>
             </Tooltip>
 
             {!crampedToolbar && (
               <Tooltip content="Every action from the keyboard">
-                <Button variant="ghost" size="sm" onClick={() => setIsPaletteOpen(true)} aria-label="Open the command palette" style={{ fontFamily: font.mono, fontSize: 11 }}>
-                  Ctrl K
+                <Button variant="ghost" icon={<Search size={14} />} onClick={() => setIsPaletteOpen(true)} aria-label="Open the command palette">
+                  <span style={{ color: OsakaJadePalette.text.muted, fontSize: 12, fontFamily: font.mono }}>Ctrl K</span>
                 </Button>
               </Tooltip>
             )}
@@ -1304,7 +1303,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                 height: 32,
                 boxSizing: 'border-box',
                 padding: 2,
-                borderRadius: draftingRadius.soft,
+                borderRadius: 9,
                 backgroundColor: OsakaJadePalette.background.surface,
                 border: `1px solid ${OsakaJadePalette.border.subtle}`,
                 flexShrink: 0
@@ -1320,12 +1319,13 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                     height: 26,
                     minWidth: 30,
                     padding: '0 6px',
-                    borderRadius: draftingRadius.soft,
+                    borderRadius: 7,
                     fontSize: 12,
-                    fontWeight: 700,
+                    fontWeight: 600,
                     border: 'none',
-                    backgroundColor: simSpeed === speed ? OsakaJadePalette.jade.muted : 'transparent',
-                    color: simSpeed === speed ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.muted,
+                    backgroundColor: simSpeed === speed ? OsakaJadePalette.background.surfaceElevated : 'transparent',
+                    color: simSpeed === speed ? OsakaJadePalette.text.primary : OsakaJadePalette.text.muted,
+                    boxShadow: simSpeed === speed ? `inset 0 0 0 1px ${OsakaJadePalette.border.default}` : 'none',
                     cursor: 'pointer'
                   }}
                 >
@@ -1348,7 +1348,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                 height: 32,
                 boxSizing: 'border-box',
                 padding: 2,
-                borderRadius: draftingRadius.soft,
+                borderRadius: 9,
                 backgroundColor: OsakaJadePalette.background.surface,
                 border: `1px solid ${OsakaJadePalette.border.subtle}`,
                 flexShrink: 0
@@ -1365,13 +1365,14 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
                     height: 26,
                     minWidth: 32,
                     padding: '0 6px',
-                    borderRadius: draftingRadius.soft,
+                    borderRadius: 7,
                     fontSize: 12,
-                    fontWeight: 700,
+                    fontWeight: 600,
                     fontFamily: font.mono,
                     border: 'none',
-                    backgroundColor: runMinutes === x.minutes ? OsakaJadePalette.jade.muted : 'transparent',
-                    color: runMinutes === x.minutes ? OsakaJadePalette.jade[300] : OsakaJadePalette.text.muted,
+                    backgroundColor: runMinutes === x.minutes ? OsakaJadePalette.background.surfaceElevated : 'transparent',
+                    color: runMinutes === x.minutes ? OsakaJadePalette.text.primary : OsakaJadePalette.text.muted,
+                    boxShadow: runMinutes === x.minutes ? `inset 0 0 0 1px ${OsakaJadePalette.border.default}` : 'none',
                     cursor: 'pointer'
                   }}
                 >

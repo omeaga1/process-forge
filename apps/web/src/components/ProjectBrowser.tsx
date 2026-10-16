@@ -228,13 +228,8 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
   };
 
   // ---- styles ----------------------------------------------------------------
-  const sectionLabel: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: palette.text.muted
-  };
+  const page = variant === 'page';
+  const sectionLabel: React.CSSProperties = { fontSize: 15, fontWeight: 600, letterSpacing: '-0.005em', color: palette.text.primary };
 
   // A plain function, not a component: a component declared in here would
   // remount on every render and drop the rename box's focus.
@@ -266,10 +261,11 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
-          padding: '8px 10px',
+          gap: 14,
+          padding: page ? '12px 10px' : '8px 10px',
           borderRadius: draftingRadius.soft,
-          border: `1px solid ${isCurrent ? palette.jade[600] : 'transparent'}`,
+          border: '1px solid transparent',
+          borderBottom: `1px solid ${palette.border.subtle}`,
           backgroundColor: isCurrent ? tint(palette.jade[500], 0.06) : 'transparent',
           cursor: 'pointer'
         }}
@@ -319,7 +315,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
                   cursor: 'pointer',
                   textAlign: 'left',
                   fontFamily: 'inherit',
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 600,
                   color: palette.text.primary,
                   overflow: 'hidden',
@@ -405,12 +401,12 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
         alignItems: 'center',
         gap: 3,
         flexShrink: 0,
-        padding: '1px 6px',
+        padding: '1px 7px',
         borderRadius: 999,
-        fontSize: 10,
-        fontWeight: 600,
-        color: palette.text.accent,
-        backgroundColor: tint(palette.jade[500], 0.1)
+        fontSize: 11,
+        fontWeight: 500,
+        color: palette.text.secondary,
+        border: `1px solid ${palette.border.subtle}`
       }}
     >
       {icon}
@@ -419,7 +415,7 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
   );
 
   const body = (
-    <div style={{ display: 'flex', minHeight: 0, flex: 1, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', minHeight: 0, flex: 1, flexWrap: page ? 'nowrap' : 'wrap', flexDirection: page ? 'column' : 'row' }}>
       <input
         ref={fileRef}
         type="file"
@@ -434,19 +430,14 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
 
       {/* Start new */}
       <div
-        style={{
-          width: 280,
-          flexGrow: 1,
-          maxWidth: variant === 'page' ? 340 : 300,
-          padding: 16,
-          borderRight: `1px solid ${palette.border.subtle}`,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          boxSizing: 'border-box'
-        }}
+        style={
+          page
+            ? { padding: '0 0 36px', display: 'flex', flexDirection: 'column', gap: 14, boxSizing: 'border-box' }
+            : { width: 280, flexGrow: 1, maxWidth: 300, padding: 16, borderRight: `1px solid ${palette.border.subtle}`, display: 'flex', flexDirection: 'column', gap: 8, boxSizing: 'border-box' }
+        }
       >
-        <div style={sectionLabel}>Start new</div>
+        <div style={sectionLabel}>{page ? 'Start something new' : 'Start new'}</div>
+        <div style={page ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 14 } : { display: 'flex', flexDirection: 'column', gap: 8 }}>
         {PROJECT_TEMPLATES.map((t) => (
           <button
             key={t.key}
@@ -455,11 +446,12 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
             className="pf-project-row"
             style={{
               display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: 8,
+              flexDirection: page ? 'column' : 'row',
+              alignItems: page ? 'stretch' : 'center',
+              gap: page ? 12 : 10,
+              padding: page ? 14 : 8,
               textAlign: 'left',
-              borderRadius: draftingRadius.soft,
+              borderRadius: page ? 12 : draftingRadius.soft,
               border: `1px solid ${palette.border.subtle}`,
               backgroundColor: palette.background.surface,
               cursor: 'pointer'
@@ -468,8 +460,8 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
             {t.key === 'blank' ? (
               <span
                 style={{
-                  width: 64,
-                  height: 44,
+                  width: page ? '100%' : 64,
+                  height: page ? 64 : 44,
                   flexShrink: 0,
                   display: 'flex',
                   alignItems: 'center',
@@ -482,45 +474,36 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
                 <Plus size={18} />
               </span>
             ) : (
-              <FlowsheetThumbnail graph={t.graph} width={64} height={44} />
+              <FlowsheetThumbnail graph={t.graph} width={page ? 160 : 64} height={page ? 64 : 44} />
             )}
             <span style={{ minWidth: 0 }}>
-              <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: palette.text.primary }}>{t.name}</span>
+              <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: palette.text.primary }}>{t.name}</span>
               <span style={{ display: 'block', fontSize: 12, color: palette.text.muted, lineHeight: 1.35, marginTop: 1 }}>
                 {t.key === 'blank' ? 'Empty canvas' : counts(t.graph.nodes.length, t.graph.edges.length)}
               </span>
             </span>
           </button>
         ))}
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            height: 36,
-            padding: '0 10px',
-            marginTop: 4,
-            borderRadius: draftingRadius.soft,
-            border: `1px solid ${palette.border.default}`,
-            background: 'transparent',
-            color: palette.text.primary,
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
-        >
-          <Upload size={14} /> Open a file (.pfg.json)
-        </button>
-        <div style={{ fontSize: 12, color: palette.text.muted, lineHeight: 1.45, marginTop: 'auto', paddingTop: 12 }}>
-          Every change saves on this device as you work, so switching projects never loses anything.
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: page ? 0 : 4 }}>
+          <button
+            type="button"
+            className="pf-focus"
+            onClick={() => fileRef.current?.click()}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: 0, border: 'none', background: 'transparent', color: palette.text.secondary, fontSize: 13, fontWeight: 500, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: palette.border.default, textUnderlineOffset: 4 }}
+          >
+            <Upload size={14} /> Open a file (.pfg.json)
+          </button>
+          <span style={{ fontSize: 12, color: palette.text.muted, lineHeight: 1.45 }}>
+            Every change saves on this device as you work, so switching projects never loses anything.
+          </span>
         </div>
       </div>
 
       {/* Existing projects */}
-      <div style={{ flex: '999 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ padding: '10px 16px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ flex: page ? '1 1 auto' : '999 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        {page && <div style={{ ...sectionLabel, paddingBottom: 6 }}>Your projects</div>}
+        <div style={{ padding: page ? '4px 0 0' : '10px 16px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', flex: 1 }}>
             <TabStrip
               label="Where projects are kept"
@@ -568,13 +551,13 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
         </div>
         <div style={{ borderBottom: `1px solid ${palette.border.subtle}` }} />
         {/* What the two places are, since "on this device" says little. */}
-        <div style={{ padding: '8px 16px 0', fontSize: 12, color: palette.text.muted, lineHeight: 1.45 }}>
+        <div style={{ padding: page ? '10px 0 0' : '8px 16px 0', fontSize: 12, color: palette.text.muted, lineHeight: 1.45 }}>
           {tab === 'device'
             ? 'Saved automatically on this computer as you work, in ProcessForge itself. Nothing leaves the computer, and nobody else can open them. Click one to open it.'
             : 'Copies you saved to ProcessForge Cloud with Save to cloud. They open on any computer you sign in on. Click one to open it.'}
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 8, minHeight: 200 }}>
+        <div style={{ flex: 1, overflowY: page ? 'visible' : 'auto', padding: page ? '8px 0' : 8, minHeight: 200 }}>
           {tab === 'device' &&
             (localShown.length === 0 ? (
               empty(q ? `No project on this device matches "${query}".` : 'No projects yet.')
@@ -670,10 +653,6 @@ export const ProjectBrowser: React.FC<ProjectBrowserProps> = ({
         style={{
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: palette.background.surface,
-          border: `1px solid ${palette.border.default}`,
-          borderRadius: draftingRadius.soft,
-          minHeight: 420,
           fontFamily: font.sans
         }}
       >
