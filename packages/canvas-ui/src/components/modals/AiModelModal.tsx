@@ -318,10 +318,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
           {choice === 'openrouter' && (
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <p style={{ ...smallText, fontSize: 12 }}>
-                Sign in once and use Claude, GPT, Gemini, DeepSeek, Llama and more, billed to your OpenRouter account.
-                Sign-in issues a key for this app only. It stays on this device (the OS keychain in the desktop app,
-                local storage in a browser) and is sent only to OpenRouter, which forwards each request to the
-                model&apos;s own provider under OpenRouter&apos;s terms.
+                One sign-in for Claude, GPT, Gemini and more, billed to your OpenRouter account. The key stays on this device.
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -490,9 +487,7 @@ export const AiModelModal: React.FC<AiModelModalProps> = ({ isOpen, onClose, onC
           {choice === 'mcp' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <p style={{ ...smallText, fontSize: 12 }}>
-                Chat in an MCP client (Claude Desktop, Cursor, or any client that supports MCP) on the subscription you
-                already have, with the ProcessForge tools available to it. While ProcessForge Desktop is open, the client
-                can read the open flowsheet and add the unit ops it designs straight onto it, drawn and ready to pipe.
+                Use Claude Desktop or Cursor on your own subscription. With this app open, it builds straight onto your flowsheet.
               </p>
 
               <button

@@ -25,6 +25,7 @@ export * from './unitop/formatExpression.js';
 export * from './unitop/examples/pump.js';
 export * from './unitop/examples/juiceConcentration.js';
 export * from './unitop/review.js';
+export * from './unitop/writing.js';
 export * from './unitop/examples/waxCoolingBelt.js';
 export * from './unitop/examples/fdmPrinter.js';
 export * from './unitop/examples/evaporator.js';

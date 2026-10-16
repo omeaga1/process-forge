@@ -8,8 +8,7 @@ import { PageLink } from '../router.js';
 export const ClaudePage: React.FC = () => (
   <>
     <PageHeader kicker="CLAUDE & MCP" title="Your AI designs the unit. The engine does the physics.">
-      The ProcessForge MCP server gives Claude, Cursor or any MCP client the studio’s tools: check the library, design units nobody ships, place and pipe them,
-      simulate the line and compare scenarios. In clients with MCP Apps, a unit’s panel opens in the chat, with its operating conditions as inputs.
+      Claude checks the library, designs units nobody ships, places and pipes them, and simulates the line.
     </PageHeader>
 
     <Section id="session" n="01" kicker="A SESSION" title="What it looks like.">
@@ -18,8 +17,7 @@ export const ClaudePage: React.FC = () => (
           <div style={card}>
             <div style={{ fontSize: 16, fontWeight: 650 }}>From Claude Desktop, Cursor, or any MCP client</div>
             <p style={{ margin: '8px 0 14px', fontSize: 14, lineHeight: 1.6, color: D.text.secondary }}>
-              On the subscription you already have. With the desktop app open, Claude works on the flowsheet on your canvas: it checks the ProcessForge Library,
-              designs what is missing, places standard equipment, pipes it together and simulates.
+              On the subscription you already have, working straight on your open canvas.
             </p>
             <a href={MCPB} className="pf-btn" data-variant="primary" data-size="md" style={{ textDecoration: 'none' }}>
               Add to Claude Desktop

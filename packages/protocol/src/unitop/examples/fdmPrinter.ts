@@ -35,7 +35,7 @@ export const FDM_PRINTER_CONTRACT: UnitOpContract = {
     { name: 'printSpeedMmPerS', label: 'Print speed', unit: 'mm/s', value: 60, min: 5, max: 600,
       description: 'The knob the engineer is turning: faster prints need more melt rate.' },
     { name: 'hotEndMaxFlowMm3PerS', label: 'Hot end melt limit', unit: 'mm3/s', value: 15, min: 1, max: 200,
-      description: 'The most plastic the hot end can melt. A standard hot end manages 10-15, a high-flow one 25-40.' },
+      description: 'The most plastic the hot end can melt per second.' },
     { name: 'bedClearSeconds', label: 'Part removal and bed reset', unit: 's', value: 120, min: 0, max: 3600 },
     { name: 'spoolMassG', label: 'Spool size', unit: 'g', value: 1000, min: 100, max: 10000 }
   ],

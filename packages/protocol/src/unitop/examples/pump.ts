@@ -16,7 +16,7 @@ export const PUMP_CONTRACT: UnitOpContract = {
   id: 'centrifugal-pump-v1',
   name: 'Centrifugal pump',
   archetype: 'pump',
-  description: 'Transfers a liquid against a differential pressure. Shaft power = Q x dP / efficiency; NPSH available must clear NPSH required.',
+  description: 'Transfers a liquid against a differential pressure, drawing shaft power. NPSH available must clear NPSH required.',
   ports: [
     { id: 'suction', name: 'Suction', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID' },
     { id: 'discharge', name: 'Discharge', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID' }
@@ -24,7 +24,7 @@ export const PUMP_CONTRACT: UnitOpContract = {
   parameters: [
     { name: 'ratedFlowGpm', label: 'Rated flow', unit: 'gal/min', value: 150, min: 1, max: 5000, ui: { group: 'Rating' } },
     { name: 'differentialPsi', label: 'Differential pressure', unit: 'psi', value: 45, min: 1, max: 1500, ui: { group: 'Rating' } },
-    { name: 'efficiency', label: 'Pump efficiency', unit: '-', value: 0.7, min: 0.1, max: 0.92, ui: { group: 'Rating' }, description: 'At the duty point; 0.5-0.8 for most process pumps.' },
+    { name: 'efficiency', label: 'Pump efficiency', unit: '-', value: 0.7, min: 0.1, max: 0.92, ui: { group: 'Rating' }, description: 'At the duty point, typically 0.5-0.8 for process pumps.' },
     {
       name: 'motorKw',
       label: 'Motor rating',

@@ -21,11 +21,11 @@ function FirstRunNote({ os, children }: { os: string; children: React.ReactNode 
 }
 
 const LIMITS: [string, string][] = [
-  ['Pressure', "No pressure network is solved: flow is limited by each unit's rated capacity, not worked out from pressure drops and pump curves."],
-  ['Properties', 'Water and steam use IAPWS-IF97 and gases the ideal-gas law; other liquids, and mixtures, use the density and heat capacity you give them, mixed by mass. There is no full property package.'],
+  ['Pressure', "No pressure network: flow is capped by each unit's rated capacity."],
+  ['Properties', 'IAPWS-IF97 for water and steam, ideal gas for gases. Other liquids use the density and heat capacity you give.'],
   ['Items', 'Whole items split evenly down each branch.'],
-  ['The library', 'Listings are what their authors wrote. ProcessForge records whether the engine accepted a unit when it was published, but does not review it.'],
-  ['Subscriptions', 'Claude Pro or ChatGPT Plus cannot be used inside other apps; they work through an MCP client. In-app AI is billed per use.'],
+  ['The library', 'Engine-checked on publish, not reviewed by ProcessForge.'],
+  ['Subscriptions', 'Claude Pro and ChatGPT Plus work through an MCP client. In-app AI is billed per use.'],
   ['The model matters', 'Smaller models write designs the engine rejects more often.']
 ];
 
@@ -34,7 +34,7 @@ export const DownloadPage: React.FC = () => {
   return (
     <>
       <PageHeader kicker="DOWNLOAD" title="Up and running in a few minutes.">
-        Install the desktop app to build and simulate lines. Add the MCP server to drive it from Claude. Both are free and open source, and both update themselves.
+        Desktop app to build and simulate. MCP server to drive it from Claude. Free, open source, self-updating.
       </PageHeader>
 
       <Section id="install" kicker="INSTALL" title="The desktop app, and the MCP server.">

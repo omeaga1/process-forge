@@ -1,3 +1,4 @@
+import { Brief } from '../../ui/Brief.js';
 import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   convertUnit,
@@ -570,7 +571,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                   <span style={{ color: palette.text.muted }}>= </span>
                   <ExpressionView expr={d.expr} lookup={lookup} compact />
                 </div>
-                {d.description && <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>{d.description}</div>}
+                {d.description && <Brief text={d.description} lines={1} style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }} />}
               </div>
             );
           })}

@@ -48,7 +48,7 @@ export const McpDesignGuide: React.FC = () => {
     {
       tool: 'get_open_flowsheet · design_unit_op',
       title: 'It reads your flowsheet and the rules',
-      body: 'It sees what the unit will connect to, and gets the format every unit op is written in: parameters with units and ranges, the equations that connect them, the limits that must hold, how it runs in the line, and a drawing with its nozzles.'
+      body: 'Sees what the unit connects to, and gets the unit-op format: parameters, equations, limits, behaviour and a drawing.'
     },
     {
       tool: 'validate_unit_op',
@@ -73,15 +73,14 @@ export const McpDesignGuide: React.FC = () => {
               </span>
             ))}
           </div>
-          Anything that fails goes back to it with the reason and a hint, and it revises until all four pass. The
-          numbers come from the engine evaluating the design, not from the model.
+          Failures go back with a hint until all four pass. Every number comes from the engine, not the model.
         </>
       )
     },
     {
       tool: 'add_unit_op_to_flowsheet',
       title: 'It lands on this canvas',
-      body: 'The app checks it once more, then places it drawn with its nozzles, ready to pipe, and keeps it in My unit ops to use again in any project.'
+      body: 'Placed with its nozzles, ready to pipe, and saved to My unit ops.'
     }
   ];
 

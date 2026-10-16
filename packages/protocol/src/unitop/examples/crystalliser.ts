@@ -58,7 +58,7 @@ export const CRYSTALLISER_CONTRACT: UnitOpContract = {
       label: 'Crystals made per batch',
       unit: 'kg',
       expr: "batch.massKg * batch.x.mgso4 * crystal_yield('mgso4', batch.x.mgso4, finalC) * 2.0476",
-      description: 'MgSO4·7H2O from this batch: what the solubility at the final temperature cannot keep dissolved.'
+      description: 'MgSO4·7H2O the solubility at the final temperature cannot keep dissolved.'
     }
   ],
   constraints: [

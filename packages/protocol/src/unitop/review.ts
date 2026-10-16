@@ -1,3 +1,4 @@
+import { writingWarnings } from './writing.js';
 import { UnitOpContractSchema, unitWarnings, validateUnitOpContract, type UnitOpContract } from './contract.js';
 import { evaluateUnitOp, blockingViolations } from './evaluate.js';
 import { checkUnitOpDrawing } from './drawing.js';
@@ -204,7 +205,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     );
   }
   gates.staticAnalysis.passed = true;
-  const unchecked = [...unitWarnings(contract), ...phaseWarnings(contract), ...componentWarnings(contract)].map((w) => `${w.path}: ${w.message}`);
+  const unchecked = [...unitWarnings(contract), ...phaseWarnings(contract), ...componentWarnings(contract), ...writingWarnings(contract)].map((w) => `${w.path}: ${w.message}`);
   if (unchecked.length) gates.staticAnalysis.warnings = unchecked;
 
   // Gate 4 -- the drawing. Checked here so its problems come back in the same

@@ -38,7 +38,7 @@ export const DUST_COLLECTOR_CONTRACT: UnitOpContract = {
     { name: 'normalK', label: 'Normal temperature', unit: 'K', value: 273.15, min: 273.15, max: 273.15 },
     { name: 'normalKpa', label: 'Normal pressure', unit: 'kPa', value: 101.325, min: 101.325, max: 101.325 },
     { name: 'filterAreaFt2', label: 'Filter cloth area', unit: 'ft2', value: 1500, min: 10, max: 100000 },
-    { name: 'maxAirToCloth', label: 'Highest air-to-cloth ratio for this dust', unit: 'ft/min', value: 3, min: 1, max: 8, description: 'Fine, light stearates: 2-3.5 ft/min.' },
+    { name: 'maxAirToCloth', label: 'Max air-to-cloth ratio for this dust', unit: 'ft/min', value: 3, min: 1, max: 8, description: 'Fine, light stearates: 2-3.5 ft/min.' },
     { name: 'efficiency', label: 'Collection efficiency', unit: '-', value: 0.9995, min: 0.9, max: 0.99999 },
     { name: 'clothDpPerVelocity', label: 'Clean cloth pressure drop per ft/min', unit: 'inH2O-min/ft', value: 0.5, min: 0.05, max: 3 },
     { name: 'cakeDpInH2O', label: 'Residual cake pressure drop', unit: 'inH2O', value: 3, min: 0.5, max: 8 },
@@ -47,7 +47,7 @@ export const DUST_COLLECTOR_CONTRACT: UnitOpContract = {
     { name: 'fabricMaxC', label: 'Bag fabric temperature rating', unit: '°C', value: 130, min: 60, max: 260, description: 'Polyester felt.' },
     { name: 'dustMeltC', label: 'Dust softening point', unit: '°C', value: 88, min: 20, max: 1000, description: 'Magnesium stearate softens near 88 °C and blinds the bags.' },
     { name: 'kstBarMPerS', label: 'Dust deflagration index Kst', unit: 'bar-m/s', value: 150, min: 0, max: 600, description: 'Combustible dust: St1 below 200.' },
-    { name: 'explosionProtected', label: 'Explosion protection fitted (1 yes, 0 no)', unit: '-', value: 1, min: 0, max: 1, description: 'Venting or suppression on the collector and isolation on its ducts.' }
+    { name: 'explosionProtected', label: 'Explosion protection (1 yes, 0 no)', unit: '-', value: 1, min: 0, max: 1, description: 'Venting or suppression on the collector and isolation on its ducts.' }
   ],
   derived: [
     {
@@ -158,7 +158,7 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
   archetype: 'spray-dryer',
   name: 'Co-current spray dryer',
   description:
-    'Atomises a 40 % maltodextrin solution into air the dryer heats. Water evaporates into the exhaust; the solids leave as powder. Liquid in, solid and gas out.',
+    'Atomises a maltodextrin solution into air the dryer heats. Water evaporates into the exhaust and the solids leave as powder.',
   ports: [
     { id: 'feed', name: 'Liquid feed', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'LIQUID', carries: ['water', 'solids'] },
     { id: 'air_in', name: 'Process air', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true, phase: 'GAS', carries: ['air', 'water'] },
@@ -171,13 +171,13 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
     { component: 'solids', from: 'LIQUID', to: 'SOLID', mechanism: 'DRYING', latentHeatKjPerKg: '0' }
   ],
   parameters: [
-    { name: 'airInletC', label: 'Air inlet temperature', unit: '°C', value: 193, min: 80, max: 350, description: 'Set so the heat the air gives up, less the wall loss, is the heat the drying takes at the outlet temperature: hotter and the exhaust would leave above outletC.' },
+    { name: 'airInletC', label: 'Air inlet temperature', unit: '°C', value: 193, min: 80, max: 350, description: 'Set so the heat the air gives up, less wall loss, matches the heat the drying takes.' },
     { name: 'outletC', label: 'Outlet temperature', unit: '°C', value: 90, min: 40, max: 150 },
     { name: 'ambientC', label: 'Air before the heater', unit: '°C', value: 25, min: -20, max: 50 },
     { name: 'feedC', label: 'Feed temperature', unit: '°C', value: 25, min: 1, max: 95 },
     { name: 'humidityIn', label: 'Process air humidity', unit: '-', value: 0.008, min: 0, max: 0.05, description: 'kg water per kg dry air.' },
     { name: 'residualMoisture', label: 'Powder moisture (wet basis)', unit: '-', value: 0.04, min: 0.005, max: 0.2 },
-    { name: 'finesToExhaust', label: 'Fines carried out with the exhaust', unit: '-', value: 0.02, min: 0, max: 0.3, description: 'Share of the powder too fine to settle in the chamber: it leaves with the air, for a cyclone or baghouse to catch.' },
+    { name: 'finesToExhaust', label: 'Fines carried out with the exhaust', unit: '-', value: 0.02, min: 0, max: 0.3, description: 'Share of powder too fine to settle; it leaves with the air for a cyclone to catch.' },
     { name: 'cpAir', label: 'Humid air specific heat', unit: 'kJ/kg-K', value: 1.02, min: 1.0, max: 1.1 },
     { name: 'cpWater', label: 'Water specific heat', unit: 'kJ/kg-K', value: 4.18, min: 4.1, max: 4.25 },
     { name: 'cpSolids', label: 'Solids specific heat', unit: 'kJ/kg-K', value: 1.5, min: 0.5, max: 3 },
@@ -190,7 +190,7 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
     { name: 'buckA', label: 'Buck constant', unit: '°C', value: 234.5, min: 234.5, max: 234.5 },
     { name: 'buckB', label: 'Buck constant', unit: '°C', value: 257.14, min: 257.14, max: 257.14 },
     { name: 'maxOutletRh', label: 'Highest exhaust relative humidity', unit: '-', value: 0.25, min: 0.05, max: 0.9 },
-    { name: 'productMaxC', label: 'Highest temperature the powder tolerates', unit: '°C', value: 100, min: 30, max: 250 }
+    { name: 'productMaxC', label: 'Max temperature the powder tolerates', unit: '°C', value: 100, min: 30, max: 250 }
   ],
   derived: [
     { name: 'solidsKgPerS', label: 'Solids in', unit: 'kg/s', expr: 'inlet.massFlowKgPerS * inlet.x.solids' },
@@ -202,29 +202,29 @@ export const SPRAY_DRYER_CONTRACT: UnitOpContract = {
     { name: 'evaporatedKgPerS', label: 'Water evaporated', unit: 'kg/s', expr: 'feedWaterKgPerS - powderWaterKgPerS' },
     {
       name: 'latentKjPerKg',
-      label: 'Latent heat at the outlet temperature (Watson, fitted to the steam tables)',
+      label: 'Latent heat at outlet temperature',
       unit: 'kJ/kg',
       expr: 'latentAt100 * pow((criticalK - (outletC + 273.15)) / (criticalK - boilingK), 0.33)'
     },
     { name: 'heatAvailableKw', label: 'Heat the air gives up', unit: 'kW', expr: 'airKgPerS * cpAir * (airInletC - outletC) * (1 - heatLossFraction)' },
     {
       name: 'heatNeededKw',
-      label: 'Heat to evaporate the water and warm the product',
+      label: 'Heat to dry and warm the product',
       unit: 'kW',
       expr: 'evaporatedKgPerS * latentKjPerKg + feedWaterKgPerS * cpWater * (outletC - feedC) + solidsKgPerS * cpSolids * (outletC - feedC)'
     },
     { name: 'heaterKw', label: 'Air heater duty', unit: 'kW', expr: 'airKgPerS * cpAir * (airInletC - ambientC)' },
     { name: 'humidityOut', label: 'Exhaust humidity', unit: '-', expr: 'if(airKgPerS > 0, (airWaterKgPerS + evaporatedKgPerS) / airKgPerS, 0)' },
-    { name: 'vapourKpa', label: 'Water vapour partial pressure in the exhaust', unit: 'kPa', expr: 'humidityOut * pressureKpa / (0.62198 + humidityOut)' },
+    { name: 'vapourKpa', label: 'Exhaust water vapour pressure', unit: 'kPa', expr: 'humidityOut * pressureKpa / (0.62198 + humidityOut)' },
     {
       name: 'saturationKpa',
-      label: 'Saturation pressure at the outlet temperature (Buck)',
+      label: 'Saturation pressure at outlet',
       unit: 'kPa',
       expr: 'buckP0 * exp((18.678 - outletC / buckA) * (outletC / (buckB + outletC)))'
     },
     { name: 'exhaustRh', label: 'Exhaust relative humidity', unit: '-', expr: 'vapourKpa / saturationKpa' },
     { name: 'thermalEfficiency', label: 'Thermal efficiency', unit: '-', expr: 'if(heaterKw > 0, evaporatedKgPerS * latentKjPerKg / heaterKw, 0)' },
-    { name: 'powderShareOfWater', label: 'Share of the water that stays in the powder', unit: '-', expr: 'if(inlet.massFlowKgPerS * inlet.x.water > 0, powderWaterKgPerS / (inlet.massFlowKgPerS * inlet.x.water), 0)' },
+    { name: 'powderShareOfWater', label: 'Share of water left in the powder', unit: '-', expr: 'if(inlet.massFlowKgPerS * inlet.x.water > 0, powderWaterKgPerS / (inlet.massFlowKgPerS * inlet.x.water), 0)' },
     { name: 'powderKgPerH', label: 'Powder made', unit: 'kg/h', expr: 'powderKgPerS * 3600' },
     { name: 'finesKgPerH', label: 'Fines to the exhaust', unit: 'kg/h', expr: 'solidsKgPerS * finesToExhaust * 3600' }
   ],
@@ -329,11 +329,11 @@ export const VENTURI_SCRUBBER_CONTRACT: UnitOpContract = {
   phaseChanges: [{ component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'EVAPORATION', latentHeatKjPerKg: 'latentKjPerKg' }],
   parameters: [
     { name: 'throatAreaM2', label: 'Throat area', unit: 'm2', value: 0.035, min: 0.001, max: 5 },
-    { name: 'johnstoneK', label: 'Johnstone constant', unit: '-', value: 0.15, min: 0.05, max: 0.25, description: '1000 ft³/gal; 0.1 to 0.2 for most venturis.' },
+    { name: 'johnstoneK', label: 'Johnstone constant', unit: '-', value: 0.15, min: 0.05, max: 0.25, description: 'Gallons of water per 1000 ft³ of gas, typically 0.1-0.2.' },
     { name: 'particleUm', label: 'Particle size (mass median)', unit: 'um', value: 3, min: 0.1, max: 100 },
     { name: 'particleDensity', label: 'Particle density', unit: 'kg/m3', value: 2200, min: 500, max: 8000 },
     { name: 'gasViscosity', label: 'Gas viscosity', unit: 'Pa-s', value: 0.000021, min: 0.00001, max: 0.00005 },
-    { name: 'outletC', label: 'Gas and liquor outlet temperature', unit: '°C', value: 34, min: 10, max: 100, description: 'Where the gas\'s heat balances the water it evaporates and the warming of the once-through water.' },
+    { name: 'outletC', label: 'Gas and liquor outlet temperature', unit: '°C', value: 34, min: 10, max: 100, description: 'Where the gas\'s heat balances the water it evaporates and warms.' },
     { name: 'pressureKpa', label: 'Absolute pressure', unit: 'kPa', value: 99, min: 80, max: 110 },
     { name: 'molarMass', label: 'Gas molar mass', unit: 'kg/kmol', value: 28.7, min: 2, max: 100 },
     { name: 'gasConstant', label: 'Gas constant R', unit: 'kJ/kmol-K', value: 8.314, min: 8.314, max: 8.315 },
@@ -345,7 +345,7 @@ export const VENTURI_SCRUBBER_CONTRACT: UnitOpContract = {
     { name: 'buckB', label: 'Buck constant', unit: '°C', value: 257.14, min: 257.14, max: 257.14 },
     { name: 'outletRh', label: 'Gas outlet relative humidity', unit: '-', value: 0.95, min: 0.5, max: 1 },
     { name: 'minRatio', label: 'Lowest L/G', unit: 'gal/kcf', value: 5, min: 1, max: 30, description: 'gal per 1000 actual ft³.' },
-    { name: 'maxDpInH2O', label: 'Highest pressure drop the fan can pull', unit: 'inH2O', value: 40, min: 5, max: 100 },
+    { name: 'maxDpInH2O', label: 'Max pressure drop the fan can pull', unit: 'inH2O', value: 40, min: 5, max: 100 },
     { name: 'ntA', label: 'Nukiyama-Tanasawa velocity term', unit: 'um-ft/s', value: 16400, min: 16400, max: 16400 },
     { name: 'ntB', label: 'Nukiyama-Tanasawa liquor term', unit: 'um', value: 1.45, min: 1.45, max: 1.45 },
     { name: 'calvertC', label: 'Calvert pressure-drop coefficient', unit: 'inH2O-s2/ft2', value: 0.00005, min: 0.00003, max: 0.00008 },
@@ -360,7 +360,7 @@ export const VENTURI_SCRUBBER_CONTRACT: UnitOpContract = {
     { name: 'ratio', label: 'L/G', unit: 'gal/kcf', expr: 'if(acfm > 0, liquorGpm / (acfm / 1000), 0)' },
     { name: 'throatVelocity', label: 'Throat velocity', unit: 'm/s', expr: 'gasM3PerS / throatAreaM2' },
     { name: 'throatFtPerS', label: 'Throat velocity', unit: 'ft/s', expr: 'throatVelocity * 3.28084' },
-    { name: 'dropletUm', label: 'Mean droplet size (Nukiyama-Tanasawa)', unit: 'um', expr: 'ntA / max(throatFtPerS, 1) + ntB * pow(ratio, 1.5)' },
+    { name: 'dropletUm', label: 'Mean droplet size', unit: 'um', expr: 'ntA / max(throatFtPerS, 1) + ntB * pow(ratio, 1.5)' },
     {
       name: 'impaction',
       label: 'Inertial impaction parameter',
@@ -389,7 +389,7 @@ export const VENTURI_SCRUBBER_CONTRACT: UnitOpContract = {
     },
     { name: 'heatNeededKw', label: 'Heat the water takes', unit: 'kW', expr: 'heatToEvaporateKw + heatToWarmKw' },
     { name: 'waterTotalKgPerS', label: 'Water in', unit: 'kg/s', expr: 'inlet.massFlowKgPerS * inlet.x.water' },
-    { name: 'waterToGas', label: 'Share of the water leaving with the gas', unit: '-', expr: 'if(waterTotalKgPerS > 0, min((waterInGasKgPerS + evaporatedKgPerS) / waterTotalKgPerS, 1), 0)' }
+    { name: 'waterToGas', label: 'Share of water leaving with the gas', unit: '-', expr: 'if(waterTotalKgPerS > 0, min((waterInGasKgPerS + evaporatedKgPerS) / waterTotalKgPerS, 1), 0)' }
   ],
   constraints: [
     { id: 'enough-liquor', expr: 'ratio >= minRatio', severity: 'ERROR', message: 'Too little scrubbing water for the gas: the throat runs dry.', hint: 'Raise the water flow or lower the gas flow.' },

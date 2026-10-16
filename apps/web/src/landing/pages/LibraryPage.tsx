@@ -33,8 +33,7 @@ const SEEN = `"fromTheLibrary": {
 export const LibraryPage: React.FC = () => (
   <>
     <PageHeader kicker="PROCESSFORGE LIBRARY" title="Start from a design someone already made.">
-      Every unit an engineer designs and publishes goes into a shared library. Before Claude designs a new one, it checks the library for units like yours and
-      offers them first, so the second freeze concentrator starts from the first.
+      Claude checks the library before designing, so the second freeze concentrator starts from the first.
     </PageHeader>
 
     <Section id="how" n="01" kicker="HOW IT WORKS" title="Designed once, found by the next engineer.">
