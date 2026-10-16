@@ -267,32 +267,41 @@ export const SOLIDS_FILTER_CONTRACT: UnitOpContract = {
   description:
     'Separates suspended solids from a liquid: a filter press, belt or drum filter. It captures a share of the feed solids in a cake at a set dryness; the rest of the liquid leaves as filtrate. Mass balance on solids: cake share = feed solids x capture / cake solids.',
   ports: [
-    phased('in', 'Slurry', 'INLET', 'LIQUID', { solids: 'SOLID' }),
-    phased('filtrate', 'Filtrate', 'OUTLET', 'LIQUID', { solids: 'SOLID' }),
+    phased('in', 'Slurry', 'INLET', 'LIQUID', { crystals: 'SOLID' }),
+    phased('filtrate', 'Filtrate', 'OUTLET', 'LIQUID', { crystals: 'SOLID' }),
     phased('cake', 'Cake', 'OUTLET', 'SOLID', { water: 'LIQUID' })
   ],
+  components: ['water', 'crystals'],
   parameters: [
-    { name: 'feedSolidsPct', label: 'Feed solids', unit: '%', value: 8, min: 0.01, max: 60 },
+    { name: 'feedSolidsPct', label: 'Feed solids (if the stream does not say)', unit: '%', value: 8, min: 0.01, max: 60, description: 'Used only when the feed carries no composition. A feed that names crystals sets this itself.' },
     { name: 'capture', label: 'Solids captured', unit: '-', value: 0.98, min: 0, max: 1 },
     { name: 'cakeSolidsPct', label: 'Cake solids', unit: '%', value: 55, min: 1, max: 95 },
     { name: 'ratedFlowGpm', label: 'Rated flow', unit: 'gal/min', value: 80, min: 0.1, max: 5000 }
   ],
   derived: [
-    { name: 'cakeShare', label: 'Share leaving as cake', unit: '-', expr: 'clamp(feedSolidsPct * capture / cakeSolidsPct, 0, 1)' },
+    { name: 'solidsPct', label: 'Solids in the feed', unit: '%', expr: 'if(inlet.x.crystals > 0, 100 * inlet.x.crystals, feedSolidsPct)', description: 'Read from the feed stream (its crystals).' },
+    { name: 'cakeShare', label: 'Share leaving as cake', unit: '-', expr: 'clamp(solidsPct * capture / cakeSolidsPct, 0, 1)' },
+    {
+      name: 'liquidToCake',
+      label: 'Share of the liquid held in the cake',
+      unit: '-',
+      expr: 'clamp(solidsPct * capture * (100 / cakeSolidsPct - 1) / (100 - solidsPct), 0, 1)',
+      description: 'The cake holds the liquid that makes it cakeSolidsPct solids.'
+    },
     {
       name: 'filtrateSolidsPct',
       label: 'Filtrate solids',
       unit: '%',
-      expr: 'if(cakeShare < 1, feedSolidsPct * (1 - capture) / (1 - cakeShare), 0)'
+      expr: 'if(cakeShare < 1, solidsPct * (1 - capture) / (1 - cakeShare), 0)'
     }
   ],
   constraints: [
     {
       id: 'cake-drier-than-feed',
-      expr: 'cakeSolidsPct > feedSolidsPct',
+      expr: 'cakeSolidsPct > solidsPct',
       severity: 'ERROR',
       message: 'The cake must hold more solids than the feed, or the filter separates nothing.',
-      hint: 'Raise cakeSolidsPct above feedSolidsPct.'
+      hint: 'Raise cakeSolidsPct above the feed solids.'
     },
     {
       id: 'clear-filtrate',
@@ -303,8 +312,9 @@ export const SOLIDS_FILTER_CONTRACT: UnitOpContract = {
     }
   ],
   behavior: { mode: 'CONTINUOUS_RATE', throughputPerMinute: 'inlet.volumetricFlowGpm', capacityGpm: 'ratedFlowGpm' },
-  designInlet: { ...WATERY, volumetricFlowGpm: 40, massFlowKgPerS: 2.6, densityGPerCm3: 1.05 },
-  outlets: [{ port: 'cake', share: 'cakeShare' }, { port: 'filtrate' }],
+  designInlet: { ...WATERY, volumetricFlowGpm: 40, massFlowKgPerS: 2.6, densityGPerCm3: 1.05, composition: { water: 0.92, crystals: 0.08 } },
+  // Crystals go to the cake by the capture, with the liquid that wets it and everything dissolved in it ('*').
+  outlets: [{ port: 'cake', share: 'cakeShare', recovery: { crystals: 'capture', '*': 'liquidToCake' } }, { port: 'filtrate' }],
   provenance: template(),
   drawing: {
     viewBox: { width: 140, height: 100 },

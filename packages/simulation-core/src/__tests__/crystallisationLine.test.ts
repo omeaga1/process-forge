@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { CONTINUOUS_DRYER_CONTRACT, CRYSTALLISER_CONTRACT, DECANTER_CENTRIFUGE_CONTRACT, type ProcessEdge, type ProcessGraph, type ProcessNode, type UnitOpContract } from '@process-forge/protocol';
+import { CONTINUOUS_DRYER_CONTRACT, CRYSTALLISER_CONTRACT, DECANTER_CENTRIFUGE_CONTRACT, SOLIDS_FILTER_CONTRACT, type ProcessEdge, type ProcessGraph, type ProcessNode, type UnitOpContract } from '@process-forge/protocol';
 import { simulateProcess } from '../engine.js';
 
 /**
@@ -98,5 +98,20 @@ describe('Crystallisation line: each unit works from what reaches it', () => {
     // Per batch: a warmer final temperature also shortens the cycle, so compare what each batch made.
     const made = (r: typeof cold) => (r.nodeReports['product']!.fluid!.receivedKg) / r.nodeReports['cryst']!.fluid!.batches!;
     assert.ok(made(warm) < made(cold) * 0.7, `${made(warm)} vs ${made(cold)}`);
+  });
+});
+
+describe('Solids filter: reads the feed it is given', () => {
+  it('captures the crystals the crystalliser made, in a cake of the set dryness', () => {
+    const g = build(CRYSTALLISER_CONTRACT) as unknown as { nodes: ProcessNode[]; edges: ProcessEdge[] };
+    const filter = withParams(SOLIDS_FILTER_CONTRACT, { ratedFlowGpm: 150, cakeSolidsPct: 70, capture: 0.97 });
+    g.nodes = g.nodes.map((n) => (n.id === 'cent' ? node('cent', 'CUSTOM_UNIT_OP', { contract: filter }, [L], [L, L], { in: ['in'], out: ['filtrate', 'cake'] }) : n));
+    g.edges = g.edges.map((e) => (e.sourceNodeId === 'cent' ? ({ ...e, sourcePortId: e.sourcePortId === 'centrate' ? 'filtrate' : 'cake' } as ProcessEdge) : e));
+    const r = simulateProcess(g as unknown as ProcessGraph, 24 * 60);
+    const streams = r.nodeReports['cent']!.designedUnit!.streams!;
+    const cake = streams.find((s) => s.port === 'cake')!;
+    const slurry = r.nodeReports['cryst']!.designedUnit!.streams!.find((s) => s.port === 'slurry')!;
+    assert.ok(Math.abs(cake.componentsKg!['crystals']! / slurry.componentsKg!['crystals']! - 0.97) < 0.02);
+    assert.ok(Math.abs(cake.componentsKg!['crystals']! / cake.kg - 0.7) < 0.03, `cake solids ${cake.componentsKg!['crystals']! / cake.kg}`);
   });
 });
