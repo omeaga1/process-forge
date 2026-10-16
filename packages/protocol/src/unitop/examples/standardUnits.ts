@@ -331,18 +331,19 @@ export const DECANTER_CENTRIFUGE_CONTRACT: UnitOpContract = {
   description:
     'Spins solids out of a liquid continuously. Recovery falls off above the rated flow, as it does in a real bowl: less time under g means more solids carried over in the centrate. Solids leave as a paste at the set dryness.',
   ports: [
-    phased('in', 'Feed', 'INLET', 'LIQUID', { solids: 'SOLID' }),
-    phased('centrate', 'Centrate', 'OUTLET', 'LIQUID', { solids: 'SOLID' }),
+    phased('in', 'Feed', 'INLET', 'LIQUID', { crystals: 'SOLID' }),
+    phased('centrate', 'Centrate', 'OUTLET', 'LIQUID', { crystals: 'SOLID' }),
     phased('solids', 'Solids', 'OUTLET', 'SOLID', { water: 'LIQUID' })
   ],
   parameters: [
-    { name: 'feedSolidsPct', label: 'Feed solids', unit: '%', value: 10, min: 0.01, max: 50 },
+    { name: 'feedSolidsPct', label: 'Feed solids (if the stream does not say)', unit: '%', value: 10, min: 0.01, max: 50, description: 'Used only when the feed carries no composition. A feed that names crystals sets this itself.' },
     { name: 'ratedRecovery', label: 'Solids recovery at rated flow', unit: '-', value: 0.95, min: 0, max: 1 },
     { name: 'pasteSolidsPct', label: 'Paste solids', unit: '%', value: 35, min: 1, max: 90 },
     { name: 'ratedFlowGpm', label: 'Rated flow', unit: 'gal/min', value: 100, min: 0.1, max: 2000 },
     { name: 'maxFlowGpm', label: 'Hydraulic limit', unit: 'gal/min', value: 130, min: 0.1, max: 3000 }
   ],
   derived: [
+    { name: 'solidsPct', label: 'Solids in the feed', unit: '%', expr: 'if(inlet.x.crystals > 0, 100 * inlet.x.crystals, feedSolidsPct)', description: 'Read from the feed stream (its crystals).' },
     { name: 'load', label: 'Load', unit: '-', expr: 'inlet.volumetricFlowGpm / ratedFlowGpm' },
     {
       name: 'recovery',
@@ -351,15 +352,22 @@ export const DECANTER_CENTRIFUGE_CONTRACT: UnitOpContract = {
       expr: 'ratedRecovery * interp(load, 0, 1, 1, 1, 1.3, 0.8, 2, 0.5)',
       description: 'Full recovery up to rated flow, falling off above it.'
     },
-    { name: 'solidsShare', label: 'Share leaving as paste', unit: '-', expr: 'clamp(feedSolidsPct * recovery / pasteSolidsPct, 0, 1)' }
+    { name: 'solidsShare', label: 'Share leaving as paste', unit: '-', expr: 'clamp(solidsPct * recovery / pasteSolidsPct, 0, 1)' },
+    {
+      name: 'liquidToPaste',
+      label: 'Share of the liquid held in the paste',
+      unit: '-',
+      expr: 'clamp(solidsPct * recovery * (100 / pasteSolidsPct - 1) / (100 - solidsPct), 0, 1)',
+      description: 'The paste holds the liquid that makes it pasteSolidsPct solids.'
+    }
   ],
   constraints: [
     {
       id: 'paste-drier-than-feed',
-      expr: 'pasteSolidsPct > feedSolidsPct',
+      expr: 'pasteSolidsPct > solidsPct',
       severity: 'ERROR',
       message: 'The paste must hold more solids than the feed, or nothing is separated.',
-      hint: 'Raise pasteSolidsPct above feedSolidsPct.'
+      hint: 'Raise pasteSolidsPct above the feed solids.'
     },
     {
       id: 'within-rating',
@@ -370,9 +378,12 @@ export const DECANTER_CENTRIFUGE_CONTRACT: UnitOpContract = {
     },
     { id: 'hydraulics', expr: 'maxFlowGpm >= ratedFlowGpm', severity: 'ERROR', message: 'The hydraulic limit is below the rated flow.', hint: 'Raise maxFlowGpm.' }
   ],
+  components: ['water', 'crystals'],
   behavior: { mode: 'CONTINUOUS_RATE', throughputPerMinute: 'inlet.volumetricFlowGpm', capacityGpm: 'maxFlowGpm' },
-  designInlet: { ...WATERY, volumetricFlowGpm: 80, massFlowKgPerS: 5.3, densityGPerCm3: 1.05 },
-  outlets: [{ port: 'solids', share: 'solidsShare' }, { port: 'centrate' }],
+  designInlet: { ...WATERY, volumetricFlowGpm: 80, massFlowKgPerS: 5.3, densityGPerCm3: 1.05, composition: { water: 0.9, crystals: 0.1 } },
+  // The crystals go to the paste by what the machine recovers, and the liquid they carry with all it holds in solution
+  // (every other component, '*'). Without a feed composition the paste share splits the flow.
+  outlets: [{ port: 'solids', share: 'solidsShare', recovery: { crystals: 'recovery', '*': 'liquidToPaste' } }, { port: 'centrate' }],
   provenance: template(),
   drawing: {
     viewBox: { width: 160, height: 80 },
@@ -465,41 +476,52 @@ export const CONTINUOUS_DRYER_CONTRACT: UnitOpContract = {
     phased('product', 'Dry product', 'OUTLET', 'SOLID', { water: 'LIQUID' }),
     phased('vapour', 'Exhaust vapour', 'OUTLET', 'GAS')
   ],
-  phaseChanges: [{ component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'DRYING', latentHeatKjPerKg: 'heatPerKgWaterKj' }],
+  components: ['water', 'solids'],
+  phaseChanges: [{ component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'DRYING', latentHeatKjPerKg: 'latentKjPerKg' }],
   parameters: [
-    { name: 'feedMoisturePct', label: 'Feed moisture', unit: '%', value: 40, min: 0, max: 95 },
+    { name: 'feedMoisturePct', label: 'Feed moisture (if the stream does not say)', unit: '%', value: 40, min: 0, max: 95, description: 'Used only when the feed carries no composition. A feed that names water sets this itself.' },
     { name: 'productMoisturePct', label: 'Product moisture', unit: '%', value: 5, min: 0, max: 90 },
-    { name: 'heatPerKgWaterKj', label: 'Heat per kg water removed', unit: 'kJ/kg', value: 3200, min: 2257, max: 10000, description: 'Latent heat plus the dryer\'s losses; 3000-4500 is typical.' },
+    { name: 'thermalEfficiency', label: 'Thermal efficiency', unit: '-', value: 0.7, min: 0.2, max: 1, description: 'Share of the burner heat that reaches the material; the rest is stack and wall loss. 0.55-0.8 is typical.' },
     { name: 'availableKw', label: 'Burner duty', unit: 'kW', value: 1500, min: 1, max: 100000 },
     { name: 'productC', label: 'Product temperature', unit: '°C', value: 60, min: 0, max: 300 },
     { name: 'exhaustC', label: 'Exhaust temperature', unit: '°C', value: 90, min: 40, max: 400 },
     { name: 'ratedFeedGpm', label: 'Rated feed', unit: 'gal/min', value: 30, min: 0.1, max: 2000 }
   ],
   derived: [
-    { name: 'waterShare', label: 'Share driven off', unit: '-', expr: 'max(0, feedMoisturePct - productMoisturePct) / (100 - productMoisturePct)' },
+    { name: 'moisturePct', label: 'Feed moisture', unit: '%', expr: 'if(inlet.x.water > 0, 100 * inlet.x.water, feedMoisturePct)', description: 'Read from the feed stream (its water).' },
+    { name: 'waterShare', label: 'Share driven off', unit: '-', expr: 'max(0, moisturePct - productMoisturePct) / (100 - productMoisturePct)' },
     { name: 'evaporationKgPerS', label: 'Evaporation', unit: 'kg/s', expr: 'inlet.massFlowKgPerS * waterShare' },
-    { name: 'needKw', label: 'Duty needed', unit: 'kW', expr: 'evaporationKgPerS * heatPerKgWaterKj' }
+    { name: 'latentKjPerKg', label: 'Latent heat at the exhaust', unit: 'kJ/kg', expr: 'water_hvap(exhaustC)' },
+    {
+      name: 'needKw',
+      label: 'Heat to the material',
+      unit: 'kW',
+      expr: 'inlet.massFlowKgPerS * inlet.specificHeatKjPerKgK * ((1 - waterShare) * productC + waterShare * exhaustC - inlet.temperatureC) + evaporationKgPerS * latentKjPerKg',
+      description: 'Warm the feed to the product and exhaust temperatures, then evaporate: what the streams take.'
+    },
+    { name: 'burnerKw', label: 'Burner duty needed', unit: 'kW', expr: 'needKw / thermalEfficiency' }
   ],
   constraints: [
     {
       id: 'dries',
-      expr: 'productMoisturePct < feedMoisturePct',
+      expr: 'productMoisturePct < moisturePct',
       severity: 'ERROR',
       message: 'The product must be drier than the feed.',
       hint: 'Lower productMoisturePct below feedMoisturePct.'
     },
     {
       id: 'enough-heat',
-      expr: 'needKw <= availableKw',
+      expr: 'burnerKw <= availableKw',
       severity: 'ERROR',
       message: 'The burner cannot supply the heat to dry this much feed to the target moisture.',
       hint: 'Raise availableKw, feed less, or accept a wetter product.'
     }
   ],
   behavior: { mode: 'CONTINUOUS_RATE', throughputPerMinute: 'inlet.volumetricFlowGpm', capacityGpm: 'ratedFeedGpm', dutyKw: 'needKw' },
-  designInlet: { temperatureC: 20, volumetricFlowGpm: 10, massFlowKgPerS: 0.7, densityGPerCm3: 1.1, specificHeatKjPerKgK: 3.2 },
+  designInlet: { temperatureC: 20, volumetricFlowGpm: 10, massFlowKgPerS: 0.7, densityGPerCm3: 1.1, specificHeatKjPerKgK: 3.2, composition: { water: 0.4, solids: 0.6 } },
   outlets: [
-    { port: 'vapour', share: 'waterShare', temperatureC: 'exhaustC' },
+    // Only water leaves as vapour; everything else stays in the product.
+    { port: 'vapour', share: 'waterShare', recovery: { water: 'min(1, waterShare * 100 / moisturePct)', solids: '0', '*': '0' }, temperatureC: 'exhaustC' },
     { port: 'product', temperatureC: 'productC' }
   ],
   provenance: template(),

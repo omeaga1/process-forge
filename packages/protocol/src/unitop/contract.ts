@@ -807,14 +807,14 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
   const outletPlan = contract.outlets ?? [];
   for (const [i, o] of outletPlan.entries()) {
     if (!o.recovery) continue;
-    if (o.share) issues.push({ path: `outlets[${i}]`, message: 'give an outlet a share or recoveries, not both' });
     for (const [c, expr] of Object.entries(o.recovery)) {
-      namedComponent(c, `outlets[${i}].recovery`);
+      if (c !== '*') namedComponent(c, `outlets[${i}].recovery`);
       checkExpr(expr, `outlets[${i}].recovery.${c}`);
     }
   }
-  if (outletPlan.some((o) => o.recovery) && outletPlan.some((o) => o.share)) {
-    issues.push({ path: 'outlets', message: 'split by component recoveries on every outlet, or by shares, not a mix of the two' });
+  // An outlet may give both: recoveries when the stream carries composition, its share when it does not.
+  if (outletPlan.some((o) => o.recovery) && outletPlan.some((o) => o.share && !o.recovery)) {
+    issues.push({ path: 'outlets', message: 'split by component recoveries on every outlet that has a share, or by shares alone, not a mix of the two' });
   }
   (contract.phaseChanges ?? []).forEach((pc, i) => {
     if (pc.latentHeatKjPerKg) checkExpr(pc.latentHeatKjPerKg, `phaseChanges[${i}].latentHeatKjPerKg`);

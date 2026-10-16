@@ -967,7 +967,8 @@ export class MaterialNetwork {
       return { outs: edges.map((e) => ({ target: this.units.get(e.targetNodeId)!, targetPort: e.targetPortId, port: e.sourcePortId, share: 1 / edges.length })), unpipedShare: 0, lossShare: 0, unpiped: [] };
     }
     const plan = u.live!.outlets;
-    if (Object.values(plan).some((o) => o.recovery)) return this.recoverySplit(u, piped);
+    // Recoveries need the stream's composition; without it, outlets that also give a share split it by shares.
+    if (Object.values(plan).some((o) => o.recovery) && (Object.keys(u.hold.comp).length > 0 || !Object.values(plan).some((o) => o.share !== undefined))) return this.recoverySplit(u, piped);
     const declared = Object.values(plan).reduce((sum, o) => sum + (o.share ?? 0), 0);
     const open = [...piped.keys()].filter((port) => plan[port]?.share === undefined);
     const rest = Math.max(0, 1 - declared);
@@ -996,16 +997,18 @@ export class MaterialNetwork {
     const ports = [...new Set([...Object.keys(plan), ...piped.keys()])];
     const mass: Record<string, Composition> = Object.fromEntries(ports.map((p) => [p, {}]));
     for (const [c, f] of Object.entries(normalise(u.hold.comp))) {
-      const declared = ports.filter((p) => plan[p]?.recovery?.[c] !== undefined);
-      const taken = declared.reduce((a, p) => a + plan[p]!.recovery![c]!, 0);
-      for (const p of declared) mass[p]![c] = f * plan[p]!.recovery![c]!;
+      // A port's recovery for a component, else its '*' (every component it does not name).
+      const rec = (p: string) => plan[p]?.recovery?.[c] ?? plan[p]?.recovery?.['*'];
+      const declared = ports.filter((p) => rec(p) !== undefined);
+      const taken = declared.reduce((a, p) => a + rec(p)!, 0);
+      for (const p of declared) mass[p]![c] = f * rec(p)!;
       // What no port names goes to the piped ports that do not name it and can carry it (a port's
       // `carries`); if none can, to every port that does not name it, so it is not lost.
       const canCarry = (p: string) => {
         const carries = u.contract?.ports.find((x) => x.id === p)?.carries;
         return !carries || carries.includes(c);
       };
-      const unnamed = ports.filter((p) => piped.has(p) && plan[p]?.recovery?.[c] === undefined);
+      const unnamed = ports.filter((p) => piped.has(p) && rec(p) === undefined);
       const open = unnamed.some(canCarry) ? unnamed.filter(canCarry) : unnamed;
       for (const p of open) mass[p]![c] = (f * Math.max(0, 1 - taken)) / open.length;
     }
