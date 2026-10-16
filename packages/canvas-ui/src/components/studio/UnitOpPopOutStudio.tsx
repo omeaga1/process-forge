@@ -229,8 +229,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       {/* Pop-Out Header with Live Animated Unit Preview */}
       <div
         style={{
-          padding: '12px 18px',
-          borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
+          padding: '16px 24px',
+          borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -245,7 +245,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
               height: 44,
               borderRadius: draftingRadius.soft,
               backgroundColor: OsakaJadePalette.background.surfaceElevated,
-              border: `1px solid ${OsakaJadePalette.jade.glow}44`,
+              border: `1px solid ${OsakaJadePalette.border.subtle}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -261,15 +261,15 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 10, color: OsakaJadePalette.jade.glow, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <span style={{ fontSize: 12, color: OsakaJadePalette.text.muted, fontWeight: 500 }}>
                 {/* What this unit is: its kind, or "designed unit" for a contract. */}
                 {tRole
                   ? tRole === 'feed'
                     ? 'Feed · stream in'
                     : `${TERMINAL_ROLE_LABEL[tRole]} · stream out`
                   : (node.config as { contract?: unknown }).contract !== undefined
-                    ? 'Designed unit op'
-                    : node.kind.replace(/_/g, ' ').toLowerCase()}
+                    ? 'Designed unit'
+                    : node.kind.replace(/_/g, ' ').toLowerCase().replace(/^./, (c) => c.toUpperCase())}
               </span>
             </div>
             {editingName !== null && onRename ? (
@@ -290,8 +290,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                 }}
                 style={{
                   marginTop: 2,
-                  fontSize: 16,
-                  fontWeight: 700,
+                  fontSize: 18,
+                  fontWeight: 600,
                   width: 320,
                   maxWidth: '100%',
                   padding: '2px 6px',
@@ -313,8 +313,9 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                   padding: 0,
                   border: 'none',
                   background: 'none',
-                  fontSize: 16,
-                  fontWeight: 700,
+                  fontSize: 18,
+                  fontWeight: 600,
+                  letterSpacing: '-0.01em',
                   color: OsakaJadePalette.text.primary,
                   textAlign: 'left',
                   cursor: onRename ? 'text' : 'default'

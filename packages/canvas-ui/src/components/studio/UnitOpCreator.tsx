@@ -21,7 +21,7 @@ import type { AssistantRoute } from '../../ai/assistantRoute.js';
 import { McpDesignGuide } from './McpDesignGuide.js';
 import { ContractParametersPanel } from './ContractParametersPanel.js';
 import { Button } from '../../ui/index.js';
-import { Check, X, Circle } from 'lucide-react';
+import { Check, X, Circle, Sparkles } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 
 /** The active theme's palette and drafting rules, so this screen follows the theme. */
@@ -158,6 +158,14 @@ function GateBadge({ state, label }: { state: 'pass' | 'fail' | 'pending'; label
   );
 }
 
+/** Starting points for the description: click one to fill it in, then change it. */
+const EXAMPLES: { label: string; text: string }[] = [
+  { label: 'Wax cooling belt', text: 'A water-cooled belt where molten wax is poured on, cools as it travels, and is scraped off solid at the end.' },
+  { label: 'Brine crystalliser', text: 'A batch cooling crystalliser for magnesium sulfate brine: heat to dissolve, cool slowly, then split the mother liquor from the crystal slurry.' },
+  { label: 'Plate heat exchanger', text: 'A plate heat exchanger that recovers heat from hot wort to preheat cold water, with both streams staying separate.' },
+  { label: 'Rotary dryer', text: 'A rotary dryer that takes wet salt crystals down to half a percent moisture with hot air, sending the water out as vapour.' }
+];
+
 export function UnitOpCreator({
   onPropose,
   route: routeProp,
@@ -168,8 +176,8 @@ export function UnitOpCreator({
   initialDescription = ''
 }: UnitOpCreatorProps) {
   const { P, D } = useDrafting();
-  const card: React.CSSProperties = { background: P.background.surfaceElevated, border: `1px solid ${P.border.default}`, borderRadius: 8, padding: 14 };
-  const labelStyle = { ...D.label, marginBottom: 6 } as React.CSSProperties;
+  const card: React.CSSProperties = { background: P.background.surfaceElevated, border: `1px solid ${P.border.subtle}`, borderRadius: 12, padding: 20 };
+  const labelStyle: React.CSSProperties = { fontSize: 15, fontWeight: 600, letterSpacing: '-0.005em', color: P.text.primary, marginBottom: 8 };
   const [description, setDescription] = useState(initialDescription);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -259,16 +267,14 @@ export function UnitOpCreator({
     >
       <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Design a unit op</h2>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: P.text.secondary, lineHeight: 1.45 }}>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em' }}>Design a unit op</h2>
+          <p style={{ margin: '8px 0 0', fontSize: 14, color: P.text.secondary, lineHeight: 1.6, maxWidth: 560 }}>
             {route === 'claude-desktop'
-              ? 'Your MCP client designs it; the engine decides whether it is physically real.'
-              : 'Describe the equipment. Your AI model designs it; the engine decides whether it is physically real.'}
+              ? 'Your MCP client designs it, and the engine decides whether it is physically real before it reaches the flowsheet.'
+              : 'Describe the equipment in plain words. Your AI model writes the design, then the engine checks that the physics holds before it reaches the flowsheet.'}
           </p>
         </div>
-        {onClose && (
-          <Button variant="ghost" size="sm" iconOnly icon={<X size={15} />} label="Close · Esc" onClick={onClose} />
-        )}
+        {onClose && <Button variant="ghost" size="sm" iconOnly icon={<X size={15} />} label="Close · Esc" onClick={onClose} />}
       </header>
 
       {processContext && (processContext.upstream || processContext.downstream) && (
@@ -296,54 +302,68 @@ export function UnitOpCreator({
         <McpDesignGuide />
       ) : (
       <div style={card}>
-        <div style={labelStyle}>What is the unit operation?</div>
+        <div style={labelStyle}>What does the unit do?</div>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="A giant water-cooled belt where molten wax is poured on, cools as it travels, and is scraped off solid at the end."
-          rows={3}
+          placeholder="Say what goes in, what happens to it, and what comes out."
+          rows={4}
           className="pf-textarea"
-          aria-label="What is the unit operation?"
+          aria-label="What does the unit do?"
+          style={{ fontSize: 14, lineHeight: 1.55 }}
         />
-        {route === 'api-key' && onPropose ? (
-          <Button variant="primary" onClick={handlePropose} disabled={busy || !description.trim()} style={{ marginTop: 10 }}>
-            {busy ? 'Designing it…' : 'Ask AI to design it'}
-          </Button>
-        ) : (
-          <div>
-            <p style={{ margin: '10px 0 0', fontSize: 12, color: P.text.muted }}>
-              No AI model is set up. Paste a contract below, or set one up: sign in with OpenRouter to
-              design here, or use Claude Desktop over MCP on your subscription.
-            </p>
-            {onChooseAssistant && (
-          <Button variant="primary" onClick={onChooseAssistant} style={{ marginTop: 10 }}>
-            Connect an AI model
-          </Button>
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 12 }}>
+          <span style={{ fontSize: 12, color: P.text.muted, marginRight: 4 }}>Try</span>
+          {EXAMPLES.map((ex) => (
+            <button
+              key={ex.label}
+              type="button"
+              className="pf-focus"
+              onClick={() => setDescription(ex.text)}
+              style={{ border: `1px solid ${P.border.subtle}`, background: 'transparent', color: P.text.secondary, borderRadius: 999, padding: '4px 12px', fontSize: 12, cursor: 'pointer' }}
+            >
+              {ex.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 18, flexWrap: 'wrap' }}>
+          {route === 'api-key' && onPropose ? (
+            <>
+              <span style={{ fontSize: 12, color: P.text.muted, lineHeight: 1.5, maxWidth: 380 }}>The engine checks the result and sends it back to the model until it passes.</span>
+              <Button variant="primary" icon={<Sparkles size={14} />} onClick={handlePropose} disabled={busy || !description.trim()}>
+                {busy ? 'Designing it…' : 'Design it'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: 12, color: P.text.muted, lineHeight: 1.5, maxWidth: 380 }}>No AI model is set up. Connect one to design here, or paste a ready-made contract below.</span>
+              {onChooseAssistant && (
+                <Button variant="primary" onClick={onChooseAssistant}>
+                  Connect an AI model
+                </Button>
+              )}
+            </>
+          )}
+        </div>
         {progress.length > 0 && (
-          <ol aria-live="polite" style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, color: P.text.secondary }}>
+          <ol aria-live="polite" style={{ margin: '14px 0 0', paddingLeft: 18, fontSize: 12, color: P.text.secondary, lineHeight: 1.6 }}>
             {progress.map((note, i) => (
-              <li key={i} style={{ marginTop: 2 }}>{note}</li>
+              <li key={i}>{note}</li>
             ))}
           </ol>
         )}
-        {proposeError && (
-          <p style={{ margin: '8px 0 0', fontSize: 12, color: D.semantic.violation }}>
-            {proposeError}
-          </p>
-        )}
+        {proposeError && <p style={{ margin: '12px 0 0', fontSize: 12, color: D.semantic.violation }}>{proposeError}</p>}
       </div>
       )}
 
       <details
-        open={route !== 'claude-desktop' || draft.trim().length > 0}
-        style={{ ...card, padding: route === 'claude-desktop' ? '10px 14px' : 14 }}
+        open={draft.trim().length > 0}
+        style={{ ...card, padding: '14px 20px' }}
       >
-        <summary style={{ ...labelStyle, cursor: 'pointer', listStyle: route === 'claude-desktop' ? 'revert' : 'none', marginBottom: 6 }}>
-          {route === 'claude-desktop' ? 'Have the contract as JSON? Paste it to check it here' : 'Proposed contract (JSON)'}
+        <summary style={{ fontSize: 13, fontWeight: 500, color: P.text.secondary, cursor: 'pointer', marginBottom: 0 }}>
+          {draft.trim() ? 'Contract (JSON)' : 'Already have a contract? Paste the JSON to check it here'}
         </summary>
+        <div style={{ height: 10 }} />
         <textarea
           value={draft}
           onChange={(e) => {
@@ -377,7 +397,7 @@ export function UnitOpCreator({
 
       {(route !== 'claude-desktop' || draft.trim().length > 0) && (
       <>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 4 }}>
         <GateBadge state={gateState(reviewState, 'schema')} label="Schema" />
         <GateBadge state={gateState(reviewState, 'static')} label="References resolve" />
         <GateBadge state={gateState(reviewState, 'physical')} label="Physically valid" />

@@ -6,7 +6,6 @@ import { useTheme } from '../../hooks/useTheme.js';
 import { describeUnitBehavior, formatRate } from '../../model/unitBehavior.js';
 import { streamFigures, terminalFigure, type StreamFigure } from '../../model/lineStreams.js';
 import { formatQuantity } from '../../model/parameterUi.js';
-import { tint } from '@process-forge/theme';
 
 interface UnitOverviewPanelProps {
   node: ProcessNode;
@@ -63,9 +62,7 @@ function useLineRun(graph: ProcessGraph): { result: SimulationResult | null; run
  * feed or an outlet leads with what it supplies or receives.
  */
 export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, graph, bottleneckNodeId, live, onOpenUnit }) => {
-  const { palette, font, radius: r, theme } = useTheme();
-  // Coloured text on its own tint: on the light theme the colour needs deepening to read (WCAG AA).
-  const readable = (c: string) => (theme === 'light' ? `color-mix(in srgb, ${c} 55%, ${palette.text.primary})` : c);
+  const { palette, font } = useTheme();
   const behavior = useMemo(() => describeUnitBehavior(node, graph), [node, graph]);
   const byId = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph.nodes]);
   const { result, running } = useLineRun(graph);
@@ -78,15 +75,16 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
   const phaseColor = (phase?: string, items?: boolean) =>
     items ? palette.streams.discreteContainer : phase === 'GAS' ? palette.streams.gas : phase === 'SOLID' ? palette.streams.solid : palette.streams.continuousFluid;
 
-  const label: React.CSSProperties = { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: palette.text.secondary };
-  const card: React.CSSProperties = { borderRadius: r.lg, border: `1px solid ${palette.border.default}`, background: palette.background.surface };
-  const chip = (text: string, tone: 'ok' | 'warn' | 'muted', icon?: React.ReactNode) => {
+  // One section title style for the whole page: sentence case, no capitals or tracking.
+  const label: React.CSSProperties = { fontSize: 15, fontWeight: 600, letterSpacing: '-0.005em', color: palette.text.primary };
+  const hairline = `1px solid ${palette.border.subtle}`;
+  // Rows sit on hairlines rather than in boxes.
+  const card: React.CSSProperties = { borderTop: hairline };
+  const chip = (text: string, tone: 'ok' | 'warn' | 'muted', _icon?: React.ReactNode) => {
     const c = tone === 'ok' ? palette.jade[500] : tone === 'warn' ? palette.status.blocked : palette.text.muted;
-    // Text bright enough to read on its own tint (WCAG AA).
-    const fg = tone === 'ok' ? readable(palette.jade.glow) : tone === 'warn' ? readable(palette.status.blocked) : palette.text.secondary;
     return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: r.full, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: fg, background: tint(c, 0.12) }}>
-        {icon}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', color: palette.text.secondary }}>
+        <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: c }} />
         {text}
       </span>
     );
@@ -94,13 +92,13 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
 
   /** A stream's composition as one bar, with its parts named underneath. */
   const CompositionBar: React.FC<{ comp: [string, number][] }> = ({ comp }) => (
-    <div style={{ marginTop: 8 }}>
-      <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', background: palette.border.subtle }}>
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: 'flex', height: 4, borderRadius: 2, overflow: 'hidden', gap: 1, background: palette.border.subtle }}>
         {comp.map(([c, x], i) => (
           <div key={c} title={`${c} ${formatQuantity(x * 100)} %`} style={{ width: `${x * 100}%`, background: colorFor(i) }} />
         ))}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px', marginTop: 4, fontSize: 12, color: palette.text.secondary }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 14px', marginTop: 8, fontSize: 12, color: palette.text.muted }}>
         {comp.slice(0, 5).map(([c, x], i) => (
           <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <span style={{ width: 7, height: 7, borderRadius: 2, background: colorFor(i) }} />
@@ -163,13 +161,14 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
     const sum = edges.length > 1 && f ? { ...f, ...(f.kgPerHour !== undefined ? { kgPerHour: edges.reduce((a, e) => a + (figures.get(e.id)?.kgPerHour ?? 0), 0) } : {}) } : f;
     const Arrow = dir === 'in' ? ArrowDownRight : ArrowUpRight;
     return (
-      <div style={{ ...card, padding: '10px 12px', borderLeft: `3px solid ${color}` }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <Arrow size={15} color={color} style={{ flexShrink: 0, marginTop: 2 }} />
+      <div style={{ ...card, padding: '14px 0' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <Arrow size={16} color={palette.text.muted} style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: palette.text.primary }}>{port.name}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: readable(color), padding: '1px 6px', borderRadius: r.full, background: tint(color, 0.14) }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: palette.text.primary }}>{port.name}</span>
+              <span style={{ fontSize: 12, color: palette.text.muted, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: color }} />
                 {items ? 'items' : (phase ?? 'liquid').toLowerCase()}
               </span>
             </div>
@@ -219,10 +218,10 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
         ]
       : [];
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
         <div>
-          <p style={{ margin: 0, fontSize: 14, fontWeight: 450, lineHeight: 1.55, color: palette.text.secondary, textWrap: 'pretty' }}>{behavior.headline}</p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+          <p style={{ margin: 0, fontSize: 15, fontWeight: 400, lineHeight: 1.65, color: palette.text.primary, textWrap: 'pretty', maxWidth: 640 }}>{behavior.headline}</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', marginTop: 12 }}>
             {chip(TERMINAL_ROLE_LABEL[role], role === 'waste' ? 'warn' : 'ok')}
             {chip(role === 'product' ? "Counts as the line's output" : role === 'feed' ? 'Start of the line' : 'Totalled apart from the output', 'muted')}
           </div>
@@ -256,8 +255,8 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
           )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={label}>{isFeed ? 'Feeds' : 'Comes from'}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ ...label, paddingBottom: 10 }}>{isFeed ? 'Feeds' : 'Comes from'}</div>
           {edges.length === 0 ? (
             <div style={{ ...card, padding: '10px 12px', fontSize: 13, color: palette.text.muted }}>Not connected yet.</div>
           ) : (
@@ -296,10 +295,10 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
       <div>
-        <p style={{ margin: 0, fontSize: 14, fontWeight: 450, lineHeight: 1.55, color: palette.text.secondary, textWrap: 'pretty' }}>{behavior.headline}</p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 400, lineHeight: 1.65, color: palette.text.primary, textWrap: 'pretty', maxWidth: 640 }}>{behavior.headline}</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px', marginTop: 12 }}>
           {behavior.simulated ? chip('Simulated', 'ok', <Gauge size={11} />) : chip('Not simulated yet', 'warn', <Info size={11} />)}
           {behavior.role === 'source' && chip('Start of the line', 'muted')}
           {behavior.role === 'end' && chip('End of the line', 'muted')}
@@ -310,8 +309,8 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
       </div>
 
       {node.inputs.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={label}>Comes in</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ ...label, paddingBottom: 10 }}>Comes in</div>
           {node.inputs.map((p) => (
             <StreamRow key={p.id} port={p} dir="in" />
           ))}
@@ -319,23 +318,23 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
       )}
 
       {unitTiles.length > 0 && (
-        <div style={{ ...card, background: tint(palette.jade[500], 0.05), borderColor: isBottleneck ? palette.status.blocked : tint(palette.jade[500], 0.4) }}>
-          <div style={{ ...label, padding: '10px 14px 0', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+        <div>
+          <div style={{ ...label, paddingBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
             <span>In the unit</span>
             <span
               title={asRun ? 'Worked out by the engine at the stream that actually reaches it in the line' : 'Worked out at its design inlet: run the line to see it at the stream it actually gets'}
-              style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 500, color: asRun ? palette.jade.glow : palette.text.muted }}
+              style={{ fontSize: 12, fontWeight: 400, color: palette.text.muted }}
             >
               {asRun ? 'as it runs in the line' : running ? 'working it out…' : 'at its design point'}
             </span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(unitTiles.length, 3)}, minmax(0, 1fr))` }}>
-            {unitTiles.map((x, i) => (
-              <div key={x.label} style={{ padding: '6px 14px 12px', borderLeft: i % 3 ? `1px solid ${palette.border.subtle}` : 'none', borderTop: i >= 3 ? `1px solid ${palette.border.subtle}` : 'none' }}>
-                <div style={{ fontFamily: font.mono, fontSize: 18, fontWeight: 700, color: palette.text.primary, fontVariantNumeric: 'tabular-nums' }}>
-                  {x.value} <span style={{ fontSize: 11, fontWeight: 500, color: palette.text.muted }}>{x.unit}</span>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(unitTiles.length, 3)}, minmax(0, 1fr))`, gap: '22px 20px' }}>
+            {unitTiles.map((x) => (
+              <div key={x.label}>
+                <div style={{ fontFamily: font.mono, fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em', color: palette.text.primary, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
+                  {x.value} <span style={{ fontSize: 12, fontWeight: 400, letterSpacing: 0, color: palette.text.muted }}>{x.unit}</span>
                 </div>
-                <div style={{ fontSize: 12, color: palette.text.secondary, marginTop: 1 }}>{x.label}</div>
+                <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 6, lineHeight: 1.4 }}>{x.label}</div>
               </div>
             ))}
           </div>
@@ -343,8 +342,8 @@ export const UnitOverviewPanel: React.FC<UnitOverviewPanelProps> = ({ node, grap
       )}
 
       {node.outputs.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={label}>Goes out</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ ...label, paddingBottom: 10 }}>Goes out</div>
           {node.outputs.map((p) => (
             <StreamRow key={p.id} port={p} dir="out" />
           ))}

@@ -180,7 +180,7 @@ select option, select optgroup { background-color: var(--pf-bg-surface-elevated)
 button.pf-glance-card { cursor: pointer; font: inherit; transition: border-color 120ms ease, background-color 120ms ease; }
 button.pf-glance-card:hover { border-color: var(--pf-border-strong); background: var(--pf-bg-surface-hover); }
 button.pf-glance-card:focus-visible { outline: 2px solid var(--pf-jade-400); outline-offset: 1px; }
-.pf-glance-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pf-text-muted); }
+.pf-glance-label { font-size: 13px; font-weight: 500; color: var(--pf-text-secondary); }
 .pf-glance-figure { margin-top: 4px; font: 600 20px/1.1 ${fontFamily.mono}; font-variant-numeric: tabular-nums; }
 .pf-glance-unit { margin-left: 5px; font: 400 12px/1 ${fontFamily.mono}; color: var(--pf-text-muted); }
 .pf-glance-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
