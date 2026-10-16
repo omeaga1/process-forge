@@ -93,6 +93,42 @@ function constraintReach(contract: UnitOpContract): Set<string> {
   return out;
 }
 
+/**
+ * The expressions that decide how a unit splits what it is given: outlet shares
+ * and recoveries, and what a batch drain takes.
+ */
+function separationExprs(contract: UnitOpContract): string[] {
+  const out: string[] = [];
+  for (const o of contract.outlets ?? []) {
+    if (o.share) out.push(o.share);
+    out.push(...Object.values(o.recovery ?? {}));
+  }
+  if (contract.behavior.mode === 'BATCH') for (const ph of contract.behavior.phases) if (ph.kind === 'DRAIN' && ph.gallons) out.push(ph.gallons);
+  return out;
+}
+
+/**
+ * Does the split respond to what is fed in? Followed through the derived values,
+ * a share or recovery that reads nothing from inlet.*, batch.* or port.* is a
+ * typed-in number: it cannot change when the feed's composition, temperature or
+ * flow does, so the unit separates the same fraction of anything.
+ */
+function fixedSplit(contract: UnitOpContract): boolean {
+  const exprs = separationExprs(contract);
+  if (!exprs.length) return false;
+  const reach = new Map<string, Set<string>>();
+  for (const d of contract.derived) {
+    const set = new Set<string>();
+    for (const r of refs(d.expr)) {
+      set.add(r);
+      for (const x of reach.get(r) ?? []) set.add(x);
+    }
+    reach.set(d.name, set);
+  }
+  const live = (n: string) => /^(inlet|batch|port)\./.test(n);
+  return !exprs.some((e) => refs(e).some((r) => live(r) || [...(reach.get(r) ?? [])].some(live)));
+}
+
 function quantityMet(contract: UnitOpContract, check: Extract<RequirementCheck, { kind: 'quantity' }>, guarded: Set<string>): boolean {
   const dim = parseUnit(check.unit);
   if (!dim) return true;
@@ -192,6 +228,15 @@ export function physicsAlignment(contract: UnitOpContract, evaluation?: UnitOpEv
     const finding = binding ? f : { ...f, severity: 'WARNING' as const };
     (finding.severity === 'ERROR' ? out.errors : out.warnings).push(finding);
   };
+
+  if (fixedSplit(contract)) {
+    out.warnings.push({
+      path: 'outlets',
+      severity: 'WARNING',
+      message: 'What leaves by each outlet is set by typed-in numbers (a share, a recovery or a drain volume that reads nothing from the feed), so the unit separates the same fraction of any feed: its output does not follow from its inputs.',
+      fix: 'Derive the split from the physics: read inlet.x.<component> or batch.x.<component> and work the recovery out (a solubility with crystal_yield(), a vapour-liquid split, a cake dryness and capture), so changing the feed or the operating conditions changes the result.'
+    });
+  }
 
   if (archetype) {
     const what = archetype.name.toLowerCase();
