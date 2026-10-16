@@ -212,7 +212,8 @@ describe('Components: validation', () => {
     assert.equal(v({ components: ['A'], reactions: [{ id: 'r', limiting: 'A', conversion: '0.5', coefficients: { A: -1, Z: 1 } }] }), 'REJECTED');
   });
   it('refuses a share and recoveries together, recoveries over 1, and inlet.x without a design composition', () => {
-    assert.equal(v({ components: ['A'], outlets: [{ port: 'out', share: '0.5', recovery: { A: '1' } }] }), 'REJECTED');
+    assert.equal(v({ components: ['A'], outlets: [{ port: 'a', share: '0.5' }, { port: 'b', recovery: { A: '1' } }] }, ['a', 'b']), 'REJECTED');
+    assert.equal(v({ components: ['A'], outlets: [{ port: 'a', share: '0.5', recovery: { A: '1' } }, { port: 'b' }] }, ['a', 'b']), 'ACCEPTED');
     assert.equal(v({ components: ['A'], outlets: [{ port: 'a', recovery: { A: '0.7' } }, { port: 'b', recovery: { A: '0.6' } }] }, ['a', 'b']), 'REJECTED');
     assert.equal(v({ components: ['A'], derived: [{ name: 'xa', label: 'x', unit: '-', expr: 'inlet.x.A' }] }), 'REJECTED');
     assert.equal(v({ components: ['A'], designInlet: { composition: { A: 0.3 } }, derived: [{ name: 'xa', label: 'x', unit: '-', expr: 'inlet.x.A' }] }), 'ACCEPTED');
