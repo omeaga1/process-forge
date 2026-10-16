@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Modal, TabStrip } from '../../ui/index.js';
+import { Brief, Button, Modal, TabStrip } from '../../ui/index.js';
 import { useTheme } from '../../hooks/useTheme.js';
 import { ProcessForgeEmblem } from '../brand/ProcessForgeLogo.js';
 import {
@@ -23,8 +23,27 @@ import {
   Check,
   ShieldCheck,
   EyeOff,
-  Upload
+  Upload,
+  Droplets,
+  Package,
+  Cog,
+  Gauge,
+  Info
 } from 'lucide-react';
+
+const CATEGORY_ICON: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+  FLUID_PROCESSING: Droplets,
+  PACKAGING: Package,
+  MATERIAL_HANDLING: Cog,
+  QUALITY: Gauge
+};
+
+const CATEGORY_LABEL: Record<string, string> = {
+  FLUID_PROCESSING: 'Fluid processing',
+  PACKAGING: 'Packaging',
+  MATERIAL_HANDLING: 'Material handling',
+  QUALITY: 'Quality & in-line'
+};
 import {
   CommunityLibraryService,
   type CommunityUnitOpItem,
@@ -194,7 +213,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
       }
       footer={
         <span style={{ fontSize: 12, color: OsakaJadePalette.text.muted, marginRight: 'auto', lineHeight: 1.5 }}>
-          To publish your own, or a new version of one you published, click the unit on the flowsheet and choose <strong>Publish to ProcessForge Library</strong>. You need to be signed in with Google.
+          Publish your own: click a unit on the flowsheet → <strong>Publish to ProcessForge Library</strong>.
         </span>
       }
     >
@@ -313,9 +332,10 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
             gap: 14
           }}
         >
-          {tab === 'examples' && (
-            <div style={{ fontSize: 12, color: OsakaJadePalette.text.secondary, lineHeight: 1.5 }}>
-              Worked examples that ship with ProcessForge: complete designs the engine accepts, to use as they are or as a starting point. They are not listings by anyone.
+          {(tab === 'examples' || (tab === 'community' && plugins.length > 0)) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: OsakaJadePalette.text.muted }}>
+              <Info size={13} />
+              {tab === 'examples' ? 'Ships with ProcessForge. Engine-accepted, ready to use or adapt.' : 'Written by their authors, not reviewed by ProcessForge.'}
             </div>
           )}
           {tab === 'mine' && mineError && (
@@ -355,44 +375,48 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                   display: 'flex',
                   alignItems: 'flex-start',
                   justifyContent: 'space-between',
-                  gap: 16,
+                  gap: 14,
                   transition: 'border-color 0.2s'
                 }}
               >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
-                      {plugin.name}
-                    </span>
-                    <span
+                {(() => {
+                  const CatIcon = CATEGORY_ICON[plugin.category] ?? Cog;
+                  return (
+                    <div
+                      aria-hidden
                       style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        padding: '2px 6px',
-                        borderRadius: draftingRadius.soft,
-                        backgroundColor: tint(palette.text.primary, 0.05),
-                        border: `1px solid ${OsakaJadePalette.border.subtle}`,
-                        color: OsakaJadePalette.text.secondary
+                        width: 40,
+                        height: 40,
+                        flexShrink: 0,
+                        borderRadius: 10,
+                        display: 'grid',
+                        placeItems: 'center',
+                        backgroundColor: tint(palette.jade[500], 0.12),
+                        color: OsakaJadePalette.jade[400]
                       }}
                     >
-                      {plugin.category.replace('_', ' ')}
-                    </span>
-                  </div>
-
-                  <p style={{ margin: '0 0 10px 0', fontSize: 13, lineHeight: 1.5, color: OsakaJadePalette.text.secondary }}>
-                    {plugin.description}
-                  </p>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: OsakaJadePalette.text.muted, flexWrap: 'wrap' }}>
-                    <span>{tab === 'examples' ? 'From' : 'Author'}: <strong style={{ color: OsakaJadePalette.text.primary }}>{plugin.author}</strong></span>
-                    {plugin.version && <span style={{ fontFamily: font.mono }}>v{plugin.version}</span>}
+                      <CatIcon size={20} />
+                    </div>
+                  );
+                })()}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 650, color: OsakaJadePalette.text.primary, marginBottom: 2 }}>{plugin.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: OsakaJadePalette.text.muted, flexWrap: 'wrap', marginBottom: 8 }}>
+                    <span>{CATEGORY_LABEL[plugin.category] ?? plugin.category}</span>
+                    <span aria-hidden>·</span>
+                    <span>{tab === 'examples' ? 'ProcessForge' : plugin.author}</span>
+                    {plugin.version && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <span style={{ fontFamily: font.mono }}>v{plugin.version}</span>
+                      </>
+                    )}
                     {plugin.engineChecked && (
                       <span
-                        title="A designed unit whose contract passed the engine's checks (schema, references, physics, drawing) when it was published. It is not a review of the design."
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: OsakaJadePalette.jade[400] }}
+                        title="Its contract passed the engine's checks (schema, references, physics, drawing) when published. Not a review of the design."
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 4, padding: '1px 7px', borderRadius: 999, backgroundColor: tint(palette.jade[500], 0.12), color: OsakaJadePalette.jade[400], fontWeight: 600 }}
                       >
-                        <ShieldCheck size={12} /> Engine-checked
+                        <ShieldCheck size={11} /> Engine-checked
                       </span>
                     )}
                     {tab === 'mine' && plugin.status === 'unpublished' && (
@@ -401,11 +425,7 @@ export const CommunityUnitOpLibraryModal: React.FC<CommunityUnitOpLibraryModalPr
                       </span>
                     )}
                   </div>
-                  {tab === 'community' && (
-                    <div style={{ marginTop: 6, fontSize: 11, color: OsakaJadePalette.text.muted }}>
-                      What its author wrote; ProcessForge does not review listings.
-                    </div>
-                  )}
+                  <Brief text={plugin.description} style={{ color: OsakaJadePalette.text.secondary }} />
                 </div>
 
                 {tab === 'mine' && (
