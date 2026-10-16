@@ -203,6 +203,12 @@ export const UnitOpBatchPhaseSchema = z.object({
   temperatureC: z.string().optional(),
   dutyKw: z.string().optional(),
   port: z.string().optional(),
+  /**
+   * DRAIN: components that stay in the vessel (crystals that have settled).
+   * Only the rest drains, and with no `gallons` the phase empties just that
+   * liquid, leaving the retained solids behind for a later DRAIN.
+   */
+  retain: z.array(z.string().min(1)).optional(),
   /** HOLD: run the contract's reactions on the batch over this phase. */
   react: z.boolean().optional()
 });
@@ -726,6 +732,13 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
       if (ph.kind === 'HOLD' && !ph.seconds) issues.push({ path, message: `HOLD phase "${ph.name}" needs seconds` });
       if (ph.kind !== 'HOLD' && (ph.seconds || ph.temperatureC || ph.dutyKw)) {
         issues.push({ path, message: `seconds, temperatureC and dutyKw belong on a HOLD phase, not ${ph.kind} "${ph.name}"` });
+      }
+      if (ph.retain?.length) {
+        if (ph.kind !== 'DRAIN') issues.push({ path, message: `retain belongs on a DRAIN phase, not ${ph.kind} "${ph.name}"` });
+        const named = new Set(contract.components ?? []);
+        for (const c of ph.retain) {
+          if (!named.has(c)) issues.push({ path: `${path}.retain`, message: `"${c}" is not one of the contract's components (${[...named].join(', ') || 'none declared'})` });
+        }
       }
       if (ph.port && (ph.kind !== 'DRAIN' || !liquidOutlets.includes(ph.port))) {
         issues.push({ path, message: `port "${ph.port}" must be a liquid OUTLET port on a DRAIN phase. Liquid outlets: ${liquidOutlets.join(', ') || 'none'}` });

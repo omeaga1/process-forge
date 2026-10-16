@@ -64,6 +64,8 @@ export interface EvaluatedBatchPhase {
   temperatureC?: number;
   dutyKw?: number;
   port?: string;
+  /** DRAIN: components that stay behind in the vessel. */
+  retain?: string[];
 }
 
 export interface ConstraintResult {
@@ -395,6 +397,7 @@ export function evaluateUnitOp(
           if (v !== undefined) e[key] = v;
         }
         if (ph.port) e.port = ph.port;
+        if (ph.retain?.length) e.retain = ph.retain;
         phases.push(e);
         if (ph.kind === 'HOLD') seconds += e.seconds ?? 0;
         else if (e.rateGpm && e.rateGpm > 0) seconds += ((e.gallons ?? batchGallons) / e.rateGpm) * 60;

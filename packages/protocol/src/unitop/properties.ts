@@ -20,6 +20,8 @@
 
 import { componentCpGas, componentCpLiquid, componentHvap, componentMolarMass, componentPsat, componentRhoLiquid, componentTsat } from '../thermo/components.js';
 
+import { SOLUBILITY_SOLUTES, crystalYieldFraction, solubilityKgPerKgWater } from '../thermo/solubility.js';
+
 export { PropertyRangeError, waterPsat, waterTsat, waterRho, waterCp, waterHvap, gasRho, airRho } from '../thermo/water.js';
 import { waterPsat, waterTsat, waterRho, waterCp, waterHvap, gasRho, airRho } from '../thermo/water.js';
 
@@ -37,6 +39,8 @@ export const PROPERTY_FUNCTIONS: Record<string, { args: string[]; argNames: stri
   cp_gas: { args: ['component', '°C'], argNames: ['component', 'T'], returns: 'kJ/kg-K', fn: (c: string, t: number) => componentCpGas(c, t), what: 'ideal-gas specific heat of a component' },
   rho_liquid: { args: ['component', '°C'], argNames: ['component', 'T'], returns: 'kg/m3', fn: (c: string, t: number) => componentRhoLiquid(c, t), what: 'liquid density of a component (Rackett from its 20 °C value; water: Kell)' },
   molar_mass: { args: ['component'], argNames: ['component'], returns: 'kg/kmol', fn: (c: string) => componentMolarMass(c), what: 'molar mass of a component' },
+  solubility: { args: ['component', '°C'], argNames: ['solute', 'T'], returns: '-', fn: (c: string, t: number) => solubilityKgPerKgWater(c, t), what: `saturated strength of a solute in water, kg solute per kg water (CRC tables; ${SOLUBILITY_SOLUTES.join(', ')})` },
+  crystal_yield: { args: ['component', '-', '°C'], argNames: ['solute', 'solute mass fraction of the solution', 'T'], returns: '-', fn: (c: string, w: number, t: number) => crystalYieldFraction(c, w, t), what: 'fraction of the dissolved solute that crystallises when that solution is cooled to T and reaches equilibrium (hydrate water leaves with the crystals); use as a reaction conversion' },
   water_psat: { args: ['°C'], argNames: ['T'], returns: 'kPa', fn: waterPsat, what: 'saturation pressure of water (IAPWS-IF97)' },
   water_tsat: { args: ['kPa'], argNames: ['P absolute'], returns: '°C', fn: waterTsat, what: 'saturation (boiling) temperature of water (IAPWS-IF97)' },
   water_rho: { args: ['°C'], argNames: ['T'], returns: 'kg/m3', fn: waterRho, what: 'density of liquid water' },
