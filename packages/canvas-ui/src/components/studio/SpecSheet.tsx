@@ -396,7 +396,7 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
   const range = p.min !== undefined || p.max !== undefined ? `Allowed ${p.min !== undefined ? formatQuantity(toShown(p.min)) : '…'} to ${p.max !== undefined ? formatQuantity(toShown(p.max)) : '…'} ${du !== '-' ? du : ''}` : '';
 
   const heldBy = holds.find((h) => h.vary === p.name);
-  const scrubbable = !heldBy && (kind === 'number' || kind === 'slider' || kind === 'stepper');
+  const scrubbable = !heldBy && (kind === 'number' || kind === 'stepper');
   const fromShown = (v: number) => convertUnit(v, du, p.unit, { difference }) ?? v;
   const shownStep = Math.abs(convertUnit(stepFor(p), p.unit, du, { difference: true }) ?? stepFor(p));
   // Converted bounds can swap order (a unit with an offset never does, but a reciprocal one would).

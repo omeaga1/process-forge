@@ -1,49 +1,31 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { atFraction, convertUnit, fractionOf, isTemperatureDifference, niceValue, parseQuantity, type Sweep, type SweepPoint, type SweepRange, type UnitOpParameter } from '@process-forge/protocol';
+import React, { useState } from 'react';
+import { convertUnit, isTemperatureDifference, parseQuantity, type UnitOpParameter } from '@process-forge/protocol';
 import { Minus, Plus } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
-import { controlFor, feasibleBand, formatQuantity, statusAt, stepFor, type ParameterControlKind } from '../../model/parameterUi.js';
+import { controlFor, formatQuantity, stepFor, type ParameterControlKind } from '../../model/parameterUi.js';
 
 export interface ParameterControlProps {
   param: UnitOpParameter;
-  /** The engine's verdict across the parameter's range, the others held. Absent while it is worked out. */
-  sweep?: Sweep;
   /** The unit it is shown in (the engineer's choice); its own unit when absent. */
   displayUnit: string;
   displayUnits: string[];
   onDisplayUnit: (unit: string) => void;
-  /** Its value when the panel opened, marked on the track. */
-  baseline?: number;
   onChange: (value: number) => void;
-  /** Hovered, or a check that it moves is hovered. */
-  highlighted?: boolean;
-  /** Names of what it changes, for the hint under it. */
-  drives?: string[];
-  onHover?: (on: boolean) => void;
-  flash?: boolean;
 }
 
 /**
  * One parameter, edited the way its kind of quantity is: a select for a
- * choice, a switch for yes/no, a stepper for a count, a slider for a bounded
- * value. Every slider shows where on its range the design passes its checks
- * (green), only warns (amber) or fails (red), worked out by the engine with
- * the other parameters where they are; every value can be typed in any unit
- * of the same kind ("3 bar" into a psi field).
+ * choice, a switch for yes/no, a stepper for a count, a field for a number.
+ * Every value can be typed in any unit of the same kind ("3 bar" into a psi
+ * field).
  */
 export const ParameterControl: React.FC<ParameterControlProps> = ({
   param: p,
-  sweep,
   displayUnit,
   displayUnits,
   onDisplayUnit,
-  baseline,
-  onChange,
-  highlighted,
-  drives,
-  onHover,
-  flash
+  onChange
 }) => {
   const { palette, font, radius: r } = useTheme();
   const kind: ParameterControlKind = controlFor(p);
@@ -51,15 +33,6 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
   const difference = isTemperatureDifference(p);
   const toShown = (v: number) => convertUnit(v, p.unit, displayUnit, { difference }) ?? v;
   const out = (p.min !== undefined && p.value < p.min) || (p.max !== undefined && p.value > p.max);
-  const band = useMemo(() => (sweep ? feasibleBand(sweep, p.value) : undefined), [sweep, p.value]);
-  const statusColor = (s: SweepPoint['status']) =>
-    s === 'ok' ? palette.jade[500] : s === 'warning' ? palette.status.blocked : s === 'error' ? palette.status.failed : palette.text.muted;
-  const here = sweep?.points.length ? statusAt(sweep, p.value) : undefined;
-
-  const rowRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (flash) rowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [flash]);
 
   const commit = (v: number) => {
     let x = v;
@@ -165,7 +138,6 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
       <div role="radiogroup" aria-label={p.label} style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {p.options.map((o) => {
           const on = o.value === p.value;
-          const st = sweep ? statusAt(sweep, o.value) : undefined;
           return (
             <button
               key={o.label}
@@ -173,14 +145,12 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
               role="radio"
               aria-checked={on}
               onClick={() => commit(o.value)}
-              title={st && st !== 'ok' ? (st === 'error' ? 'A check fails at this choice' : 'A check warns at this choice') : undefined}
               style={{
                 padding: '5px 10px',
                 borderRadius: r.md,
                 fontSize: 12,
                 fontWeight: on ? 700 : 500,
                 border: `1px solid ${on ? palette.jade[500] : palette.border.subtle}`,
-                borderBottom: st ? `2px solid ${statusColor(st)}` : undefined,
                 background: on ? tint(palette.jade[500], 0.15) : 'transparent',
                 color: on ? palette.text.primary : palette.text.secondary,
                 cursor: 'pointer'
@@ -200,15 +170,11 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
           style={{ height: '100%', border: 'none', background: 'transparent', color: palette.text.primary, fontSize: 13, padding: '0 6px', cursor: 'pointer', minWidth: 120 }}
         >
           {!known && <option value="custom">{formatQuantity(p.value)} (not in the list)</option>}
-          {p.options.map((o) => {
-            const st = sweep ? statusAt(sweep, o.value) : undefined;
-            return (
-              <option key={o.label} value={String(o.value)}>
-                {o.label}
-                {st === 'error' ? '  ✕ fails a check' : st === 'warning' ? '  ⚠ warns' : ''}
-              </option>
-            );
-          })}
+          {p.options.map((o) => (
+            <option key={o.label} value={String(o.value)}>
+              {o.label}
+            </option>
+          ))}
         </select>
       </label>
     );
@@ -248,16 +214,8 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
     );
   }
 
-  const showTrack = (kind === 'slider' || kind === 'number' || kind === 'stepper') && sweep && sweep.points.length > 1;
-  const range = sweep?.range;
-  const stops = band?.segments.map((s) => `${tint(statusColor(s.status), 0.75)} ${(s.from * 100).toFixed(2)}%, ${tint(statusColor(s.status), 0.75)} ${(s.to * 100).toFixed(2)}%`).join(', ');
-  const t = range ? fractionOf(range, p.value) : 0;
-
   return (
     <div
-      ref={rowRef}
-      onMouseEnter={() => onHover?.(true)}
-      onMouseLeave={() => onHover?.(false)}
       style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1fr) auto',
@@ -268,127 +226,22 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
         margin: '0 -8px',
         borderRadius: r.md,
         borderBottom: `1px solid ${palette.border.subtle}`,
-        backgroundColor: flash ? tint(palette.jade[500], 0.16) : highlighted ? tint(palette.jade[500], 0.06) : 'transparent',
-        transition: 'background-color 300ms ease'
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {here && kind !== 'fixed' && (
-            <span
-              role="img"
-              aria-label={here === 'ok' ? 'every check passes here' : here === 'warning' ? 'a check warns here' : 'a check fails here'}
-              title={here === 'ok' ? 'Every check passes at this value' : here === 'warning' ? 'A check warns at this value' : 'A check fails at this value'}
-              style={{ width: 7, height: 7, borderRadius: 4, flex: '0 0 auto', backgroundColor: statusColor(here) }}
-            />
-          )}
-          <span>{p.label}</span>
-        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>{p.label}</div>
         {p.description && <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>{p.description}</div>}
       </div>
       {control}
 
-      {showTrack && range && (
-        <div style={{ gridColumn: '1 / -1', position: 'relative', height: 22 }}>
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: 7,
-              height: 6,
-              borderRadius: 3,
-              background: stops ? `linear-gradient(to right, ${stops})` : palette.border.subtle,
-              opacity: kind === 'slider' ? 1 : 0.7
-            }}
-          />
-          {baseline !== undefined && baseline !== p.value && (
-            <div
-              aria-hidden="true"
-              title={`When you opened it: ${formatQuantity(toShown(baseline))} ${displayUnit}`}
-              style={{ position: 'absolute', top: 3, left: `calc(${fractionOf(range, baseline) * 100}% - 1px)`, width: 2, height: 14, background: palette.text.muted, borderRadius: 1 }}
-            />
-          )}
-          {kind === 'slider' ? (
-            <input
-              type="range"
-              className="pf-feasible-range"
-              aria-label={`${p.label} slider`}
-              min={0}
-              max={1000}
-              step={1}
-              value={Math.round(t * 1000)}
-              onChange={(e) => {
-                const v = atFraction(range, Number(e.target.value) / 1000);
-                commit(snap(v, p));
-              }}
-              style={{ position: 'absolute', left: 0, right: 0, top: 0, width: '100%', height: 20, margin: 0, background: 'transparent' }}
-            />
-          ) : (
-            <div
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                top: 4,
-                left: `calc(${t * 100}% - 6px)`,
-                width: 12,
-                height: 12,
-                borderRadius: 6,
-                background: palette.background.surface,
-                border: `2px solid ${palette.text.primary}`
-              }}
-            />
-          )}
-        </div>
-      )}
-      {showTrack && range && (
-        <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: -4, fontSize: 11, color: palette.text.muted, fontFamily: font.mono }}>
-          <span>{formatQuantity(toShown(range.from))}</span>
-          <span style={{ fontFamily: font.sans, textAlign: 'center', color: band?.passing ? palette.text.secondary : palette.status.failed }}>
-            {bandCaption(band, (v) => `${formatQuantity(niceValue(toShown(v)))}${displayUnit && displayUnit !== '-' ? ` ${displayUnit}` : ''}`, range)}
-          </span>
-          <span>{formatQuantity(toShown(range.to))}</span>
-        </div>
-      )}
       {out && (
         <div style={{ gridColumn: '1 / -1', fontSize: 12, color: palette.status.failed }}>
           Outside its range ({p.min !== undefined ? formatQuantity(toShown(p.min)) : '−∞'} to {p.max !== undefined ? formatQuantity(toShown(p.max)) : '∞'} {displayUnit}).
         </div>
       )}
-      {highlighted && drives && drives.length > 0 && (
-        <div style={{ gridColumn: '1 / -1', fontSize: 12, color: palette.text.muted }}>Changes {drives.slice(0, 6).join(', ')}{drives.length > 6 ? `, and ${drives.length - 6} more` : ''}.</div>
-      )}
     </div>
   );
 };
-
-/** A slider value, tidied: whole for counts, three figures otherwise. */
-function snap(v: number, p: UnitOpParameter): number {
-  if (p.integer) return Math.round(v);
-  const step = p.ui?.step;
-  if (step) return Math.round(v / step) * step;
-  if (v === 0) return 0;
-  const mag = 10 ** (Math.floor(Math.log10(Math.abs(v))) - 2);
-  let x = Math.round(v / mag) * mag;
-  x = Number(x.toPrecision(12));
-  if (p.min !== undefined) x = Math.max(p.min, x);
-  if (p.max !== undefined) x = Math.min(p.max, x);
-  return x;
-}
-
-function bandCaption(band: ReturnType<typeof feasibleBand> | undefined, fmt: (v: number) => string, range: SweepRange): string {
-  if (!band) return '';
-  const passing = band.passing;
-  if (!passing) {
-    const anyWarn = band.segments.some((s) => s.status === 'warning');
-    return anyWarn ? 'Nowhere in range passes every check on its own' : 'No value in range passes on its own';
-  }
-  const whole = Math.abs(passing.from - range.from) < 1e-9 && Math.abs(passing.to - range.to) < 1e-9;
-  if (whole) return 'Passes across the whole range';
-  const span = `${fmt(passing.from)} to ${fmt(passing.to)}`;
-  return passing.containsValue ? `Passes from ${span}` : `Fails here: passes from ${span}`;
-}
 
 /** A value field that takes a number in the shown unit, or a number with any unit of the same kind. */
 export const QuantityText: React.FC<{
@@ -458,13 +311,3 @@ export const QuantityText: React.FC<{
   );
 };
 
-/** Thumb styling for the feasibility sliders: the track is drawn underneath, so the input itself is transparent. */
-export const FEASIBLE_RANGE_CSS = `
-.pf-feasible-range { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
-.pf-feasible-range:focus { outline: none; }
-.pf-feasible-range::-webkit-slider-runnable-track { height: 20px; background: transparent; }
-.pf-feasible-range::-moz-range-track { height: 20px; background: transparent; }
-.pf-feasible-range::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: 3px; border-radius: 7px; background: var(--pf-thumb-bg, #fff); border: 2px solid var(--pf-thumb-border, #111); box-shadow: 0 1px 3px rgba(0,0,0,.3); }
-.pf-feasible-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 7px; background: var(--pf-thumb-bg, #fff); border: 2px solid var(--pf-thumb-border, #111); }
-.pf-feasible-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--pf-thumb-ring, rgba(45,213,183,.4)); }
-`;

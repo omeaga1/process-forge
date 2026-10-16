@@ -22,7 +22,7 @@ import { AlertTriangle, CheckCircle2, ChevronRight, RotateCcw, XCircle } from 'l
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { controlFor, displayUnitsFor, formatQuantity, isConstantParameter, unitPreferenceKey } from '../../model/parameterUi.js';
-import { FEASIBLE_RANGE_CSS, ParameterControl } from './ParameterControl.js';
+import { ParameterControl } from './ParameterControl.js';
 import { SpecSheet } from './SpecSheet.js';
 import { layoutGroups } from '../../model/specLayout.js';
 import { UNIT_SYSTEMS, unitSystemPrefs, type UnitSystem } from '../../model/unitSystems.js';
@@ -43,29 +43,6 @@ interface ContractParametersPanelProps {
 }
 
 const PREF_KEY = 'pf.displayUnits';
-const VIEW_KEY = 'pf.settingsView';
-type SettingsView = 'sheet' | 'sliders';
-
-/** Spec sheet or sliders, remembered in this browser. */
-function useSettingsView(): [SettingsView, (v: SettingsView) => void] {
-  const [view, setView] = useState<SettingsView>(() => {
-    try {
-      return window.localStorage.getItem(VIEW_KEY) === 'sliders' ? 'sliders' : 'sheet';
-    } catch {
-      return 'sheet';
-    }
-  });
-  const set = useCallback((v: SettingsView) => {
-    setView(v);
-    try {
-      window.localStorage.setItem(VIEW_KEY, v);
-    } catch {
-      // Storage off: the choice holds for this session.
-    }
-  }, []);
-  return [view, set];
-}
-
 function loadPrefs(): Record<string, string> {
   try {
     const raw = window.localStorage.getItem(PREF_KEY);
@@ -131,8 +108,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
   const { palette, font, radius: r } = useTheme();
   const config = node.config as Record<string, unknown>;
   const { unitFor, setUnit, system, setSystem } = useDisplayUnits();
-  const [view, setView] = useSettingsView();
-
+  
   // What it was when the panel opened, to show what has moved and to put it back.
   const baseline = useRef<{ nodeId: string; params: Record<string, number>; derived: Record<string, number>; design?: UnitOpDesignStream } | null>(null);
   if (!baseline.current || baseline.current.nodeId !== node.id) {
@@ -288,31 +264,6 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
     ? []
     : (Object.entries(config).filter(([k, v]) => typeof v === 'number' && !contract.parameters.some((p) => p.name === k)) as [string, number][]);
 
-  const renderParam = (asked: UnitOpParameter) => {
-    // A held setting is the solver's: shown as a fixed value, not a knob that would snap back.
-    const heldBy = holds.find((h) => h.vary === asked.name);
-    const p: UnitOpParameter = heldBy ? { ...asked, label: `${asked.label} (held by the solver)`, min: asked.value, max: asked.value } : asked;
-    const choices = displayUnitsFor(p);
-    const du = unitFor(p.unit, choices);
-    const drives = [...(influence.derived[p.name] ?? []).map(labelOf), ...(influence.behavior[p.name] ?? []).map(behaviorLabel)];
-    return (
-      <ParameterControl
-        key={p.name}
-        param={p}
-        {...(sweeps[p.name] ? { sweep: sweeps[p.name]! } : {})}
-        displayUnit={du}
-        displayUnits={choices}
-        onDisplayUnit={(u) => setUnit(p.unit, u)}
-        {...(baseline.current!.params[p.name] !== undefined ? { baseline: baseline.current!.params[p.name]! } : {})}
-        onChange={(v) => setParam(p.name, v)}
-        highlighted={hover.param === p.name || lit.has(`p:${p.name}`)}
-        drives={drives}
-        onHover={(on) => setHover(on ? { param: p.name } : {})}
-        flash={flash === p.name}
-      />
-    );
-  };
-
   const verdict = evaluation.error
     ? { tone: 'fail' as const, text: `The engine cannot evaluate this design: ${evaluation.error.message}` }
     : errors.length || (alignment?.errors.length ?? 0)
@@ -381,18 +332,8 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
 
   return (
     <div
-      style={
-        {
-          display: 'flex',
-          flexDirection: 'column',
-          '--pf-thumb-bg': palette.background.surface,
-          '--pf-thumb-border': palette.text.primary,
-          '--pf-thumb-ring': tint(palette.jade[500], 0.4)
-        } as React.CSSProperties
-      }
+      style={{ display: 'flex', flexDirection: 'column' }}
     >
-      <style>{FEASIBLE_RANGE_CSS}</style>
-
       <SpecHeader
         node={node}
         contract={contract}
@@ -448,36 +389,11 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
         ref={refFor('settings')}
         id="settings"
         title="Settings"
-        hint={view === 'sheet' ? 'Type a value in any unit of its kind; Enter moves to the next.' : 'Each knob shows where along its range the design passes.'}
+        hint="Type a value in any unit of its kind; Enter moves to the next."
       >
         <div style={{ display: 'flex', flexWrap: 'wrap' }}>
         {contract.parameters.length > 0 && (
-          <div role="group" aria-label="Show settings as" style={{ display: 'inline-flex', alignSelf: 'flex-start', gap: 2, padding: 2, margin: '2px 0 6px', borderRadius: r.md, border: `1px solid ${palette.border.default}` }}>
-            {(['sheet', 'sliders'] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                aria-pressed={view === v}
-                className="pf-focus"
-                onClick={() => setView(v)}
-                style={{
-                  border: 'none',
-                  borderRadius: r.sm,
-                  padding: '3px 10px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  background: view === v ? tint(palette.jade[500], 0.16) : 'transparent',
-                  color: view === v ? palette.text.primary : palette.text.secondary
-                }}
-              >
-                {v === 'sheet' ? 'Spec sheet' : 'Sliders'}
-              </button>
-            ))}
-          </div>
-        )}
-        {contract.parameters.length > 0 && (
-          <div role="group" aria-label="Units" style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 2, padding: 2, margin: '2px 0 6px 8px', borderRadius: r.md, border: `1px solid ${palette.border.default}` }}>
+          <div role="group" aria-label="Units" style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 2, padding: 2, margin: '2px 0 8px', borderRadius: r.md, border: `1px solid ${palette.border.subtle}`, background: palette.background.surface }}>
             {(['design', 'us', 'si'] as const).map((s) => (
               <button
                 key={s}
@@ -556,8 +472,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
           </div>
         )}
 
-        {view === 'sheet' ? (
-          <SpecSheet
+        <SpecSheet
             contract={contract}
             evaluation={evaluation}
             groups={groups}
@@ -590,41 +505,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                 }
               : {})}
           />
-        ) : groups.map((g) =>
-          g.folded ? (
-            <details key={g.name} style={{ marginTop: 12 }}>
-              <summary style={{ ...heading, margin: 0, cursor: 'pointer', listStyle: 'revert' }}>
-                {g.name} · {g.params.length}
-              </summary>
-              {g.params.map(renderParam)}
-            </details>
-          ) : (
-            <React.Fragment key={g.name}>
-              {groups.length > 1 && <div style={heading}>{g.name}</div>}
-              {g.params.map(renderParam)}
-            </React.Fragment>
-          )
-        )}
         {contract.parameters.length === 0 && <div style={{ fontSize: 13, color: palette.text.muted }}>This unit has no settings of its own: it runs on what reaches it.</div>}
-
-        {view === 'sliders' && own && contract.designInlet && (
-          <details style={{ marginTop: 12 }}>
-            <summary style={{ ...heading, margin: 0, cursor: 'pointer', listStyle: 'revert' }}>Design conditions</summary>
-            <div style={{ fontSize: 12, color: palette.text.muted, lineHeight: 1.5, margin: '6px 0' }}>
-              What arrives when the checks are worked out. During a run the engine uses the live stream instead.
-            </div>
-            {designFields(contract.designInlet).map((f) => (
-              <ParameterControl
-                key={f.param.name}
-                param={f.param}
-                displayUnit={unitFor(f.param.unit, displayUnitsFor(f.param))}
-                displayUnits={displayUnitsFor(f.param)}
-                onDisplayUnit={(u) => setUnit(f.param.unit, u)}
-                onChange={(v) => setDesign(f.apply(v, contract.designInlet!))}
-              />
-            ))}
-          </details>
-        )}
 
         {inert.length > 0 && (
           <details style={{ marginTop: 12 }}>
@@ -804,23 +685,6 @@ function sweepOptions(contract: UnitOpContract, p: UnitOpParameter): ReturnType<
 
 function checkName(_contract: UnitOpContract, id: string): string {
   return id.replace(/[-_]/g, ' ');
-}
-
-function behaviorLabel(path: string): string {
-  const k = path.replace(/^behavior\./, '').replace(/^outlets\[\d+\]\./, 'outlet ');
-  const words: Record<string, string> = {
-    cycleSeconds: 'the cycle time',
-    unitsPerCycle: 'units per cycle',
-    throughputPerMinute: 'the throughput',
-    capacityGpm: 'the capacity',
-    capacityKgPerHour: 'the capacity',
-    dutyKw: 'the duty',
-    batchGallons: 'the batch size',
-    capacityGallons: 'the capacity',
-    liquidPerCycleGallons: 'liquid per cycle',
-    scrapFraction: 'the reject rate'
-  };
-  return words[k] ?? k.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
 }
 
 /** The figures the engine runs the unit on, from the evaluation. */

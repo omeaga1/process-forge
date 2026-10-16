@@ -10,13 +10,12 @@ import {
 /**
  * How each parameter of a unit is best edited, decided from the parameter
  * itself: a choice from a list is a select, a yes/no a switch, a count a
- * stepper, a bounded value a slider that shows where the design works, and an
- * open-ended value a field that takes any unit of the same kind. A contract
+ * stepper, and anything else a field that takes any unit of the same kind. A contract
  * can say otherwise (parameter.ui.control); this is what it gets when it
  * does not.
  */
 
-export type ParameterControlKind = 'select' | 'toggle' | 'stepper' | 'slider' | 'number' | 'fixed';
+export type ParameterControlKind = 'select' | 'toggle' | 'stepper' | 'number' | 'fixed';
 
 const FRACTION_UNITS = new Set(['-', '%', 'ratio', 'fraction', 'ppm', 'ppb', '']);
 
@@ -41,8 +40,7 @@ export function controlFor(p: UnitOpParameter): ParameterControlKind {
   const asked = p.ui?.control;
   if (asked === 'select' && p.options?.length) return 'select';
   if (asked && asked !== 'select') {
-    if (asked === 'slider' && (p.min === undefined || p.max === undefined)) return 'number';
-    return asked;
+    return asked === 'slider' ? 'number' : asked;
   }
   if (p.options?.length) return 'select';
   const binary = p.min === 0 && p.max === 1 && (p.value === 0 || p.value === 1);
@@ -50,7 +48,6 @@ export function controlFor(p: UnitOpParameter): ParameterControlKind {
   if (p.integer || (isCountUnit(p.unit) && Number.isInteger(p.value) && (p.min === undefined || Number.isInteger(p.min)) && (p.max === undefined || Number.isInteger(p.max)))) {
     return 'stepper';
   }
-  if (p.min !== undefined && p.max !== undefined && p.max > p.min) return 'slider';
   return 'number';
 }
 
