@@ -545,7 +545,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
               <div
                 key={d.name}
                 style={{
-                  padding: '8px 10px',
+                  padding: '14px 10px',
                   margin: '0 -10px',
                   borderRadius: r.md,
                   borderBottom: `1px solid ${palette.border.subtle}`,
@@ -554,10 +554,10 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                 }}
               >
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'baseline', columnGap: 12 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }} title={d.description}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: palette.text.primary }} title={d.description}>
                     {d.label ?? d.name}
                   </span>
-                  <span style={{ fontFamily: font.mono, fontSize: 13, color: palette.text.primary, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontFamily: font.mono, fontSize: 14, color: palette.text.primary, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                     {delta !== 0 && (
                       <span style={{ fontSize: 11, marginRight: 6, color: palette.text.muted }} title={`When you opened it: ${formatQuantity(convertUnit(before!, d.unit, du, { difference }) ?? before!)}`}>
                         {delta > 0 ? '▲' : '▼'} {Math.abs(pct) >= 0.1 && Number.isFinite(pct) ? `${Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%` : ''}
@@ -566,7 +566,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                     {formatQuantity(shown)} <span style={{ color: palette.text.muted }}>{du !== '-' ? du : ''}</span>
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: palette.text.secondary, marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: palette.text.secondary, marginTop: 6 }}>
                   <span style={{ color: palette.text.muted }}>= </span>
                   <ExpressionView expr={d.expr} lookup={lookup} compact />
                 </div>
@@ -596,16 +596,16 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                 onMouseLeave={() => setHover({})}
                 style={{
                   display: 'flex',
-                  gap: 8,
-                  padding: '8px 10px',
+                  gap: 12,
+                  padding: '14px 10px',
                   margin: '0 -10px',
                   borderRadius: r.md,
                   borderBottom: `1px solid ${palette.border.subtle}`,
                   backgroundColor: lit.has(`c:${c.id}`) ? tint(color, 0.08) : bad ? tint(color, 0.04) : 'transparent'
                 }}
               >
-                <Icon size={15} color={color} style={{ flexShrink: 0, marginTop: 1 }} />
-                <div style={{ fontSize: 13, color: bad ? palette.text.primary : palette.text.secondary, minWidth: 0, flex: 1 }}>
+                <Icon size={16} color={color} style={{ flexShrink: 0, marginTop: 2 }} />
+                <div style={{ fontSize: 14, lineHeight: 1.5, color: bad ? palette.text.primary : palette.text.secondary, minWidth: 0, flex: 1 }}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
                     {/* A message says what goes wrong; when the check holds, it is what the check guards against. */}
                     <span style={{ flex: 1 }}>
@@ -618,19 +618,19 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                         </>
                       )}
                     </span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked, opacity: bad ? 1 : 0.6 }}>
-                      {c.severity === 'ERROR' ? 'must' : 'should'}
+                    <span style={{ fontSize: 12, fontWeight: 500, color: bad ? (c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked) : palette.text.muted }}>
+                      {c.severity === 'ERROR' ? 'must hold' : 'should hold'}
                     </span>
                   </div>
                   {bad && c.hint && <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>Try: {c.hint}</div>}
                   {rule && (
-                    <div style={{ fontSize: 12, marginTop: 3 }}>
+                    <div style={{ fontSize: 12, marginTop: 8 }}>
                       <ExpressionView expr={rule} lookup={lookup} compact />
                     </div>
                   )}
                   {levers.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                      <span style={{ fontSize: 11, color: palette.text.muted }}>Moved by</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 12px', marginTop: 8 }}>
+                      <span style={{ fontSize: 12, color: palette.text.muted }}>Moved by</span>
                       {levers.map((name) => (
                         <button
                           key={name}
@@ -638,12 +638,14 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                           onClick={() => lookup.onPick!(name)}
                           title="Show this setting"
                           style={{
-                            fontSize: 11,
-                            padding: '1px 7px',
-                            borderRadius: r.full,
-                            border: `1px solid ${palette.border.subtle}`,
-                            background: palette.background.surface,
+                            fontSize: 12,
+                            padding: 0,
+                            border: 'none',
+                            background: 'transparent',
                             color: palette.text.secondary,
+                            textDecoration: 'underline',
+                            textDecorationColor: palette.border.default,
+                            textUnderlineOffset: 3,
                             cursor: 'pointer'
                           }}
                         >

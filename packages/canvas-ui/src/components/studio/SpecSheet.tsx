@@ -109,18 +109,16 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
 
   const th: React.CSSProperties = {
     textAlign: 'left',
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: '0.05em',
-    textTransform: 'uppercase',
+    fontSize: 12,
+    fontWeight: 500,
     color: palette.text.muted,
-    padding: '6px 8px',
-    borderBottom: `1px solid ${palette.border.default}`,
+    padding: '8px 10px',
+    borderBottom: `1px solid ${palette.border.subtle}`,
     whiteSpace: 'nowrap'
   };
-  const caption: React.CSSProperties = { ...th, display: 'table-caption', padding: '14px 0 4px', borderBottom: 'none', captionSide: 'top', textAlign: 'left' };
+  const caption: React.CSSProperties = { display: 'table-caption', captionSide: 'top', textAlign: 'left', fontSize: 15, fontWeight: 600, letterSpacing: '-0.005em', color: palette.text.primary, padding: '32px 0 12px' };
   // Both tables share their columns, so values and units line up down the sheet.
-  const table: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' };
+  const table: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'fixed' };
   const cols = (
     <colgroup>
       <col />
@@ -130,7 +128,7 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
       <col style={{ width: 34 }} />
     </colgroup>
   );
-  const groupHead: React.CSSProperties = { ...th, padding: '14px 8px 4px', borderBottom: `1px solid ${palette.border.subtle}`, color: palette.text.secondary };
+  const groupHead: React.CSSProperties = { ...th, fontSize: 13, fontWeight: 600, padding: '24px 10px 8px', color: palette.text.primary };
   const hidden: React.CSSProperties = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' };
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
@@ -301,14 +299,14 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
               const before = baselineDerived[d.name];
               const moved = before !== undefined && Number.isFinite(before) && Math.abs(v - before) > 1e-9 * Math.max(1, Math.abs(before));
               const pct = moved && before ? ((v - before) / Math.abs(before)) * 100 : 0;
-              const td: React.CSSProperties = { padding: '5px 8px', borderBottom: `1px solid ${palette.border.subtle}` };
+              const td: React.CSSProperties = { padding: '9px 10px', borderBottom: `1px solid ${palette.border.subtle}` };
               return (
                 <tr key={d.name} style={{ backgroundColor: props.lit(`d:${d.name}`) ? tint(palette.jade[500], 0.08) : 'transparent' }}>
-                  <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 500, color: palette.text.secondary }} title={d.description}>
+                  <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 400, color: palette.text.primary }} title={d.description}>
                     {d.label ?? d.name}
                   </th>
                   <td style={{ ...td, textAlign: 'right', fontFamily: font.mono, color: palette.text.primary, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{formatQuantity(shown)}</td>
-                  <td style={{ ...td, padding: '3px 8px' }}>
+                  <td style={{ ...td, padding: '5px 10px' }}>
                     <UnitCell label={d.label ?? d.name} unit={d.unit} shown={du} choices={choices} onPick={(u) => setUnit(d.unit, u)} />
                   </td>
                   <td style={{ ...td, fontSize: 12, color: palette.text.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
@@ -345,7 +343,7 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
             className="pf-focus"
             aria-expanded={toolsOpen || props.holds.length > 0}
             onClick={() => setToolsOpen((o) => !o)}
-            style={{ ...th, border: 'none', background: 'transparent', padding: '6px 0', cursor: 'pointer', color: palette.text.secondary }}
+            style={{ ...th, border: 'none', background: 'transparent', padding: '8px 0', cursor: 'pointer', color: palette.text.secondary, fontSize: 13 }}
           >
             {toolsOpen || props.holds.length > 0 ? '▾' : '▸'} Solve for a result · sensitivity study
           </button>
@@ -392,7 +390,7 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
     const x = p.integer || kind === 'stepper' ? Math.round(v) : v;
     if (Number.isFinite(x)) setParam(p.name, x);
   };
-  const td: React.CSSProperties = { padding: '3px 8px', borderBottom: `1px solid ${palette.border.subtle}`, verticalAlign: 'middle' };
+  const td: React.CSSProperties = { padding: '6px 10px', borderBottom: `1px solid ${palette.border.subtle}`, verticalAlign: 'middle' };
   const range = p.min !== undefined || p.max !== undefined ? `Allowed ${p.min !== undefined ? formatQuantity(toShown(p.min)) : '…'} to ${p.max !== undefined ? formatQuantity(toShown(p.max)) : '…'} ${du !== '-' ? du : ''}` : '';
 
   const heldBy = holds.find((h) => h.vary === p.name);
@@ -438,9 +436,9 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
         title={range || undefined}
         style={{
           display: 'inline-flex',
-          height: 28,
-          borderRadius: 4,
-          border: `1px solid ${out ? palette.status.failed : changed ? palette.jade[500] : palette.border.default}`,
+          height: 32,
+          borderRadius: 6,
+          border: `1px solid ${out ? palette.status.failed : changed ? palette.jade[500] : palette.border.subtle}`,
           backgroundColor: changed ? tint(palette.jade[500], 0.06) : palette.background.surface,
           overflow: 'hidden'
         }}
@@ -480,7 +478,7 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
       onMouseLeave={() => onHoverParam(null)}
       style={{ backgroundColor: flashing ? tint(palette.jade[500], 0.16) : lit(`p:${p.name}`) ? tint(palette.jade[500], 0.08) : 'transparent', transition: 'background-color 300ms ease' }}
     >
-      <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 500, color: palette.text.primary, minWidth: 120 }} title={p.description}>
+      <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 400, color: palette.text.primary, minWidth: 120 }} title={p.description}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
           <span role="img" aria-label={`At this value the design ${statusText}`} style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, backgroundColor: statusColor, opacity: here ? 1 : 0.4 }} />
           {scrubbable ? (
