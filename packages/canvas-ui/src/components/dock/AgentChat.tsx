@@ -244,7 +244,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
                 setJevOn(!jevOn);
                 setJevEnabled(!jevOn);
               }}
-              title="Jev, a decision model on your OpenRouter account, decides what a complete design of each unit needs (energy balance, outlets, components) and checks designs for what is missing. About $0.0004 a check. Off: the same checks with offline keyword rules, less accurate."
+              title="Jev checks each design for missing pieces (energy balance, outlets, components). ~$0.0004 a check on OpenRouter. Off: offline rules, less accurate."
               style={{ ...chip(jevOn ? palette.jade.glow : palette.text.muted), cursor: 'pointer', borderColor: jevOn ? `${palette.jade[500]}88` : palette.border.default, background: jevOn ? `${palette.jade[500]}1a` : 'transparent' }}
             >
               <ShieldCheck size={11} /> Jev checks {jevOn ? 'on' : 'off'}

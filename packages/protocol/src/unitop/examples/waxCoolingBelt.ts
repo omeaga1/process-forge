@@ -26,7 +26,7 @@ export const WAX_COOLING_BELT_CONTRACT: UnitOpContract = {
   id: 'wax-cooling-belt-v1',
   name: 'Water-Cooled Wax Pastillation Belt',
   description:
-    'Molten wax is deposited on a water-cooled steel belt, solidifies over the belt length, and is scraped off at the discharge end. Duty is the sum of sensible cooling above the melting point, latent heat of fusion, and sensible cooling of the solid.',
+    'Molten wax is deposited on a water-cooled steel belt, solidifies over the belt length, and is scraped off at the discharge end.',
 
   ports: [
     { id: 'wax-in', name: 'Molten Wax Feed', direction: 'INLET', role: 'MATERIAL', flowDimension: 'CONTINUOUS_FLUID', required: true },
@@ -55,7 +55,7 @@ export const WAX_COOLING_BELT_CONTRACT: UnitOpContract = {
     { name: 'overallUWPerM2K', label: 'Overall heat transfer coefficient', unit: 'W/m2-K', value: 220, min: 5, max: 3000,
       description: 'Belt-to-water U, dominated by the wax layer conduction resistance.' },
     { name: 'waxThermalConductivityWPerMK', label: 'Wax thermal conductivity', unit: 'W/m-K', value: 0.25, min: 0.05, max: 5,
-      description: 'Sets how fast heat can cross the deposited layer, independent of the belt-to-water coefficient.' },
+      description: 'Sets how fast heat crosses the deposited wax layer.' },
     { name: 'maxCoolingWaterRiseK', label: 'Max allowable water temperature rise', unit: 'K', value: 12, min: 1, max: 60 }
   ],
 
@@ -66,7 +66,7 @@ export const WAX_COOLING_BELT_CONTRACT: UnitOpContract = {
       expr: 'beltLengthM / (beltSpeedMPerMin / 60)',
       description: 'The belt-speed knob expressed as time available for heat removal.' },
 
-    { name: 'sensibleLiquidKw', label: 'Duty: cooling liquid to congealing point', unit: 'kW',
+    { name: 'sensibleLiquidKw', label: 'Duty: liquid to congealing point', unit: 'kW',
       expr: 'waxMassFlowKgPerS * waxCpLiquidKjPerKgK * max(waxInletTempC - waxMeltingPointC, 0)' },
 
     { name: 'latentKw', label: 'Duty: solidification', unit: 'kW',
@@ -90,7 +90,7 @@ export const WAX_COOLING_BELT_CONTRACT: UnitOpContract = {
 
     { name: 'availableDutyKw', label: 'Duty the belt can actually transfer', unit: 'kW',
       expr: 'overallUWPerM2K * beltAreaM2 * meanDriveTempK / 1000',
-      description: 'U*A*dT, converted from W to kW. The capacity side of the check.' },
+      description: 'Heat the belt can remove, the capacity side of the check.' },
 
     { name: 'dutyMarginRatio', label: 'Capacity / requirement', unit: '-',
       expr: 'availableDutyKw / totalDutyKw' },
@@ -104,7 +104,7 @@ export const WAX_COOLING_BELT_CONTRACT: UnitOpContract = {
 
     { name: 'conductionTimeS', label: 'Time for heat to cross the layer', unit: 's',
       expr: '(waxLayerThicknessMm / 1000) ^ 2 / (2 * waxThermalDiffusivityM2PerS)',
-      description: 'Characteristic conduction time through the deposited layer. Independent of U*A: even an infinitely cold belt cannot beat it.' }
+      description: 'Conduction time through the deposited layer, which no belt cooling can beat.' }
   ],
 
   constraints: [

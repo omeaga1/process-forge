@@ -31,7 +31,7 @@ export const INLINE_MIXER_CONTRACT: UnitOpContract = {
   id: 'standard-inline-mixer-v1',
   name: 'Inline mixer',
   description:
-    'Blends up to two liquid streams into one. What leaves is the flow-weighted mix of what comes in: temperature and composition follow from the streams. Passes up to its rated flow.',
+    'Blends up to two liquid streams into one, up to its rated flow. What leaves is the flow-weighted mix of what comes in.',
   ports: [liquid('a', 'Inlet A', 'INLET'), liquid('b', 'Inlet B', 'INLET', false), liquid('out', 'Blend', 'OUTLET')],
   parameters: [
     { name: 'ratedFlowGpm', label: 'Rated flow', unit: 'gal/min', value: 200, min: 1, max: 5000 },
@@ -106,7 +106,7 @@ export const PROCESS_HEATER_CONTRACT: UnitOpContract = {
   roles: { duty: 'usedKw', tOut: 'outletC' },
   name: 'Process heater',
   description:
-    'Heats a liquid stream toward a target temperature with a steam or electric duty, up to its rated duty. When the stream needs more than that, it leaves cooler than the target and the shortfall is reported. Q = m x cp x (T_target - T_in).',
+    'Heats a liquid stream toward a target temperature with a steam or electric duty, up to its rated duty. When the stream needs more, it leaves cooler than the target.',
   ports: [liquid('in', 'In', 'INLET'), liquid('out', 'Out', 'OUTLET')],
   parameters: [
     { name: 'targetC', label: 'Target temperature', unit: '°C', value: 80, min: -50, max: 400 },
@@ -155,7 +155,7 @@ export const CSTR_CONTRACT: UnitOpContract = {
   archetype: 'reactor',
   name: 'Continuous stirred-tank reactor',
   description:
-    'A well-mixed continuous reactor running a first-order reaction, reactant -> product. Conversion follows from the residence time: X = k·τ / (1 + k·τ), τ = volume / flow, so more flow means less conversion. Name your feed components "reactant" (and "product"), or redesign it for your chemistry.',
+    'A well-mixed continuous reactor running a first-order reaction, reactant -> product. Conversion rises with residence time, so more flow means less conversion.',
   ports: [liquid('in', 'Feed', 'INLET'), liquid('out', 'Product', 'OUTLET')],
   components: ['reactant', 'product'],
   parameters: [
@@ -215,7 +215,7 @@ export const PLUG_FLOW_REACTOR_CONTRACT: UnitOpContract = {
   id: 'standard-pfr-v1',
   name: 'Plug-flow reactor',
   description:
-    'A tubular reactor running a first-order reaction, reactant -> product, with no back-mixing: X = 1 - exp(-k·τ), τ = tube volume / flow. For the same volume it converts more than a stirred tank. Name your feed components "reactant" (and "product"), or redesign it for your chemistry.',
+    'A tubular reactor running a first-order reaction, reactant -> product, with no back-mixing. For the same volume it converts more than a stirred tank.',
   ports: [liquid('in', 'Feed', 'INLET'), liquid('out', 'Product', 'OUTLET')],
   components: ['reactant', 'product'],
   parameters: [
@@ -265,7 +265,7 @@ export const SOLIDS_FILTER_CONTRACT: UnitOpContract = {
   id: 'standard-solids-filter-v1',
   name: 'Solids filter',
   description:
-    'Separates suspended solids from a liquid: a filter press, belt or drum filter. It captures a share of the feed solids in a cake at a set dryness; the rest of the liquid leaves as filtrate. Mass balance on solids: cake share = feed solids x capture / cake solids.',
+    'Separates suspended solids from a liquid: a filter press, belt or drum filter. It captures the solids in a cake; the rest of the liquid leaves as filtrate.',
   ports: [
     phased('in', 'Slurry', 'INLET', 'LIQUID', { crystals: 'SOLID' }),
     phased('filtrate', 'Filtrate', 'OUTLET', 'LIQUID', { crystals: 'SOLID' }),
@@ -273,7 +273,7 @@ export const SOLIDS_FILTER_CONTRACT: UnitOpContract = {
   ],
   components: ['water', 'crystals'],
   parameters: [
-    { name: 'feedSolidsPct', label: 'Feed solids (if the stream does not say)', unit: '%', value: 8, min: 0.01, max: 60, description: 'Used only when the feed carries no composition. A feed that names crystals sets this itself.' },
+    { name: 'feedSolidsPct', label: 'Feed solids (if stream is silent)', unit: '%', value: 8, min: 0.01, max: 60, description: 'Used only when the feed stream carries no composition.' },
     { name: 'capture', label: 'Solids captured', unit: '-', value: 0.98, min: 0, max: 1 },
     { name: 'cakeSolidsPct', label: 'Cake solids', unit: '%', value: 55, min: 1, max: 95 },
     { name: 'ratedFlowGpm', label: 'Rated flow', unit: 'gal/min', value: 80, min: 0.1, max: 5000 }
@@ -339,14 +339,14 @@ export const DECANTER_CENTRIFUGE_CONTRACT: UnitOpContract = {
   id: 'standard-decanter-centrifuge-v1',
   name: 'Decanter centrifuge',
   description:
-    'Spins solids out of a liquid continuously. Recovery falls off above the rated flow, as it does in a real bowl: less time under g means more solids carried over in the centrate. Solids leave as a paste at the set dryness.',
+    'Spins solids out of a liquid continuously, sending a paste one way and centrate the other. Above the rated flow, more solids carry over in the centrate.',
   ports: [
     phased('in', 'Feed', 'INLET', 'LIQUID', { crystals: 'SOLID' }),
     phased('centrate', 'Centrate', 'OUTLET', 'LIQUID', { crystals: 'SOLID' }),
     phased('solids', 'Solids', 'OUTLET', 'SOLID', { water: 'LIQUID' })
   ],
   parameters: [
-    { name: 'feedSolidsPct', label: 'Feed solids (if the stream does not say)', unit: '%', value: 10, min: 0.01, max: 50, description: 'Used only when the feed carries no composition. A feed that names crystals sets this itself.' },
+    { name: 'feedSolidsPct', label: 'Feed solids (if stream is silent)', unit: '%', value: 10, min: 0.01, max: 50, description: 'Used only when the feed stream carries no composition.' },
     { name: 'ratedRecovery', label: 'Solids recovery at rated flow', unit: '-', value: 0.95, min: 0, max: 1 },
     { name: 'pasteSolidsPct', label: 'Paste solids', unit: '%', value: 35, min: 1, max: 90 },
     { name: 'ratedFlowGpm', label: 'Rated flow', unit: 'gal/min', value: 100, min: 0.1, max: 2000 },
@@ -365,7 +365,7 @@ export const DECANTER_CENTRIFUGE_CONTRACT: UnitOpContract = {
     { name: 'solidsShare', label: 'Share leaving as paste', unit: '-', expr: 'clamp(solidsPct * recovery / pasteSolidsPct, 0, 1)' },
     {
       name: 'liquidToPaste',
-      label: 'Share of the liquid held in the paste',
+      label: 'Share of liquid held in the paste',
       unit: '-',
       expr: 'clamp(solidsPct * recovery * (100 / pasteSolidsPct - 1) / (100 - solidsPct), 0, 1)',
       description: 'The paste holds the liquid that makes it pasteSolidsPct solids.'
@@ -416,7 +416,7 @@ export const DISTILLATION_COLUMN_CONTRACT: UnitOpContract = {
   id: 'standard-distillation-column-v1',
   name: 'Distillation column',
   description:
-    'A shortcut column: a set share of the feed goes overhead as distillate, the rest leaves as bottoms. The reboiler boils up the distillate plus its reflux, so its duty is distillate x (1 + reflux ratio) x latent heat. Split by share, not by vapour-liquid equilibrium; redesign it with component recoveries for a sharper model.',
+    'A shortcut column: a set share of the feed goes overhead as distillate, the rest leaves as bottoms. The reboiler boils up the distillate plus its reflux.',
   // A total condenser and a reboiler: vapour and liquid change places inside the column, and both products leave as liquid.
   ports: [phased('feed', 'Feed', 'INLET', 'LIQUID'), phased('distillate', 'Distillate', 'OUTLET', 'LIQUID'), phased('bottoms', 'Bottoms', 'OUTLET', 'LIQUID')],
   parameters: [
@@ -480,7 +480,7 @@ export const CONTINUOUS_DRYER_CONTRACT: UnitOpContract = {
   id: 'standard-continuous-dryer-v1',
   name: 'Continuous dryer',
   description:
-    'Drives moisture off a wet feed: a rotary, belt or spray dryer. Water removed per kg of feed = (feed moisture - product moisture) / (100 - product moisture); it leaves as vapour, and the heat to evaporate it (with the dryer\'s losses) is the duty. If the burner cannot supply it, that is flagged.',
+    'Drives moisture off a wet feed: a rotary, belt or spray dryer. The water leaves as vapour, and the burner supplies the heat to evaporate it.',
   ports: [
     phased('in', 'Wet feed', 'INLET', 'SOLID', { water: 'LIQUID' }),
     phased('product', 'Dry product', 'OUTLET', 'SOLID', { water: 'LIQUID' }),
@@ -489,9 +489,9 @@ export const CONTINUOUS_DRYER_CONTRACT: UnitOpContract = {
   components: ['water', 'solids'],
   phaseChanges: [{ component: 'water', from: 'LIQUID', to: 'GAS', mechanism: 'DRYING', latentHeatKjPerKg: 'latentKjPerKg' }],
   parameters: [
-    { name: 'feedMoisturePct', label: 'Feed moisture (if the stream does not say)', unit: '%', value: 40, min: 0, max: 95, description: 'Used only when the feed carries no composition. A feed that names water sets this itself.' },
+    { name: 'feedMoisturePct', label: 'Feed moisture (if stream is silent)', unit: '%', value: 40, min: 0, max: 95, description: 'Used only when the feed stream carries no composition.' },
     { name: 'productMoisturePct', label: 'Product moisture', unit: '%', value: 5, min: 0, max: 90 },
-    { name: 'thermalEfficiency', label: 'Thermal efficiency', unit: '-', value: 0.7, min: 0.2, max: 1, description: 'Share of the burner heat that reaches the material; the rest is stack and wall loss. 0.55-0.8 is typical.' },
+    { name: 'thermalEfficiency', label: 'Thermal efficiency', unit: '-', value: 0.7, min: 0.2, max: 1, description: 'Share of burner heat that reaches the material; the rest is stack and wall loss.' },
     { name: 'availableKw', label: 'Burner duty', unit: 'kW', value: 1500, min: 1, max: 100000 },
     { name: 'productC', label: 'Product temperature', unit: '°C', value: 60, min: 0, max: 300 },
     { name: 'exhaustC', label: 'Exhaust temperature', unit: '°C', value: 90, min: 40, max: 400 },
@@ -507,7 +507,7 @@ export const CONTINUOUS_DRYER_CONTRACT: UnitOpContract = {
       label: 'Heat to the material',
       unit: 'kW',
       expr: 'inlet.massFlowKgPerS * inlet.specificHeatKjPerKgK * ((1 - waterShare) * productC + waterShare * exhaustC - inlet.temperatureC) + evaporationKgPerS * latentKjPerKg',
-      description: 'Warm the feed to the product and exhaust temperatures, then evaporate: what the streams take.'
+      description: 'Heat to warm the feed and evaporate its water, as the streams take it.'
     },
     { name: 'burnerKw', label: 'Burner duty needed', unit: 'kW', expr: 'needKw / thermalEfficiency' }
   ],

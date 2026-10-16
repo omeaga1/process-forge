@@ -1,3 +1,4 @@
+import { Brief } from '../../ui/Brief.js';
 import React, { useState } from 'react';
 import { convertUnit, isTemperatureDifference, parseQuantity, type UnitOpParameter } from '@process-forge/protocol';
 import { Minus, Plus } from 'lucide-react';
@@ -230,7 +231,7 @@ export const ParameterControl: React.FC<ParameterControlProps> = ({
     >
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>{p.label}</div>
-        {p.description && <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>{p.description}</div>}
+        {p.description && <Brief text={p.description} lines={1} style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }} />}
       </div>
       {control}
 

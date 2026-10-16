@@ -377,8 +377,8 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
                 <div style={{ fontSize: 14, fontWeight: 600, color: OsakaJadePalette.text.primary }}>Ask about {node.name}</div>
                 <div style={{ fontSize: 13, lineHeight: 1.55, color: OsakaJadePalette.text.secondary }}>
                   {lockStatus.unlocked
-                    ? 'Ask your AI model to explain this unit, change its design or redraw it. What it changes still has to pass the engine\'s checks.'
-                    : 'With an AI model connected you can ask it to explain this unit, change its design or redraw it, and the engine checks every change. Without one, edit the unit on the Design and Drawing tabs.'}
+                    ? 'Explain it, change it or redraw it. The engine checks every change.'
+                    : 'Connect a model to explain, change or redraw this unit, or edit it on the Design and Drawing tabs.'}
                 </div>
                 {!lockStatus.unlocked && (
                   <div>

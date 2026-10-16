@@ -832,10 +832,10 @@ export const FORGE_TOOLS: ForgeTool[] = [
       type: 'object',
       properties: {
         unit: unit(),
-        description: { type: 'string', description: 'What it is, what it models and what it assumes, for other engineers.' },
+        description: { type: 'string', maxLength: 240, description: 'One or two plain sentences, at most 240 characters: what the equipment is and does. It is shown on a library card; no lists of what it models, no assumptions or numbers (those live in its parameters).' },
         category: { type: 'string', enum: [...COMMUNITY_CATEGORIES] },
         tags: { type: 'array', items: { type: 'string' } },
-        releaseNotes: { type: 'string', description: 'For a new version: what changed.' }
+        releaseNotes: { type: 'string', maxLength: 200, description: 'For a new version: what changed, in one sentence.' }
       },
       required: ['unit']
     },

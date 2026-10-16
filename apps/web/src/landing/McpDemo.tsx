@@ -32,7 +32,7 @@ const SCRIPTS: Script[] = [
       { tool: 'validate_unit_op', args: '{ "contract": { … 15 parameters, 15 equations, 8 limits } }', result: 'ACCEPTED · 84 kW refrigeration · 0.214 kg/s of ice' },
       { tool: 'add_unit_op_to_flowsheet', args: '{ "contract": { … } }', result: 'Placed "Cold-Brew Freeze Concentrator", drawn, three nozzles' }
     ],
-    reply: 'It’s on your canvas. You gave the target strength and glycol temperature; the chiller, column and losses are my assumptions, marked “Assumed: confirm”. Nobody had published one, so want me to publish it to the library?'
+    reply: 'On your canvas. Chiller, column and losses are my assumptions, marked “Assumed: confirm”. Publish it to the library?'
   },
   {
     label: 'Simulate the line',

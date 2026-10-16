@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { OsakaJadeDarkPalette as D } from '@process-forge/theme';
-import { communityApiUrl } from '@process-forge/canvas-ui';
+import { Brief, communityApiUrl } from '@process-forge/canvas-ui';
 import { mono } from './ui.js';
 
 /**
@@ -96,13 +96,11 @@ export const LibraryBrowser: React.FC = () => {
           <div style={{ fontSize: 14, lineHeight: 1.6, color: D.text.secondary }}>
             {asked.trim() ? (
               <>
-                Nobody has published a unit like <b style={{ color: D.text.primary }}>“{asked.trim()}”</b> yet. That is the case Claude meets too: it designs one, and once
-                the engine accepts it, offers to publish it so the next engineer can start from it.
+                No <b style={{ color: D.text.primary }}>“{asked.trim()}”</b> yet. Claude can design one, and publish it for the next engineer.
               </>
             ) : (
               <>
-                The library is new and nothing is published in it yet. Units appear here as engineers publish them from the app; the first freeze concentrator,
-                scrubber or dryer you design could be the one others start from.
+                Nothing published yet. Your first design could be the one others start from.
               </>
             )}
           </div>
@@ -119,14 +117,14 @@ export const LibraryBrowser: React.FC = () => {
                   by {u.author_name} · v{u.version}
                   {u.engine_checked ? ' · engine-checked when published' : ''}
                 </div>
-                <p style={{ margin: '6px 0 0', fontSize: 13, lineHeight: 1.5, color: D.text.secondary }}>{u.description}</p>
+                <Brief text={u.description} style={{ marginTop: 6, color: D.text.secondary }} />
                 {u.matched?.length ? <div style={{ ...mono, fontSize: 11, color: D.text.muted, marginTop: 6 }}>shares: {u.matched.join(', ')}</div> : null}
               </li>
             ))}
           </ul>
         )}
       </div>
-      <p style={{ margin: '14px 0 0', fontSize: 12, color: D.text.muted }}>Live from the ProcessForge Library. Listings are what their authors wrote; ProcessForge does not review them.</p>
+      <p style={{ margin: '14px 0 0', fontSize: 12, color: D.text.muted }}>Live from the ProcessForge Library · written by authors, not reviewed.</p>
     </div>
   );
 };

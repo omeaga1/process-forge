@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import type { ProcessNode } from '@process-forge/protocol';
+import { WRITING_LIMITS, type ProcessNode } from '@process-forge/protocol';
 import { Globe, ShieldCheck } from 'lucide-react';
 import { draftingRadius } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
-import { Button, Modal } from '../../ui/index.js';
+import { Brief, Button, Modal } from '../../ui/index.js';
 import { CommunityLibraryService, type CommunityUnitOpItem, type PublishResult } from '../../marketplace/communityLibraryClient.js';
 
 export interface PublishSuggestion {
@@ -172,10 +172,23 @@ export const PublishUnitOpDialog: React.FC<PublishUnitOpDialogProps> = ({ node, 
               onChange={(e) => setDescription(e.target.value)}
               maxLength={4000}
               rows={4}
-              placeholder="What it is, what it models, and what it assumes."
+              placeholder="One or two sentences: what the equipment is and does."
               style={{ ...field, resize: 'vertical' }}
             />
+            <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4, fontSize: 11, color: description.length > WRITING_LIMITS.description.chars ? palette.status.blocked : palette.text.muted }}>
+              <span>{description.length > WRITING_LIMITS.description.chars ? 'Long for a card: engineers see the first sentence, the rest folds away.' : 'Short reads best: the numbers live in its parameters.'}</span>
+              <span style={{ fontFamily: 'var(--pf-font-mono, monospace)', fontVariantNumeric: 'tabular-nums' }}>
+                {description.length}/{WRITING_LIMITS.description.chars}
+              </span>
+            </span>
           </label>
+          {description.trim() && (
+            <div aria-label="How the listing reads" style={{ border: `1px dashed ${palette.border.default}`, borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: palette.text.muted, marginBottom: 6 }}>On the library card</div>
+              <div style={{ fontSize: 14, fontWeight: 650, color: palette.text.primary, marginBottom: 4 }}>{name || 'Untitled unit'}</div>
+              <Brief text={description} style={{ color: palette.text.secondary }} />
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <label style={{ flex: '1 1 200px' }}>
               <span style={label}>Category</span>

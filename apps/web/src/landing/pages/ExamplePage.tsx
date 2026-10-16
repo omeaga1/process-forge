@@ -11,8 +11,7 @@ import { CLIPS, Clip, PageHeader, Section } from '../ui.js';
 export const ExamplePage: React.FC = () => (
   <>
     <PageHeader kicker="WORKED EXAMPLE" title="Cold brew, freeze-concentrated: from one sentence to a simulated line.">
-      No simulator ships a model of this unit: a scraped-surface freezer that grows ice in the coffee, and a wash column that separates it. Here is the whole loop
-      as it ran, with every list, verdict and number worked out by the engine in this page.
+      No simulator ships this unit. Here is the whole loop as it ran; every number is the engine’s.
     </PageHeader>
 
     <Section id="walkthrough" n="01" kicker="THE LOOP" title="Six steps, as they ran.">

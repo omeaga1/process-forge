@@ -79,7 +79,7 @@ export const JUICE_FEED_PUMP_CONTRACT: UnitOpContract = {
       "ui": {
         "group": "Rating"
       },
-      "description": "At the duty point; 0.5-0.8 for most process pumps."
+      "description": "At the duty point, typically 0.5-0.8 for process pumps."
     },
     {
       "name": "motorKw",
@@ -369,7 +369,7 @@ export const VACUUM_EVAPORATOR_CONTRACT: UnitOpContract = {
     "vapour": "vapourKgPerS",
     "latent": "latentKjPerKg"
   },
-  "description": "Single-effect falling-film evaporator under vacuum. The juice boils at the saturation temperature of the vessel pressure (IAPWS-IF97); the steam supplies the sensible heat to the boil and the latent heat of the water driven off. Sugar stays in the concentrate.",
+  "description": "Single-effect falling-film evaporator under vacuum: the juice boils at the vessel pressure and steam drives the water off. Sugar stays in the concentrate.",
   "ports": [
     {
       "id": "feed",
@@ -699,7 +699,7 @@ export const SURFACE_CONDENSER_CONTRACT: UnitOpContract = {
     "vapour": "vapourKgPerS",
     "latent": "latentKjPerKg"
   },
-  "description": "Shell-and-tube surface condenser on the evaporator vapour. The vapour condenses on the shell side at its saturation temperature; the cooling water in the tubes takes the latent heat and leaves warmer. The two streams never mix.",
+  "description": "Shell-and-tube surface condenser on the evaporator vapour. The vapour condenses on the shell side and the cooling water in the tubes leaves warmer; the two never mix.",
   "ports": [
     {
       "id": "vapour_in",
@@ -769,7 +769,7 @@ export const SURFACE_CONDENSER_CONTRACT: UnitOpContract = {
   "parameters": [
     {
       "name": "minApproachC",
-      "label": "Closest the cooling water may come to the condensing temperature",
+      "label": "Min approach to condensing temp",
       "unit": "delta°C",
       "value": 5,
       "min": 1,
@@ -1005,7 +1005,7 @@ export const CONCENTRATE_PUMP_CONTRACT: UnitOpContract = {
       "ui": {
         "group": "Rating"
       },
-      "description": "At the duty point; 0.5-0.8 for most process pumps."
+      "description": "At the duty point, typically 0.5-0.8 for process pumps."
     },
     {
       "name": "motorKw",

@@ -1,3 +1,4 @@
+import { Brief } from '../../ui/Brief.js';
 import React from 'react';
 import {
   convertUnit,
@@ -72,12 +73,7 @@ export const SpecHeader: React.FC<{
             )}
           </div>
           {contract.description && (
-            <div
-              title={contract.description}
-              style={{ fontSize: 14, lineHeight: 1.6, color: palette.text.primary, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', maxWidth: 620 }}
-            >
-              {contract.description}
-            </div>
+            <Brief text={contract.description} style={{ fontSize: 14, lineHeight: 1.6, color: palette.text.primary, maxWidth: 620 }} mutedColor={palette.text.secondary} />
           )}
         </div>
       </div>

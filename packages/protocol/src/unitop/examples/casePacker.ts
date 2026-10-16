@@ -36,7 +36,7 @@ export const CASE_PACKER_CONTRACT: UnitOpContract = {
       label: 'Cycle',
       unit: 's',
       expr: 'max(wrapAndGlueSeconds, bottlesPerCase * collateSecondsPerBottle)',
-      description: 'Collating the next pack overlaps wrapping this one, so the slower of the two sets the cycle.'
+      description: 'Collating overlaps wrapping, so the slower of the two sets the cycle.'
     },
     { name: 'casesPerMinute', label: 'Cases per minute', unit: '/min', expr: '60 / cycleS' }
   ],
