@@ -228,14 +228,13 @@ export const ExpressionView: React.FC<{ expr: string; lookup: Lookup; compact?: 
               title={`${t.name}${v ? ` = ${formatQuantity(v.value)} ${v.unit}` : ''}${isParam ? ' · click to set it' : ''}`}
               style={{
                 display: 'inline-block',
-                padding: compact ? '0 4px' : '1px 6px',
+                padding: compact ? '0 2px' : '0 3px',
                 margin: '1px 0',
                 borderRadius: r.sm,
                 fontFamily: font.sans,
-                fontSize: compact ? 11.5 : 12,
+                fontSize: compact ? 12 : 13,
                 color: isParam ? palette.jade[300] ?? palette.jade[400] : palette.text.primary,
-                background: isParam ? tint(palette.jade[500], 0.1) : palette.background.surfaceElevated,
-                border: `1px solid ${isParam ? tint(palette.jade[500], 0.3) : palette.border.subtle}`,
+                borderBottom: isParam ? `1px dotted ${tint(palette.jade[500], 0.6)}` : 'none',
                 cursor: isParam && lookup.onPick ? 'pointer' : 'default',
                 whiteSpace: 'nowrap'
               }}
@@ -301,7 +300,7 @@ export const StreamsSection: React.FC<{
     ph === 'GAS' ? palette.streams.gas : ph === 'SOLID' ? palette.streams.solid : ph === 'ITEMS' ? palette.streams.discreteContainer : palette.streams.continuousFluid;
   const continuousInlets = contract.ports.filter((p) => p.direction === 'INLET' && p.flowDimension === 'CONTINUOUS_FLUID');
   const fig = (label: string, value: string, unit = '') => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13 }}>
       <span style={{ color: palette.text.muted }}>{label}</span>
       <span style={{ fontFamily: font.mono, color: palette.text.primary, fontVariantNumeric: 'tabular-nums' }}>
         {value} <span style={{ color: palette.text.muted }}>{unit}</span>
@@ -351,7 +350,7 @@ export const StreamsSection: React.FC<{
         )}
       </div>
     )}
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
       {contract.ports.map((p) => {
         const phase = portPhase(p);
         const color = phaseColor(phase);
@@ -363,21 +362,26 @@ export const StreamsSection: React.FC<{
         const dispersed = Object.entries(p.dispersed ?? {});
         const Arrow = inlet ? ArrowDownRight : ArrowUpRight;
         return (
-          <div key={`${p.direction}:${p.id}`} style={{ borderRadius: r.md, border: `1px solid ${palette.border.default}`, borderLeft: `3px solid ${color}`, background: palette.background.surface, padding: '8px 10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-              <Arrow size={14} color={color} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: palette.text.primary, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: palette.text.primary, padding: '0 6px', borderRadius: r.full, background: tint(color, 0.14), border: `1px solid ${tint(color, 0.55)}` }}>{PHASE_WORD[phase]}</span>
+          <div key={`${p.direction}:${p.id}`} style={{ borderTop: `1px solid ${palette.border.subtle}`, padding: '16px 0', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '8px 28px' }}>
+            <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Arrow size={16} color={palette.text.muted} />
+              <span style={{ fontSize: 14, fontWeight: 600, color: palette.text.primary, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+              <span style={{ fontSize: 12, color: palette.text.muted, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: color }} />
+                {PHASE_WORD[phase]}
+              </span>
             </div>
-            <div style={{ fontSize: 12, color: palette.text.muted, marginBottom: 4 }}>
+            <div style={{ fontSize: 12, color: palette.text.muted, lineHeight: 1.5, paddingLeft: 24 }}>
               {inlet ? 'In' : 'Out'}
               {p.role !== 'MATERIAL' ? ` · ${p.role.toLowerCase()}` : ''}
               {dispersed.length ? ` · carries ${dispersed.map(([c, ph]) => `${c} as ${PHASE_WORD[ph] ?? ph}`).join(', ')}` : ''}
               {p.carries?.length ? ` · ${p.carries.join(', ')}` : ''}
               {channel ? ` · ${inlet ? `leaves by ${channel.outlet}` : `from ${channel.inlet} only`}` : ''}
             </div>
+            </div>
             {design && (
-              <div style={{ display: 'grid', gap: 2 }}>
+              <div style={{ display: 'grid', gap: 4, alignContent: 'start' }}>
                 {design.temperatureC !== undefined && fig('Design T', formatQuantity(design.temperatureC), '°C')}
                 {design.massFlowKgPerS !== undefined && fig('Design flow', formatQuantity(design.massFlowKgPerS * 3600), 'kg/h')}
                 {design.volumetricFlowGpm !== undefined && phase === 'LIQUID' && fig('', formatQuantity(design.volumetricFlowGpm), 'gal/min')}
@@ -388,7 +392,7 @@ export const StreamsSection: React.FC<{
               (() => {
                 const flow = outletFlow(plan);
                 return (
-                  <div style={{ display: 'grid', gap: 2 }}>
+                  <div style={{ display: 'grid', gap: 4, alignContent: 'start' }}>
                     {flow && fig('Design flow', formatQuantity(flow.kgPerS * 3600), 'kg/h')}
                     {flow?.mix && fig('Mix', mixText(flow.mix))}
                     {plan.share !== undefined && fig('Share', formatQuantity(plan.share * 100), '%')}
@@ -401,9 +405,9 @@ export const StreamsSection: React.FC<{
                 );
               })()}
             {now && (
-              <div style={{ marginTop: 6, paddingTop: 6, borderTop: `1px dashed ${palette.border.subtle}`, display: 'grid', gap: 2 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: palette.jade[400], textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  <CircleDashed size={10} /> Live
+              <div style={{ gridColumn: '1 / -1', paddingTop: 10, borderTop: `1px dashed ${palette.border.subtle}`, display: 'grid', gap: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500, color: palette.jade[400] }}>
+                  <CircleDashed size={11} /> Live in the run
                 </div>
                 {fig('Flow', formatQuantity(now.kgPerHour), 'kg/h')}
                 {now.acfm !== undefined && fig('', formatQuantity(now.acfm), 'ACFM')}
@@ -424,9 +428,9 @@ const an = (w: string) => `${/^[aeiou]/i.test(w) ? 'an' : 'a'} ${w}`;
 // ------------------------------------------------------------------ physics
 
 export const PhysicsSection: React.FC<{ alignment: PhysicsAlignment; lookup: Lookup }> = ({ alignment, lookup }) => {
-  const { palette, font, radius: r } = useTheme();
+  const { palette, font } = useTheme();
   const row = (ok: boolean | 'warn', text: React.ReactNode, detail?: React.ReactNode, key?: string) => (
-    <div key={key} style={{ display: 'flex', gap: 8, padding: '6px 0', borderBottom: `1px solid ${palette.border.subtle}` }}>
+    <div key={key} style={{ display: 'flex', gap: 12, padding: '12px 0', borderBottom: `1px solid ${palette.border.subtle}` }}>
       {ok === true ? (
         <CheckCircle2 size={14} color={palette.jade[500]} style={{ flexShrink: 0, marginTop: 1 }} />
       ) : ok === 'warn' ? (
@@ -434,7 +438,7 @@ export const PhysicsSection: React.FC<{ alignment: PhysicsAlignment; lookup: Loo
       ) : (
         <XCircle size={14} color={palette.status.failed} style={{ flexShrink: 0, marginTop: 1 }} />
       )}
-      <div style={{ fontSize: 13, color: palette.text.primary, minWidth: 0 }}>
+      <div style={{ fontSize: 14, lineHeight: 1.5, color: palette.text.primary, minWidth: 0 }}>
         {text}
         {detail && <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>{detail}</div>}
       </div>
@@ -453,8 +457,8 @@ export const PhysicsSection: React.FC<{ alignment: PhysicsAlignment; lookup: Loo
               : 'No archetype: checked for units, mass, phases and energy.'}
       </div>
       {alignment.relations.length > 0 && (
-        <div style={{ borderRadius: r.md, border: `1px solid ${palette.border.default}`, padding: '6px 10px', marginBottom: 8, background: palette.background.surface }}>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: palette.text.muted, marginBottom: 2 }}>Governing relations, at the design point</div>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: palette.text.primary, marginBottom: 4 }}>Governing relations at the design point</div>
           {alignment.relations.map((rel) =>
             row(
               rel.status === 'holds' ? true : rel.status === 'unbound' ? 'warn' : false,
@@ -472,7 +476,7 @@ export const PhysicsSection: React.FC<{ alignment: PhysicsAlignment; lookup: Loo
                   </span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
                     {rel.bindings.map((b) => (
-                      <span key={b.role} style={{ fontSize: 11, padding: '1px 6px', borderRadius: r.full, border: `1px solid ${palette.border.subtle}`, color: palette.text.secondary }}>
+                      <span key={b.role} style={{ fontSize: 12, color: palette.text.muted }}>
                         {b.role}: {lookup.label(b.name)} = {formatQuantity(b.value)} {b.unit}
                       </span>
                     ))}
