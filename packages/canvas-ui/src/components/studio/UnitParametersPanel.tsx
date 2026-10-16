@@ -314,7 +314,6 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
   const renderRow = ([key, val]: [string, number]) => {
     const { label, unit } = describeConfigKey(key);
     const step = Math.abs(val) < 1 ? 0.01 : Math.abs(val) < 10 ? 0.1 : 1;
-    const max = Math.max(val * 2, Math.abs(val) < 1 ? 1 : 100);
     return (
       <div key={key} style={row}>
         <div style={{ fontSize: 13, fontWeight: 600, color: palette.text.primary }}>{label}</div>
@@ -333,17 +332,6 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
           />
           {unit && <span style={unitTag}>{unit}</span>}
         </label>
-        <input
-          type="range"
-          aria-hidden="true"
-          tabIndex={-1}
-          min={0}
-          max={max}
-          step={step}
-          value={val}
-          onChange={(e) => onUpdateConfig(node.id, { ...config, [key]: parseFloat(e.target.value) })}
-          style={{ gridColumn: '1 / -1', width: '100%', accentColor: palette.jade[500], height: 14, margin: 0 }}
-        />
       </div>
     );
   };

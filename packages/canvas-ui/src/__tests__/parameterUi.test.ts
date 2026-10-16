@@ -6,12 +6,12 @@ import { controlFor, feasibleBand, groupParameters, isCountUnit, stepFor, unitPr
 const P = (x: Partial<UnitOpParameter>): UnitOpParameter => ({ name: 'x', label: 'X', unit: '-', value: 1, ...x });
 
 describe('the control each parameter gets', () => {
-  it('a choice is a select, a yes/no a switch, a count a stepper, a bounded value a slider', () => {
+  it('a choice is a select, a yes/no a switch, a count a stepper, anything else a number field', () => {
     assert.equal(controlFor(P({ options: [{ label: 'A', value: 1 }, { label: 'B', value: 2 }] })), 'select');
     assert.equal(controlFor(P({ name: 'explosionProtected', label: 'Explosion protection fitted (1 yes, 0 no)', min: 0, max: 1, value: 1 })), 'toggle');
     assert.equal(controlFor(P({ name: 'nozzleCount', label: 'Filling nozzles', unit: 'nozzles', value: 10, min: 1, max: 64 })), 'stepper');
     assert.equal(controlFor(P({ name: 'bags', unit: 'bags', value: 12.5 })), 'number');
-    assert.equal(controlFor(P({ unit: 'ft2', value: 1500, min: 10, max: 100000 })), 'slider');
+    assert.equal(controlFor(P({ unit: 'ft2', value: 1500, min: 10, max: 100000 })), 'number');
     assert.equal(controlFor(P({ unit: 'kg', value: 3 })), 'number');
     assert.equal(controlFor(P({ unit: 'K', value: 273.15, min: 273.15, max: 273.15 })), 'fixed');
     // What the contract asks for wins, if it can be honoured.
