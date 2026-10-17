@@ -424,8 +424,7 @@ export type UnitOpProvenance = z.infer<typeof UnitOpProvenanceSchema>;
  * gauge  -- how close a check runs to its limit (`check`: a constraint id
  *           written as one comparison), or a result on a scale (`result`,
  *           `max`, optional `min`).
- * trend  -- a result across one parameter's range, with where the design
- *           passes, warns and fails, and the design point marked.
+ * trend  -- retired: accepted for old contracts, never drawn.
  * note   -- a line of guidance for whoever sets the unit up.
  */
 export const UnitOpPanelWidgetSchema = z.discriminatedUnion('kind', [
@@ -887,11 +886,8 @@ function panelIssues(contract: UnitOpContract): ContractValidationIssue[] {
     `Use a parameter, a derived value or one of ${ENGINE_FIGURES[contract.behavior.mode].map((f) => `engine.${f}`).join(', ')}.`;
   (contract.panel ?? []).forEach((w, i) => {
     const path = `panel.${i}`;
-    if ((w.kind === 'figure' || w.kind === 'trend' || (w.kind === 'gauge' && w.result)) && !results.has(w.result!)) {
+    if ((w.kind === 'figure' || (w.kind === 'gauge' && w.result)) && !results.has(w.result!)) {
       issues.push({ path, message: `shows "${w.result}", which the contract does not declare. ${resultHint()}` });
-    }
-    if (w.kind === 'trend' && !params.has(w.over)) {
-      issues.push({ path, message: `plots over "${w.over}", which is not a parameter. A trend runs one parameter across its range.` });
     }
     if (w.kind === 'gauge') {
       if (w.check && w.result) issues.push({ path, message: 'a gauge shows either a check or a result, not both' });

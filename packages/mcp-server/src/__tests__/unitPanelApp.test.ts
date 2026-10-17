@@ -165,14 +165,14 @@ describe('MCP Apps: the unit panel in the chat', () => {
     assert.equal(unitPanelFor('diagnose_bottlenecks', {}, {}), undefined);
   });
 
-  it('draws gauges, figures, trends and notes as inline SVG, escaping what the contract says', () => {
+  it('draws gauges, figures and notes as inline SVG, escaping what the contract says', () => {
     const view = unitPanelFor('explore_unit_op', { contract: WAX_COOLING_BELT_CONTRACT }, {})!;
     const html = renderUnitPanel({
       ...view,
       widgets: [...view.widgets, { kind: 'note', text: '<img src=x onerror=alert(1)>', tone: 'caution' }, { kind: 'figure', name: 'x', label: 'Rate', unit: 'kg/h', value: 1234.5 }]
     });
     assert.match(html, /class="pf-gauge"/);
-    assert.match(html, /class="pf-trend"/);
+    assert.ok(!html.includes('pf-trend'));
     assert.match(html, /role="meter"/);
     assert.match(html, /1,234\.5<span class="pf-unit">kg\/h/);
     assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));

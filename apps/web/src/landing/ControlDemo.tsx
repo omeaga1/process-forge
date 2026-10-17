@@ -110,7 +110,7 @@ export const ControlDemo: React.FC = () => {
             <span style={{ ...mono, fontSize: 11, letterSpacing: '0.12em', color: D.text.muted }}>AT A GLANCE</span>
             <span style={{ fontSize: 12, color: D.text.muted }}>The app’s own panel, laid out by the contract Claude wrote. Click the chart to set the strength.</span>
           </div>
-          <UnitGlance contract={contract} evaluation={evaluation} onSetParam={(name, v) => name in values && set(name, v)} />
+          <UnitGlance contract={contract} evaluation={evaluation} />
         </div>
       </div>
 

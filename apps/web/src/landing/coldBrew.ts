@@ -94,7 +94,6 @@ export const COLD_BREW_CONTRACT: UnitOpContract = {
     { kind: 'gauge', check: 'glycolApproach', label: 'Glycol approach' },
     { kind: 'gauge', check: 'columnIceLoad', label: 'Wash column ice load' },
     { kind: 'gauge', check: 'lossWithinSpec', label: 'Coffee lost in melt water' },
-    { kind: 'trend', result: 'refrigKw', over: 'targetTdsPct' },
     { kind: 'note', text: "Operating conditions marked 'Assumed: confirm' were proposed, not given. Set them to your plant's numbers.", tone: 'caution' }
   ],
   provenance: { authoredBy: 'SUB_AGENT', engineerConfirmed: ['targetTdsPct', 'glycolSupplyC'] },

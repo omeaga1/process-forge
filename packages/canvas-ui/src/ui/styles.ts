@@ -198,8 +198,6 @@ button.pf-glance-card:focus-visible { outline: 2px solid var(--pf-jade-400); out
 .pf-meter-safe { display: none; }
 .pf-glance-caption { font-size: 12px; line-height: 1.45; color: var(--pf-text-muted); font-variant-numeric: tabular-nums; }
 .pf-glance-message { margin-top: 4px; font-size: 12px; line-height: 1.4; color: var(--pf-status-failed); }
-.pf-trend { display: block; width: 100%; height: auto; margin-top: 6px; overflow: visible; touch-action: none; cursor: crosshair; }
-.pf-trend:focus-visible { outline: 2px solid var(--pf-jade-400); outline-offset: 2px; border-radius: 4px; }
 .pf-glance-note { grid-column: 1 / -1; display: flex; gap: 8px; align-items: flex-start; padding: 8px 12px; border-radius: 8px; font: 400 13px/1.45 ${fontFamily.sans};
   color: var(--pf-text-secondary); background: color-mix(in srgb, var(--pf-jade-500) 6%, transparent); border: 1px solid color-mix(in srgb, var(--pf-jade-500) 22%, transparent); }
 .pf-glance-note[data-tone="caution"] { background: color-mix(in srgb, var(--pf-status-blocked) 8%, transparent); border-color: color-mix(in srgb, var(--pf-status-blocked) 35%, transparent); }

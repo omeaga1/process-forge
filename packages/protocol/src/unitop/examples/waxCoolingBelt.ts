@@ -168,7 +168,6 @@ export const WAX_COOLING_BELT_CONTRACT: UnitOpContract = {
     { kind: 'gauge', check: 'residence-time-sufficient', label: 'Wax freezes before the scraper' },
     { kind: 'gauge', check: 'belt-has-capacity', label: 'Belt sheds the heat' },
     { kind: 'gauge', check: 'cooling-water-rise-acceptable', label: 'Cooling water rise' },
-    { kind: 'trend', result: 'conductionTimeS', over: 'beltSpeedMPerMin', label: 'Freezing time against belt speed' },
     { kind: 'note', text: 'A faster belt lays a thinner layer that freezes sooner, but spends less time on the belt.' }
   ],
 

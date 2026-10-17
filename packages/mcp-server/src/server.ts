@@ -199,7 +199,7 @@ const RESOURCES = [
     description: 'A built-in example line, as a ProcessGraph.'
   })),
   // MCP Apps: the view explore_unit_op and validate_unit_op name in their _meta.
-  { uri: UNIT_PANEL_URI, name: 'unit-panel', title: 'Unit at a glance', mimeType: MCP_APP_MIME_TYPE, description: "A unit's panel drawn in the chat: gauges, figures, trends and notes.", _meta: { ui: { prefersBorder: true } } }
+  { uri: UNIT_PANEL_URI, name: 'unit-panel', title: 'Unit at a glance', mimeType: MCP_APP_MIME_TYPE, description: "A unit's panel drawn in the chat: gauges, figures and notes.", _meta: { ui: { prefersBorder: true } } }
 ];
 
 async function readResource(uri: string): Promise<{ mimeType: string; text: string; _meta?: Json }> {
