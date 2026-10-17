@@ -22,10 +22,10 @@ import { unitTag } from '../../model/unitTag.js';
 import { AgentChat } from './AgentChat.js';
 import { RunDigest, type RunView } from './RunDigest.js';
 import { liquidLimit } from '@process-forge/tools';
-import { Button, Chip, Tooltip } from '../../ui/index.js';
+import { Button, Tooltip } from '../../ui/index.js';
 import { supportsAgent } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
-import { Loader2, ChevronRight, ChevronLeft, MessageSquare, Check, KeyRound } from 'lucide-react';
+import { Loader2, ChevronRight, ChevronLeft, Sparkles, Check, ArrowUp, Gauge, PackagePlus, Waves, ArrowUpRight } from 'lucide-react';
 
 interface MasterOrchestratorDockProps {
   graph: ProcessGraph;
@@ -64,7 +64,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   stale,
   onSeek
 }) => {
-  const { palette, font, size, space, radius: r } = useTheme();
+  const { palette, font } = useTheme();
   const OsakaJadePalette = palette;
   const [inputText, setInputText] = useState('');
   const [aiConfig, setAiConfig] = useState<AiModelConfig>(getAiConfig());
@@ -219,7 +219,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         width: 360,
         height: '100%',
         backgroundColor: OsakaJadePalette.background.surface,
-        borderLeft: `1px solid ${OsakaJadePalette.border.default}`,
+        borderLeft: `1px solid ${OsakaJadePalette.border.subtle}`,
         display: 'flex',
         flexDirection: 'column',
         fontFamily: font.sans,
@@ -228,91 +228,45 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         flexShrink: 0
       }}
     >
-      {/* Header with Clean Title & Dock Controls */}
-      <div
-        style={{
-          padding: '12px 14px',
-          borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
-          backgroundColor: OsakaJadePalette.background.surfaceElevated
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 6,
-                backgroundColor: tint(palette.jade[500], 0.12),
-                border: `1px solid ${OsakaJadePalette.jade[600]}40`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: OsakaJadePalette.jade.glow,
-                flexShrink: 0
-              }}
-            >
-              <MessageSquare size={15} />
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: OsakaJadePalette.text.primary, lineHeight: 1.2 }}>
-                Process Copilot
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAiModalOpen(true)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: OsakaJadePalette.text.secondary,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  cursor: 'pointer',
-                  marginTop: 2
-                }}
-                title="Configure AI & MCP Tools"
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: r.full,
-                    backgroundColor: lockStatus.unlocked ? OsakaJadePalette.jade.glow : OsakaJadePalette.streams.continuousFluid,
-                    display: 'inline-block'
-                  }}
-                />
-                <span>
-                  {route === 'claude-desktop'
-                    ? 'MCP client'
-                    : lockStatus.unlocked
-                      ? `${PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI Assistant'} · your account`
-                      : 'Local Solver'}
-                </span>
-                <span style={{ fontSize: size['2xs'], color: OsakaJadePalette.text.muted }}>• Tools</span>
-              </button>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {onToggleCollapse && (
-              <Button variant="ghost" size="sm" iconOnly icon={<ChevronRight size={15} />} label="Hide the Process Copilot · Alt+D" onClick={onToggleCollapse} />
-            )}
-          </div>
+      {/* Header: what it is, and who answers. */}
+      <div style={{ padding: '14px 16px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div
+          aria-hidden
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 9,
+            display: 'grid',
+            placeItems: 'center',
+            flexShrink: 0,
+            color: OsakaJadePalette.jade.glow,
+            background: `linear-gradient(140deg, ${tint(palette.jade[500], 0.22)}, ${tint(palette.jade[500], 0.06)})`,
+            border: `1px solid ${tint(palette.jade[500], 0.3)}`
+          }}
+        >
+          <Sparkles size={16} />
         </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 650, letterSpacing: '-0.01em', color: OsakaJadePalette.text.primary }}>Process Copilot</div>
+          <button
+            type="button"
+            onClick={() => setIsAiModalOpen(true)}
+            title="Choose who answers"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 2, padding: 0, border: 'none', background: 'none', fontSize: 11, color: OsakaJadePalette.text.muted, cursor: 'pointer' }}
+          >
+            <span aria-hidden style={{ width: 6, height: 6, borderRadius: 3, background: route === 'none' ? OsakaJadePalette.text.muted : OsakaJadePalette.jade.glow }} />
+            {route === 'claude-desktop'
+              ? 'Claude, through MCP'
+              : lockStatus.unlocked
+                ? `${PROVIDER_METADATA[aiConfig.provider]?.badgeName || 'AI model'} · your account`
+                : 'Offline · answers from the line'}
+          </button>
+        </div>
+        {onToggleCollapse && <Button variant="ghost" size="sm" iconOnly icon={<ChevronRight size={15} />} label="Hide the Process Copilot · Alt+D" onClick={onToggleCollapse} />}
       </div>
 
       {/* The line at a glance, as a departure board: each figure flips when the run changes it. */}
-      <div
-        style={{
-          padding: '10px 14px',
-          borderBottom: `1px solid ${OsakaJadePalette.border.default}`,
-          backgroundColor: OsakaJadePalette.background.base
-        }}
-      >
+      <div style={{ padding: '0 16px 14px', borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
         {(() => {
           // A liquid line no unit holds back: what sets its rate (a feed's supply, a unit at its rating), as the MCP tools say it.
           const lineLimit = !bottlenecks.bottleneckNodeId && run ? liquidLimit(graph, run.result, run.result.durationMinutes) : undefined;
@@ -339,7 +293,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             : steadyProduct;
           const kgPerHour = bulk && telemetry.simulatedTimeSeconds > 0 ? ((telemetry.productKg ?? 0) / telemetry.simulatedTimeSeconds) * 3600 : solved ? steadyProduct : 0;
           const cell = (label: string, unit: string, flap: React.ReactNode, title?: string) => (
-            <div title={title} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            <div title={title} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0, padding: '10px 12px', background: OsakaJadePalette.background.base }}>
               <span style={{ fontSize: 10, fontWeight: 700, color: OsakaJadePalette.text.muted, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: font.mono }}>
                 {label}
               </span>
@@ -349,39 +303,61 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
               </span>
             </div>
           );
+          const limitColor = bottlenecks.bottleneckNodeId || lineLimit?.by === 'unit' ? OsakaJadePalette.status.blocked : lineLimit?.by === 'feed' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow;
+          const limitTitle = lineLimit ? lineLimit.summary : limitName ? (solved && !bottlenecks.bottleneckNodeId ? limitName + ' holds the line at its steady state' : limitName) : 'Nothing limits the line in the static analysis';
           return (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 12px' }}>
-              {bulk ? (
-                <>
-                  {cell('Line output', 'kg', <SplitFlap label="Line output" value={String(Math.round(telemetry.productKg ?? 0))} width={5} />, 'Product delivered so far, kg')}
-                  {cell('Shift average', 'kg/h', <SplitFlap label="Shift average" value={kgPerHour.toFixed(kgPerHour < 100 ? 1 : 0)} width={5} />)}
-                </>
-              ) : (
-                <>
-                  {cell('Line output', 'units', <SplitFlap label="Line output" value={String(telemetry.totalPackaged)} width={5} />)}
-                  {cell('Shift average', '/min', <SplitFlap label="Shift average" value={rate > 0 ? rate.toFixed(rate < 100 ? 1 : 0) : '0'} width={5} />)}
-                </>
-              )}
-              {bulk
-                ? cell('Product now', 'kg/h', <SplitFlap label="Product now" value={kgNow.toFixed(kgNow < 100 ? 1 : 0)} width={5} color={OsakaJadePalette.text.secondary} />, 'kg/h reaching the product outlets at this moment of the run')
-                : cell('Capacity', '/min', <SplitFlap label="Capacity" value={String(Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin))} width={5} color={OsakaJadePalette.text.secondary} />)}
-              {cell(
-                'Limited by',
-                '',
-                <SplitFlap
-                  label="Limited by"
-                  value={limit.toUpperCase()}
-                  width={6}
-                  align="left"
-                  color={bottlenecks.bottleneckNodeId || lineLimit?.by === 'unit' ? OsakaJadePalette.status.blocked : lineLimit?.by === 'feed' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow}
-                />,
-                lineLimit ? lineLimit.summary : limitName ? (solved && !bottlenecks.bottleneckNodeId ? limitName + ' holds the line at its steady state' : limitName) : 'Nothing limits the line in the static analysis'
-              )}
-              {solved && (
-                <div style={{ gridColumn: '1 / -1', fontSize: 11, color: OsakaJadePalette.text.muted }}>
-                  At steady state, solved before a run. Run to see it over time.
-                </div>
-              )}
+            <div style={{ border: `1px solid ${OsakaJadePalette.border.subtle}`, borderRadius: 12, overflow: 'hidden' }}>
+              {/* Hairlines between the cells come from the gap over the frame colour. */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: OsakaJadePalette.border.subtle }}>
+                {bulk ? (
+                  <>
+                    {cell('Line output', 'kg', <SplitFlap label="Line output" value={String(Math.round(telemetry.productKg ?? 0))} width={5} />, 'Product delivered so far, kg')}
+                    {cell('Shift average', 'kg/h', <SplitFlap label="Shift average" value={kgPerHour.toFixed(kgPerHour < 100 ? 1 : 0)} width={5} />)}
+                    {cell('Product now', 'kg/h', <SplitFlap label="Product now" value={kgNow.toFixed(kgNow < 100 ? 1 : 0)} width={5} color={OsakaJadePalette.text.secondary} />, 'kg/h reaching the product outlets at this moment of the run')}
+                  </>
+                ) : (
+                  <>
+                    {cell('Line output', 'units', <SplitFlap label="Line output" value={String(telemetry.totalPackaged)} width={5} />)}
+                    {cell('Shift average', '/min', <SplitFlap label="Shift average" value={rate > 0 ? rate.toFixed(rate < 100 ? 1 : 0) : '0'} width={5} />)}
+                    {cell('Capacity', '/min', <SplitFlap label="Capacity" value={String(Math.round(bottlenecks.maximumSystemThroughputUnitsPerMin))} width={5} color={OsakaJadePalette.text.secondary} />)}
+                  </>
+                )}
+                {cell('Limited by', '', <SplitFlap label="Limited by" value={limit.toUpperCase()} width={6} align="left" color={limitColor} />, limitTitle)}
+              </div>
+              {/* The limit in words: the whole name, clickable, with why. */}
+              <button
+                type="button"
+                onClick={() => limitId && onOpenPopOutStudio?.(limitId)}
+                disabled={!limitId || !onOpenPopOutStudio}
+                title={limitTitle}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '9px 12px',
+                  border: 'none',
+                  borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
+                  background: tint(limitColor, 0.06),
+                  color: OsakaJadePalette.text.secondary,
+                  fontSize: 12,
+                  textAlign: 'left',
+                  cursor: limitId && onOpenPopOutStudio ? 'pointer' : 'default'
+                }}
+              >
+                <span aria-hidden style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, background: limitColor }} />
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {limitName ? (
+                    <>
+                      <b style={{ color: OsakaJadePalette.text.primary, fontWeight: 600 }}>{limitName}</b> sets the pace
+                    </>
+                  ) : (
+                    'Nothing limits the line'
+                  )}
+                  {solved ? ' · steady state' : run ? ' · this run' : ''}
+                </span>
+                {limitId && onOpenPopOutStudio && <ArrowUpRight size={13} />}
+              </button>
             </div>
           );
         })()}
@@ -397,23 +373,49 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: 14,
+          padding: 16,
           display: 'flex',
           flexDirection: 'column',
-          gap: 10
+          gap: 14
         }}
       >
         {chatHistory.length === 0 && (
-          <div style={{ margin: 'auto 0', display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 2px' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: OsakaJadePalette.text.primary }}>Ask about this line</div>
-            <div style={{ fontSize: 12, lineHeight: 1.5, color: OsakaJadePalette.text.secondary }}>
-              Without an AI model the copilot answers what limits the line and adds standard equipment from a plain request. Connect a model for free-form engineering advice.
+          <div style={{ margin: 'auto 0', display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 650, color: OsakaJadePalette.text.primary }}>Ask about this line</div>
+              <div style={{ fontSize: 12, color: OsakaJadePalette.text.muted, marginTop: 3 }}>
+                {lockStatus.unlocked ? 'Questions, changes, new equipment.' : 'Limits and standard equipment, offline.'}
+              </div>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {['What limits the line?', 'Add a surge tank', 'Add a pump'].map((q) => (
-                <Chip key={q} onClick={() => void handleSendMessage(q)}>
-                  {q}
-                </Chip>
+            <div style={{ display: 'flex', flexDirection: 'column', border: `1px solid ${OsakaJadePalette.border.subtle}`, borderRadius: 12, overflow: 'hidden' }}>
+              {[
+                { q: 'What limits the line?', Icon: Gauge },
+                { q: 'Add a surge tank', Icon: Waves },
+                { q: 'Add a pump', Icon: PackagePlus }
+              ].map(({ q, Icon }, i) => (
+                <button
+                  key={q}
+                  type="button"
+                  className="pf-copilot-suggest"
+                  onClick={() => void handleSendMessage(q)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 12px',
+                    border: 'none',
+                    borderTop: i ? `1px solid ${OsakaJadePalette.border.subtle}` : 'none',
+                    background: 'transparent',
+                    color: OsakaJadePalette.text.primary,
+                    fontSize: 13,
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Icon size={15} color={OsakaJadePalette.jade.glow} />
+                  <span style={{ flex: 1 }}>{q}</span>
+                  <ChevronRight size={14} color={OsakaJadePalette.text.muted} />
+                </button>
               ))}
             </div>
           </div>
@@ -424,18 +426,19 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             <div
               key={msg.id}
               style={{
-                alignSelf: isUser ? 'flex-end' : 'flex-start',
-                maxWidth: '90%',
-                backgroundColor: isUser ? OsakaJadePalette.jade.muted : OsakaJadePalette.background.surfaceElevated,
-                padding: '10px 12px',
-                borderRadius: 8,
-                border: `1px solid ${isUser ? OsakaJadePalette.jade[600] : OsakaJadePalette.border.default}`,
-                fontSize: 12,
-                lineHeight: '1.4'
+                alignSelf: isUser ? 'flex-end' : 'stretch',
+                maxWidth: isUser ? '85%' : '100%',
+                backgroundColor: isUser ? tint(palette.jade[500], 0.16) : 'transparent',
+                padding: isUser ? '8px 12px' : '2px 0',
+                borderRadius: isUser ? '14px 14px 4px 14px' : 0,
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: OsakaJadePalette.text.primary
               }}
             >
-              <div style={{ fontSize: 10, color: OsakaJadePalette.text.muted, marginBottom: 4, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>{msg.senderTitle}</span>
+              <div style={{ fontSize: 11, color: OsakaJadePalette.text.muted, marginBottom: 4, display: isUser ? 'none' : 'flex', alignItems: 'center', gap: 6 }}>
+                <Sparkles size={11} color={OsakaJadePalette.jade.glow} />
+                <span style={{ fontWeight: 600, color: OsakaJadePalette.text.secondary }}>{msg.senderTitle}</span>
                 {!isUser && msg.modelBadge && (
                   <span style={{ padding: '1px 6px', borderRadius: 999, fontSize: 10, fontWeight: 600, backgroundColor: tint(palette.text.primary, 0.06), color: OsakaJadePalette.text.muted }}>{msg.modelBadge}</span>
                 )}
@@ -498,9 +501,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                   <div style={{ fontSize: 12, fontWeight: 600, color: OsakaJadePalette.text.primary }}>
                     {msg.createdNode.name}
                   </div>
-                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary }}>
-                    Kind: {msg.createdNode.kind.replace(/_/g, ' ')} • Sub-Agent Initialized
-                  </div>
+                  <div style={{ fontSize: 11, color: OsakaJadePalette.text.secondary, textTransform: 'capitalize' }}>{msg.createdNode.kind.replace(/_/g, ' ').toLowerCase()}</div>
                   {onOpenPopOutStudio && (
                     <button
                       onClick={() => onOpenPopOutStudio(msg.createdNode!.id)}
@@ -517,7 +518,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
                         cursor: 'pointer'
                       }}
                     >
-                      Open Unit-Op Studio →
+                      Open the unit
                     </button>
                   )}
                 </div>
@@ -579,42 +580,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       </div>
       )}
 
-      {/* Offline Solver Status Banner (Unobtrusive) */}
-      {route === 'none' && (
-        <div
-          style={{
-            padding: '6px 14px',
-            backgroundColor: tint(palette.jade[500], 0.05),
-            borderTop: `1px solid ${OsakaJadePalette.border.subtle}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: 11,
-            color: OsakaJadePalette.text.secondary
-          }}
-        >
-          <span>Answers from the line itself. No AI model connected.</span>
-          <button
-            onClick={() => setIsAiModalOpen(true)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: OsakaJadePalette.jade.glow,
-              fontWeight: 600,
-              fontSize: 11,
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: 0
-            }}
-          >
-            <KeyRound size={11} />
-            <span>Connect an AI model</span>
-          </button>
-        </div>
-      )}
-
       {route === 'claude-desktop' && (
         <McpAssistantPanel
           graph={graph}
@@ -623,33 +588,51 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         />
       )}
 
-      {/* Chat Input Bar */}
+      {/* Composer: one rounded field with its send button inside. */}
       {route !== 'claude-desktop' && !agentMode && (
-      <div
-        style={{
-          padding: space[3],
-          borderTop: `1px solid ${OsakaJadePalette.border.default}`,
-          display: 'flex',
-          gap: space[2],
-          backgroundColor: OsakaJadePalette.background.base,
-          alignItems: 'center'
-        }}
-      >
-        <input
-          type="text"
-          placeholder={isProcessing ? 'Working…' : 'Ask about the line, or "add a pump"'}
-          value={inputText}
-          disabled={isProcessing}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
-          className="pf-input"
-          aria-label="Ask the Process Copilot"
-          style={{ flex: 1, opacity: isProcessing ? 0.6 : 1 }}
-        />
-        <Button variant="primary" onClick={() => handleSendMessage()} disabled={isProcessing || !inputText.trim()}>
-          Send
-        </Button>
-      </div>
+        <div style={{ padding: '10px 12px 12px', borderTop: `1px solid ${OsakaJadePalette.border.subtle}` }}>
+          <div
+            className="pf-copilot-composer"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 4px 4px 12px',
+              borderRadius: 12,
+              border: `1px solid ${OsakaJadePalette.border.default}`,
+              background: OsakaJadePalette.background.base
+            }}
+          >
+            <input
+              type="text"
+              placeholder={isProcessing ? 'Working…' : 'Ask, or "add a pump"'}
+              value={inputText}
+              disabled={isProcessing}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
+              aria-label="Ask the Process Copilot"
+              style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', color: OsakaJadePalette.text.primary, fontSize: 13, padding: '6px 0', opacity: isProcessing ? 0.6 : 1 }}
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              iconOnly
+              label="Send"
+              icon={isProcessing ? <Loader2 size={14} className="animate-spin" /> : <ArrowUp size={15} />}
+              onClick={() => handleSendMessage()}
+              disabled={isProcessing || !inputText.trim()}
+            />
+          </div>
+          {route === 'none' && (
+            <button
+              type="button"
+              onClick={() => setIsAiModalOpen(true)}
+              style={{ marginTop: 6, padding: 0, border: 'none', background: 'none', fontSize: 11, color: OsakaJadePalette.text.muted, cursor: 'pointer' }}
+            >
+              Connect an AI model for open questions →
+            </button>
+          )}
+        </div>
       )}
 
       {/* AI Model & Provider Modal */}
