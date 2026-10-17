@@ -138,6 +138,11 @@ export const UI_CSS = `
 .pf-textarea:focus { border-color: var(--pf-jade-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-jade-500) 22%, transparent); }
 .pf-textarea[aria-invalid="true"] { border-color: var(--pf-status-failed); }
 .pf-input::placeholder { color: var(--pf-text-muted); }
+.pf-copilot-suggest { transition: background-color 120ms ease; }
+.pf-copilot-suggest:hover { background-color: var(--pf-bg-surface-hover) !important; }
+.pf-copilot-composer { transition: border-color 120ms ease, box-shadow 120ms ease; }
+.pf-copilot-composer:focus-within { border-color: var(--pf-jade-500) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-jade-500) 18%, transparent); }
+.pf-copilot-composer input::placeholder { color: var(--pf-text-muted); }
 .pf-input:hover { border-color: var(--pf-border-strong); }
 .pf-input:focus { border-color: var(--pf-jade-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-jade-500) 22%, transparent); }
 
