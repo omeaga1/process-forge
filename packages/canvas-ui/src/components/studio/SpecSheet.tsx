@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  fractionOf,
   caseStudy,
   convertUnit,
   engineResults,
@@ -109,14 +110,19 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
 
   const th: React.CSSProperties = {
     textAlign: 'left',
-    fontSize: 12,
-    fontWeight: 500,
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
     color: palette.text.muted,
-    padding: '8px 10px',
-    borderBottom: `1px solid ${palette.border.subtle}`,
+    padding: '9px 12px',
+    background: tint(palette.text.primary, 0.035),
+    borderBottom: `1px solid ${palette.border.default}`,
     whiteSpace: 'nowrap'
   };
-  const caption: React.CSSProperties = { display: 'table-caption', captionSide: 'top', textAlign: 'left', fontSize: 15, fontWeight: 600, letterSpacing: '-0.005em', color: palette.text.primary, padding: '32px 0 12px' };
+  // Each table is a card: hairline frame, rounded, the header row tinted.
+  const frame: React.CSSProperties = { border: `1px solid ${palette.border.subtle}`, borderRadius: 12, overflow: 'hidden', background: palette.background.canvas };
+  const caption: React.CSSProperties = { fontSize: 15, fontWeight: 600, letterSpacing: '-0.005em', color: palette.text.primary, padding: '28px 0 10px' };
   // Both tables share their columns, so values and units line up down the sheet.
   const table: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'fixed' };
   const cols = (
@@ -124,11 +130,27 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
       <col />
       <col style={{ width: 118 }} />
       <col style={{ width: 96 }} />
-      <col style={{ width: 132 }} />
+      <col style={{ width: 150 }} />
       <col style={{ width: 34 }} />
     </colgroup>
   );
-  const groupHead: React.CSSProperties = { ...th, fontSize: 13, fontWeight: 600, padding: '24px 10px 8px', color: palette.text.primary };
+  // A group is a band across the table: its name, how many settings, a jade tick.
+  const groupHead: React.CSSProperties = {
+    textAlign: 'left',
+    fontSize: 12,
+    fontWeight: 650,
+    padding: '14px 12px 6px',
+    color: palette.text.primary,
+    borderBottom: `1px solid ${palette.border.subtle}`,
+    background: 'transparent'
+  };
+  const groupTitle = (name: string, count?: number) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <span aria-hidden style={{ width: 3, height: 12, borderRadius: 2, background: palette.jade[500] }} />
+      {name}
+      {count !== undefined && <span style={{ fontWeight: 500, color: palette.text.muted, fontVariantNumeric: 'tabular-nums' }}>{count}</span>}
+    </span>
+  );
   const hidden: React.CSSProperties = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' };
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
@@ -189,6 +211,7 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
         </Button>
       </div>
       {contract.parameters.length > 0 && (
+        <div style={frame}>
         <table style={table} onKeyDown={nextOnEnter}>
           <caption style={hidden}>Specifications</caption>
           {cols}
@@ -204,7 +227,7 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
                 Unit
               </th>
               <th scope="col" style={th}>
-                Passes between
+                Passing range
               </th>
               <th scope="col" style={th}>
                 <span style={hidden}>Changed</span>
@@ -226,10 +249,10 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
                           onClick={() => setOpen((o) => ({ ...o, [g.name]: !o[g.name] }))}
                           style={{ all: 'inherit', padding: 0, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                         >
-                          {shown ? '▾' : '▸'} {g.name} · {g.params.length}
+                          {shown ? '▾' : '▸'} {groupTitle(g.name, g.params.length)}
                         </button>
                       ) : (
-                        g.name
+                        groupTitle(g.name, g.params.length)
                       )}
                     </th>
                   </tr>
@@ -254,7 +277,7 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
                       {open.__feed ? '▾' : '▸'} Design feed · the line supplies it
                     </button>
                   ) : (
-                    'Feed at the design point'
+                    groupTitle('Feed at the design point')
                   )}
                 </th>
               </tr>
@@ -264,11 +287,15 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
             </tbody>
           )}
         </table>
+        </div>
       )}
 
       {derivedRows.length > 0 && (
-        <table style={{ ...table, marginTop: 10 }}>
-          <caption style={caption}>Calculated by the engine</caption>
+        <>
+        <div style={caption}>Calculated by the engine</div>
+        <div style={frame}>
+        <table style={table}>
+          <caption style={hidden}>Calculated by the engine</caption>
           {cols}
           <thead>
             <tr>
@@ -299,18 +326,37 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
               const before = baselineDerived[d.name];
               const moved = before !== undefined && Number.isFinite(before) && Math.abs(v - before) > 1e-9 * Math.max(1, Math.abs(before));
               const pct = moved && before ? ((v - before) / Math.abs(before)) * 100 : 0;
-              const td: React.CSSProperties = { padding: '9px 10px', borderBottom: `1px solid ${palette.border.subtle}` };
+              const td: React.CSSProperties = { padding: '9px 12px', borderBottom: `1px solid ${palette.border.subtle}` };
+              const up = moved && v > before!;
               return (
                 <tr key={d.name} style={{ backgroundColor: props.lit(`d:${d.name}`) ? tint(palette.jade[500], 0.08) : 'transparent' }}>
                   <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 400, color: palette.text.primary }} title={d.description}>
                     {d.label ?? d.name}
                   </th>
-                  <td style={{ ...td, textAlign: 'right', fontFamily: font.mono, color: palette.text.primary, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{formatQuantity(shown)}</td>
+                  <td style={{ ...td, textAlign: 'right', fontFamily: font.mono, fontWeight: 600, color: palette.text.primary, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{formatQuantity(shown)}</td>
                   <td style={{ ...td, padding: '5px 10px' }}>
                     <UnitCell label={d.label ?? d.name} unit={d.unit} shown={du} choices={choices} onPick={(u) => setUnit(d.unit, u)} />
                   </td>
                   <td style={{ ...td, fontSize: 12, color: palette.text.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                    {moved ? `${v > before! ? '▲' : '▼'} ${Number.isFinite(pct) && before ? `${Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%` : ''}` : '—'}
+                    {moved ? (
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3,
+                          padding: '1px 7px',
+                          borderRadius: 999,
+                          fontFamily: font.mono,
+                          fontSize: 11,
+                          background: tint(up ? palette.jade[500] : palette.text.gold, 0.14),
+                          color: up ? palette.jade[400] : palette.text.gold
+                        }}
+                      >
+                        {up ? '▲' : '▼'} {Number.isFinite(pct) && before ? `${Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%` : ''}
+                      </span>
+                    ) : (
+                      <span style={{ opacity: 0.5 }}>—</span>
+                    )}
                   </td>
                   <td style={{ ...td, padding: '3px 4px' }}>
                     {specifiable.includes(d) && (
@@ -333,6 +379,8 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
             })}
           </tbody>
         </table>
+        </div>
+        </>
       )}
 
       {/* The solver and the study are tools for a question, not part of the sheet: folded until asked for. */}
@@ -390,7 +438,7 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
     const x = p.integer || kind === 'stepper' ? Math.round(v) : v;
     if (Number.isFinite(x)) setParam(p.name, x);
   };
-  const td: React.CSSProperties = { padding: '6px 10px', borderBottom: `1px solid ${palette.border.subtle}`, verticalAlign: 'middle' };
+  const td: React.CSSProperties = { padding: '6px 12px', borderBottom: `1px solid ${palette.border.subtle}`, verticalAlign: 'middle' };
   const range = p.min !== undefined || p.max !== undefined ? `Allowed ${p.min !== undefined ? formatQuantity(toShown(p.min)) : '…'} to ${p.max !== undefined ? formatQuantity(toShown(p.max)) : '…'} ${du !== '-' ? du : ''}` : '';
 
   const heldBy = holds.find((h) => h.vary === p.name);
@@ -508,13 +556,65 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
       </th>
       <td data-spec-value style={{ ...td, textAlign: 'right' }}>{value}</td>
       <td style={td}>{kind === 'toggle' || kind === 'select' ? null : <UnitCell label={p.label} unit={p.unit} shown={du} choices={choices} onPick={(u) => setUnit(p.unit, u)} />}</td>
-      <td style={{ ...td, whiteSpace: 'nowrap', fontSize: 12 }}>{passes}</td>
+      <td style={{ ...td, whiteSpace: 'nowrap', fontSize: 12 }}>
+        {band && sweep ? (
+          <RangeGauge segments={band.segments} at={fractionOf(sweep.range, p.value)} label={passes} />
+        ) : (
+          passes
+        )}
+      </td>
       <td style={{ ...td, padding: '3px 4px' }}>
         {changed && (
           <Button iconOnly size="sm" variant="ghost" label={`Put ${p.label} back to ${formatQuantity(toShown(base!))} ${du !== '-' ? du : ''}`} icon={<RotateCcw size={12} />} onClick={() => setParam(p.name, base!)} />
         )}
       </td>
     </tr>
+  );
+};
+
+/**
+ * A setting's range at a glance: the track is its allowed range, coloured where
+ * the design passes, warns or fails, with a marker at the value. The words
+ * under it say the passing range for anyone not reading colour.
+ */
+const RangeGauge: React.FC<{ segments: { from: number; to: number; status: SweepPoint['status'] }[]; at: number; label: React.ReactNode }> = ({ segments, at, label }) => {
+  const { palette } = useTheme();
+  const color = (st: SweepPoint['status']) =>
+    st === 'ok' ? palette.jade[500] : st === 'warning' ? palette.status.blocked : st === 'error' ? palette.status.failed : palette.border.default;
+  const x = Math.min(1, Math.max(0, Number.isFinite(at) ? at : 0));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 2 }}>
+      <div aria-hidden style={{ position: 'relative', height: 6, borderRadius: 3, background: palette.border.subtle, overflow: 'visible' }}>
+        {segments.map((sg, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: `${sg.from * 100}%`,
+              width: `${Math.max(0, sg.to - sg.from) * 100}%`,
+              background: color(sg.status),
+              opacity: sg.status === 'ok' ? 0.75 : 0.55,
+              borderRadius: 3
+            }}
+          />
+        ))}
+        <div
+          style={{
+            position: 'absolute',
+            top: -3,
+            left: `calc(${x * 100}% - 1.5px)`,
+            width: 3,
+            height: 12,
+            borderRadius: 2,
+            background: palette.text.primary,
+            boxShadow: `0 0 0 2px ${palette.background.canvas}`
+          }}
+        />
+      </div>
+      <div style={{ lineHeight: 1.2 }}>{label}</div>
+    </div>
   );
 };
 
