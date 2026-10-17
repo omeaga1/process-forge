@@ -374,10 +374,6 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
           <UnitGlance
             contract={contract}
             evaluation={evaluation}
-            onSetParam={(name, value) => {
-              setParam(name, value);
-              setFlash(name);
-            }}
             onPickCheck={(id) => {
               go('checks');
               setHover({ check: id });

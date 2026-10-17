@@ -28,7 +28,7 @@ describe('the unit panel', () => {
     assert.deepEqual(validateUnitOpContract(WAX_COOLING_BELT_CONTRACT), []);
     const { declared, widgets } = resolvePanel(WAX_COOLING_BELT_CONTRACT);
     assert.equal(declared, true);
-    assert.deepEqual(widgets.map((w) => w.kind), ['figure', 'figure', 'figure', 'gauge', 'gauge', 'gauge', 'trend', 'note']);
+    assert.deepEqual(widgets.map((w) => w.kind), ['figure', 'figure', 'figure', 'gauge', 'gauge', 'gauge', 'note']);
     const duty = widgets[0]!;
     assert.ok(duty.kind === 'figure' && duty.label === 'Heat removed' && duty.unit === 'kW' && duty.value > 100);
     const freeze = widgets[3]!;
@@ -37,10 +37,6 @@ describe('the unit panel', () => {
     assert.equal(freeze.unit, 's');
     assert.equal(freeze.status, 'ok');
     assert.ok(freeze.limit! < freeze.value && freeze.value < freeze.max);
-    const t = widgets[6]!;
-    assert.ok(t.kind === 'trend' && t.points.length > 10 && t.over.name === 'beltSpeedMPerMin');
-    // A thinner layer at a faster belt freezes sooner.
-    assert.ok(t.points[0]!.y > t.points[t.points.length - 1]!.y);
   });
 
   it('shows a failing check as failing, with its message', () => {
@@ -60,8 +56,19 @@ describe('the unit panel', () => {
     const gauges = widgets.filter((w) => w.kind === 'gauge');
     // Two checks compare a parameter with a parameter, and the rest have limits too: every one is a comparison.
     assert.equal(gauges.length, 6);
-    assert.ok(widgets.some((w) => w.kind === 'trend'));
+    assert.deepEqual(widgets.map((w) => w.kind), gauges.map(() => 'gauge'));
     assert.ok(resolvePanel(CASE_PACKER_CONTRACT).widgets.length >= 0);
+  });
+
+  it('still accepts a retired trend widget from an old contract, and never draws it', () => {
+    const old = UnitOpContractSchema.parse({
+      ...WAX_COOLING_BELT_CONTRACT,
+      panel: [{ kind: 'trend', result: 'conductionTimeS', over: 'beltSpeedMPerMin' }, { kind: 'figure', result: 'residenceTimeS' }]
+    });
+    assert.deepEqual(validateUnitOpContract(old), []);
+    const { declared, widgets } = resolvePanel(old);
+    assert.equal(declared, true);
+    assert.deepEqual(widgets.map((w) => w.kind), ['figure']);
   });
 
   it('rejects a panel that names what the contract does not declare', () => {
@@ -69,14 +76,13 @@ describe('the unit panel', () => {
       ...WAX_COOLING_BELT_CONTRACT,
       panel: [
         { kind: 'figure', result: 'nope' },
-        { kind: 'trend', result: 'residenceTimeS', over: 'totalDutyKw' },
         { kind: 'gauge', check: 'missing' },
         { kind: 'gauge', result: 'residenceTimeS' },
         { kind: 'figure', result: 'engine.unitsPerMinute' }
       ]
     });
     const issues = validateUnitOpContract(bad).filter((i) => i.path.startsWith('panel.'));
-    assert.deepEqual(issues.map((i) => i.path), ['panel.0', 'panel.1', 'panel.2', 'panel.3', 'panel.4']);
+    assert.deepEqual(issues.map((i) => i.path), ['panel.0', 'panel.1', 'panel.2', 'panel.3']);
   });
 
   it('names checks the way people read them', () => {

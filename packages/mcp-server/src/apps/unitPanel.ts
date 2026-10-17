@@ -6,7 +6,7 @@ import { generateOsakaJadeCssVariables, fontFamily } from '@process-forge/theme'
  * MCP Apps (SEP-1865, @modelcontextprotocol/ext-apps). explore_unit_op and
  * validate_unit_op name this view in their tool _meta; the host loads it
  * into a sandboxed iframe and posts it the tool result, whose _meta carries
- * the panel worked out in full (gauge scales and limits, every trend point).
+ * the panel worked out in full (gauge scales and limits).
  * The text and structured content stay as they are, so a client without
  * MCP Apps reads the same answer it always did.
  *
@@ -191,55 +191,12 @@ export function renderUnitPanel(view: UnitPanelView | undefined, state: UnitPane
 </div>`;
   };
 
-  const trend = (w: Extract<ResolvedPanelWidget, { kind: 'trend' }>) => {
-    const W = 600;
-    const H = 112;
-    const P = { l: 44, r: 4, t: 8, b: 16 };
-    const xs = w.points.map((p) => p.x);
-    const ys = [...w.points.map((p) => p.y), w.at.y];
-    const x0 = Math.min(...xs);
-    const x1 = Math.max(...xs);
-    let y0 = Math.min(...ys);
-    let y1 = Math.max(...ys);
-    if (y1 - y0 < 1e-12) {
-      y0 -= 1;
-      y1 += 1;
-    }
-    const logX = w.over.log && x0 > 0;
-    const logY = y0 > 0 && y1 / y0 >= 20;
-    const fx = (v: number) => r1(P.l + (logX ? Math.log(v / x0) / Math.log(x1 / x0) : (v - x0) / (x1 - x0 || 1)) * (W - P.l - P.r));
-    const fy = (v: number) => r1(P.t + (1 - (logY ? Math.log(Math.max(v, y0) / y0) / Math.log(y1 / y0) : (v - y0) / (y1 - y0))) * (H - P.t - P.b));
-    // One segment per pair of samples, coloured by the verdict where it starts.
-    const segs = w.points
-      .slice(0, -1)
-      .map((p, i) => {
-        const q = w.points[i + 1]!;
-        return `<line class="pf-seg" data-status="${esc(p.status)}" x1="${fx(p.x)}" y1="${fy(p.y)}" x2="${fx(q.x)}" y2="${fy(q.y)}"/>`;
-      })
-      .join('');
-    const u = unitText(w.unit);
-    const ou = unitText(w.over.unit);
-    const summary = `${w.label}: ${num(w.points[0]!.y)} to ${num(w.points[w.points.length - 1]!.y)} ${u} as ${w.over.label.toLowerCase()} goes from ${num(x0)} to ${num(x1)} ${ou}.`;
-    return `<div class="pf-card pf-wide">
-  <div class="pf-head"><span class="pf-label">${esc(w.label)}</span><span class="pf-caption">now ${num(w.at.y)} ${esc(u)} at ${num(w.at.x)} ${esc(ou)}</span></div>
-  <svg class="pf-trend" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(summary)}">
-    <line class="pf-axis" x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}"/><line class="pf-axis" x1="${P.l}" x2="${P.l}" y1="${P.t}" y2="${H - P.b}"/>
-    <text class="pf-tick" x="${P.l - 6}" y="${P.t + 8}" text-anchor="end">${num(y1)}</text><text class="pf-tick" x="${P.l - 6}" y="${H - P.b}" text-anchor="end">${num(y0)}</text>${logY ? `<text class="pf-tick" x="${P.l - 6}" y="${(P.t + H - P.b) / 2 + 4}" text-anchor="end">log</text>` : ''}
-    ${segs}
-    <line class="pf-at" x1="${fx(w.at.x)}" x2="${fx(w.at.x)}" y1="${P.t - 4}" y2="${H - P.b}"/><circle class="pf-dot" cx="${fx(w.at.x)}" cy="${fy(w.at.y)}" r="4"/>
-    <text class="pf-tick" x="${P.l}" y="${H - 2}">${num(x0)}</text><text class="pf-tick" x="${W - P.r}" y="${H - 2}" text-anchor="end">${num(x1)} ${esc(ou)}</text>
-  </svg>
-</div>`;
-  };
-
   const widget = (w: ResolvedPanelWidget): string => {
     switch (w.kind) {
       case 'figure':
         return `<div class="pf-card"><div class="pf-label">${esc(w.label)}</div><div class="pf-figure">${num(w.value)}<span class="pf-unit">${esc(unitText(w.unit))}</span></div></div>`;
       case 'gauge':
         return gauge(w);
-      case 'trend':
-        return w.points.length >= 2 ? trend(w) : '';
       case 'note':
         return `<div class="pf-note" data-tone="${esc(w.tone)}">${esc(w.text)}</div>`;
       default:
@@ -492,15 +449,6 @@ body { padding: 12px; overflow-wrap: anywhere; }
 .pf-limit { fill: var(--pf-text-primary); }
 .pf-caption { font-size: 12px; line-height: 1.4; color: var(--pf-text-secondary); font-variant-numeric: tabular-nums; }
 .pf-message { margin-top: 4px; font-size: 12px; line-height: 1.4; color: var(--pf-status-failed); }
-.pf-trend { display: block; width: 100%; height: auto; margin-top: 6px; overflow: visible; }
-.pf-axis { stroke: var(--pf-border-default); stroke-width: 1; }
-.pf-tick { font-size: 10px; fill: var(--pf-text-muted); font-variant-numeric: tabular-nums; }
-.pf-seg { stroke: var(--pf-text-muted); stroke-width: 2; stroke-linecap: round; }
-.pf-seg[data-status="ok"] { stroke: var(--pf-jade-500); }
-.pf-seg[data-status="warning"] { stroke: var(--pf-status-blocked); }
-.pf-seg[data-status="error"] { stroke: var(--pf-status-failed); }
-.pf-at { stroke: var(--pf-text-muted); stroke-dasharray: 3 3; }
-.pf-dot { fill: var(--pf-bg-surface); stroke: var(--pf-text-primary); stroke-width: 2; }
 .pf-note { padding: 8px 12px; border-radius: 8px; font-size: 13px; line-height: 1.45; color: var(--pf-text-secondary);
   background: color-mix(in srgb, var(--pf-jade-500) 6%, transparent); border: 1px solid color-mix(in srgb, var(--pf-jade-500) 22%, transparent); }
 .pf-note[data-tone="caution"] { background: color-mix(in srgb, var(--pf-status-blocked) 8%, transparent); border-color: color-mix(in srgb, var(--pf-status-blocked) 35%, transparent); }

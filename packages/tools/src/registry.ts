@@ -459,7 +459,7 @@ export const FORGE_TOOLS: ForgeTool[] = [
     access: 'read',
     idempotent: true,
     description:
-      "Asks the engine, of a UnitOpContract, what its parameters can be: for each parameter asked about (or all), the exact ranges where every check passes, only warns, or fails, the others held where they are; what each parameter changes (derived values, checks, the behavior the engine runs); when checks fail, single-parameter values that make them pass; and the unit's panel at a glance (atAGlance: how close each check runs to its limit, its headline figures and trends). Use it to negotiate a design with the engineer (\"how much filter area do I need?\") instead of guessing values and re-validating.",
+      "Asks the engine, of a UnitOpContract, what its parameters can be: for each parameter asked about (or all), the exact ranges where every check passes, only warns, or fails, the others held where they are; what each parameter changes (derived values, checks, the behavior the engine runs); when checks fail, single-parameter values that make them pass; and the unit's panel at a glance (atAGlance: how close each check runs to its limit, its headline figures). Use it to negotiate a design with the engineer (\"how much filter area do I need?\") instead of guessing values and re-validating.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -501,11 +501,9 @@ export const FORGE_TOOLS: ForgeTool[] = [
       const atAGlance = resolvePanel(c).widgets.map((w) =>
         w.kind === 'gauge'
           ? { kind: w.kind, label: w.label, ...(w.check ? { check: w.check } : {}), status: w.status, reading: w.caption, ...(w.message ? { message: w.message } : {}) }
-          : w.kind === 'trend'
-            ? { kind: w.kind, label: w.label, over: w.over.name, points: w.points.filter((_, i) => i % 4 === 0).map((pt) => ({ [w.over.name]: r3(pt.x), value: r3(pt.y), verdict: pt.status })), at: { [w.over.name]: r3(w.at.x), value: r3(w.at.y) }, unit: w.unit }
-            : w.kind === 'figure'
-              ? { kind: w.kind, label: w.label, value: r3(w.value), unit: w.unit }
-              : w
+          : w.kind === 'figure'
+            ? { kind: w.kind, label: w.label, value: r3(w.value), unit: w.unit }
+            : w
       );
       return {
         success: true,
