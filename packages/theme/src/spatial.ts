@@ -8,7 +8,7 @@
  * Key principles:
  * - 4px base grid for spatial harmony
  * - Tight radii (2–6px) instead of bubbly web-app corners (8–12px)
- * - Minimal shadows in dark mode; the deep surfaces (#111c18) provide natural depth
+ * - Minimal shadows in dark mode; the deep surfaces (#14161a) provide natural depth
  * - Crisp, fast transitions matching terminal-style snappiness
  */
 

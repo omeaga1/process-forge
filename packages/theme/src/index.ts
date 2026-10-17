@@ -6,3 +6,4 @@ export * from './typography.js';
 export * from './spatial.js';
 export * from './drafting.js';
 export * from './tint.js';
+export * from './sparkle.js';

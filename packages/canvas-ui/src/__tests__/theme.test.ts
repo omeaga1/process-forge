@@ -22,8 +22,8 @@ describe('Theme System & Palette Tokens', () => {
   });
 
   it('provides dark mode with deep obsidian/charcoal surfaces and light text', () => {
-    assert.equal(OsakaJadeDarkPalette.background.base, '#111c18');
-    assert.equal(OsakaJadeDarkPalette.background.surface, '#16241f');
+    assert.equal(OsakaJadeDarkPalette.background.base, '#14161a');
+    assert.equal(OsakaJadeDarkPalette.background.surface, '#1e2126');
     assert.equal(OsakaJadeDarkPalette.text.primary, '#f6f5dd');
   });
 
