@@ -5,7 +5,7 @@ import { Wrench, Workflow } from 'lucide-react';
 import { draftingRadius, tint } from '@process-forge/theme';
 
 import { Button, Sheet, TabStrip } from '../../ui/index.js';
-import { UnitOverviewPanel } from '../studio/UnitOverviewPanel.js';
+import { UnitLineStrip } from '../studio/UnitLineStrip.js';
 import { unitTag } from '../../model/unitTag.js';
 import { X } from 'lucide-react';
 
@@ -48,13 +48,13 @@ export const MobileUnitOpSheet: React.FC<MobileUnitOpSheetProps> = ({ node, isOp
           onValueChange={setActiveTab}
           style={{ padding: '0 8px', flexShrink: 0 }}
           items={[
-            { value: 'OVERVIEW' as const, icon: <Workflow size={14} />, label: 'Overview' },
+            { value: 'OVERVIEW' as const, icon: <Workflow size={14} />, label: 'In the line' },
             { value: 'DRESSING' as const, icon: <Wrench size={14} />, label: 'Nozzles' }
           ]}
         />
       )}
       <div style={{ padding: 16, overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {shown === 'OVERVIEW' && graph && <UnitOverviewPanel node={node} graph={graph} />}
+        {shown === 'OVERVIEW' && graph && <UnitLineStrip node={node} graph={graph} />}
           {shown === 'DRESSING' && (
             <>
               <div style={{ fontSize: 12, fontWeight: 700, color: OsakaJadePalette.text.primary }}>
