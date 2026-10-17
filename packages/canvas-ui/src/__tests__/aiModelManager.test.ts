@@ -110,6 +110,17 @@ describe('AI connection manager', () => {
     assert.ok(before.text.includes('Press Run'), before.text);
   });
 
+  it('with no model: the limit it names is the one the copilot board shows', async () => {
+    resetToOfflineConfig();
+    const res = await dispatchMasterOrchestratorMessage(
+      'What limits the line?',
+      { graphName: 'Juice line', nodeCount: 9, totalPackaged: 0, averageRatePerMin: 0, bulk: true, productKg: 0, simulatedSeconds: 0, limitSummary: 'Apple Juice F-100 holds the line at its steady state' },
+      { provider: 'offline' }
+    );
+    assert.ok(res.text.startsWith('Apple Juice F-100 holds the line at its steady state.'), res.text);
+    assert.ok(!res.text.includes('Nothing limits'), res.text);
+  });
+
   it('with no model: the flowsheet assistant says it is offline and what it can still do', async () => {
     resetToOfflineConfig();
 

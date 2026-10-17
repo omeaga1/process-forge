@@ -146,6 +146,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
           totalPackaged: telemetry.totalPackaged,
           averageRatePerMin: telemetry.averageRatePerMin,
           bottleneckNodeName: bnNode?.name,
+          limitSummary: limitTitle,
           maxThroughput: bottlenecks.maximumSystemThroughputUnitsPerMin,
           bulk: Boolean(bulkLine),
           productKg: telemetry.productKg ?? 0,
@@ -213,6 +214,22 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
     );
   }
 
+  // What limits the line, worked out once: the board shows it and the offline answer says it.
+  // A liquid line no unit holds back: what sets its rate (a feed's supply, a unit at its rating), as the MCP tools say it.
+  const lineLimit = !bottlenecks.bottleneckNodeId && run ? liquidLimit(graph, run.result, run.result.durationMinutes) : undefined;
+  // Before a run, the steady state: the product rate it settles to, and what holds it there
+  // (a unit at its rating, else the feed that reaches a product).
+  const solved = !run && steady?.status === 'converged' ? steady : undefined;
+  const productIds = new Set(graph.nodes.filter((n) => terminalRole(n) === 'product').map((n) => n.name));
+  const steadyProduct = solved ? solved.streams.filter((x) => productIds.has(x.to)).reduce((a, x) => a + x.kgPerHour, 0) : 0;
+  const steadyLimit = solved
+    ? (solved.units.filter((u) => (u.capacityUsedPercent ?? 0) >= 95).sort((a, b) => (b.capacityUsedPercent ?? 0) - (a.capacityUsedPercent ?? 0))[0]?.nodeId ??
+      graph.nodes.find((n) => terminalRole(n) === 'feed' && (((n.config as { supplyRate?: number }).supplyRate ?? 0) > 0 || (n.config as { supplyKgPerHour?: number }).supplyKgPerHour !== undefined) && solved.streams.some((x) => x.from === n.name && x.kgPerHour > 0))?.id)
+    : undefined;
+  const limitId = bottlenecks.bottleneckNodeId ?? (lineLimit?.by !== 'none' ? lineLimit?.nodeId : undefined) ?? steadyLimit;
+  const limitName = limitId ? graph.nodes.find((n) => n.id === limitId)?.name : undefined;
+  const limitTitle = lineLimit ? lineLimit.summary : limitName ? (solved && !bottlenecks.bottleneckNodeId ? limitName + ' holds the line at its steady state' : limitName + ' limits the line') : 'Nothing limits the line';
+
   return (
     <div
       style={{
@@ -268,19 +285,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
       {/* The line at a glance, as a departure board: each figure flips when the run changes it. */}
       <div style={{ padding: '0 16px 14px', borderBottom: `1px solid ${OsakaJadePalette.border.subtle}` }}>
         {(() => {
-          // A liquid line no unit holds back: what sets its rate (a feed's supply, a unit at its rating), as the MCP tools say it.
-          const lineLimit = !bottlenecks.bottleneckNodeId && run ? liquidLimit(graph, run.result, run.result.durationMinutes) : undefined;
-          // Before a run, the steady state: the product rate it settles to, and what holds it there
-          // (a unit at its rating, else the feed that reaches a product).
-          const solved = !run && steady?.status === 'converged' ? steady : undefined;
-          const productIds = new Set(graph.nodes.filter((n) => terminalRole(n) === 'product').map((n) => n.name));
-          const steadyProduct = solved ? solved.streams.filter((x) => productIds.has(x.to)).reduce((a, x) => a + x.kgPerHour, 0) : 0;
-          const steadyLimit = solved
-            ? (solved.units.filter((u) => (u.capacityUsedPercent ?? 0) >= 95).sort((a, b) => (b.capacityUsedPercent ?? 0) - (a.capacityUsedPercent ?? 0))[0]?.nodeId ??
-              graph.nodes.find((n) => terminalRole(n) === 'feed' && (((n.config as { supplyRate?: number }).supplyRate ?? 0) > 0 || (n.config as { supplyKgPerHour?: number }).supplyKgPerHour !== undefined) && solved.streams.some((x) => x.from === n.name && x.kgPerHour > 0))?.id)
-            : undefined;
-          const limitId = bottlenecks.bottleneckNodeId ?? (lineLimit?.by !== 'none' ? lineLimit?.nodeId : undefined) ?? steadyLimit;
-          const limitName = limitId ? graph.nodes.find((n) => n.id === limitId)?.name : undefined;
           // The unit's tag (P-227) when it has one; its name otherwise.
           const limit = limitId ? (limitName ? unitTag(limitName) ?? limitName : 'NONE') : 'NONE';
           const rate = telemetry.averageRatePerMin;
@@ -304,7 +308,6 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
             </div>
           );
           const limitColor = bottlenecks.bottleneckNodeId || lineLimit?.by === 'unit' ? OsakaJadePalette.status.blocked : lineLimit?.by === 'feed' ? OsakaJadePalette.text.secondary : OsakaJadePalette.jade.glow;
-          const limitTitle = lineLimit ? lineLimit.summary : limitName ? (solved && !bottlenecks.bottleneckNodeId ? limitName + ' holds the line at its steady state' : limitName) : 'Nothing limits the line in the static analysis';
           return (
             <div style={{ border: `1px solid ${OsakaJadePalette.border.subtle}`, borderRadius: 12, overflow: 'hidden' }}>
               {/* Hairlines between the cells come from the gap over the frame colour. */}
