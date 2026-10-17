@@ -99,6 +99,8 @@ export interface MasterOrchestratorContext {
   totalPackaged: number;
   averageRatePerMin: number;
   bottleneckNodeName?: string;
+  /** What limits the line, as the copilot's board has it (static analysis, steady state or the run). */
+  limitSummary?: string;
   maxThroughput?: number;
   /** A line whose product is bulk (liquid, powder): kg delivered so far and the run time it took. */
   bulk?: boolean;
@@ -243,7 +245,9 @@ Be concise, mathematically sound, and directly actionable.`;
  */
 function lineStatus(message: string, ctx: MasterOrchestratorContext): AiAgentResponse | null {
   if (!/bottleneck|limit|capacity|throughput|rate|status|output|making|produc|so far|how much/i.test(message)) return null;
-  const limit = ctx.bottleneckNodeName
+  const limit = ctx.limitSummary
+    ? `${ctx.limitSummary.replace(/\.$/, '')}.`
+    : ctx.bottleneckNodeName
     ? `${ctx.bottleneckNodeName} limits the line${!ctx.bulk && ctx.maxThroughput ? `, at ${Math.round(ctx.maxThroughput)} units/min` : ''}.`
     : 'Nothing limits the line in the static analysis.';
   const t = ctx.simulatedSeconds ?? 0;
