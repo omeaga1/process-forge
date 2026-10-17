@@ -51,7 +51,7 @@ describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
   });
 
   it('verifies dark palette matches distilled Omarchy Linux desktop rice aesthetics', () => {
-    assert.equal(OsakaJadeDarkPalette.background.base, '#111c18'); // Kitty & Alacritty background
+    assert.equal(OsakaJadeDarkPalette.background.base, '#14161a'); // space grey
     assert.equal(OsakaJadeDarkPalette.border.glow, '#71cead'); // Hyprland active border
     assert.equal(OsakaJadeDarkPalette.jade.glow, '#2dd5b7'); // Terminal cyan neon
     assert.equal(OsakaJadeDarkPalette.status.busy, '#549e6a'); // Bamboo jade green
@@ -121,7 +121,7 @@ describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
     assert.equal(lightTokens, OsakaJadeLightCanvasTokens);
     assert.equal(OsakaJadeCanvasTokens, OsakaJadeDarkCanvasTokens);
 
-    assert.equal(darkTokens.canvasBackground, '#11221c');
+    assert.equal(darkTokens.canvasBackground, '#181a1f');
     assert.equal(lightTokens.canvasBackground, '#f2f0e4');
     assert.ok(darkTokens.nodeSelectedBorder);
     assert.ok(lightTokens.nodeSelectedBorder);
@@ -149,12 +149,12 @@ describe('Osaka Jade Theme Palette (Dual Dark & Light)', () => {
   it('generates valid CSS custom properties string for dark, light, and combined themes', () => {
     const bothCss = generateOsakaJadeCssVariables();
     assert.ok(bothCss.includes(':root, [data-theme="dark"], .theme-dark, .theme-osaka-jade'));
-    assert.ok(bothCss.includes('--pf-bg-base: #111c18;'));
+    assert.ok(bothCss.includes('--pf-bg-base: #14161a;'));
     assert.ok(bothCss.includes('[data-theme="light"], .theme-light'));
     assert.ok(bothCss.includes('--pf-bg-base: #f8f7f0;'));
 
     const darkCss = generateOsakaJadeCssVariables('dark');
-    assert.ok(darkCss.includes('--pf-bg-base: #111c18;'));
+    assert.ok(darkCss.includes('--pf-bg-base: #14161a;'));
     assert.ok(!darkCss.includes('[data-theme="light"]'));
 
     const lightCss = generateOsakaJadeCssVariables('light');

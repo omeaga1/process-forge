@@ -93,23 +93,23 @@ export interface ThemePalette {
 export const OsakaJadeDarkPalette: ThemePalette = {
   // Deep Mineral & Forest Surfaces (from Alacritty, Kitty, Waybar, Walker, Btop)
   background: {
-    base: '#111c18', // Deepest obsidian-teal background (Kitty/Alacritty bg)
-    canvas: '#11221c', // Flow diagram workspace grid (Waybar/Walker base)
-    surface: '#16241f', // Node containers, cards, and primary panels
-    surfaceElevated: '#1d2f28', // Property inspectors, floating drawers, toolbars
-    surfaceHover: '#243a32', // Hover highlight for interactive items
-    surfaceActive: '#2d473e', // Selected state background
-    surfaceMuted: '#141f1b', // Inactive / dimmed elements
-    selectedBg: '#364538', // Selected row background (Btop selected_bg)
+    base: '#14161a', // Deep space grey: the app behind everything
+    canvas: '#181a1f', // Space grey flowsheet canvas (speckled with stars, see canvasSparkle)
+    surface: '#1e2126', // Graphite cards, nodes and panels
+    surfaceElevated: '#252930', // Property inspectors, floating drawers, toolbars
+    surfaceHover: '#2d3239', // Hover highlight for interactive items
+    surfaceActive: '#2a3a35', // Selected state background
+    surfaceMuted: '#17191d', // Inactive / dimmed elements
+    selectedBg: '#2c3a35', // Selected row background (Btop selected_bg)
     selectedFg: '#deb266', // Selected item highlight (Btop selected_fg / bamboo gold)
-    overlay: 'rgba(6, 12, 10, 0.78)' // Dialog scrim
+    overlay: 'rgba(7, 8, 10, 0.78)' // Dialog scrim
   },
 
   // Subtle and Glowing Borders (from Hyprland, SwayOSD, Btop)
   border: {
-    subtle: '#1c2d26', // Very light separation line
-    default: '#253c33', // Standard card and node outline
-    strong: '#38584b', // Prominent separators
+    subtle: '#262a31', // Very light separation line
+    default: '#323740', // Standard card and node outline
+    strong: '#4a515c', // Prominent separators
     glow: '#71cead', // Active node glow (Hyprland active_border rgb(71CEAD))
     glowAmber: '#e5c736', // Blocked warning glow (Bright Yellow)
     glowRose: '#ff5345', // Machine jam / failure glow (Bright Vermilion)
@@ -135,9 +135,9 @@ export const OsakaJadeDarkPalette: ThemePalette = {
   // Typography & Foreground Text
   text: {
     primary: '#f6f5dd', // Warm rice paper white (Kitty/Alacritty color7)
-    secondary: '#c1c497', // Kitty/Alacritty foreground (pale bamboo sage)
-    muted: '#8a9e93', // Dimmed labels and hints: 4.5:1 or better on every surface and tinted card (WCAG AA)
-    inverse: '#111c18', // Text on bright jade accents
+    secondary: '#bfc4cc', // Brushed silver
+    muted: '#939aa5', // Dimmed labels and hints: 4.5:1 or better on every surface and tinted card (WCAG AA)
+    inverse: '#14161a', // Text on bright jade accents
     accent: '#71cead', // Highlighted mint jade text
     gold: '#deb266' // Warm bamboo amber text (Btop)
   },
@@ -148,7 +148,7 @@ export const OsakaJadeDarkPalette: ThemePalette = {
     starved: '#8cd3cb', // Ice Cyan: Machine starved, waiting for upstream infeed
     blocked: '#e5c736', // Amber Gold: Machine blocked by downstream buffer backpressure
     failed: '#ff5345', // Vermilion Coral: Machine stopped due to jam/fault
-    idle: '#53685b' // Cool Mineral Slate: Machine offline / unconfigured
+    idle: '#5d6470' // Cool Mineral Slate: Machine offline / unconfigured
   },
 
   // Canvas Flow Stream Wire Colors

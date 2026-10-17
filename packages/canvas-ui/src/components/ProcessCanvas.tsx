@@ -66,7 +66,7 @@ import { useMobileViewport } from '../hooks/useMobileViewport.js';
 import { useTheme } from '../hooks/useTheme.js';
 import { useAssistantRoute } from '../ai/assistantRoute.js';
 import type { CanvasNodeData, CanvasEdgeData, PlantTelemetryState, StreamCard } from '../types.js';
-import { draftingRadius, tint } from '@process-forge/theme';
+import { canvasSparkle, draftingRadius, tint } from '@process-forge/theme';
 
 /** Feeds and outlets are arrows; everything else is its equipment drawing. */
 const nodeTypeOf = (n: ProcessNode) => (n.kind === 'TERMINAL' ? 'terminalNode' : 'industrialNode');
@@ -207,7 +207,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   onToggleDockCollapse: externalOnToggleDockCollapse,
   historyKey
 }) => {
-  const { palette, canvasTokens, font } = useTheme();
+  const { palette, canvasTokens, font, theme } = useTheme();
+  const sparkle = useMemo(() => canvasSparkle(palette.background.canvas, theme === 'light' ? 'light' : 'dark'), [palette.background.canvas, theme]);
   const assistantRoute = useAssistantRoute();
   const OsakaJadePalette = palette;
   const { isMobile, viewMode } = useMobileViewport();
@@ -1194,7 +1195,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         display: 'flex',
         width: '100%',
         height: '100%',
-        backgroundColor: OsakaJadePalette.background.canvas,
+        ...sparkle,
         overflow: 'hidden',
         position: 'relative'
       }}

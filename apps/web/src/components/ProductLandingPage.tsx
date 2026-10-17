@@ -1,6 +1,9 @@
 import React, { useRef } from 'react';
 import { RELEASES_PAGE } from '../downloads/latestRelease.js';
-import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
+import { OsakaJadeDarkPalette as D, canvasSparkle, fontFamily } from '@process-forge/theme';
+
+// The same space grey starfield as the studio canvas, under the page's jade glows.
+const SPARKLE = canvasSparkle(D.background.base, 'dark');
 import { ProcessForgeEmblem, ThemeScope } from '@process-forge/canvas-ui';
 import { GUTTER, MCPB, REPO, mono } from '../landing/ui.js';
 import { PageLink, useLocation, useScrollOnVisit, type PageId } from '../landing/router.js';
@@ -91,9 +94,9 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
       style={{
         minHeight: '100vh',
         flexShrink: 0,
-        background: D.background.base,
-        backgroundImage: `radial-gradient(ellipse 60% 40% at 80% 0%, ${D.jade.glow}1c, transparent 70%), radial-gradient(ellipse 50% 30% at 0% 55%, ${D.jade[500]}14, transparent 70%)`,
-        backgroundRepeat: 'no-repeat',
+        backgroundColor: D.background.base,
+        backgroundImage: `radial-gradient(ellipse 60% 40% at 80% 0%, ${D.jade.glow}1c, transparent 70%), radial-gradient(ellipse 50% 30% at 0% 55%, ${D.jade[500]}14, transparent 70%), ${SPARKLE.backgroundImage}`,
+        backgroundSize: `100% 100%, 100% 100%, ${SPARKLE.backgroundSize}`,
         color: D.text.primary,
         ...sans
       }}
