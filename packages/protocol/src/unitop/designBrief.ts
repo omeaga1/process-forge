@@ -1,4 +1,3 @@
-import { WRITING_RULES } from './writing.js';
 import { EXPRESSION_FUNCTIONS } from './expression.js';
 import { PROPERTY_FUNCTIONS } from './properties.js';
 import { ARCHETYPE_RELATIONS } from './archetypes.js';
@@ -435,7 +434,6 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     'second at the stream that actually reaches it, so write the physics in terms',
     'of inlet.* wherever the feed matters, rather than as fixed parameters.',
     '',
-    WRITING_RULES,
     "Keep the unit's panel short. Mark the 3 to 6 specifications that define this",
     "equipment ui.primary (a pump: pressure rise, efficiency, motor); the panel shows",
     'them first and the rest under "More settings". Mark constants and correlation',

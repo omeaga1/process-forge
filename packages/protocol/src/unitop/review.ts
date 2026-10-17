@@ -1,4 +1,4 @@
-import { writingWarnings } from './writing.js';
+import { WRITING_RULES, writingWarnings } from './writing.js';
 import { UnitOpContractSchema, unitWarnings, validateUnitOpContract, type UnitOpContract } from './contract.js';
 import { evaluateUnitOp, blockingViolations } from './evaluate.js';
 import { checkUnitOpDrawing } from './drawing.js';
@@ -93,7 +93,7 @@ export interface ValidateUnitOpResult {
 }
 
 export interface RevisionItem {
-  gate: 'schema' | 'staticAnalysis' | 'physical' | 'physicsAlignment' | 'drawing';
+  gate: 'schema' | 'staticAnalysis' | 'physical' | 'physicsAlignment' | 'drawing' | 'writing';
   severity: 'ERROR' | 'WARNING';
   path: string;
   problem: string;
@@ -205,8 +205,10 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     );
   }
   gates.staticAnalysis.passed = true;
-  const unchecked = [...unitWarnings(contract), ...phaseWarnings(contract), ...componentWarnings(contract), ...writingWarnings(contract)].map((w) => `${w.path}: ${w.message}`);
+  const unchecked = [...unitWarnings(contract), ...phaseWarnings(contract), ...componentWarnings(contract)].map((w) => `${w.path}: ${w.message}`);
   if (unchecked.length) gates.staticAnalysis.warnings = unchecked;
+  // Words the panel would show as a wall of text: not physics, but the engineer reads them first.
+  const wordy = writingWarnings(contract);
 
   // Gate 4 -- the drawing. Checked here so its problems come back in the same
   // round as any physics problems; it decides the verdict after physics.
@@ -341,6 +343,9 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     gates.drawing.warnings.length > 0 ? `\nDrawing:\n` + gates.drawing.warnings.map((w) => `  - ${w}`).join('\n') : '',
     unchecked.length > 0 ? `\nUnits not checked, and phase notes:\n` + unchecked.map((w) => `  - ${w}`).join('\n') : '',
     alignmentLines(alignment).join('\n'),
+    wordy.length > 0
+      ? `\nShorten before you place it (the panel shows these words; numbers belong in parameters):\n` + wordy.map((w) => `  - ${w.path}: ${w.message}`).join('\n')
+      : '',
     '',
     'Attach it to a node as config.contract (or send it to the desktop app with',
     'add_unit_op_to_flowsheet). The engine re-evaluates it when the simulation',
@@ -359,7 +364,8 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
     revisionGuidance: guidance,
     revisionPlan: [
       ...warnings.map((w) => ({ gate: 'physical' as const, severity: 'WARNING' as const, path: `constraints.${w.id}`, problem: w.message, ...(w.hint ? { fix: w.hint } : {}) })),
-      ...alignmentItems(alignment)
+      ...alignmentItems(alignment),
+      ...wordy.map((w) => ({ gate: 'writing' as const, severity: 'WARNING' as const, path: w.path, problem: w.message, fix: 'Rewrite it shorter, then validate again.' }))
     ]
   };
 }
@@ -369,6 +375,7 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
  * not guess. Shared by the MCP design_unit_op tool and the in-app author.
  */
 export const UNIT_OP_AUTHORING_RULES: readonly string[] = [
+  WRITING_RULES,
   'A contract is DATA. Emit JSON. Do not emit JavaScript, and do not expect any code you write to run.',
   'Every expression is evaluated by a restricted evaluator: arithmetic, comparison, && || !, parentheses, and the whitelisted functions below. Nothing else exists. For piecewise physics use if(condition, a, b), which evaluates only the branch it takes (so if(flow > 0, duty / flow, 0) is safe), and interp(x, x1, y1, x2, y2, ...) for a lookup table (x ascending, clamped at the ends).',
   'Every name an expression references must be a parameter you declared, a derived value declared EARLIER in the list, or one of the engine-supplied names. Unknown names are a validation error, not a zero.',

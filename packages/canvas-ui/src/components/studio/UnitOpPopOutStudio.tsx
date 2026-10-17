@@ -23,10 +23,10 @@ import {
 import { dispatchUnitOpMessage } from '../../ai/aiDispatch.js';
 import { Button, DropdownMenu, TabStrip } from '../../ui/index.js';
 import { AiModelModal } from '../modals/AiModelModal.js';
-import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, KeyRound, Copy, Trash2, Workflow, Bookmark, BookmarkCheck, MoreHorizontal } from 'lucide-react';
+import { Loader2, X, Check, Upload, Sliders, MessageSquare, Palette, KeyRound, Copy, Trash2, Bookmark, BookmarkCheck, MoreHorizontal } from 'lucide-react';
 import type { ProcessGraph } from '@process-forge/protocol';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
-import { UnitOverviewPanel } from './UnitOverviewPanel.js';
+import { UnitLineStrip } from './UnitLineStrip.js';
 import { useSavedUnitOps, saveUnitOp, removeSavedUnitOp } from '../../library/savedUnitOps.js';
 import { UnitOpContractSchema } from '@process-forge/protocol';
 import { draftingRadius, tint, fontFamily } from '@process-forge/theme';
@@ -64,7 +64,7 @@ interface UnitOpPopOutStudioProps {
   onOpenUnit?: (nodeId: string) => void;
 }
 
-type StudioTab = 'OVERVIEW' | 'CHAT' | 'PARAMETERS' | 'DRESSING';
+type StudioTab = 'CHAT' | 'PARAMETERS' | 'DRESSING';
 
 export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   node,
@@ -91,7 +91,7 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   const OsakaJadePalette = palette;
   const route = useAssistantRoute();
   const savedUnits = useSavedUnitOps();
-  const [activeTab, setActiveTab] = useState<StudioTab>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<StudioTab>('PARAMETERS');
   const [editingName, setEditingName] = useState<string | null>(null);
   useEffect(() => {
     setEditingName(null);
@@ -144,7 +144,6 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
   const config = node.config as Record<string, unknown>;
   const tRole = terminalRole(node);
   const tabs: { id: StudioTab; label: string; Icon: React.ElementType }[] = [
-    ...(graph ? [{ id: 'OVERVIEW' as const, label: 'Overview', Icon: Workflow }] : []),
     { id: 'PARAMETERS', label: 'Design', Icon: Sliders },
     // A feed or outlet is an arrow: no drawing to edit, but its one nozzle can move.
     { id: 'DRESSING', label: tRole ? 'Nozzle' : 'Drawing & nozzles', Icon: Palette },
@@ -695,20 +694,12 @@ export const UnitOpPopOutStudio: React.FC<UnitOpPopOutStudioProps> = ({
       {/* Parameters */}
       {shownTab === 'PARAMETERS' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 20px 20px' }}>
+          {graph && (
+            <div style={{ padding: '12px 0 20px', borderBottom: `1px solid ${OsakaJadePalette.border.subtle}`, marginBottom: 8 }}>
+              <UnitLineStrip node={node} graph={graph} bottleneckNodeId={bottleneckNodeId ?? null} live={live} {...(onOpenUnit ? { onOpenUnit } : {})} />
+            </div>
+          )}
           <UnitParametersPanel node={node} onUpdateConfig={onUpdateConfig} live={live} {...(connectedPortIds ? { connectedPortIds } : {})} />
-        </div>
-      )}
-
-      {/* Tab 4: Upstream/Downstream Boundary Context */}
-      {shownTab === 'OVERVIEW' && graph && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
-          <UnitOverviewPanel
-            node={node}
-            graph={graph}
-            bottleneckNodeId={bottleneckNodeId ?? null}
-            live={live}
-            {...(onOpenUnit ? { onOpenUnit } : {})}
-          />
         </div>
       )}
 
