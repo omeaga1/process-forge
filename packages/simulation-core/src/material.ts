@@ -554,7 +554,27 @@ export class MaterialNetwork {
     }
     this.order = this.topologicalOrder();
     for (const u of this.units.values()) u.startHold = { ...u.hold, comp: { ...u.hold.comp } };
-    for (const u of this.units.values()) if (u.role === 'batch') this.startPhase(u, 0, 0);
+    for (const u of this.units.values()) if (u.role === 'batch') this.startBatchUnit(u);
+  }
+
+  /** A batch unit's first phase, after its start delay when it has one (a HOLD before phase 0). */
+  private startBatchUnit(u: MaterialUnit): void {
+    const ev = evaluateUnitOp(u.contract!, {});
+    const delay = !ev.error && ev.behavior.mode === 'BATCH' ? (ev.behavior.startDelaySeconds ?? 0) : 0;
+    if (!(delay > 0)) return this.startPhase(u, 0, 0);
+    u.batchRun = {
+      index: -1,
+      phase: { name: 'Waiting to start', kind: 'HOLD', seconds: delay },
+      moved: 0,
+      target: 0,
+      startedAt: 0,
+      endsAt: delay,
+      elapsed: 0,
+      startTempC: u.hold.tempC,
+      broken: [],
+      secondsByPhase: {},
+      dutyKwh: 0
+    };
   }
 
   /** True when there is any liquid to step. */

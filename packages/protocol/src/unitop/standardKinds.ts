@@ -261,7 +261,8 @@ export function standardContract(node: ProcessNode, edges: readonly ProcessEdge[
         param(c, 'batchVolumeGallons', 'Batch volume', 'gal', 800, 0),
         param(c, 'fillDurationMinutes', 'Fill time', 'min', 15, 0),
         param(c, 'reactionDurationMinutes', 'Reaction time', 'min', 30, 0),
-        param(c, 'dischargeRateGpm', 'Discharge rate', 'gal/min', 50, 0)
+        param(c, 'dischargeRateGpm', 'Discharge rate', 'gal/min', 50, 0),
+        param(c, 'startDelayMinutes', 'Start delay', 'min', 0, 0)
       );
       const heated = reactC !== undefined;
       if (heated) {
@@ -282,6 +283,7 @@ export function standardContract(node: ProcessNode, edges: readonly ProcessEdge[
         behavior: {
           mode: 'BATCH',
           batchGallons: 'batchVolumeGallons',
+          startDelaySeconds: 'startDelayMinutes * 60',
           phases: [
             { name: 'Filling', kind: 'FILL', rateGpm: 'batchVolumeGallons / max(fillDurationMinutes, 1e-6)' },
             ...(heated
