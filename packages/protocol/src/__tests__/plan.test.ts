@@ -47,6 +47,17 @@ describe('a plan of changes', () => {
     assert.ok(!b.ok && /has no setting "warpFactor"/.test(b.error));
   });
 
+  it('staggers a batch reactor with its start delay, new or already placed', () => {
+    const added = applyPlan(g, [{ op: 'add-unit', unit: 'batch-reactor', name: 'R-2', parameters: { startDelayMinutes: 30 } }]);
+    assert.ok(added.ok, !added.ok ? added.error : '');
+    const r2 = added.graph.nodes.find((n) => n.name === 'R-2')!;
+    assert.equal((r2.config as { startDelayMinutes: number }).startDelayMinutes, 30);
+    // A reactor placed before the setting existed takes it too.
+    const old = { ...added.graph, nodes: added.graph.nodes.map((n) => (n.id === r2.id ? { ...n, config: { ...n.config, startDelayMinutes: undefined } } : n)) } as ProcessGraph;
+    const updated = applyFlowsheetEdit(old, { op: 'update-unit', unit: 'R-2', parameters: { startDelayMinutes: 15 } });
+    assert.ok(updated.ok, !updated.ok ? updated.error : '');
+  });
+
   it('fingerprints what the line is, not where it is drawn', () => {
     const moved: ProcessGraph = { ...g, nodes: g.nodes.map((n, i) => (i === 0 ? { ...n, position: { x: n.position.x + 300, y: 5 } } : n)) };
     assert.equal(graphFingerprint(moved), graphFingerprint(g));
