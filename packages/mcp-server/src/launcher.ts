@@ -6,8 +6,13 @@
 // - The extension ships a server (server.mjs, described by server.json).
 // - Every desktop release attaches mcp-server.mjs and mcp-server.json (its
 //   version and sha256). A newer server is downloaded, its sha256 checked,
-//   test-started (it must answer initialize and list its tools), and only
-//   then kept, in ~/.process-forge/mcp. It is used from the next start.
+//   test-started where this runtime can start one (it must answer initialize
+//   and list its tools), and only then kept, in ~/.process-forge/mcp. It is
+//   used from the next start.
+// - Claude Desktop's built-in Node cannot start a subprocess, so there the
+//   sha256 and the release's metadata are the check, and the first start is
+//   the test: a downloaded server that fails to load is put aside (bad.json),
+//   the shipped one runs instead, and that release is not downloaded again.
 // - Anything that goes wrong falls back to the server the extension shipped.
 // - PROCESS_FORGE_MCP_AUTO_UPDATE=0 runs the shipped server and never checks.
 //
@@ -64,6 +69,17 @@ const childEnv = (extra: Record<string, string>): NodeJS.ProcessEnv => ({
   ...(/^node(\.exe)?$/i.test(path.basename(process.execPath)) ? {} : { ELECTRON_RUN_AS_NODE: '1' }),
   ...extra
 });
+/**
+ * Whether this runtime can test-start a server in a child process. Claude's
+ * built-in Node (process.execPath is Claude.exe) refuses to spawn node at all,
+ * so on it the updater never tries. PROCESS_FORGE_MCP_TEST_START=0 forces that
+ * path (tests), =1 forces the test start.
+ */
+const canTestStart = (): boolean => {
+  const forced = process.env.PROCESS_FORGE_MCP_TEST_START;
+  if (forced === '0' || forced === '1') return forced === '1';
+  return /^node(\.exe)?$/i.test(path.basename(process.execPath));
+};
 const autoUpdate = process.env.PROCESS_FORGE_MCP_AUTO_UPDATE !== '0';
 
 const readJson = <T>(file: string): T | undefined => {
@@ -74,6 +90,29 @@ const readJson = <T>(file: string): T | undefined => {
   }
 };
 const sha256 = (buf: Buffer) => createHash('sha256').update(buf).digest('hex');
+
+/** Servers that failed to load here, by sha256: never downloaded or started again. */
+const badFile = () => path.join(home, 'bad.json');
+const badServers = (): string[] => readJson<string[]>(badFile()) ?? [];
+function markBad(sha: string): void {
+  try {
+    fs.writeFileSync(badFile(), JSON.stringify([...new Set([...badServers(), sha])].slice(-20)));
+    // Back to the shipped server until a newer release comes.
+    fs.rmSync(path.join(home, 'current.json'), { force: true });
+  } catch {
+    // Worst case it is tried again next start, and falls back again.
+  }
+}
+
+/**
+ * The checks that need no subprocess: the release's description is complete and
+ * the file it downloaded names the version it claims to
+ * be (a mismatched upload fails here). The sha256 is checked by the caller.
+ */
+export function looksLikeServer(buf: Buffer, info: { version: string }): boolean {
+  if (buf.length < 64) return false;
+  return buf.toString('utf8').includes(info.version);
+}
 
 /** -1, 0 or 1, comparing dotted versions numerically. */
 export function compareVersions(a: string, b: string): number {
@@ -96,6 +135,7 @@ function downloaded(): { file: string; info: ServerInfo } | undefined {
   const info = readJson<ServerInfo>(path.join(home, 'current.json'));
   if (!info || !shipped.info) return undefined;
   if (info.sha256 === shipped.info.sha256) return undefined;
+  if (badServers().includes(info.sha256)) return undefined;
   if (compareVersions(info.version, shipped.info.version) < 0) return undefined; // a newer extension was installed since
   const file = path.join(home, `server-${info.sha256.slice(0, 16)}.mjs`);
   try {
@@ -180,6 +220,7 @@ async function checkForUpdate(running: ServerInfo | undefined): Promise<void> {
     return log(`release ${remote.build ?? remote.version} needs a newer extension; reinstall it from the release page`);
   }
   if (remote.sha256 === running?.sha256) return checked();
+  if (badServers().includes(remote.sha256)) return checked();
   if (shipped.info && compareVersions(remote.version, shipped.info.version) < 0) return checked();
   const file = path.join(home, `server-${remote.sha256.slice(0, 16)}.mjs`);
   // Another Claude session's server may have fetched it already.
@@ -194,8 +235,13 @@ async function checkForUpdate(running: ServerInfo | undefined): Promise<void> {
   // and renamed into place once it starts cleanly, so several Claude sessions
   // updating at once never start a file another is still writing.
   const partial = file.replace(/\.mjs$/, `.${process.pid}.part.mjs`);
+  if (!looksLikeServer(buf, remote)) {
+    checked();
+    return log(`server ${remote.build ?? remote.version} is not the file its release describes; kept the current one`);
+  }
   fs.writeFileSync(partial, buf);
-  if (!(await probe(partial))) {
+  const testStart = canTestStart();
+  if (testStart && !(await probe(partial))) {
     fs.rmSync(partial, { force: true });
     checked();
     return log(`server ${remote.build ?? remote.version} did not start cleanly; kept the current one`);
@@ -211,7 +257,7 @@ async function checkForUpdate(running: ServerInfo | undefined): Promise<void> {
     const leftover = /\.part\.mjs$/.test(f) && fs.statSync(full).mtimeMs < stale;
     if (oldServer || leftover) fs.rmSync(full, { force: true });
   }
-  log(`downloaded ProcessForge MCP ${remote.build ?? remote.version}; it is used the next time Claude starts`);
+  log(`downloaded ProcessForge MCP ${remote.build ?? remote.version} (${testStart ? 'test-started' : 'checksum verified; this runtime cannot test-start it'}); it is used the next time Claude starts`);
 }
 
 let runningFile = shipped.file;
@@ -223,7 +269,8 @@ if (latest) {
     runningInfo = latest.info;
     await import(pathToFileURL(latest.file).href);
   } catch (error) {
-    log(`downloaded server failed to load (${(error as Error).message}); using the one the extension shipped`);
+    log(`downloaded server ${latest.info.build ?? latest.info.version} failed to load (${(error as Error).message}); put it aside and using the one the extension shipped`);
+    markBad(latest.info.sha256);
     runningFile = shipped.file;
     runningInfo = shipped.info;
     await import(pathToFileURL(shipped.file).href);

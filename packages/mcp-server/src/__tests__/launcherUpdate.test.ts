@@ -59,10 +59,10 @@ async function release(opts: { hang?: boolean } = {}) {
   return { url, asked, close: () => (server.closeAllConnections(), new Promise((r) => server.close(r))) };
 }
 
-function start(ext: string, home: string, url: string): ChildProcess {
+function start(ext: string, home: string, url: string, env: Record<string, string> = {}): ChildProcess {
   return spawn(process.execPath, [path.join(ext, 'index.mjs')], {
     stdio: ['pipe', 'ignore', 'ignore'],
-    env: { ...process.env, PROCESS_FORGE_MCP_HOME: home, PROCESS_FORGE_MCP_RELEASE_URL: url, PROCESS_FORGE_MCP_AUTO_UPDATE: '1' }
+    env: { ...process.env, PROCESS_FORGE_MCP_HOME: home, PROCESS_FORGE_MCP_RELEASE_URL: url, PROCESS_FORGE_MCP_AUTO_UPDATE: '1', ...env }
   });
 }
 
@@ -116,6 +116,41 @@ describe('the extension updater', () => {
     try {
       assert.ok(await until(() => fs.existsSync(path.join(home, 'last-check.json')), 15000), 'checked');
       assert.ok(!rel.asked.some((u) => u.endsWith('mcp-server.mjs')), 'no second download');
+    } finally {
+      child.kill();
+      await rel.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps a newer server without a test start on a runtime that cannot spawn one (Claude's built-in Node)", async () => {
+    const { dir, ext, home } = stage();
+    const rel = await release();
+    const child = start(ext, home, rel.url, { PROCESS_FORGE_MCP_TEST_START: '0' });
+    try {
+      assert.ok(await until(() => fs.existsSync(path.join(home, 'current.json')), 20000), 'kept the new server');
+      assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'current.json'), 'utf8')).sha256, remote.sha256);
+      assert.match(fs.readFileSync(path.join(home, 'updater.log'), 'utf8'), /checksum verified; this runtime cannot test-start it/);
+    } finally {
+      child.kill();
+      await rel.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('puts aside a downloaded server that fails to load, runs the shipped one, and never fetches it again', async () => {
+    const { dir, ext, home } = stage();
+    const broken = 'this is not javascript 9.9.9 (((\n'.repeat(4);
+    const bad = { ...remote, sha256: sha(broken) };
+    fs.mkdirSync(home, { recursive: true });
+    fs.writeFileSync(path.join(home, 'current.json'), JSON.stringify(bad));
+    fs.writeFileSync(path.join(home, `server-${bad.sha256.slice(0, 16)}.mjs`), broken);
+    const rel = await release();
+    const child = start(ext, home, rel.url, { PROCESS_FORGE_MCP_TEST_START: '0' });
+    try {
+      assert.ok(await until(() => fs.existsSync(path.join(home, 'bad.json')), 15000), 'marked bad');
+      assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, 'bad.json'), 'utf8')), [bad.sha256]);
+      assert.match(fs.readFileSync(path.join(home, 'updater.log'), 'utf8'), /started 0\.1\.0 \(shipped/);
     } finally {
       child.kill();
       await rel.close();
