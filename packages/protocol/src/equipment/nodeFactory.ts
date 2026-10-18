@@ -168,6 +168,7 @@ function createBaseProcessNode(kind: NodeKind, options?: CreateNodeOptions): Pro
           fillDurationMinutes: 15,
           reactionDurationMinutes: 30,
           dischargeRateGpm: flowGpm,
+          startDelayMinutes: 0,
           fluid: {
             name: 'Reaction Mixture',
             densityGPerCm3: 1.1,

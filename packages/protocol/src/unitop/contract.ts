@@ -298,7 +298,12 @@ export const UnitOpBehaviorSchema = z.discriminatedUnion('mode', [
      */
     mode: z.literal('BATCH'),
     batchGallons: z.string().min(1),
-    phases: z.array(UnitOpBatchPhaseSchema).min(1)
+    phases: z.array(UnitOpBatchPhaseSchema).min(1),
+    /**
+     * Seconds it waits, once, before its first batch: staggers vessels that
+     * take turns feeding one line. Reads parameters only.
+     */
+    startDelaySeconds: z.string().optional()
   }),
   z.object({
     /**

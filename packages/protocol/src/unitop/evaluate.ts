@@ -122,6 +122,8 @@ export interface UnitOpEvaluation {
         cycleSecondsEstimate: number;
         /** batchGallons over the estimated cycle. */
         gallonsPerMinute: number;
+        /** Seconds it waits before its first batch; absent when it starts at once. */
+        startDelaySeconds?: number;
       }
     | { mode: 'STORAGE'; capacityGallons: number; initialGallons: number; maxOutflowGpm?: number };
   /** Breakdowns, from contract.reliability. */
@@ -403,12 +405,15 @@ export function evaluateUnitOp(
         else if (e.rateGpm && e.rateGpm > 0) seconds += ((e.gallons ?? batchGallons) / e.rateGpm) * 60;
       }
       if (batchGallons <= 0) return fail('behavior.batchGallons', new Error(`batchGallons must be positive, got ${batchGallons}`));
+      const delay = contract.behavior.startDelaySeconds ? evaluateNumber(contract.behavior.startDelaySeconds, scope) : 0;
+      if (delay < 0) return fail('behavior.startDelaySeconds', new Error(`startDelaySeconds must not be negative, got ${delay}`));
       behavior = {
         mode: 'BATCH',
         batchGallons,
         phases,
         cycleSecondsEstimate: seconds,
-        gallonsPerMinute: seconds > 0 ? (batchGallons / seconds) * 60 : Infinity
+        gallonsPerMinute: seconds > 0 ? (batchGallons / seconds) * 60 : Infinity,
+        ...(delay > 0 ? { startDelaySeconds: delay } : {})
       };
     } else if (contract.behavior.mode === 'STORAGE') {
       const capacityGallons = evaluateNumber(contract.behavior.capacityGallons, scope);

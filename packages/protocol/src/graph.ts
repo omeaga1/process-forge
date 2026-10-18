@@ -5,6 +5,7 @@ import { terminalRole, terminalSupplyRate } from './terminals.js';
 import { AMBIENT_C, pipeTemperature, reactorHeatUpSeconds } from './thermal.js';
 import { evaluateUnitOp, type UnitOpEvaluation } from './unitop/evaluate.js';
 import type { UnitOpContract } from './unitop/contract.js';
+import { withLegacyNames } from './unitop/standardKinds.js';
 
 export const ProcessGraphSchema = z.object({
   id: z.string().min(1),
@@ -216,7 +217,7 @@ function computeBottlenecks(
   for (const node of graph.nodes) {
     // Defaults match the simulation engine's, so the figures agree with a run.
     if (node.kind === 'ROTARY_FILLER') {
-      const config = node.config as {
+      const config = withLegacyNames(node.kind, node.config as Record<string, unknown>) as {
         nozzleCount?: number;
         fillTimePerCycleSeconds?: number;
         indexTimePerCycleSeconds?: number;
@@ -254,7 +255,7 @@ function computeBottlenecks(
       if (!liquid) capacities[node.id] = terminalSupplyRate(node);
       else if (pipeFedFiller) capacities[node.id] = terminalSupplyRate(node) / perContainer;
     } else if (node.kind === 'LABELER') {
-      const config = node.config as { maxSpeedUnitsPerMinute?: number };
+      const config = withLegacyNames(node.kind, node.config as Record<string, unknown>) as { maxSpeedUnitsPerMinute?: number };
       capacities[node.id] = config.maxSpeedUnitsPerMinute ?? 40;
     } else if (node.kind === 'PALLETIZER') {
       const config = node.config as {

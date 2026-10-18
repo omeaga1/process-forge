@@ -80,6 +80,36 @@ function portsOf(node: ProcessNode, edges: readonly ProcessEdge[]): UnitOpPort[]
   return ports;
 }
 
+/**
+ * Settings saved under the names the bottling example once used, read as the
+ * settings they meant, so a line built from it runs at its stated speeds
+ * rather than the defaults. A setting under its own name wins.
+ */
+export function withLegacyNames(kind: ProcessNode['kind'], config: Record<string, unknown>): Record<string, unknown> {
+  const c = { ...config };
+  const from = (name: string, legacy: string, f: (v: number) => number = (v) => v) => {
+    const v = num(c[legacy]);
+    if (num(c[name]) === undefined && v !== undefined) c[name] = f(v);
+  };
+  if (kind === 'ROTARY_FILLER') {
+    from('nozzleCount', 'fillHeadCount');
+    from('rejectRatePercentage', 'rejectRatePercent');
+    // A rotary filler's rated speed: every head fills once a turn.
+    const speed = num(c.fillSpeedUnitsPerMinute);
+    const heads = num(c.nozzleCount);
+    if (speed && heads && num(c.fillTimePerCycleSeconds) === undefined && num(c.indexTimePerCycleSeconds) === undefined) {
+      c.fillTimePerCycleSeconds = (heads * 60) / speed;
+      c.indexTimePerCycleSeconds = 0;
+    }
+  } else if (kind === 'CONVEYOR') {
+    from('speedMetersPerSecond', 'speedMetersPerMinute', (v) => v / 60);
+    from('maxItemCapacity', 'maxBufferCapacityUnits');
+  } else if (kind === 'LABELER') {
+    from('maxSpeedUnitsPerMinute', 'applicationRateUnitsPerMinute');
+  }
+  return c;
+}
+
 function param(config: Record<string, unknown>, name: string, label: string, unit: string, fallback: number, min?: number, max?: number): UnitOpParameter {
   const v = num(config[name]);
   return { name, label, unit, value: v ?? fallback, ...(min !== undefined ? { min } : {}), ...(max !== undefined ? { max } : {}) };
@@ -139,7 +169,7 @@ function fluidDesign(config: Record<string, unknown>, withTemperature = false): 
  * units) and for any kind without a model.
  */
 export function standardContract(node: ProcessNode, edges: readonly ProcessEdge[] = []): UnitOpContract | undefined {
-  const c = node.config as Record<string, unknown>;
+  const c = withLegacyNames(node.kind, node.config as Record<string, unknown>);
   const touching = edges.filter((e) => e.sourceNodeId === node.id || e.targetNodeId === node.id);
   const ports = portsOf(node, touching);
   const parameters: UnitOpParameter[] = [];
@@ -261,7 +291,8 @@ export function standardContract(node: ProcessNode, edges: readonly ProcessEdge[
         param(c, 'batchVolumeGallons', 'Batch volume', 'gal', 800, 0),
         param(c, 'fillDurationMinutes', 'Fill time', 'min', 15, 0),
         param(c, 'reactionDurationMinutes', 'Reaction time', 'min', 30, 0),
-        param(c, 'dischargeRateGpm', 'Discharge rate', 'gal/min', 50, 0)
+        param(c, 'dischargeRateGpm', 'Discharge rate', 'gal/min', 50, 0),
+        param(c, 'startDelayMinutes', 'Start delay', 'min', 0, 0)
       );
       const heated = reactC !== undefined;
       if (heated) {
@@ -282,6 +313,7 @@ export function standardContract(node: ProcessNode, edges: readonly ProcessEdge[
         behavior: {
           mode: 'BATCH',
           batchGallons: 'batchVolumeGallons',
+          startDelaySeconds: 'startDelayMinutes * 60',
           phases: [
             { name: 'Filling', kind: 'FILL', rateGpm: 'batchVolumeGallons / max(fillDurationMinutes, 1e-6)' },
             ...(heated

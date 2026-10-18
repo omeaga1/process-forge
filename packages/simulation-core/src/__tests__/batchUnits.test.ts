@@ -98,6 +98,24 @@ describe('Designed batch units: phases', () => {
     assert.equal(v.fluid!.batches, 1);
     assert.ok(Math.abs(v.designedUnit!.secondsByPhase!['Charge']! - 2 * 20 * 60) < 90, JSON.stringify(v.designedUnit!.secondsByPhase));
   });
+
+  it('waits out its start delay once, then cycles as before', () => {
+    // A 10 minute delay: batches at 20, 40 and (unfinished) 60 min, so two in the hour, not three.
+    const delayed = { ...simple, behavior: { ...simple.behavior, startDelaySeconds: '600' } } as UnitOpContract;
+    assert.equal(executeValidateUnitOp({ contract: delayed }).verdict, 'ACCEPTED');
+    const g = line(
+      [node('vessel', 'CUSTOM_UNIT_OP', { contract: delayed }, [L], [L], { in: ['feed'], out: ['product'] }), sink('out')],
+      [pipe('vessel', 'out', 'product')]
+    );
+    const v = simulateProcess(g, 60).nodeReports['vessel']!;
+    assert.equal(v.fluid!.batches, 2);
+    assert.ok(Math.abs(v.designedUnit!.secondsByPhase!['Waiting to start']! - 600) <= 3, JSON.stringify(v.designedUnit!.secondsByPhase));
+  });
+
+  it('rejects a negative start delay', () => {
+    const bad = { ...simple, behavior: { ...simple.behavior, startDelaySeconds: '-5' } } as UnitOpContract;
+    assert.notEqual(executeValidateUnitOp({ contract: bad }).verdict, 'ACCEPTED');
+  });
 });
 
 describe('Designed batch units: each phase follows the batch in hand', () => {
