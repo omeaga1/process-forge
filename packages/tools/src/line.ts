@@ -363,11 +363,19 @@ export function diagnoseBottlenecks(graph: ProcessGraph): DiagnosticReportPayloa
   if (validation.bottlenecks.bottleneckNodeId) {
     recommendations.push(bottleneckAdvice(bottleneckNode, validation.bottlenecks.maximumSystemThroughputUnitsPerMin, graph));
   }
-  const conveyors = graph.nodes.filter((n) => n.kind === 'CONVEYOR');
+  // A buffer is any unit whose contract declares how many items it queues:
+  // the standard conveyor does (maxItemCapacity), and so may a designed one.
+  const buffers = graph.nodes.flatMap((n) => {
+    if (terminalRole(n)) return [];
+    const contract = effectiveContract(n, graph.edges);
+    if (contract?.behavior.mode !== 'DISCRETE_CYCLE' || !contract.behavior.queueCapacity) return [];
+    const b = evaluateUnitOp(contract).behavior;
+    return b.mode === 'DISCRETE_CYCLE' && b.queueCapacity ? [b.queueCapacity] : [];
+  });
   recommendations.push(
-    conveyors.length === 0
+    buffers.length === 0
       ? 'No accumulation buffers between filling and downstream packaging. Add an accumulation conveyor to isolate filler micro-stoppages from packaging jams.'
-      : `Conveyor accumulation covers about ${conveyors.reduce((sum, n) => sum + (typeof (n.config as Record<string, unknown>).maxItemCapacity === 'number' ? ((n.config as Record<string, unknown>).maxItemCapacity as number) : 48), 0)} items of surge buffer.`
+      : `Accumulation covers about ${Math.round(buffers.reduce((sum, q) => sum + q, 0))} items of surge buffer.`
   );
 
   return {
