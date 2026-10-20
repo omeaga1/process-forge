@@ -17,18 +17,95 @@ const Point = z.tuple([coord, coord]);
 /** body: the equipment outline. detail: internals, thinner. fill: a tinted area (a liquid level, a bed). */
 const Layer = z.enum(['body', 'detail', 'fill']).default('body');
 
-const common = { layer: Layer, dashed: z.boolean().optional() };
+/**
+ * What a shape is painted with, from the app's theme (so it follows light and
+ * dark): outline is the default line drawing; solid and deep are the jade
+ * masses the palette uses for product and machine parts; glow is the bright
+ * turquoise of liquid and light beams; light is label-paper white; metal a
+ * steel panel; gold wood and amber (pallets, cartons); alert a fault red;
+ * status a lamp that shows whether the unit is running.
+ */
+export const DRAWING_TONES = ['outline', 'solid', 'deep', 'glow', 'light', 'metal', 'gold', 'alert', 'status'] as const;
+const Tone = z.enum(DRAWING_TONES);
+
+/** Line weight: hair for hatching and guide lines, heavy for frames and shafts. */
+export const DRAWING_WEIGHTS = { hair: 0.6, thin: 1, normal: 1.5, bold: 2, heavy: 3 } as const;
+const Weight = z.enum(['hair', 'thin', 'normal', 'bold', 'heavy']);
+
+const PartId = z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, 'a part id is lower-case letters, digits and dashes');
+
+const common = {
+  layer: Layer,
+  dashed: z.boolean().optional(),
+  tone: Tone.optional(),
+  weight: Weight.optional(),
+  opacity: z.number().min(0.05).max(1).optional(),
+  /** The moving part this shape belongs to (drawing.parts). */
+  part: PartId.optional()
+};
+
+/**
+ * The things a line carries, drawn the way the palette draws them: a PET
+ * bottle with its cap and label band, a can, a shipping case, a wooden pallet,
+ * a sack, a drum, a carton. Fit to the box given.
+ */
+export const DRAWING_ITEMS = ['bottle', 'can', 'case', 'pallet', 'bag', 'drum', 'carton', 'jar'] as const;
 
 export const DrawingShapeSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('rect'), x: coord, y: coord, width: z.number().positive(), height: z.number().positive(), rx: z.number().min(0).optional(), ...common }),
+  z.object({
+    type: z.literal('rect'),
+    x: coord,
+    y: coord,
+    width: z.number().positive(),
+    height: z.number().positive(),
+    rx: z.number().min(0).optional(),
+    /** A fill that rises and falls with the liquid the unit holds in a run (from its bottom edge). */
+    level: z.boolean().optional(),
+    ...common
+  }),
   z.object({ type: z.literal('circle'), cx: coord, cy: coord, r: z.number().positive(), ...common }),
   z.object({ type: z.literal('ellipse'), cx: coord, cy: coord, rx: z.number().positive(), ry: z.number().positive(), ...common }),
   z.object({ type: z.literal('line'), x1: coord, y1: coord, x2: coord, y2: coord, ...common }),
   z.object({ type: z.literal('polyline'), points: z.array(Point).min(2).max(200), ...common }),
   z.object({ type: z.literal('polygon'), points: z.array(Point).min(3).max(200), ...common }),
-  z.object({ type: z.literal('path'), d: z.string().min(1).max(4000), ...common })
+  z.object({ type: z.literal('path'), d: z.string().min(1).max(4000), ...common }),
+  z.object({
+    type: z.literal('item'),
+    item: z.enum(DRAWING_ITEMS),
+    x: coord,
+    y: coord,
+    width: z.number().positive(),
+    height: z.number().positive(),
+    ...common
+  })
 ]);
 export type DrawingShape = z.infer<typeof DrawingShapeSchema>;
+
+/**
+ * How a part moves while the unit runs (it holds still when the unit is
+ * stopped, starved or blocked): spin turns it about its origin (a turret, a
+ * reel, an impeller), travel slides it by dx, dy and starts over (bottles on a
+ * belt), bob and dive move it out by dx, dy and back (a capping head, a
+ * gripper), gantry carries it across and down and back (a palletizer head),
+ * blink flashes it (a lamp, a photo-eye), shimmer breathes its fill (a liquid
+ * surface), pulse fades it in and out (bubbles, steam).
+ */
+export const DRAWING_MOTIONS = ['spin', 'spin-reverse', 'travel', 'bob', 'dive', 'gantry', 'blink', 'shimmer', 'pulse'] as const;
+
+export const DrawingPartSchema = z.object({
+  id: PartId,
+  motion: z.enum(DRAWING_MOTIONS),
+  /** Seconds per cycle of the motion. */
+  periodS: z.number().min(0.2).max(30).default(2),
+  /** spin: the point it turns about, in drawing units. */
+  origin: z.object({ x: coord, y: coord }).optional(),
+  /** travel, bob, dive, gantry: how far it moves, in drawing units. */
+  dx: z.number().min(-400).max(400).optional(),
+  dy: z.number().min(-400).max(400).optional(),
+  /** Seconds to wait before starting, to stagger parts that move alike. */
+  delayS: z.number().min(0).max(30).optional()
+});
+export type DrawingPart = z.infer<typeof DrawingPartSchema>;
 
 export const DrawingNozzleSchema = z.object({
   /** The contract port this nozzle is. */
@@ -44,8 +121,18 @@ export type DrawingNozzle = z.infer<typeof DrawingNozzleSchema>;
 
 export const UnitOpDrawingSchema = z.object({
   viewBox: z.object({ width: z.number().min(20).max(400), height: z.number().min(20).max(400) }),
-  shapes: z.array(DrawingShapeSchema).min(1).max(150),
-  nozzles: z.array(DrawingNozzleSchema).default([])
+  shapes: z.array(DrawingShapeSchema).min(1).max(240),
+  nozzles: z.array(DrawingNozzleSchema).default([]),
+  /** The parts that move while the unit runs; shapes join one with `part`. */
+  parts: z.array(DrawingPartSchema).max(16).optional(),
+  /** Where it came from: draw_unit_op's kit and variant, or the unit it was forked from. Shown, never run. */
+  origin: z
+    .object({
+      kit: z.string().max(64).optional(),
+      variant: z.number().int().min(0).max(1_000_000).optional(),
+      forkedFrom: z.string().max(200).optional()
+    })
+    .optional()
 });
 export type UnitOpDrawing = z.infer<typeof UnitOpDrawingSchema>;
 
@@ -140,6 +227,7 @@ function polyDistance(px: number, py: number, pts: [number, number][], closed: b
 /** Distance from a point to a shape's outline, in drawing units. */
 function outlineDistance(px: number, py: number, s: DrawingShape): number {
   switch (s.type) {
+    case 'item':
     case 'rect': {
       const pts: [number, number][] = [
         [s.x, s.y],
@@ -174,6 +262,7 @@ function outlineDistance(px: number, py: number, s: DrawingShape): number {
 
 function shapeExtent(s: DrawingShape): [number, number, number, number] {
   switch (s.type) {
+    case 'item':
     case 'rect':
       return [s.x, s.y, s.x + s.width, s.y + s.height];
     case 'circle':
@@ -233,6 +322,21 @@ export function checkUnitOpDrawing(drawing: UnitOpDrawing, ports: { id: string; 
     }
   });
 
+  const partIds = new Set((drawing.parts ?? []).map((p) => p.id));
+  if (partIds.size < (drawing.parts ?? []).length) errors.push('drawing.parts: two parts share an id; give each its own.');
+  const used = new Set<string>();
+  drawing.shapes.forEach((s, i) => {
+    if (!s.part) return;
+    used.add(s.part);
+    if (!partIds.has(s.part)) errors.push(`drawing.shapes[${i}]: part "${s.part}" is not in drawing.parts; declare it there with its motion.`);
+  });
+  for (const p of drawing.parts ?? []) {
+    if (!used.has(p.id)) warnings.push(`drawing.parts: "${p.id}" has no shapes (give the shapes that move part: "${p.id}").`);
+    if ((p.motion === 'travel' || p.motion === 'bob' || p.motion === 'dive' || p.motion === 'gantry') && !p.dx && !p.dy) {
+      warnings.push(`drawing.parts: "${p.id}" moves by ${p.motion} but has no dx or dy, so it stands still.`);
+    }
+  }
+
   const portIds = new Set(ports.map((p) => p.id));
   const seen = new Map<string, number>();
   drawing.nozzles.forEach((n, i) => {
@@ -271,9 +375,113 @@ const f = (v: number) => {
   return Object.is(r, -0) ? '0' : String(r);
 };
 
-function shapeSvg(s: DrawingShape, extra: string): string {
-  const dash = s.dashed ? ' stroke-dasharray="4 3"' : '';
-  const a = `${extra}${dash}`;
+/**
+ * Theme colours by tone. Each is the app's CSS variable, so a drawing follows
+ * light and dark like the palette's own units, with the dark theme's value as
+ * the fallback where no variables exist (an exported image).
+ */
+const TONE_COLOR: Record<(typeof DRAWING_TONES)[number], string> = {
+  outline: 'var(--pf-jade-400, #71cead)',
+  solid: 'var(--pf-jade-500, #549e6a)',
+  deep: 'var(--pf-jade-600, #509475)',
+  glow: 'var(--pf-jade-glow, #2dd5b7)',
+  light: 'var(--pf-text-primary, #f6f5dd)',
+  metal: 'var(--pf-bg-surface-elevated, #252930)',
+  gold: 'var(--pf-fg-selected, #deb266)',
+  alert: 'var(--pf-status-failed, #ff5345)',
+  status: 'var(--pf-unit-status, var(--pf-status-busy, #549e6a))'
+};
+
+const OPEN_SHAPES = new Set(['line', 'polyline']);
+
+/** The paint attributes of one shape: its tone, line weight, dashes and opacity. */
+function paint(s: DrawingShape): string {
+  const parts: string[] = [];
+  const style: string[] = [];
+  if (s.layer === 'fill' && !s.tone) {
+    // A tinted area takes the theme's jade where the app's CSS variables exist, and this jade elsewhere.
+    style.push('fill: var(--pf-jade-500, #10b981)', 'fill-opacity: 0.26');
+    parts.push(' stroke="none"');
+  } else if (s.tone && s.tone !== 'outline') {
+    const c = TONE_COLOR[s.tone];
+    // Line work (lines, and every internal on the detail layer) takes the tone as its stroke.
+    if (OPEN_SHAPES.has(s.type) || s.layer === 'detail') style.push(`stroke: ${c}`);
+    else {
+      style.push(`fill: ${c}`);
+      if (s.tone === 'gold') style.push('fill-opacity: 0.55', `stroke: ${c}`);
+      if (s.layer === 'fill') parts.push(' stroke="none"');
+    }
+  }
+  if (s.weight) parts.push(` stroke-width="${DRAWING_WEIGHTS[s.weight]}"`);
+  if (s.opacity !== undefined) parts.push(` opacity="${f(s.opacity)}"`);
+  if (s.dashed) parts.push(' stroke-dasharray="4 3"');
+  if (style.length) parts.push(` style="${style.join('; ')}"`);
+  return parts.join('');
+}
+
+/** Item glyphs, drawn in a 100 x 100 box and fitted to the shape's. Body first, then its details. */
+const ITEM_GLYPHS: Record<(typeof DRAWING_ITEMS)[number], { tone: (typeof DRAWING_TONES)[number]; body: string[]; details: string[] }> = {
+  bottle: {
+    tone: 'solid',
+    body: ['M42 9 L42 17 C42 25 27 27 27 40 L27 91 Q27 100 36 100 L64 100 Q73 100 73 91 L73 40 C73 27 58 25 58 17 L58 9 Z'],
+    details: ['M39 0 L61 0 L61 9 L39 9 Z', 'M27 52 L73 52 L73 74 L27 74 Z', 'M35 80 L35 94']
+  },
+  can: {
+    tone: 'solid',
+    body: ['M18 10 Q18 4 26 4 L74 4 Q82 4 82 10 L82 92 Q82 98 74 98 L26 98 Q18 98 18 92 Z'],
+    details: ['M18 16 L82 16', 'M18 86 L82 86', 'M28 30 L72 30 L72 70 L28 70 Z']
+  },
+  case: {
+    tone: 'deep',
+    body: ['M2 14 L98 14 L98 98 L2 98 Z'],
+    details: ['M2 14 L14 2 L86 2 L98 14', 'M50 2 L50 98', 'M2 40 L98 40']
+  },
+  pallet: {
+    tone: 'gold',
+    body: ['M0 0 L100 0 L100 34 L0 34 Z', 'M2 34 L18 34 L18 100 L2 100 Z', 'M42 34 L58 34 L58 100 L42 100 Z', 'M82 34 L98 34 L98 100 L82 100 Z'],
+    details: ['M0 17 L100 17']
+  },
+  bag: {
+    tone: 'light',
+    body: ['M16 14 Q50 0 84 14 L92 86 Q50 100 8 86 Z'],
+    details: ['M22 22 Q50 12 78 22', 'M30 50 L70 50', 'M30 62 L62 62']
+  },
+  drum: {
+    tone: 'metal',
+    body: ['M14 6 L86 6 L86 94 L14 94 Z'],
+    details: ['M14 30 L86 30', 'M14 70 L86 70', 'M60 12 L72 12']
+  },
+  carton: {
+    tone: 'light',
+    body: ['M14 22 L50 2 L86 22 L86 98 L14 98 Z'],
+    details: ['M14 22 L86 22', 'M50 2 L50 22', 'M24 46 L76 46 L76 78 L24 78 Z']
+  },
+  jar: {
+    tone: 'glow',
+    body: ['M20 18 L80 18 L84 30 L84 92 Q84 98 78 98 L22 98 Q16 98 16 92 L16 30 Z'],
+    details: ['M22 4 L78 4 L78 18 L22 18 Z', 'M16 44 L84 44 L84 76 L16 76 Z']
+  }
+};
+
+function itemSvg(s: Extract<DrawingShape, { type: 'item' }>): string {
+  const glyph = ITEM_GLYPHS[s.item];
+  const tone = s.tone ?? glyph.tone;
+  const t = `translate(${f(s.x)} ${f(s.y)}) scale(${f(s.width / 100)} ${f(s.height / 100)})`;
+  const fill = TONE_COLOR[tone];
+  const opacity = s.opacity !== undefined ? ` opacity="${f(s.opacity)}"` : '';
+  const stroke = ' vector-effect="non-scaling-stroke"';
+  const body = glyph.body
+    .map((d) => `<path d="${d}"${stroke} style="fill: ${fill}${tone === 'gold' ? '; fill-opacity: 0.55' : ''}"/>`)
+    .join('');
+  // Details sit on the item: label paper on a bottle, a lid, tape on a case.
+  const details = glyph.details
+    .map((d) => (/Z$/.test(d) ? `<path d="${d}"${stroke} style="fill: ${TONE_COLOR.light}; fill-opacity: 0.8"/>` : `<path d="${d}"${stroke} fill="none"/>`))
+    .join('');
+  return `<g transform="${t}"${opacity}>${body}${details}</g>`;
+}
+
+function shapeSvg(s: DrawingShape): string {
+  const a = paint(s);
   switch (s.type) {
     case 'rect':
       return `<rect x="${f(s.x)}" y="${f(s.y)}" width="${f(s.width)}" height="${f(s.height)}"${s.rx ? ` rx="${f(s.rx)}"` : ''}${a}/>`;
@@ -292,7 +500,61 @@ function shapeSvg(s: DrawingShape, extra: string): string {
       const tokens = [...s.d.matchAll(PATH_TOKEN)].map((m) => m[1] ?? f(Number(m[2])));
       return `<path d="${tokens.join(' ')}"${a}/>`;
     }
+    case 'item':
+      return itemSvg(s);
   }
+}
+
+/** The centre of a part's shapes: where it spins about unless it says. */
+function partCentre(drawing: UnitOpDrawing, id: string): { x: number; y: number } {
+  const boxes = drawing.shapes.filter((s) => s.part === id).map(shapeExtent);
+  if (!boxes.length) return { x: drawing.viewBox.width / 2, y: drawing.viewBox.height / 2 };
+  const x0 = Math.min(...boxes.map((b) => b[0]));
+  const y0 = Math.min(...boxes.map((b) => b[1]));
+  const x1 = Math.max(...boxes.map((b) => b[2]));
+  const y1 = Math.max(...boxes.map((b) => b[3]));
+  return { x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+}
+
+/**
+ * The CSS that moves a part. Keyframes live in the app (EQUIPMENT_ANIM_CSS);
+ * a unit that is not running sets --pf-play to paused, so it holds still.
+ */
+function motionStyle(drawing: UnitOpDrawing, part: DrawingPart): string {
+  const period = `${f(part.periodS ?? 2)}s`;
+  const delay = part.delayS ? ` ${f(part.delayS)}s` : '';
+  const play = 'animation-play-state: var(--pf-play, running)';
+  const moves = `--pf-dx: ${f(part.dx ?? 0)}px; --pf-dy: ${f(part.dy ?? 0)}px`;
+  switch (part.motion) {
+    case 'spin':
+    case 'spin-reverse': {
+      const o = part.origin ?? partCentre(drawing, part.id);
+      return `transform-box: view-box; transform-origin: ${f(o.x)}px ${f(o.y)}px; animation: pf-spin ${period} linear${delay} infinite${part.motion === 'spin-reverse' ? ' reverse' : ''}; ${play}`;
+    }
+    case 'travel':
+      return `${moves}; animation: pf-d-travel ${period} linear${delay} infinite; ${play}`;
+    case 'bob':
+    case 'dive':
+      return `${moves}; animation: pf-d-bob ${period} ease-in-out${delay} infinite; ${play}`;
+    case 'gantry':
+      return `${moves}; animation: pf-d-gantry ${period} ease-in-out${delay} infinite; ${play}`;
+    case 'blink':
+      return `animation: pf-sensor-blink ${period} ease-in-out${delay} infinite; ${play}`;
+    case 'shimmer':
+      return `animation: pf-shimmer ${period} ease-in-out${delay} infinite; ${play}`;
+    case 'pulse':
+      return `animation: pf-fade ${period} ease-in-out${delay} infinite; ${play}`;
+  }
+}
+
+/** One shape, inside the groups that move it (its part) and size it (a live level). */
+function placed(s: DrawingShape, motions: Map<string, string>): string {
+  let svg = shapeSvg(s);
+  if (s.type === 'rect' && s.level) {
+    svg = `<g style="transform-box: view-box; transform-origin: 0px ${f(s.y + s.height)}px; transform: scaleY(var(--pf-level, 0.6)); transition: transform 0.6s ease">${svg}</g>`;
+  }
+  const motion = s.part ? motions.get(s.part) : undefined;
+  return motion ? `<g style="${motion}">${svg}</g>` : svg;
 }
 
 /**
@@ -301,16 +563,44 @@ function shapeSvg(s: DrawingShape, extra: string): string {
  * page as markup.
  */
 export function drawingToSvg(drawing: UnitOpDrawing): { shell: string; details: string; viewBox: string } {
+  const motions = new Map((drawing.parts ?? []).map((p) => [p.id, motionStyle(drawing, p)]));
   const shell = drawing.shapes
     .filter((s) => s.layer !== 'detail')
-    // A tinted area takes the theme's jade where the app's CSS variables exist, and this jade elsewhere.
-    .map((s) => shapeSvg(s, s.layer === 'fill' ? ' style="fill: var(--pf-jade-500, #10b981); fill-opacity: 0.26" stroke="none"' : ''))
+    .map((s) => placed(s, motions))
     .join('');
   const details = drawing.shapes
     .filter((s) => s.layer === 'detail')
-    .map((s) => shapeSvg(s, ''))
+    .map((s) => placed(s, motions))
     .join('');
   return { shell, details, viewBox: `0 0 ${f(drawing.viewBox.width)} ${f(drawing.viewBox.height)}` };
+}
+
+/**
+ * The drawing as a whole SVG document, the way the canvas draws it (outline
+ * jade on a faint tint, internals thinner), with nozzle stubs. For previews
+ * and exported images: colours fall back to the dark theme, on its canvas.
+ */
+export function drawingToStandaloneSvg(drawing: UnitOpDrawing, options: { pixelWidth?: number; level?: number; background?: boolean } = {}): string {
+  const svg = drawingToSvg(drawing);
+  const { width: W, height: H } = drawing.viewBox;
+  const px = options.pixelWidth ?? 480;
+  const nozzles = drawing.nozzles
+    .map((n) => {
+      const x = (n.x / 100) * W;
+      const y = (n.y / 100) * H;
+      const len = 0.04 * Math.max(W, H);
+      const [dx, dy] = n.side === 'left' ? [-len, 0] : n.side === 'right' ? [len, 0] : n.side === 'top' ? [0, -len] : [0, len];
+      return `<line x1="${f(x)}" y1="${f(y)}" x2="${f(x + dx)}" y2="${f(y + dy)}" stroke="#2dd5b7" stroke-width="2"/><circle cx="${f(x)}" cy="${f(y)}" r="${f(0.012 * Math.max(W, H) + 1)}" fill="#14161a" stroke="#2dd5b7" stroke-width="1.2"/>`;
+    })
+    .join('');
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${svg.viewBox}" width="${px}" height="${Math.round((px * H) / W)}" style="--pf-level: ${f(options.level ?? 0.6)}">`,
+    options.background === false ? '' : `<rect x="0" y="0" width="${f(W)}" height="${f(H)}" fill="#181a1f"/>`,
+    `<g fill="rgba(84, 158, 106, 0.08)" stroke="#71cead" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${svg.shell}</g>`,
+    svg.details ? `<g fill="none" stroke="#71cead" stroke-width="1.2" stroke-linecap="round" opacity="0.75">${svg.details}</g>` : '',
+    nozzles,
+    '</svg>'
+  ].join('');
 }
 
 /** The canvas dressing for a unit drawn by its contract: its shapes, and its nozzles linked to its ports. */

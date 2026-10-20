@@ -25,6 +25,10 @@ export const EQUIPMENT_ANIM_CSS = `
   @keyframes pf-sensor-blink { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; filter: drop-shadow(0 0 4px var(--pf-jade-glow)); } }
   @keyframes pf-gantry-move { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(24px, 0); } 50% { transform: translate(24px, 12px); } 75% { transform: translate(24px, 0); } 90% { transform: translate(0, 0); } }
   @keyframes pf-needle-dive { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+  @keyframes pf-d-travel { from { transform: translate(0, 0); } to { transform: translate(var(--pf-dx, 0px), var(--pf-dy, 0px)); } }
+  @keyframes pf-d-bob { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(var(--pf-dx, 0px), var(--pf-dy, 0px)); } }
+  @keyframes pf-d-gantry { 0%, 100% { transform: translate(0, 0); } 30% { transform: translate(var(--pf-dx, 0px), 0); } 50% { transform: translate(var(--pf-dx, 0px), var(--pf-dy, 0px)); } 70% { transform: translate(var(--pf-dx, 0px), 0); } }
+  @media (prefers-reduced-motion: reduce) { .pf-custom-unit * { animation: none !important; } }
 `;
 
 export function injectEquipmentCSS(): void {
@@ -387,19 +391,25 @@ export const TankAnim: React.FC<{ stroke?: string; bg?: string; isRunning?: bool
   );
 };
 
-// ── CustomEquipmentAnim: AI Forge SVG Shell & Details ─────────────────────────
+// ── CustomEquipmentAnim: a designed unit's own drawing ────────────────────────
+// Its moving parts run while the unit does (--pf-play), its level shapes follow
+// the liquid it holds (--pf-level), and its status lamps the run (--pf-unit-status).
 export const CustomEquipmentAnim: React.FC<{
   shellSvg?: string;
   detailsSvg?: string;
   viewBox?: string;
   stroke?: string;
   bg?: string;
+  isRunning?: boolean;
+  levelFraction?: number;
 }> = ({
   shellSvg = '',
   detailsSvg = '',
   viewBox = '0 0 100 100',
   stroke: strokeProp,
-  bg: bgProp
+  bg: bgProp,
+  isRunning = true,
+  levelFraction
 }) => {
   const { palette } = useTheme();
   const stroke = strokeProp ?? palette.jade[400];
@@ -409,9 +419,17 @@ export const CustomEquipmentAnim: React.FC<{
 
   const cleanShell = sanitize(shellSvg);
   const cleanDetail = sanitize(detailsSvg);
+  const level = levelFraction === undefined ? 0.6 : Math.max(0, Math.min(1, levelFraction));
+  const vars = {
+    width: '100%',
+    height: '100%',
+    '--pf-play': isRunning ? 'running' : 'paused',
+    '--pf-level': String(level),
+    '--pf-unit-status': isRunning ? palette.status.busy : palette.status.idle
+  } as React.CSSProperties;
 
   return (
-    <svg viewBox={viewBox} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: '100%' }}>
+    <svg className="pf-custom-unit" viewBox={viewBox} preserveAspectRatio="xMidYMid meet" style={vars}>
       <g fill={bg} stroke={stroke} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: cleanShell }} />
       {cleanDetail && (
         <g fill="none" stroke={stroke} strokeWidth="1.2" strokeLinecap="round" opacity="0.75" dangerouslySetInnerHTML={{ __html: cleanDetail }} />
@@ -674,6 +692,8 @@ export const UnitAnim: React.FC<UnitAnimProps> = ({ kind, dressing, isRunning = 
         detailsSvg={dressing.customSvgDetails}
         viewBox={dressing.viewBox}
         stroke={stroke}
+        isRunning={isRunning}
+        {...(levelFraction !== undefined ? { levelFraction } : {})}
       />
     );
   }

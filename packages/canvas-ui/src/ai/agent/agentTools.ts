@@ -11,6 +11,7 @@ import {
 import { FORGE_TOOLS, inputSchemaFor, portsOf, type AddUnitOptions, type ForgeTool, type ToolHost } from '@process-forge/tools';
 import { communityApiUrl } from '../../marketplace/communityLibraryClient.js';
 import { saveUnitOp } from '../../library/savedUnitOps.js';
+import { rasterizeSvg } from '../../utils/rasterize.js';
 import type { SourcedDecisionProvider } from './jevProvider.js';
 
 /**
@@ -123,6 +124,13 @@ export function studioHost(host: AgentHost, ctx: AgentContext): ToolHost {
         ...(request.tags ? { tags: request.tags } : {})
       });
       return { success: true, requested: true, published: false, message: `The publish dialog for "${found.name}" is open; the engineer decides there.` };
+    },
+    renderSvg: async (svg) => {
+      try {
+        return { png: await rasterizeSvg(svg) };
+      } catch (e) {
+        return { error: (e as Error).message };
+      }
     },
     decider: ctx.decider,
     communityApiBase: communityApiUrl('')

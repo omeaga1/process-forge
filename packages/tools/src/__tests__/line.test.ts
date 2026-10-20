@@ -11,7 +11,7 @@ import {
   type ProcessNode,
   type UnitOpContract
 } from '@process-forge/protocol';
-import { simulateLine } from '../line.js';
+import { diagnoseBottlenecks, simulateLine } from '../line.js';
 
 /**
  * A batch line built the way an MCP client builds one (standard units, a
@@ -151,5 +151,39 @@ describe('compare_scenarios sees more than throughput', () => {
     assert.deepEqual(u.checksCleared, ['reaches-target']);
     assert.match(r.summary, /clears reaches-target/);
     assert.ok(r.scenarios[0]!.checksFailing < r.baseline.checksFailing);
+  });
+});
+
+describe('diagnose_bottlenecks on a line with a designed accumulation conveyor', () => {
+  const conveyor = {
+    contractVersion: 1,
+    id: 'accumulation-conveyor',
+    name: 'Accumulation Conveyor CV-101',
+    description: 'Carries bottles and holds them back-to-back when the packer pauses.',
+    ports: [
+      { id: 'in', name: 'In', direction: 'INLET', role: 'MATERIAL', flowDimension: 'DISCRETE_ITEMS', required: true },
+      { id: 'out', name: 'Out', direction: 'OUTLET', role: 'MATERIAL', flowDimension: 'DISCRETE_ITEMS', required: true }
+    ],
+    parameters: [
+      { name: 'lengthM', label: 'Length', unit: 'm', value: 15, min: 1 },
+      { name: 'lanes', label: 'Lanes', unit: '-', value: 2, min: 1 }
+    ],
+    derived: [{ name: 'holds', label: 'Bottles it holds', unit: 'items', expr: 'floor(lanes * lengthM * 1000 / 68)' }],
+    constraints: [],
+    behavior: { mode: 'DISCRETE_CYCLE', cycleSeconds: '0.2', unitsPerCycle: '1', queueCapacity: 'holds' }
+  } as unknown as UnitOpContract;
+  const g = {
+    id: 'cv',
+    name: 'Custom Process Flow',
+    version: '1.0.0',
+    metadata: {},
+    nodes: [{ ...contractToProcessNode(conveyor), id: 'CV-101' } as ProcessNode],
+    edges: []
+  } as unknown as ProcessGraph;
+
+  it('counts it as a buffer instead of asking for one', () => {
+    const recs = diagnoseBottlenecks(g).actionableRecommendations.join(' ');
+    assert.doesNotMatch(recs, /No accumulation buffers/);
+    assert.match(recs, /about 441 items of surge buffer/);
   });
 });

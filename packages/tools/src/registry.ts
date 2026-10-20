@@ -1,5 +1,7 @@
 import {
   DESIGN_QUESTIONS,
+  DRAWING_KITS,
+  DRAWING_KIT_SUMMARY,
   EQUIPMENT_CATEGORIES,
   EXAMPLE_LINES,
   STANDARD_EQUIPMENT_CATALOG,
@@ -25,6 +27,8 @@ import { addCommunityUnitOp, addStandardUnitOp, COMMUNITY_CATEGORIES, libraryMat
 import { resolveGraph, type ResolvedGraph } from './graphSource.js';
 import type { DecisionSource, ProjectRequest, Surface, ToolHost } from './host.js';
 import { compareScenarios, diagnoseBottlenecks, simulateLine } from './line.js';
+import { drawUnit, forkUnitOp, previewDrawing } from './drawings.js';
+import { measuredInletOf } from './measuredInlet.js';
 import { lookupComponent } from './components.js';
 import { applyChanges, planChanges } from './plan.js';
 import { solveLineTarget, sweepLine } from './study.js';
@@ -362,10 +366,12 @@ export const FORGE_TOOLS: ForgeTool[] = [
       const graph = 'graph' in open ? open.graph : undefined;
       const targetRef = a.targetUnit ?? a.targetNodeId;
       const target = graph && targetRef ? resolveUnit(graph, String(targetRef)) : null;
+      const measured = graph && target && typeof target !== 'string' ? measuredInletOf(graph, target.id) : undefined;
       const brief = executeDesignUnitOp({
         description: String(a.description ?? ''),
         ...(graph ? { graph } : {}),
         ...(target && typeof target !== 'string' ? { targetNodeId: target.id } : {}),
+        ...(measured ? { measuredInlet: measured } : {}),
         ...(a.preferredMode ? { preferredMode: a.preferredMode } : {})
       });
       // Before anything is designed: has someone published a unit like this?
@@ -378,6 +384,71 @@ export const FORGE_TOOLS: ForgeTool[] = [
         : '';
       return { ...brief, fromTheLibrary, nextStep: offer + brief.nextStep, designChecklist: { decidedBy: decidedBy(host.decider), include: designChecklist(profile) } };
     }
+  },
+  {
+    name: 'draw_unit_op',
+    title: 'Draw a designed unit',
+    access: 'read',
+    idempotent: true,
+    description:
+      "Draws a unit you are designing from its contract, at the standard of the Standard palette's own drawings: the equipment's body, internals and guarding in the theme's tones, the items it carries (bottles, cans, cases, pallets...), parts that move while it runs (a turret, a belt, a gantry head, an impeller) and a live liquid level, with every port's nozzle on the wall where that stream connects. The contract's own numbers shape it (valves on a filler, lanes on a conveyor, a case's rows and columns, layers on a pallet, mixer elements), and each unit gets a variant of its own, so no two units are the same drawing. Kits: " +
+      DRAWING_KITS.map((k) => `${k} (${DRAWING_KIT_SUMMARY[k]})`).join('; ') +
+      '. Use this instead of writing a drawing by hand; put the result in contract.drawing, look at it with preview_unit_drawing, and reshape it where this unit differs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        contract: { type: 'object', description: 'The UnitOpContract you are designing (its drawing, if any, is replaced). Its ports become nozzles and its parameters shape the drawing.' },
+        ports: { type: 'array', description: 'Instead of a contract: its ports ({ id, name, direction, flowDimension, phase? }).', items: { type: 'object' } },
+        name: { type: 'string', description: "The unit's name, when not in the contract. The kit is chosen from it (the last equipment word wins: a filler feed pump is a pump)." },
+        description: { type: 'string', description: 'What the unit is, when not in the contract.' },
+        kit: { type: 'string', enum: [...DRAWING_KITS], description: 'Draw this kit instead of choosing one from the name.' },
+        variant: { type: 'number', description: 'Another variant of the same kit: panels, guarding, lamp and HMI placement, proportions. Default: one of its own from the unit\'s id and name.' },
+        settings: {
+          type: 'object',
+          description: 'Override what the contract implies: heads, lanes, rows, columns, layers, elements, item and outItem (bottle, can, case, pallet, bag, drum, carton, jar), agitated, jacketed, accumulates, capper.'
+        }
+      }
+    },
+    summarize: (a) => `Draw ${String(a.contract?.name ?? a.name ?? 'a unit')}`,
+    run: async (a) => drawUnit(a)
+  },
+  {
+    name: 'preview_unit_drawing',
+    title: 'Look at a unit drawing',
+    access: 'read',
+    idempotent: true,
+    description:
+      "Renders a unit's drawing to an image you can look at, the way the canvas draws it, with a report: shapes, moving parts, where each nozzle is, a quality score against the palette's drawings, and anything that is wrong (a port with no nozzle, a shape cut off, a near copy of a drawing that ships with ProcessForge). Use it after draw_unit_op and after every change to a drawing, and fix what you see before placing the unit. Needs ProcessForge Desktop running to make the image; without it the report and the SVG come back.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        contract: { type: 'object', description: 'A contract with its drawing.' },
+        drawing: { type: 'object', description: 'Or just a drawing.' },
+        unit: { type: 'string', description: 'Or a designed unit on the open flowsheet (id, name or tag).' },
+        pixelWidth: { type: 'number', description: 'Image width in pixels, 200 to 900 (default 560).' }
+      }
+    },
+    summarize: (a) => `Look at the drawing of ${String(a.contract?.name ?? a.unit ?? 'a unit')}`,
+    run: async (a, host) => previewDrawing(a, host)
+  },
+  {
+    name: 'fork_unit_op',
+    title: 'Fork a modelled unit',
+    access: 'read',
+    openWorld: true,
+    description:
+      "Starts a design from equipment that is already modelled, when the engineer asks for something the Standard palette or the ProcessForge Library has: returns its whole contract (ports, parameters, physics, behavior) and a drawing to reshape, under a new id, so the original stays as it was. From a Standard unit's catalog id (list_standard_unit_ops), a Library listing id (search_community_unit_ops), or a unit on the open flowsheet. Change it into what the engineer wants (parameters, ports, physics, drawing; preview_unit_drawing to look at it), then validate_unit_op and add_unit_op_to_flowsheet.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'A Standard catalog id ("rotary-filler"), a Library listing id, or a unit on the flowsheet (id, name or tag).' },
+        source: { type: 'string', enum: ['standard', 'library', 'flowsheet'], description: 'Optional: where to look, when an id could be more than one.' },
+        name: { type: 'string', description: 'A name for the fork (keep a tag like FL-201 in it).' }
+      },
+      required: ['from']
+    },
+    summarize: (a) => `Fork ${String(a.from ?? 'a unit')}`,
+    run: async (a, host) => forkUnitOp(a, host)
   },
   {
     name: 'calculate_stream',

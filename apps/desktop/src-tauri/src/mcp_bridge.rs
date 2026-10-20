@@ -253,6 +253,20 @@ fn handle(mut stream: TcpStream, bridge: Bridge) {
             let (code, body) = queue_and_wait(&bridge, "edit", payload);
             respond(&mut stream, code, &body)
         }
+        ("POST", "/v1/render") => {
+            // An SVG drawing to turn into a PNG, so an MCP client's model can
+            // look at a unit it drew. The web view rasterizes it.
+            let payload: Value = match serde_json::from_slice(&req.body) {
+                Ok(v) => v,
+                Err(e) => return respond(&mut stream, 400, &json!({ "error": format!("body is not JSON: {e}") })),
+            };
+            let svg = payload.get("svg").and_then(Value::as_str).unwrap_or("");
+            if !svg.trim_start().starts_with("<svg") || svg.len() > 2_000_000 {
+                return respond(&mut stream, 400, &json!({ "error": "expected { \"svg\": \"<svg ...>\" } under 2 MB" }));
+            }
+            let (code, body) = queue_and_wait(&bridge, "render", payload);
+            respond(&mut stream, code, &body)
+        }
         ("POST", "/v1/projects") => {
             // Flowsheets: list them, start one, open one, name and save the
             // open one. The web view keeps the projects, so it does the work.

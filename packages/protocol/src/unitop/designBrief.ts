@@ -51,6 +51,12 @@ export interface DesignUnitOpParams {
   targetNodeId?: string;
   /** Optional: which behavior mode the engineer expects. */
   preferredMode?: 'DISCRETE_CYCLE' | 'CONTINUOUS_RATE' | 'BATCH';
+  /**
+   * Optional: what a run of the line actually sends into the target unit (all
+   * its liquid inlets together). Wins over the pipes' static design values,
+   * which are defaults until a run fills them in.
+   */
+  measuredInlet?: UnitOpDesignStream;
 }
 
 export interface NeighbourContext {
@@ -275,7 +281,8 @@ function summariseStream(stream: Record<string, unknown>): Record<string, unknow
  */
 function buildProcessContext(
   graph: ProcessGraph | undefined,
-  targetNodeId: string | undefined
+  targetNodeId: string | undefined,
+  measuredInlet?: UnitOpDesignStream
 ): DesignUnitOpResult['processContext'] {
   if (!graph || !targetNodeId) {
     return {
@@ -351,7 +358,9 @@ function buildProcessContext(
   const feed = upstream.find((u) => u.streamType === 'CONTINUOUS_FLUID')?.streamSummary;
   const fluid = feed?.fluid as { temperatureCelsius?: number; densityGPerCm3?: number; specificHeatKjPerKgK?: number } | undefined;
   const gpm = typeof feed?.designFlowRateGpm === 'number' ? feed.designFlowRateGpm : undefined;
-  const suggestedDesignInlet: UnitOpDesignStream | undefined = feed
+  const suggestedDesignInlet: UnitOpDesignStream | undefined = measuredInlet
+    ? measuredInlet
+    : feed
     ? {
         ...(typeof fluid?.temperatureCelsius === 'number' ? { temperatureC: fluid.temperatureCelsius } : {}),
         ...(gpm !== undefined ? { volumetricFlowGpm: gpm } : {}),
@@ -362,7 +371,9 @@ function buildProcessContext(
           : {})
       }
     : undefined;
-  if (suggestedDesignInlet) {
+  if (measuredInlet) {
+    notes.push('suggestedDesignInlet is what a run of the line sends into this unit (every liquid inlet together). Use it for designInlet, adjusted to what the engineer says; the run supplies the live values.');
+  } else if (suggestedDesignInlet) {
     notes.push('suggestedDesignInlet is the design stream feeding this unit. Use it for designInlet, adjusted to what the engineer says; the run supplies the live values.');
   }
 
@@ -371,7 +382,7 @@ function buildProcessContext(
 
 
 export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpResult {
-  const { description, graph, targetNodeId, preferredMode } = params;
+  const { description, graph, targetNodeId, preferredMode, measuredInlet } = params;
 
   const availableFunctions = [
     { name: 'if', arity: '3 args: if(condition, then, else); only the branch taken is evaluated' },
@@ -400,7 +411,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
   const archetypeExample =
     phasePlan.archetype?.example && !multiphase && !changesPhase ? ARCHETYPE_EXAMPLES[phasePlan.archetype.example] : undefined;
 
-  const processContext = buildProcessContext(graph, targetNodeId);
+  const processContext = buildProcessContext(graph, targetNodeId, measuredInlet);
   const operatingConditions = operatingConditionsFor(phasePlan, processContext.suggestedDesignInlet);
   const brief = [
     `Design a unit operation from this description: "${description}"`,
@@ -412,14 +423,18 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     ...(operatingConditions.fromFlowsheet.length ? [`The flowsheet already gives: ${operatingConditions.fromFlowsheet.join('; ')}. Confirm these rather than ask.`] : []),
     "Use the engineer's numbers. Do not fill them in from typical values; where the engineer does not know one, propose a value, say it is an assumption, and write 'Assumed: confirm' in that parameter's description. Put them in ui.group 'Operating conditions'.",
     '',
-    'Return a single UnitOpContract as JSON, including its drawing, then call',
+    'Write the UnitOpContract as JSON, then draw it: call draw_unit_op with the',
+    'contract (do not write the drawing yourself). It draws this equipment from the',
+    "contract's own ports and numbers at the standard of the Standard palette, a",
+    'variant of its own. Put its drawing in the contract, check it by eye with',
+    "preview_unit_drawing, and reshape it where this unit differs. Then call",
     'validate_unit_op with it. The engine evaluates your expressions, checks your',
     'constraints, and checks that the drawing gives every port a nozzle. If',
-    'anything fails you get the specific failures back to revise against.',
+    'anything fails you get the specific failures back to revise against. If the',
+    'engineer asks for equipment that is already modelled (fromTheLibrary, or a',
+    'Standard unit), start from fork_unit_op instead and reshape that.',
     '',
-    'The drawing is how the unit appears on the flowsheet: draw the actual',
-    'equipment (see the rules), and put each nozzle where that stream really',
-    'connects. Worked examples show the format: workedExample is steady flow',
+    'Worked examples show the contract format: workedExample is steady flow',
     '(CONTINUOUS_RATE, a wax cooling belt; archetypeExample, the equipment itself, instead when there is one); cycleExample makes whole parts on a',
     'cycle (DISCRETE_CYCLE, a 3D printer); liveInletExample (an evaporator) reads',
     'what flows in (inlet.*, checked at designInlet) and splits and heats its',
@@ -495,30 +510,35 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
         ])
   ].join('\n');
 
+  // The examples teach the contract, not the drawing: draw_unit_op draws the unit.
+  const bare = <T extends { drawing?: unknown }>(c: T): Omit<T, 'drawing'> => {
+    const { drawing: _drawing, ...rest } = c;
+    return rest;
+  };
   return {
     success: true,
     brief,
     engineSuppliedNames: RESERVED_SCOPE_NAMES,
     availableFunctions,
     rules: [...UNIT_OP_AUTHORING_RULES],
-    workedExample: archetypeExample ? undefined : WAX_COOLING_BELT_CONTRACT,
-    cycleExample: FDM_PRINTER_CONTRACT,
-    liveInletExample: EVAPORATOR_CONTRACT,
-    assemblyExample: CASE_PACKER_CONTRACT,
-    batchExample: CRYSTALLISER_CONTRACT,
+    workedExample: archetypeExample ? undefined : bare(WAX_COOLING_BELT_CONTRACT),
+    cycleExample: bare(FDM_PRINTER_CONTRACT),
+    liveInletExample: bare(EVAPORATOR_CONTRACT),
+    assemblyExample: bare(CASE_PACKER_CONTRACT),
+    batchExample: bare(CRYSTALLISER_CONTRACT),
     batchNames: BATCH_SCOPE_NAMES,
-    componentsExample: JUICE_CONCENTRATOR_CONTRACT,
-    reactionExample: NEUTRALISER_CONTRACT,
+    componentsExample: bare(JUICE_CONCENTRATOR_CONTRACT),
+    reactionExample: bare(NEUTRALISER_CONTRACT),
     phasePlan,
     phaseFlowBasis: PHASE_FLOW_BASIS,
     // The examples are large, so only the one this unit needs comes back.
-    ...(phasePlan.archetype?.example === 'TWO_STREAM_EXCHANGER_CONTRACT' ? { channelsExample: TWO_STREAM_EXCHANGER_CONTRACT } : {}),
-    ...(archetypeExample ? { archetypeExample } : {}),
-    ...(multiphase && !changesPhase ? { gasSolidExample: DUST_COLLECTOR_CONTRACT } : {}),
-    ...(changesPhase ? { phaseChangeExample: phasePlan.archetype?.example === 'VENTURI_SCRUBBER_CONTRACT' ? VENTURI_SCRUBBER_CONTRACT : SPRAY_DRYER_CONTRACT } : {}),
+    ...(phasePlan.archetype?.example === 'TWO_STREAM_EXCHANGER_CONTRACT' ? { channelsExample: bare(TWO_STREAM_EXCHANGER_CONTRACT) } : {}),
+    ...(archetypeExample ? { archetypeExample: bare(archetypeExample as { drawing?: unknown }) } : {}),
+    ...(multiphase && !changesPhase ? { gasSolidExample: bare(DUST_COLLECTOR_CONTRACT) } : {}),
+    ...(changesPhase ? { phaseChangeExample: bare(phasePlan.archetype?.example === 'VENTURI_SCRUBBER_CONTRACT' ? VENTURI_SCRUBBER_CONTRACT : SPRAY_DRYER_CONTRACT) } : {}),
     operatingConditions,
     processContext,
     nextStep:
-      'Ask the engineer for the operating conditions in operatingConditions.ask and wait for the answers. Then author the contract with its drawing, call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'
+      'Ask the engineer for the operating conditions in operatingConditions.ask and wait for the answers. Then author the contract, draw it with draw_unit_op (and look at it with preview_unit_drawing), call validate_unit_op with { contract }, and revise until it is ACCEPTED. Then call add_unit_op_to_flowsheet with { contract } to put it on the flowsheet open in ProcessForge Desktop, and add_stream to pipe it to the units it connects to. If the desktop app is not running, give the engineer the contract JSON to paste into Design a unit op.'
   };
 }

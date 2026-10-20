@@ -2,6 +2,8 @@ import { WRITING_RULES, writingWarnings } from './writing.js';
 import { UnitOpContractSchema, unitWarnings, validateUnitOpContract, type UnitOpContract } from './contract.js';
 import { evaluateUnitOp, blockingViolations } from './evaluate.js';
 import { checkUnitOpDrawing } from './drawing.js';
+import { drawingQuality } from './drawingKits.js';
+import { nearCopyOf } from './shippedDrawings.js';
 import { phaseEnergy, phaseEnergyWarnings, phaseWarnings, type PhaseEnergyCheck } from './phaseBalance.js';
 import { physicsAlignment, type PhysicsAlignment } from './physicsAlignment.js';
 import { suggestFixes, type Fix } from './explore.js';
@@ -53,7 +55,7 @@ export interface ValidateUnitOpResult {
     /** Do the physics hold when evaluated? */
     physical: { passed: boolean; errors: string[]; warnings: string[] };
     /** Can it be drawn and piped: every port a nozzle on the drawing, every shape inside it? */
-    drawing: { passed: boolean; errors: string[]; warnings: string[] };
+    drawing: { passed: boolean; errors: string[]; warnings: string[]; /** 0-100 against the palette's drawings (drawingQuality). */ quality?: number };
     /**
      * Is it the physics of the equipment it describes: its archetype's ports,
      * phase changes, mode and required quantities, and energy and the second
@@ -214,12 +216,21 @@ export function executeValidateUnitOp(params: ValidateUnitOpParams): ValidateUni
   // round as any physics problems; it decides the verdict after physics.
   if (contract.drawing) {
     const d = checkUnitOpDrawing(contract.drawing, contract.ports);
-    gates.drawing = { passed: d.errors.length === 0, errors: d.errors, warnings: d.warnings };
+    // A model's drawing: how it compares with the palette's, and whether it is one that ships with
+    // the app. An engineer's or a template's drawing is theirs to keep as plain as they like.
+    const byModel = contract.provenance.authoredBy === 'SUB_AGENT';
+    const moves = contract.behavior.mode === 'DISCRETE_CYCLE' || contract.archetype === 'pump';
+    const quality = byModel ? drawingQuality(contract.drawing, { moves }) : { score: undefined, warnings: [] as string[] };
+    const copy = byModel ? nearCopyOf(contract.drawing, contract.id) : null;
+    const copied = copy
+      ? [`The drawing is ${Math.round(copy.similarity * 100)}% the same as "${copy.name}", which ships with ProcessForge. Draw this unit (draw_unit_op), or fork that one (fork_unit_op) and reshape it.`]
+      : [];
+    gates.drawing = { passed: d.errors.length === 0, errors: d.errors, warnings: [...d.warnings, ...quality.warnings, ...copied], ...(quality.score !== undefined ? { quality: quality.score } : {}) };
   } else {
     gates.drawing = {
       passed: true,
       errors: [],
-      warnings: ['No drawing: the unit will appear as a generic vessel with its connections spaced along the edges. Add contract.drawing.']
+      warnings: ['No drawing: the unit will appear as a generic vessel with its connections spaced along the edges. Draw it with draw_unit_op and put the result in contract.drawing.']
     };
   }
 
@@ -406,7 +417,7 @@ export const UNIT_OP_AUTHORING_RULES: readonly string[] = [
   "Make the parameters easy to set right. integer: true for counts (nozzles, stations, passes); options: [{ label, value }] when it is a choice from a list (motor frame sizes, a fabric's temperature rating, a pipe schedule) -- the value must be one of them; ui: { group } to group them as the engineer thinks of them (\"Rating\", \"Suction\", \"Geometry\", \"Operating conditions\"), ui: { advanced: true } for constants and correlation coefficients nobody should touch, ui: { scale: 'log' } for a range spanning decades. The panel shows each knob with the band of values where every check passes, solves a failing check for a knob, and lets the engineer type any unit of the same kind (bar for a psi parameter), so bounds and units have to be the real ones.",
   "Lay out the unit's panel: panel: [...] is what the engineer sees first, drawn by the app from a fixed catalog (you name what to show, never how). { kind: 'figure', result } for the two or three headline numbers (a parameter, a derived value, or engine.dutyKw / engine.unitsPerMinute / engine.capacityGpm ...); { kind: 'gauge', check: <constraint id> } for the checks that decide the design, each written as one comparison (a <= b) so the gauge can show how close it runs to its limit; { kind: 'note', text } for one line of operating advice. At most 12, in reading order. Leave it out and the app gauges every comparison check.",
   'Set provenance.authoredBy to SUB_AGENT and list in engineerConfirmed only the parameters the engineer actually stated. Do not claim confirmation for values you chose.',
-  'Draw the unit in `drawing`: a viewBox { width, height } (20-400 each; wide equipment is wide, tall equipment is tall) and `shapes` in viewBox units. Shapes are rect, circle, ellipse, line, polyline, polygon, or path (plain SVG path data: M L H V C S Q T A Z and numbers only). Every shape must lie inside the viewBox.',
-  'Use layer "body" for the equipment outline, "detail" for internals (trays, flights, impellers, coils; drawn thinner), and "fill" for a tinted area such as a liquid level or a bed. Set dashed: true for jackets, sprays, and hidden lines. Draw what makes this unit recognisable to an engineer, not a generic box.',
+  'Do not draw the unit by hand. Write the rest of the contract (ports, parameters, behavior), then call draw_unit_op with it: it draws this equipment from the contract at the standard of the Standard palette (the turret with as many heads as the contract has valves, the conveyor with its lanes, the case with its rows and columns), with every nozzle on its port, moving parts and the items it carries, as a variant of its own. Put the result in contract.drawing, look at it with preview_unit_drawing, then make it this unit\'s own: add, move or re-tone shapes where this equipment differs. When the engineer wants a unit that is already modelled (a Standard unit or one in the Library), start from fork_unit_op instead and reshape that.',
+  'The drawing format: a viewBox { width, height } (20-400 each) and `shapes` in viewBox units: rect, circle, ellipse, line, polyline, polygon, path (plain SVG path data: M L H V C S Q T A Z and numbers only), and item (a bottle, can, case, pallet, bag, drum, carton or jar fitted to its box, drawn as the palette draws them). Every shape must lie inside the viewBox. layer "body" is the equipment, "detail" its internals (drawn thinner), "fill" a tinted area; a fill rect with level: true rises and falls with the liquid the unit holds in a run. tone paints a shape from the theme: outline (default), solid, deep, metal, glow, light, gold, alert, or status (a lamp that shows whether the unit runs); weight sets its line (hair, thin, normal, bold, heavy). Moving parts: give shapes part: <id> and declare drawing.parts [{ id, motion: spin | spin-reverse | travel | bob | dive | gantry | blink | shimmer | pulse, periodS, origin, dx, dy }]; they move while the unit runs and hold still when it is stopped.',
   'Give every port exactly one entry in drawing.nozzles: { portId, x, y, side }, where x and y are PERCENT of the viewBox (0-100) and side is the direction the pipe leaves (left, right, top, bottom). Put each nozzle on the wall of the body where that stream really enters or leaves, facing outward. Pipes on the flowsheet attach exactly there.'
 ];

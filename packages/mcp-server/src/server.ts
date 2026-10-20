@@ -22,7 +22,7 @@ import { bridgeHost, executeGetOpenFlowsheet } from './tools/desktopBridge.js';
 import { PROMPTS, renderPrompt } from './prompts.js';
 import { MCP_APP_MIME_TYPE, UNIT_PANEL_META_KEY, UNIT_PANEL_TOOLS, UNIT_PANEL_URI, unitPanelFor, unitPanelHtml, unitPanelToolMeta } from './apps/unitPanel.js';
 
-export const SERVER_VERSION = '0.23.0';
+export const SERVER_VERSION = '0.24.0';
 
 /**
  * Sent to every client at connect time (the MCP `instructions` field), so a
@@ -34,7 +34,7 @@ Typical workflow:
 1. Read the line. get_open_flowsheet returns what the engineer has open in ProcessForge Desktop. simulate_process_line, diagnose_bottlenecks and compare_scenarios use that open flowsheet automatically when you pass no graph or templateName; if the app is not running they fall back to a demo line and say so in "source".
 2. Find the limit. diagnose_bottlenecks is instant (static capacities); simulate_process_line runs the line over time (throughput, starved/blocked time, OEE, liquid levels, temperatures, heat duty); solve_steady_state gives a liquid, gas or powder line's heat and mass balance and stream table at steady state in milliseconds (recycles converged).
 3. Test changes before making them. compare_scenarios runs the same line with settings changed (e.g. a bigger pump, a second filler nozzle count, a larger reactor jacket) and reports the difference. Nothing on the flowsheet changes. sweep_line runs one setting across a range and tabulates the results you name; solve_line_target finds the value of a setting that brings a result of the line to a target ("what feed rate gives 1,500 kg/h?", "what steam duty gives 50 °Brix?"). Use them rather than estimating or iterating by hand.
-4. Build. Prefer standard equipment: list_standard_unit_ops, then add_standard_unit_op. Next, search_community_unit_ops / add_community_unit_op (community listings are unreviewed; say so). Only for equipment neither has, design one (take every chemical's properties from lookup_component, or psat('ethanol', T), hvap, cp_gas and rho_liquid in the contract, never from memory): design_unit_op gives the brief and the units like it others have published to the ProcessForge library (offer those first), you ask the engineer for the operating conditions it lists (temperatures, pressures, flows; never assume them), you write a UnitOpContract, validate_unit_op checks it, add_unit_op_to_flowsheet places it. Connect units with add_stream (by id, name or tag like P-101). Change an existing unit with update_unit; remove_unit and remove_stream delete, so confirm with the engineer first. Once a designed unit is accepted and placed, offer to publish it to the ProcessForge library so the next engineer can start from it: publish_unit_op opens the publish dialog in the app for the engineer to confirm.
+4. Build. Prefer standard equipment: list_standard_unit_ops, then add_standard_unit_op. Next, search_community_unit_ops / add_community_unit_op (community listings are unreviewed; say so). Only for equipment neither has, design one (take every chemical's properties from lookup_component, or psat('ethanol', T), hvap, cp_gas and rho_liquid in the contract, never from memory): design_unit_op gives the brief and the units like it others have published to the ProcessForge library (offer those first), you ask the engineer for the operating conditions it lists (temperatures, pressures, flows; never assume them), you write a UnitOpContract, draw_unit_op draws it (never draw a unit by hand; look at the drawing with preview_unit_drawing and reshape it where the unit differs), validate_unit_op checks it, add_unit_op_to_flowsheet places it. When the engineer wants their own version of equipment that is modelled, or asks you to design rather than reuse, fork_unit_op gives you the modelled unit's contract and drawing to reshape. Connect units with add_stream (by id, name or tag like P-101). Change an existing unit with update_unit; remove_unit and remove_stream delete, so confirm with the engineer first. Once a designed unit is accepted and placed, offer to publish it to the ProcessForge library so the next engineer can start from it: publish_unit_op opens the publish dialog in the app for the engineer to confirm.
 5. For any change of more than one step (a section of line, re-piping, retuning several units), plan it: plan_changes applies the changes to a copy, all or nothing, and shows the diff and a run before and after; show the engineer, and on their yes apply_changes with the same changes and planId applies them in one step (refused if the flowsheet moved on) and reads the result back.
 6. Re-simulate after changes and report what moved.
 
@@ -88,7 +88,7 @@ const MCP_ONLY: ToolDef[] = [
     name: 'forge_equipment_drawing',
     title: 'Template equipment drawing',
     description:
-      'Picks a template equipment drawing (SVG, viewBox, nozzles, internals) from a fixed library of nine families by matching keywords in the description. For a unit op you are designing, draw it in the contract instead (see design_unit_op). Templates are pre-authored, with a few parameters (tray count, agitator type, bottom head style) interpolated from the description; unmatched descriptions return a generic vertical vessel.',
+      'Picks a template equipment drawing (SVG, viewBox, nozzles, internals) from a fixed library of nine families by matching keywords in the description. For a unit op you are designing, use draw_unit_op instead: it draws the contract itself, at the standard of the palette. Templates are pre-authored, with a few parameters (tray count, agitator type, bottom head style) interpolated from the description; unmatched descriptions return a generic vertical vessel.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -222,9 +222,16 @@ async function readResource(uri: string): Promise<{ mimeType: string; text: stri
  * it; only a tool that threw is an MCP error.
  */
 export function toolResult(result: unknown) {
-  const structured = result && typeof result === 'object' && !Array.isArray(result) ? (result as Json) : { result };
+  // An image a tool made (preview_unit_drawing) goes to the model as an image, not as base64 text.
+  const image = (result && typeof result === 'object' && !Array.isArray(result) ? (result as Json).image : undefined) as { data?: unknown; mimeType?: unknown } | undefined;
+  const hasImage = Boolean(image && typeof image.data === 'string' && typeof image.mimeType === 'string');
+  const rest = hasImage ? Object.fromEntries(Object.entries(result as Json).filter(([k]) => k !== 'image')) : result;
+  const structured = rest && typeof rest === 'object' && !Array.isArray(rest) ? (rest as Json) : { result: rest };
   return {
-    content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+    content: [
+      { type: 'text' as const, text: JSON.stringify(rest, null, 2) },
+      ...(hasImage ? [{ type: 'image' as const, data: image!.data as string, mimeType: image!.mimeType as string }] : [])
+    ],
     structuredContent: structured
   };
 }

@@ -12,6 +12,8 @@ export * from './unitop/phases.js';
 export * from './unitop/phaseBalance.js';
 export * from './unitop/streamCalculator.js';
 export * from './unitop/drawing.js';
+export * from './unitop/drawingKits.js';
+export * from './unitop/shippedDrawings.js';
 export * from './unitop/evaluate.js';
 export * from './unitop/unitConversion.js';
 export * from './unitop/explore.js';

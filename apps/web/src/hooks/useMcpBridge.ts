@@ -16,7 +16,7 @@ import {
 } from '@process-forge/protocol';
 import { isTauriEnvironment, invokeTauriCommand } from '../components/UpdateNotificationBanner.js';
 import { contractToProcessNode } from '../unitop/contractToNode.js';
-import { saveUnitOp, CommunityLibraryService } from '@process-forge/canvas-ui';
+import { saveUnitOp, CommunityLibraryService, rasterizeSvg } from '@process-forge/canvas-ui';
 
 /**
  * The app's half of the MCP bridge (apps/desktop/src-tauri/src/mcp_bridge.rs).
@@ -46,7 +46,9 @@ type PendingRequest =
   /** Ask the engineer to publish a unit: opens the publish dialog, publishes nothing. */
   | { id: string; kind: 'publish'; request: PublishRequest }
   /** Flowsheets: list, start, open, name and save. */
-  | { id: string; kind: 'project'; request: ProjectRequest };
+  | { id: string; kind: 'project'; request: ProjectRequest }
+  /** A drawing to look at: an SVG document to turn into a PNG. */
+  | { id: string; kind: 'render'; request: { svg: string } };
 
 /** A flowsheet request from an MCP client (@process-forge/tools ProjectRequest). */
 export type ProjectRequest =
@@ -228,6 +230,7 @@ export function useMcpBridge(
     };
 
     const handle = async (item: PendingRequest) => {
+      if (item.kind === 'render') return { png: await rasterizeSvg(item.request.svg) };
       if (item.kind === 'project') return handleProject(item.request);
       if (item.kind === 'publish') return handlePublish(item.request);
       if (item.kind === 'stream') return handleStream(item.request);
@@ -272,7 +275,8 @@ export function useMcpBridge(
           // Share what the change made before answering, so the client's next
           // call (a simulation right after an edit) reads the flowsheet as it
           // is now, not as it was before the debounced share catches up.
-          const changed = item.kind !== 'publish' && !(item.kind === 'project' && item.request.op === 'list') && !(result as { error?: unknown } | null)?.error;
+          const changed =
+            item.kind !== 'publish' && item.kind !== 'render' && !(item.kind === 'project' && item.request.op === 'list') && !(result as { error?: unknown } | null)?.error;
           if (changed) {
             await invokeTauriCommand('bridge_set_flowsheet', { flowsheet: { projectName: nameRef.current, graph: graphRef.current } }).catch(() => undefined);
           }
