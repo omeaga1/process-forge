@@ -27,6 +27,8 @@ Units: liquid in gal/min and gallons, gas in ACFM/SCFM or kg/h, solids in kg/h, 
 
 export type AgentMessage =
   | { role: 'system' | 'user'; content: string }
+  /** Images a tool made (preview_unit_drawing), shown to the model after the tool results. */
+  | { role: 'user'; content: ({ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } })[] }
   | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
   | { role: 'tool'; tool_call_id: string; content: string };
 
@@ -101,6 +103,7 @@ export async function runAgent(opts: AgentRunOptions): Promise<string> {
     if (reply.content && calls.length) onEvent({ type: 'text', text: reply.content });
     if (calls.length === 0) return reply.content ?? '';
 
+    const images: string[] = [];
     for (const call of calls) {
       const tool = findAgentTool(call.function.name);
       let args: Record<string, any> = {};
@@ -129,8 +132,17 @@ export async function runAgent(opts: AgentRunOptions): Promise<string> {
           }
         }
       }
+      // An image goes to the model as an image after the tool results, not as base64 in them.
+      const image = (result as { image?: { data?: unknown; mimeType?: unknown } } | null)?.image;
+      if (image && typeof image.data === 'string' && typeof image.mimeType === 'string') {
+        images.push(`data:${image.mimeType};base64,${image.data}`);
+        result = { ...(result as object), image: 'shown below' };
+      }
       const text = JSON.stringify(result ?? null);
       history.push({ role: 'tool', tool_call_id: call.id, content: text.length > MAX_RESULT_CHARS ? `${text.slice(0, MAX_RESULT_CHARS)}… (truncated)` : text });
+    }
+    if (images.length) {
+      history.push({ role: 'user', content: [{ type: 'text', text: 'The drawing as rendered:' }, ...images.map((url) => ({ type: 'image_url' as const, image_url: { url } }))] });
     }
   }
   return 'I stopped after many steps without finishing. Tell me how you want to continue.';

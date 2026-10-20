@@ -76,6 +76,11 @@ export interface ToolHost {
   requestPublish(request: PublishRequest): Promise<HostResult>;
   /** Lists, starts, opens, names and saves flowsheets. Absent where the host cannot (the result says so). */
   project?(request: ProjectRequest): Promise<HostResult>;
+  /**
+   * Renders an SVG document to a PNG (base64), so a model can look at a
+   * drawing. The desktop app's web view does it; absent where nothing can.
+   */
+  renderSvg?(svg: string): Promise<{ png: string } | { error: string }>;
   /** Who decides what a complete design of a unit carries. */
   decider: DecisionSource;
   /** The community library's API, e.g. https://.../api. */

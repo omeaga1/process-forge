@@ -251,6 +251,20 @@ export async function executeProjectRequest(request: ProjectRequest): Promise<Re
 }
 
 /**
+ * Renders an SVG document to a PNG in the desktop app's web view, so a model
+ * can look at a drawing it made. Base64 PNG, or why not.
+ */
+export async function executeRenderSvg(svg: string): Promise<{ png: string } | { error: string }> {
+  const r = await call('POST', '/v1/render', { svg });
+  if (!r.ok) return { error: r.reason };
+  if (r.status === 404) return { error: 'This ProcessForge Desktop is too old to render drawings. Update it (0.1.108 or later: it updates itself on restart).' };
+  if (r.status === 202) return { error: 'ProcessForge did not answer: open the studio and try again.' };
+  if (r.status !== 200) return { error: r.body?.error ?? `HTTP ${r.status}` };
+  const png = r.body?.png;
+  return typeof png === 'string' && png.length > 0 ? { png } : { error: r.body?.error ?? 'The app returned no image.' };
+}
+
+/**
  * The MCP server's host for the shared tools (@process-forge/tools): the
  * flowsheet is the one open in ProcessForge Desktop, reached over the bridge.
  * Design checks use the offline rules (the decision model, Jev, runs on the
@@ -280,6 +294,7 @@ export const bridgeHost: ToolHost = {
   edit: (edit) => executeFlowsheetEdit(edit),
   requestPublish: (request) => executeRequestPublish(request as PublishRequestParams),
   project: (request) => executeProjectRequest(request),
+  renderSvg: (svg) => executeRenderSvg(svg),
   decider: { id: heuristicProvider.id, ask: (state, questions) => heuristicProvider.ask(state, questions), lastSource: { by: 'offline', reason: 'the MCP server uses the offline rules' } },
   get communityApiBase() {
     return communityApiBase();

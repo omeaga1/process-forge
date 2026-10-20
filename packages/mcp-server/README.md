@@ -15,6 +15,9 @@ server does no model inference itself: your MCP client is the model.
 | `calculate_stream` | Converts a liquid, gas or solid stream between flow units (kg/s, kg/h, lb/h, ACFM, SCFM, Nm³/h, m³/h, gal/min, L/min) with the ideal gas law, humidity and bulk density, and returns a designInlet to paste. |
 | `lookup_component` | The engine's component database (35 chemicals plus air, sugars and salt; Poling, PSRK and CRC data): a component's molar mass, boiling and critical points, vapour pressure, latent heat, densities and specific heats at a temperature, or a liquid mixture's density, specific heat and ideal bubble point. Unknown names are refused with the names they probably meant. Contracts call the same data as `psat('ethanol', T)`, `hvap`, `cp_gas`, `rho_liquid`. |
 | `validate_unit_op` | Checks a contract through the engine's gates: schema, every expression resolves and the units agree, phases balance (nothing leaves in a phase it never had, and heat-taking changes have a heat source), every ERROR constraint holds, and the drawing gives every port a nozzle. Returns the failures to fix. Accepts parameter overrides to test another operating point. |
+| `draw_unit_op` | Draws a unit you are designing from its contract at the standard of the Standard palette: body, internals and guarding in the theme's tones, the items it carries, parts that move while it runs, a live liquid level, and every port's nozzle where that stream connects. The contract's numbers shape it (valves, lanes, rows and columns, layers, elements) and each unit gets a variant of its own. Kits: rotary machine, labeler, conveyor, case packer, palletizer, tank, carbonator, pump, inline mixer, heat exchanger, machine. |
+| `preview_unit_drawing` | Renders a unit's drawing to an image the model can look at (made by ProcessForge Desktop), with a report: shapes, moving parts, nozzles, a quality score against the palette's drawings, and problems such as a near copy of a drawing that ships with ProcessForge. |
+| `fork_unit_op` | Starts a design from equipment that is already modelled (a Standard unit, a Library listing, or a unit on the flowsheet): its whole contract and a drawing to reshape, under a new id. |
 | `explore_unit_op` | Sweeps a contract's parameters, one at a time, through their ranges and reports where each check passes, warns and fails; solves for the value that brings a result to a target. Draws the unit panel in the chat in MCP Apps clients. |
 | `get_open_flowsheet` | Reads the flowsheet open in ProcessForge Desktop on this computer. |
 | `add_unit_op_to_flowsheet` | Validates a contract and adds it to the flowsheet open in ProcessForge Desktop, drawn from its contract with pipes attaching at its nozzles. |
@@ -77,7 +80,7 @@ offers:
 
 1. Open ProcessForge Desktop (0.1.18 or later) and the flowsheet you are working on.
 2. In your MCP client, describe the equipment, e.g. "a rotary drum dryer for wet road salt, counter-current hot air".
-3. The client calls `design_unit_op`, writes the contract (its physics and its drawing), and calls `validate_unit_op` until the engine accepts it.
+3. The client calls `design_unit_op`, writes the contract's physics, draws it with `draw_unit_op` (or starts from `fork_unit_op` when the equipment is already modelled), looks at the drawing with `preview_unit_drawing`, and calls `validate_unit_op` until the engine accepts it.
 4. It calls `add_unit_op_to_flowsheet`. The unit appears on your canvas, drawn as designed, with a nozzle for each stream. It then calls `add_stream` to pipe it to the units it connects to, or you pipe it up yourself.
 
 Without the desktop app running, step 4 tells the client so, and it can give you the contract JSON to paste into **Design a unit op** instead.
