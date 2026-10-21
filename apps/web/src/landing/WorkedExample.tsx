@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
+import { fontFamily } from '@process-forge/theme';
+import { SITE as D } from './palette.js';
 import { EquipmentFigure, TerminalArrow, terminalColor } from '@process-forge/canvas-ui';
 import { drawingToDressing, executeDesignUnitOp, executeValidateUnitOp } from '@process-forge/protocol';
 import { COLD_BREW_CONTRACT, COLD_BREW_FEED, COLD_BREW_PROMPT, runColdBrew } from './coldBrew.js';

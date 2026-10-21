@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
+import { fontFamily } from '@process-forge/theme';
+import { SITE as D } from './palette.js';
 import { useInView } from './useInView.js';
 
 /**

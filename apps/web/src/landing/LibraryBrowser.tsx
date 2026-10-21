@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { OsakaJadeDarkPalette as D } from '@process-forge/theme';
+import { SITE as D } from './palette.js';
 import { Brief, communityApiUrl } from '@process-forge/canvas-ui';
 import { mono } from './ui.js';
 

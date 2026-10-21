@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
+import { fontFamily } from '@process-forge/theme';
+import { SITE as D } from './palette.js';
 import { drawUnitOp, drawingToStandaloneSvg, type DrawUnitOpRequest } from '@process-forge/protocol';
 
 /**
@@ -37,7 +38,7 @@ export const KitGallery: React.FC = () => {
             role="img"
             aria-label={`${u.title}, drawn by the engine`}
             className="pf-kit-art"
-            style={{ height: 170, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14, background: `radial-gradient(ellipse 70% 60% at 50% 60%, ${D.jade.glow}10, transparent 70%), ${D.background.base}` }}
+            style={{ height: 170, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14, background: D.background.canvas }}
             dangerouslySetInnerHTML={{ __html: u.svg }}
           />
           <div style={{ padding: '12px 14px 14px', borderTop: `1px solid ${D.border.subtle}` }}>

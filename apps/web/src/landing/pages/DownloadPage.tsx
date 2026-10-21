@@ -1,5 +1,5 @@
 import React from 'react';
-import { OsakaJadeDarkPalette as D } from '@process-forge/theme';
+import { SITE as D } from '../palette.js';
 import { RELEASES_PAGE, formatSize, type DesktopOs } from '../../downloads/latestRelease.js';
 import { COLD_BREW_PROMPT } from '../coldBrew.js';
 import { OS_LABELS, useDownloads } from '../useDownloads.js';

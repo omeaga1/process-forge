@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
  */
 
 export const PAGES = {
-  home: { path: '/', title: 'ProcessForge: simulate the whole line, even the units nobody models' },
+  home: { path: '/', title: 'ProcessForge: production line simulation, machine by machine' },
   example: { path: '/example', title: 'Worked example: cold brew, freeze-concentrated · ProcessForge' },
   library: { path: '/library', title: 'ProcessForge Library · ProcessForge' },
   claude: { path: '/claude', title: 'Claude & MCP · ProcessForge' },

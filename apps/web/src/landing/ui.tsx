@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
+import { fontFamily } from '@process-forge/theme';
+import { SITE as D } from './palette.js';
 import { useInView } from './useInView.js';
 
 /** The pieces every page of the public site is made of. */
@@ -123,7 +124,7 @@ export function Clip({ src, title, priority = false }: { src: string; title: str
     else v.pause();
   }, [inView]);
   return (
-    <div ref={ref} style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${D.border.strong}`, background: D.background.base, boxShadow: `0 24px 60px -24px #000c, 0 0 0 1px ${D.jade.glow}10` }}>
+    <div ref={ref} style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${D.border.strong}`, background: D.background.base, boxShadow: `0 30px 60px -30px #2b1d1066, 0 2px 6px #2b1d1014` }}>
       <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderBottom: `1px solid ${D.border.default}`, background: D.background.surface }}>
         {[D.status.failed, D.status.blocked, D.jade[500]].map((c) => (
           <span key={c} style={{ width: 9, height: 9, borderRadius: 5, background: `${c}aa` }} />
