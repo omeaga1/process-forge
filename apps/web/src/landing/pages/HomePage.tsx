@@ -103,7 +103,7 @@ export const HomePage: React.FC<LandingActions> = ({ primary, secondary, devStud
         <div className="pf-hero-clip" style={{ marginTop: 'clamp(36px, 6vw, 56px)', position: 'relative' }}>
           <Clip src={HERO_CLIP.src} title={HERO_CLIP.title} priority />
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 10, fontSize: 13, color: D.text.muted }}>
-            <span>A bottling line from syrup to finished pallets, every machine a unit Claude designed and drew, running in the desktop app.</span>
+            <span>A carbonated soft-drink line from syrup and CO2 to finished pallets, every machine a unit Claude designed and drew, running in the desktop app.</span>
             <span style={{ ...mono, fontSize: 11, letterSpacing: '0.1em' }}>RECORDED FROM THE CURRENT BUILD</span>
           </div>
         </div>
