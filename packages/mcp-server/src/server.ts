@@ -22,7 +22,7 @@ import { bridgeHost, executeGetOpenFlowsheet } from './tools/desktopBridge.js';
 import { PROMPTS, renderPrompt } from './prompts.js';
 import { MCP_APP_MIME_TYPE, UNIT_PANEL_META_KEY, UNIT_PANEL_TOOLS, UNIT_PANEL_URI, unitPanelFor, unitPanelHtml, unitPanelToolMeta } from './apps/unitPanel.js';
 
-export const SERVER_VERSION = '0.24.0';
+export const SERVER_VERSION = '0.24.1';
 
 /**
  * Sent to every client at connect time (the MCP `instructions` field), so a

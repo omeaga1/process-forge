@@ -633,10 +633,14 @@ export class SimulationEngine {
 
   private topUpFeed(runtime: UnitRuntime): void {
     // Only the room there is: a feed straight into an outlet (which has no limit) would otherwise never stop.
-    const room = this.downstreamRuntimes(runtime.node.id).reduce(
-      (sum, t) => sum + (Number.isFinite(t.maxQueue) ? Math.max(0, t.maxQueue - t.queue) : 0),
-      0
-    );
+    // A unit with a queue per port (a capper's bottles and caps) has room by port: bottles filling
+    // one port must not stop the caps feed, or the capper waits for caps that never come.
+    const room = this.discreteEdges.reduce((sum, e) => {
+      const t = e.sourceNodeId === runtime.node.id ? this.nodes.get(e.targetNodeId) : undefined;
+      if (!t || !Number.isFinite(t.maxQueue)) return sum;
+      const free = t.portQueue ? this.portCapacity(t, e.targetPortId) - (t.portQueue.get(e.targetPortId) ?? 0) : t.maxQueue - t.queue;
+      return sum + Math.max(0, free);
+    }, 0);
     if (room > 0) runtime.unitsProduced += this.routeUnits(runtime, room);
     this.setNodeState(runtime, 'IDLE');
   }
@@ -725,16 +729,6 @@ export class SimulationEngine {
   private queueCapacity(runtime: UnitRuntime): number {
     const b = this.cycleOf(runtime);
     return b?.fullCyclesOnly ? Math.max(runtime.maxQueue, b.unitsPerCycle) : runtime.maxQueue;
-  }
-
-  private downstreamRuntimes(nodeId: string): UnitRuntime[] {
-    const out: UnitRuntime[] = [];
-    for (const e of this.discreteEdges) {
-      if (e.sourceNodeId !== nodeId) continue;
-      const target = this.nodes.get(e.targetNodeId);
-      if (target) out.push(target);
-    }
-    return out;
   }
 
   private hasDownstream(nodeId: string, port?: string): boolean {

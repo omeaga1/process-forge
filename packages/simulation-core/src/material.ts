@@ -1236,7 +1236,9 @@ export class MaterialNetwork {
             const hi = Number.isFinite(cap) ? cap : Math.max(downstream, u.lastInlet.inbox.m3 + u.hold.m3) * 4;
             send = Math.min(hi, this.consistentSend(u, hi, known, dt));
           }
-          u.accept = Math.max(0, send - u.hold.m3 - inChannels);
+          // A rated unit's room is in liquid: gas it still holds (a carbonator's CO2) does not fill it.
+          const held = Number.isFinite(u.live?.capacity ?? Infinity) ? liquidM3(u.hold) : u.hold.m3;
+          u.accept = Math.max(0, send - held - inChannels);
           break;
         }
       }
@@ -1309,13 +1311,25 @@ export class MaterialNetwork {
         // receives (a tank, a batch, a bowl) has room for that volume, not for the volume of this unit's mix.
         const mixKgPerM3 = densityOf(u.role === 'feed' ? u.feedStock! : u.hold);
         const holds = (t: MaterialUnit) => t.role === 'storage' || t.role === 'batch' || t.role === 'drawer';
+        // A rated flow (capacityGpm) is liquid gallons: gas sent into it, a carbonator's CO2, takes none of it.
+        const liquidFraction =
+          u.role === 'feed' ? (densityOf(u.feedStock!) < GAS_LIKE_KG_PER_M3 ? 0 : 1) : source.m3 > 0 ? liquidM3(source) / source.m3 : 1;
+        const ratedInLiquid = (t: MaterialUnit) => t.role === 'pass' && Number.isFinite(t.live?.capacity ?? Infinity);
         const roomFactor = outs.map((o) => {
+          if (ratedInLiquid(o.target)) return liquidFraction;
           if (!holds(o.target)) return 1;
           const rho = this.portDensity(u, o.port, o.comp ?? source.comp, o.temp ?? source.tempC);
           return rho ? mixKgPerM3 / rho : 1;
         });
         // Largest total that respects every outlet's share and room.
-        let total = Math.min(offer, ...outs.map((o, i) => (o.share > 0 ? remaining.get(o.target.id)! / (o.share * roomFactor[i]!) : Infinity)));
+        // Gas into a rated unit takes none of its room, but a unit that takes no liquid now takes no gas either.
+        const limitOf = (o: Outlet, i: number) => {
+          const room = remaining.get(o.target.id)!;
+          if (o.share <= 0) return Infinity;
+          if (roomFactor[i] === 0) return room > EPS_M3 ? Infinity : 0;
+          return room / (o.share * roomFactor[i]!);
+        };
+        let total = Math.min(offer, ...outs.map(limitOf));
         // A feed with no supply rate into units with no limit of their own
         // (an unrated mixer, an outlet): the pipes' design flow is the limit.
         if (!Number.isFinite(total)) total = this.pipeDesignRate(u) * dt;
@@ -1335,7 +1349,12 @@ export class MaterialNetwork {
           let piece: Parcel = { kg, m3: rho ? kg / rho : v, tempC, cp: parcel.cp, comp, ...(parcel.offSpec ? { offSpec: parcel.offSpec } : {}) };
           const portPhase = u.contract?.ports.find((x) => x.id === o.port)?.phase;
           if (rho) piece = portPhase === 'GAS' ? allGas(piece) : piece;
-          else if (parcel.gasM3 && total > 0) piece = { ...piece, gasM3: parcel.gasM3 * (v / total), gasKg: (parcel.gasKg ?? 0) * (v / total) };
+          else if (portPhase === 'LIQUID' && parcel.gasM3) {
+            // A liquid port carries liquid, at the mix's liquid density: gas the split sent here has dissolved (a carbonator).
+            const liquidKg = parcel.kg - (parcel.gasKg ?? 0);
+            const liquidRho = liquidM3(parcel) > 0 && liquidKg > 0 ? liquidKg / liquidM3(parcel) : 1000;
+            piece = noGas({ ...piece, m3: kg / liquidRho });
+          } else if (parcel.gasM3 && total > 0) piece = { ...piece, gasM3: parcel.gasM3 * (v / total), gasKg: (parcel.gasKg ?? 0) * (v / total) };
           u.outLiquidRate += liquidM3(piece) / dt;
           this.receive(o.target, piece, dt, o.targetPort);
           mixInto(u.outflow, piece);
