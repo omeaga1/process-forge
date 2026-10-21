@@ -1,5 +1,5 @@
 import React from 'react';
-import { OsakaJadeDarkPalette as D } from '@process-forge/theme';
+import { SITE as D } from '../palette.js';
 import { McpDemo } from '../McpDemo.js';
 import { CopyCommand, MCPB, MCP_TOOLS, MCP_TOOL_COUNT, NPX, PageHeader, REPO, Section, card, mono, textLink } from '../ui.js';
 import { PageLink } from '../router.js';

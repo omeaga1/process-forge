@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { OsakaJadeDarkPalette as D } from '@process-forge/theme';
+import { DISPLAY_FONT, SITE as D } from '../palette.js';
 import { RELEASES_PAGE } from '../../downloads/latestRelease.js';
 import { Clip, GUTTER, HERO_CLIP, MCP_TOOLS, MCP_TOOL_COUNT, Section, card, mono } from '../ui.js';
 import { PageLink } from '../router.js';
@@ -54,6 +54,8 @@ const EXAMPLES: { key: string; title: string; text: string }[] = [
   { key: 'spray-drying-line', title: 'Spray drying & recovery', text: 'Maltodextrin solution and hot air to powder, with the fines recovered at the baghouse.' }
 ];
 
+const WORDMARK = [...'ProcessForge'];
+
 export const HomePage: React.FC<LandingActions> = ({ primary, secondary, devStudio, releaseTag, fileLabel }) => {
   const run = useMemo(() => runColdBrew(), []);
   return (
@@ -68,26 +70,23 @@ export const HomePage: React.FC<LandingActions> = ({ primary, secondary, devStud
         >
           <span className="pf-dot" aria-hidden />
           <span style={{ color: D.text.primary, fontWeight: 600 }}>{releaseTag ? `${releaseTag} is out` : 'Latest release'}</span>
-          <span>Designed units now drawn like the standard palette</span>
+          <span>See what changed</span>
           <span aria-hidden style={{ color: D.jade.glow }}>→</span>
         </a>
-        <div style={{ ...mono, fontSize: 12, letterSpacing: '0.18em', color: D.jade.glow }}>OPEN-SOURCE PROCESS SIMULATION</div>
-        <h1 className="pf-hero-title" style={{ margin: '16px 0 0', fontSize: 'clamp(2.6rem, 7.2vw, 5.4rem)', fontWeight: 700, letterSpacing: '-0.045em', lineHeight: 1, maxWidth: '22ch' }}>
-          <span style={{ display: 'block' }}>Simulate the whole line.</span>
-          <span style={{ display: 'block', paddingBottom: '0.1em' }}>
-            <span className="pf-hero-accent">Even the units</span>{' '}
-            <span style={{ position: 'relative', whiteSpace: 'nowrap' }}>
-              <span className="pf-hero-accent">nobody models.</span>
-              {/* A pen stroke under the claim, drawn once as the page opens. */}
-              <svg aria-hidden className="pf-hero-stroke" viewBox="0 0 300 16" preserveAspectRatio="none" style={{ position: 'absolute', left: '-2%', bottom: '-0.2em', width: '96%', height: '0.22em', overflow: 'visible' }}>
-                <path d="M3 11 C 70 3, 150 2, 297 8" fill="none" stroke={D.jade.glow} strokeWidth="5" strokeLinecap="round" pathLength="1" />
-              </svg>
+        <h1 className="pf-wordmark" aria-label="ProcessForge" style={{ margin: 0, fontFamily: DISPLAY_FONT, fontSize: 'clamp(3.4rem, 13vw, 10.5rem)', lineHeight: 0.9, letterSpacing: '-0.035em', color: D.text.primary }}>
+          {/* Each letter is struck hot and cools to ink, one after another, as the page opens. */}
+          {WORDMARK.map((ch, i) => (
+            <span key={i} aria-hidden className={i >= 7 ? 'pf-letter pf-letter-forge' : 'pf-letter'} style={{ animationDelay: `${0.08 + i * 0.065}s` }}>
+              {ch}
             </span>
-          </span>
+          ))}
         </h1>
-        <p style={{ margin: '26px 0 0', fontSize: 'clamp(1.05rem, 2.1vw, 1.22rem)', lineHeight: 1.6, color: D.text.secondary, maxWidth: '58ch' }}>
-          <span style={{ color: D.text.primary }}>Your AI designs the equipment no simulator ships. The engine checks the physics.</span> ProcessForge is a flowsheet
-          editor and simulator for process and packaging lines: pipe up standard units, run the line, read its balance, and drop in what you designed, drawn and piped.
+        <p className="pf-descriptor" style={{ margin: 'clamp(14px, 2vw, 22px) 0 0', fontSize: 'clamp(1.25rem, 2.8vw, 1.9rem)', lineHeight: 1.25, fontWeight: 500, letterSpacing: '-0.015em', color: D.text.primary, maxWidth: '36ch', textWrap: 'balance' }}>
+          Production line simulation, machine by machine.
+        </p>
+        <p style={{ margin: '18px 0 0', fontSize: 'clamp(1rem, 1.9vw, 1.12rem)', lineHeight: 1.6, color: D.text.secondary, maxWidth: '58ch' }}>
+          Lay out a process or packaging line, pipe it up and run it. When a machine you need isn&rsquo;t in the palette, Claude designs it and the simulator checks
+          the numbers before it goes on your flowsheet.
         </p>
         <div style={{ display: 'flex', gap: 10, marginTop: 28, flexWrap: 'wrap', alignItems: 'center' }}>
           {primary}

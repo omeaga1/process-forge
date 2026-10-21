@@ -1,5 +1,6 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { OsakaJadeDarkPalette as D, fontFamily } from '@process-forge/theme';
+import { fontFamily } from '@process-forge/theme';
+import { SITE as D } from './palette.js';
 import { UnitGlance } from '@process-forge/canvas-ui';
 import { evaluateUnitOp } from '@process-forge/protocol';
 import { Crosshair, LineChart, Lock, Ruler, Table2, ShieldAlert } from 'lucide-react';

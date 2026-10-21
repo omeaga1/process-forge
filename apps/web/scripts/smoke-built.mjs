@@ -25,7 +25,7 @@ try {
   await ready;
   const browser = await chromium.launch();
   const cases = [
-    { name: 'public site', desktop: false, expect: /Simulate the whole line/ },
+    { name: 'public site', desktop: false, expect: /Production line simulation/ },
     { name: 'desktop app', desktop: true, expect: /Your flowsheets/ }
   ];
   // The website builds with base '/' (VITE_BASE_PATH), so each of its pages opens from its own address.

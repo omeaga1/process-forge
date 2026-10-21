@@ -1,5 +1,5 @@
 import React from 'react';
-import { OsakaJadeDarkPalette as D } from '@process-forge/theme';
+import { SITE as D } from '../palette.js';
 import { WorkedExample } from '../WorkedExample.js';
 import { ControlDemo } from '../ControlDemo.js';
 import { CLIPS, Clip, PageHeader, Section } from '../ui.js';

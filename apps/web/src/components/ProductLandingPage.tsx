@@ -1,9 +1,10 @@
 import React, { useRef } from 'react';
 import { RELEASES_PAGE } from '../downloads/latestRelease.js';
-import { OsakaJadeDarkPalette as D, canvasSparkle, fontFamily } from '@process-forge/theme';
+import { fontFamily } from '@process-forge/theme';
+import { DISPLAY_FONT_HREF, SITE as D } from '../landing/palette.js';
 
-// The same space grey starfield as the studio canvas, under the page's jade glows.
-const SPARKLE = canvasSparkle(D.background.base, 'dark');
+// Drafting paper: a fine grid every 24px, a heavier line every 120px.
+const GRID = `linear-gradient(${D.border.subtle}99 1px, transparent 1px), linear-gradient(90deg, ${D.border.subtle}99 1px, transparent 1px), linear-gradient(${D.border.subtle}55 1px, transparent 1px), linear-gradient(90deg, ${D.border.subtle}55 1px, transparent 1px)`;
 import { ProcessForgeEmblem, ThemeScope } from '@process-forge/canvas-ui';
 import { GUTTER, MCPB, REPO, mono } from '../landing/ui.js';
 import { PageLink, useLocation, useScrollOnVisit, type PageId } from '../landing/router.js';
@@ -53,7 +54,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
       href={downloadUrl}
       target="_blank"
       rel="noopener noreferrer"
-      style={{ ...sans, display: 'inline-flex', alignItems: 'center', padding: '12px 22px', borderRadius: 9, background: D.jade.glow, color: D.text.inverse, fontWeight: 650, fontSize: 16, textDecoration: 'none', boxShadow: `0 0 28px ${D.jade.glow}45` }}
+      style={{ ...sans, display: 'inline-flex', alignItems: 'center', padding: '12px 22px', borderRadius: 9, background: D.jade.glow, color: D.text.inverse, fontWeight: 650, fontSize: 16, textDecoration: 'none', boxShadow: `0 6px 18px -8px ${D.jade.glow}aa` }}
     >
       Download for {platform.name}
     </a>
@@ -95,12 +96,14 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         minHeight: '100vh',
         flexShrink: 0,
         backgroundColor: D.background.base,
-        backgroundImage: `radial-gradient(ellipse 60% 40% at 80% 0%, ${D.jade.glow}1c, transparent 70%), radial-gradient(ellipse 50% 30% at 0% 55%, ${D.jade[500]}14, transparent 70%), ${SPARKLE.backgroundImage}`,
-        backgroundSize: `100% 100%, 100% 100%, ${SPARKLE.backgroundSize}`,
+        backgroundImage: GRID,
+        backgroundSize: '120px 120px, 120px 120px, 24px 24px, 24px 24px',
         color: D.text.primary,
         ...sans
       }}
     >
+      {/* The title's display face, for the site only. */}
+      <link rel="stylesheet" href={DISPLAY_FONT_HREF} />
       <style>{`
         .pf-landing a:focus-visible, .pf-landing button:focus-visible, .pf-landing input:focus-visible { outline: 2px solid ${D.jade.glow}; outline-offset: 2px; }
         .pf-landing .pf-cta-primary { transition: transform .15s ease, filter .15s ease; }
@@ -129,24 +132,27 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         .pf-landing .pf-nav-link[aria-current="page"] { color: ${D.text.primary} !important; box-shadow: inset 0 -2px 0 ${D.jade.glow}; }
         @keyframes pf-glow-pulse { 0%, 100% { box-shadow: 0 0 0 0 ${D.jade.glow}55; } 50% { box-shadow: 0 0 0 5px ${D.jade.glow}00; } }
         .pf-landing .pf-dot { width: 7px; height: 7px; border-radius: 4px; background: ${D.jade.glow}; animation: pf-glow-pulse 2.4s ease-in-out infinite; }
-        .pf-landing .pf-hero-accent { color: ${D.jade[400]}; background: linear-gradient(100deg, ${D.jade[400]}, ${D.jade.glow} 60%, ${D.streams.discreteContainer}); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-        .pf-landing .pf-hero-title { text-wrap: balance; }
-        @keyframes pf-stroke-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-        .pf-landing .pf-hero-stroke path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pf-stroke-draw .9s cubic-bezier(.6,0,.2,1) .35s forwards; filter: drop-shadow(0 0 8px ${D.jade.glow}88); }
-        @keyframes pf-hero-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-        .pf-landing .pf-hero-title > span { animation: pf-hero-rise .7s cubic-bezier(.2,.7,.2,1) both; }
-        .pf-landing .pf-hero-title > span + span { animation-delay: .12s; }
-        .pf-landing .pf-hero-clip::before { content: ''; position: absolute; inset: -40px -20px auto; height: 70%; background: radial-gradient(ellipse 60% 60% at 50% 40%, ${D.jade.glow}22, transparent 70%); filter: blur(20px); z-index: -1; pointer-events: none; }
+        .pf-landing .pf-wordmark { font-optical-sizing: auto; white-space: nowrap; }
+        .pf-landing .pf-letter { display: inline-block; opacity: 0; font-variation-settings: 'opsz' 144, 'wght' 640, 'SOFT' 30; animation: pf-strike 1.5s cubic-bezier(.2,.7,.2,1) forwards; }
+        .pf-landing .pf-letter-forge { font-style: italic; }
+        @keyframes pf-strike {
+          0% { opacity: 0; transform: translateY(-0.35em) scaleY(1.12); color: #ffb347; text-shadow: 0 0 18px #ff7a1a, 0 0 42px #ff5a00aa; font-variation-settings: 'opsz' 144, 'wght' 220, 'SOFT' 100; }
+          18% { opacity: 1; transform: translateY(0.02em) scaleY(0.94); color: #ff9a2e; text-shadow: 0 0 14px #ff6a00, 0 0 34px #ff4d0088; }
+          32% { transform: none; }
+          55% { color: #c2410c; text-shadow: 0 0 6px #e0561a55; font-variation-settings: 'opsz' 144, 'wght' 700, 'SOFT' 40; }
+          100% { opacity: 1; transform: none; color: ${D.text.primary}; text-shadow: none; font-variation-settings: 'opsz' 144, 'wght' 640, 'SOFT' 30; }
+        }
+        .pf-landing .pf-wordmark:hover .pf-letter-forge { color: ${D.jade.glow}; transition: color .3s ease; }
         .pf-landing .pf-bento-wide { grid-column: span 2; }
         @media (max-width: 960px) { .pf-landing .pf-bento { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
         @media (max-width: 620px) { .pf-landing .pf-bento { grid-template-columns: 1fr !important; } .pf-landing .pf-bento-wide { grid-column: auto; } .pf-landing .pf-stats > div:last-child { grid-column: 1 / -1; } }
         @keyframes pf-nozzle-slide { 0%, 12% { transform: translateY(40px); } 45%, 60% { transform: translateY(100px); } 92%, 100% { transform: translateY(40px); } }
         .pf-landing .pf-nozzle-drag { transform: translateY(40px); animation: pf-nozzle-slide 5s cubic-bezier(.6,0,.3,1) infinite; }
         .pf-landing .pf-kit-art svg { width: 100%; height: 100%; max-width: 100%; }
-        .pf-landing .pf-kit:hover .pf-kit-art { background-color: ${D.background.canvas} !important; }
-        @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } .pf-landing .pf-reveal, .pf-landing .pf-type { opacity: 1; transform: none; } .pf-landing .pf-hero-stroke path { stroke-dashoffset: 0; } }
+        .pf-landing .pf-kit:hover .pf-kit-art { background-color: #221f1c !important; }
+        @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } .pf-landing .pf-reveal, .pf-landing .pf-type { opacity: 1; transform: none; } .pf-landing .pf-letter { opacity: 1; transform: none; color: inherit; text-shadow: none; font-variation-settings: 'opsz' 144, 'wght' 640, 'SOFT' 30; } }
       `}</style>
-      <ThemeScope mode="dark">
+      <ThemeScope mode="light">
         {/* Nav: stays in reach while the page scrolls. */}
         <nav aria-label="ProcessForge" style={{ position: 'sticky', top: 0, zIndex: 10, background: `${D.background.base}cc`, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', borderBottom: `1px solid ${D.border.subtle}` }}>
           <div style={{ maxWidth: 1120, margin: '0 auto', padding: `12px ${GUTTER}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
