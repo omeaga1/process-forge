@@ -108,6 +108,9 @@ export const CLIPS: { src: string; title: string; text: string }[] = [
   { src: '/landing/studio-unit', title: 'Open the unit', text: 'What comes in and goes out, then the panel its contract lays out. Cut the chiller to 80 kW and the engine fails that check, with the reason.' }
 ];
 
+/** The front page's clip: a bottling line of designed units, each drawn by its kit, running. */
+export const HERO_CLIP = { src: '/landing/studio-bottling', title: 'Bottling line' };
+
 /** A recorded clip, framed like a desktop window. Plays muted and looped while on screen. */
 export function Clip({ src, title, priority = false }: { src: string; title: string; priority?: boolean }) {
   const [ref, inView] = useInView<HTMLDivElement>(0.25);
