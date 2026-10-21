@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { CASE_PACKER_CONTRACT, executeValidateUnitOp, validateProcessGraph, type ProcessEdge, type ProcessGraph, type ProcessNode, type UnitOpContract } from '@process-forge/protocol';
+import { CASE_PACKER_CONTRACT, createTerminalNode, executeValidateUnitOp, validateProcessGraph, type ProcessEdge, type ProcessGraph, type ProcessNode, type UnitOpContract } from '@process-forge/protocol';
 import { simulateProcess } from '../engine.js';
 
 /** Designed cycle units that take and make different numbers of items, on different ports. */
@@ -120,6 +120,27 @@ describe('Designed units: assembly from several parts', () => {
     assert.ok(capped >= 295 && capped <= 300, `capped ${capped}`);
     assert.ok(r.nodeReports['caps']!.blockedTimeSeconds > 200, 'caps back up once the cap queue is full');
     assert.ok(r.nodeReports['capper']!.starvedTimeSeconds > 200, 'the capper waits for bottles');
+  });
+
+  it('keeps taking caps from a feed while bottles fill its queue', () => {
+    // Runs of 100 with a queue of 48: bottles arrive faster than it caps, and the feed must still top up the cap port.
+    const runs = contract('capper', [{ id: 'bottle', dir: 'INLET' }, { id: 'cap', dir: 'INLET' }, { id: 'capped', dir: 'OUTLET' }], {
+      cycleSeconds: '50',
+      unitsPerCycle: '100',
+      queueCapacity: '48',
+      inputs: [
+        { port: 'bottle', perCycle: '100' },
+        { port: 'cap', perCycle: '100' }
+      ],
+      outputs: [{ port: 'capped', perCycle: '100' }]
+    });
+    const caps = createTerminalNode('feed', { id: 'caps', material: 'Caps', carries: 'items' });
+    const r = simulateProcess(
+      line([source('bottles', 0.25), caps, unit('capper', runs)], [link('bottles', 'out', 'capper', 'bottle'), link('caps', caps.outputs[0]!.id, 'capper', 'cap')]),
+      10
+    );
+    // 600 s at 50 s a run of 100.
+    assert.ok(r.nodeReports['capper']!.unitsProduced >= 1100, `capped ${r.nodeReports['capper']!.unitsProduced}`);
   });
 });
 
