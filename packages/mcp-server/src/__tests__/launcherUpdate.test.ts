@@ -150,7 +150,10 @@ describe('the extension updater', () => {
     try {
       assert.ok(await until(() => fs.existsSync(path.join(home, 'bad.json')), 15000), 'marked bad');
       assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, 'bad.json'), 'utf8')), [bad.sha256]);
-      assert.match(fs.readFileSync(path.join(home, 'updater.log'), 'utf8'), /started 0\.1\.0 \(shipped/);
+      // bad.json is written before the shipped server starts and logs it.
+      const log = () => fs.readFileSync(path.join(home, 'updater.log'), 'utf8');
+      await until(() => /started 0\.1\.0 \(shipped/.test(log()), 15000);
+      assert.match(log(), /started 0\.1\.0 \(shipped/);
     } finally {
       child.kill();
       await rel.close();
