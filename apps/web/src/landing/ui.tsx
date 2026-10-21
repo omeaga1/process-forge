@@ -124,7 +124,7 @@ export function Clip({ src, title, priority = false }: { src: string; title: str
     else v.pause();
   }, [inView]);
   return (
-    <div ref={ref} style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${D.border.strong}`, background: D.background.base, boxShadow: `0 30px 60px -30px #2b1d1066, 0 2px 6px #2b1d1014` }}>
+    <div ref={ref} style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${D.border.strong}`, background: D.background.base, boxShadow: `0 30px 60px -30px ${D.text.primary}55, 0 2px 6px ${D.text.primary}14` }}>
       <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderBottom: `1px solid ${D.border.default}`, background: D.background.surface }}>
         {[D.status.failed, D.status.blocked, D.jade[500]].map((c) => (
           <span key={c} style={{ width: 9, height: 9, borderRadius: 5, background: `${c}aa` }} />
