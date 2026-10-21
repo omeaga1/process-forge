@@ -72,12 +72,22 @@ export const HomePage: React.FC<LandingActions> = ({ primary, secondary, devStud
           <span aria-hidden style={{ color: D.jade.glow }}>→</span>
         </a>
         <div style={{ ...mono, fontSize: 12, letterSpacing: '0.18em', color: D.jade.glow }}>OPEN-SOURCE PROCESS SIMULATION</div>
-        <h1 className="pf-hero-title" style={{ margin: '14px 0 0', fontSize: 'clamp(2.2rem, 5.6vw, 3.9rem)', fontWeight: 680, letterSpacing: '-0.04em', lineHeight: 1.02, maxWidth: '20ch' }}>
-          Describe the equipment. <span className="pf-hero-accent">The engine checks the physics.</span>
+        <h1 className="pf-hero-title" style={{ margin: '16px 0 0', fontSize: 'clamp(2.6rem, 7.2vw, 5.4rem)', fontWeight: 700, letterSpacing: '-0.045em', lineHeight: 1, maxWidth: '22ch' }}>
+          <span style={{ display: 'block' }}>Simulate the whole line.</span>
+          <span style={{ display: 'block', paddingBottom: '0.1em' }}>
+            <span className="pf-hero-accent">Even the units</span>{' '}
+            <span style={{ position: 'relative', whiteSpace: 'nowrap' }}>
+              <span className="pf-hero-accent">nobody models.</span>
+              {/* A pen stroke under the claim, drawn once as the page opens. */}
+              <svg aria-hidden className="pf-hero-stroke" viewBox="0 0 300 16" preserveAspectRatio="none" style={{ position: 'absolute', left: '-2%', bottom: '-0.2em', width: '96%', height: '0.22em', overflow: 'visible' }}>
+                <path d="M3 11 C 70 3, 150 2, 297 8" fill="none" stroke={D.jade.glow} strokeWidth="5" strokeLinecap="round" pathLength="1" />
+              </svg>
+            </span>
+          </span>
         </h1>
-        <p style={{ margin: '20px 0 0', fontSize: 'clamp(1rem, 2vw, 1.14rem)', lineHeight: 1.6, color: D.text.secondary, maxWidth: '60ch' }}>
-          A flowsheet editor and simulator for process and packaging lines. Pipe up standard units, run the line, and read its balance. For the unit nobody
-          sells a model of, your AI designs it, the engine checks every number, and it lands on your flowsheet drawn and piped.
+        <p style={{ margin: '26px 0 0', fontSize: 'clamp(1.05rem, 2.1vw, 1.22rem)', lineHeight: 1.6, color: D.text.secondary, maxWidth: '58ch' }}>
+          <span style={{ color: D.text.primary }}>Your AI designs the equipment no simulator ships. The engine checks the physics.</span> ProcessForge is a flowsheet
+          editor and simulator for process and packaging lines: pipe up standard units, run the line, read its balance, and drop in what you designed, drawn and piped.
         </p>
         <div style={{ display: 'flex', gap: 10, marginTop: 28, flexWrap: 'wrap', alignItems: 'center' }}>
           {primary}
