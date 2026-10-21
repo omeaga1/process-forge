@@ -129,6 +129,15 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         .pf-landing .pf-nav-link[aria-current="page"] { color: ${D.text.primary} !important; box-shadow: inset 0 -2px 0 ${D.jade.glow}; }
         @keyframes pf-glow-pulse { 0%, 100% { box-shadow: 0 0 0 0 ${D.jade.glow}55; } 50% { box-shadow: 0 0 0 5px ${D.jade.glow}00; } }
         .pf-landing .pf-dot { width: 7px; height: 7px; border-radius: 4px; background: ${D.jade.glow}; animation: pf-glow-pulse 2.4s ease-in-out infinite; }
+        .pf-landing .pf-hero-accent { color: ${D.jade[400]}; background: linear-gradient(100deg, ${D.jade[400]}, ${D.jade.glow} 60%, ${D.streams.discreteContainer}); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        .pf-landing .pf-hero-clip::before { content: ''; position: absolute; inset: -40px -20px auto; height: 70%; background: radial-gradient(ellipse 60% 60% at 50% 40%, ${D.jade.glow}22, transparent 70%); filter: blur(20px); z-index: -1; pointer-events: none; }
+        .pf-landing .pf-bento-wide { grid-column: span 2; }
+        @media (max-width: 960px) { .pf-landing .pf-bento { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+        @media (max-width: 620px) { .pf-landing .pf-bento { grid-template-columns: 1fr !important; } .pf-landing .pf-bento-wide { grid-column: auto; } .pf-landing .pf-stats > div:last-child { grid-column: 1 / -1; } }
+        @keyframes pf-nozzle-slide { 0%, 12% { transform: translateY(40px); } 45%, 60% { transform: translateY(100px); } 92%, 100% { transform: translateY(40px); } }
+        .pf-landing .pf-nozzle-drag { transform: translateY(40px); animation: pf-nozzle-slide 5s cubic-bezier(.6,0,.3,1) infinite; }
+        .pf-landing .pf-kit-art svg { width: 100%; height: 100%; max-width: 100%; }
+        .pf-landing .pf-kit:hover .pf-kit-art { background-color: ${D.background.canvas} !important; }
         @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } .pf-landing .pf-reveal, .pf-landing .pf-type { opacity: 1; transform: none; } }
       `}</style>
       <ThemeScope mode="dark">
