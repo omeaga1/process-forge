@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { RELEASES_PAGE } from '../downloads/latestRelease.js';
 import { fontFamily } from '@process-forge/theme';
-import { DISPLAY_FONT_HREF, SITE as D } from '../landing/palette.js';
+import { CANVAS_HOVER, DISPLAY_FONT_HREF, SITE as D } from '../landing/palette.js';
 
 // Drafting paper: a fine grid every 24px, a heavier line every 120px.
 const GRID = `linear-gradient(${D.border.subtle}99 1px, transparent 1px), linear-gradient(90deg, ${D.border.subtle}99 1px, transparent 1px), linear-gradient(${D.border.subtle}55 1px, transparent 1px), linear-gradient(90deg, ${D.border.subtle}55 1px, transparent 1px)`;
@@ -10,6 +10,7 @@ import { GUTTER, MCPB, REPO, mono } from '../landing/ui.js';
 import { PageLink, useLocation, useScrollOnVisit, type PageId } from '../landing/router.js';
 import { useDownloads } from '../landing/useDownloads.js';
 import { HomePage } from '../landing/pages/HomePage.js';
+import { StudioPage } from '../landing/pages/StudioPage.js';
 import { ExamplePage } from '../landing/pages/ExamplePage.js';
 import { LibraryPage } from '../landing/pages/LibraryPage.js';
 import { ClaudePage } from '../landing/pages/ClaudePage.js';
@@ -17,7 +18,7 @@ import { DownloadPage } from '../landing/pages/DownloadPage.js';
 
 /**
  * The public site, in the studio's own Osaka Jade: a short front page and a
- * page each for the worked example, the ProcessForge Library, Claude & MCP,
+ * page each for the studio, the worked example, the ProcessForge Library, Claude & MCP,
  * and the download (landing/router.tsx).
  *
  * Nothing on it is a mock-up. The worked example is computed by the real
@@ -34,6 +35,7 @@ export interface ProductLandingPageProps {
 }
 
 const NAV: [string, string, PageId][] = [
+  ['Studio', '/studio', 'studio'],
   ['Worked example', '/example', 'example'],
   ['Library', '/library', 'library'],
   ['Claude & MCP', '/claude', 'claude'],
@@ -73,6 +75,8 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
 
   const body = (() => {
     switch (page) {
+      case 'studio':
+        return <StudioPage />;
       case 'example':
         return <ExamplePage />;
       case 'library':
@@ -133,24 +137,26 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         @keyframes pf-glow-pulse { 0%, 100% { box-shadow: 0 0 0 0 ${D.jade.glow}55; } 50% { box-shadow: 0 0 0 5px ${D.jade.glow}00; } }
         .pf-landing .pf-dot { width: 7px; height: 7px; border-radius: 4px; background: ${D.jade.glow}; animation: pf-glow-pulse 2.4s ease-in-out infinite; }
         .pf-landing .pf-wordmark { font-optical-sizing: auto; white-space: nowrap; }
-        .pf-landing .pf-letter { display: inline-block; opacity: 0; font-variation-settings: 'opsz' 144, 'wght' 640, 'SOFT' 30; animation: pf-strike 1.5s cubic-bezier(.2,.7,.2,1) forwards; }
-        .pf-landing .pf-letter-forge { font-style: italic; }
+        .pf-landing .pf-letter { --pf-ink: ${D.text.primary}; display: inline-block; opacity: 0; font-variation-settings: 'opsz' 144, 'wght' 640, 'SOFT' 30; animation: pf-strike 1.5s cubic-bezier(.2,.7,.2,1) forwards; }
+        .pf-landing .pf-letter-forge { --pf-ink: ${D.jade.glow}; font-style: italic; }
         @keyframes pf-strike {
-          0% { opacity: 0; transform: translateY(-0.35em) scaleY(1.12); color: #ffb347; text-shadow: 0 0 18px #ff7a1a, 0 0 42px #ff5a00aa; font-variation-settings: 'opsz' 144, 'wght' 220, 'SOFT' 100; }
-          18% { opacity: 1; transform: translateY(0.02em) scaleY(0.94); color: #ff9a2e; text-shadow: 0 0 14px #ff6a00, 0 0 34px #ff4d0088; }
+          0% { opacity: 0; transform: translateY(-0.35em) scaleY(1.12); color: ${D.text.gold}; text-shadow: 0 0 18px ${D.text.gold}aa, 0 0 42px ${D.text.gold}55; font-variation-settings: 'opsz' 144, 'wght' 220, 'SOFT' 100; }
+          18% { opacity: 1; transform: translateY(0.02em) scaleY(0.94); color: ${D.jade[500]}; text-shadow: 0 0 14px ${D.jade[500]}88, 0 0 34px ${D.jade[500]}44; }
           32% { transform: none; }
-          55% { color: #c2410c; text-shadow: 0 0 6px #e0561a55; font-variation-settings: 'opsz' 144, 'wght' 700, 'SOFT' 40; }
-          100% { opacity: 1; transform: none; color: ${D.text.primary}; text-shadow: none; font-variation-settings: 'opsz' 144, 'wght' 640, 'SOFT' 30; }
+          55% { color: ${D.jade.glow}; text-shadow: 0 0 6px ${D.jade.glow}33; font-variation-settings: 'opsz' 144, 'wght' 700, 'SOFT' 40; }
+          100% { opacity: 1; transform: none; color: var(--pf-ink); text-shadow: none; font-variation-settings: 'opsz' 144, 'wght' 640, 'SOFT' 30; }
         }
-        .pf-landing .pf-wordmark:hover .pf-letter-forge { color: ${D.jade.glow}; transition: color .3s ease; }
+        .pf-landing .pf-wordmark:hover .pf-letter-forge { color: ${D.jade[500]} !important; transition: color .3s ease; }
+        .pf-landing .pf-next .pf-next-arrow { transition: transform .15s ease; }
+        .pf-landing .pf-next:hover .pf-next-arrow { transform: translateX(3px); }
         .pf-landing .pf-bento-wide { grid-column: span 2; }
         @media (max-width: 960px) { .pf-landing .pf-bento { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
         @media (max-width: 620px) { .pf-landing .pf-bento { grid-template-columns: 1fr !important; } .pf-landing .pf-bento-wide { grid-column: auto; } .pf-landing .pf-stats > div:last-child { grid-column: 1 / -1; } }
         @keyframes pf-nozzle-slide { 0%, 12% { transform: translateY(40px); } 45%, 60% { transform: translateY(100px); } 92%, 100% { transform: translateY(40px); } }
         .pf-landing .pf-nozzle-drag { transform: translateY(40px); animation: pf-nozzle-slide 5s cubic-bezier(.6,0,.3,1) infinite; }
         .pf-landing .pf-kit-art svg { width: 100%; height: 100%; max-width: 100%; }
-        .pf-landing .pf-kit:hover .pf-kit-art { background-color: #221f1c !important; }
-        @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } .pf-landing .pf-reveal, .pf-landing .pf-type { opacity: 1; transform: none; } .pf-landing .pf-letter { opacity: 1; transform: none; color: inherit; text-shadow: none; font-variation-settings: 'opsz' 144, 'wght' 640, 'SOFT' 30; } }
+        .pf-landing .pf-kit:hover .pf-kit-art { background-color: ${CANVAS_HOVER} !important; }
+        @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } .pf-landing .pf-reveal, .pf-landing .pf-type { opacity: 1; transform: none; } .pf-landing .pf-letter { opacity: 1; transform: none; color: var(--pf-ink); text-shadow: none; font-variation-settings: 'opsz' 144, 'wght' 640, 'SOFT' 30; } }
       `}</style>
       <ThemeScope mode="light">
         {/* Nav: stays in reach while the page scrolls. */}

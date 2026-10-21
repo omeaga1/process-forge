@@ -1,62 +1,23 @@
-import { OsakaJadeDarkPalette, type ThemePalette } from '@process-forge/theme';
+import { OsakaJadeDarkPalette, OsakaJadeLightPalette, type ThemePalette } from '@process-forge/theme';
 
 /**
- * The public site's own palette: ink on warm drafting paper, with one
- * vermilion accent, like a well-printed equipment manual. The studio keeps
- * its Osaka Jade; the site only frames it (clips and drawings stay as the
- * app draws them).
+ * The public site's palette: the studio's own Osaka Jade, light. Bamboo ivory
+ * paper, pine ink and an imperial jade accent, so the site and the app read
+ * as one thing.
  *
- * It keeps the theme's shape so every site component reads it the same way.
- * The accent still lives under `jade`, the key the components already use.
+ * The one exception is `background.canvas`, the backdrop for the engine's
+ * kit drawings: they keep the dark canvas they are drawn for in the app.
  */
 export const SITE: ThemePalette = {
-  ...OsakaJadeDarkPalette,
+  ...OsakaJadeLightPalette,
   background: {
-    ...OsakaJadeDarkPalette.background,
-    base: '#f3efe6',
-    canvas: '#1a1816',
-    surface: '#fbf9f4',
-    surfaceElevated: '#ece7dc',
-    surfaceHover: '#e6e0d3',
-    surfaceActive: '#f6e1d5',
-    surfaceMuted: '#efeadf'
-  },
-  border: {
-    ...OsakaJadeDarkPalette.border,
-    subtle: '#e3ddd0',
-    default: '#d6cfc1',
-    strong: '#b5ac9c'
-  },
-  jade: {
-    ...OsakaJadeDarkPalette.jade,
-    400: '#c2410c',
-    500: '#e0561a',
-    600: '#a8350a',
-    glow: '#d4460f',
-    muted: '#f8e2d6'
-  },
-  text: {
-    ...OsakaJadeDarkPalette.text,
-    primary: '#1b1814',
-    secondary: '#4f4840',
-    muted: '#70675d',
-    inverse: '#fffaf3',
-    accent: '#c2410c',
-    gold: '#9a5b00'
-  },
-  status: {
-    ...OsakaJadeDarkPalette.status,
-    busy: '#3f8f5a',
-    starved: '#4b9fb5',
-    blocked: '#d49a00'
-  },
-  streams: {
-    ...OsakaJadeDarkPalette.streams,
-    continuousFluid: '#1f8f84',
-    cold: '#3c6fd6',
-    discreteContainer: '#4b9fb5'
+    ...OsakaJadeLightPalette.background,
+    canvas: OsakaJadeDarkPalette.background.canvas
   }
 };
+
+/** The kit drawings' backdrop on hover: one step up from the dark canvas. */
+export const CANVAS_HOVER = OsakaJadeDarkPalette.background.surfaceElevated;
 
 /** The title's face: a variable serif with weight and softness to animate. */
 export const DISPLAY_FONT = "'Fraunces', 'Iowan Old Style', Georgia, serif";
