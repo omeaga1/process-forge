@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { OsakaJadeDarkPalette as D } from '@process-forge/theme';
 import { RELEASES_PAGE } from '../../downloads/latestRelease.js';
-import { CLIPS, Clip, GUTTER, MCP_TOOLS, MCP_TOOL_COUNT, Section, card, mono } from '../ui.js';
+import { Clip, GUTTER, HERO_CLIP, MCP_TOOLS, MCP_TOOL_COUNT, Section, card, mono } from '../ui.js';
 import { PageLink } from '../router.js';
 import { runColdBrew } from '../coldBrew.js';
 import { StudioFeatures } from '../StudioFeatures.js';
@@ -101,9 +101,9 @@ export const HomePage: React.FC<LandingActions> = ({ primary, secondary, devStud
           </PageLink>
         </div>
         <div className="pf-hero-clip" style={{ marginTop: 'clamp(36px, 6vw, 56px)', position: 'relative' }}>
-          <Clip src={CLIPS[0]!.src} title="Cold-brew freeze concentration" priority />
+          <Clip src={HERO_CLIP.src} title={HERO_CLIP.title} priority />
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginTop: 10, fontSize: 13, color: D.text.muted }}>
-            <span>The desktop app running a unit Claude designed: a cold-brew freeze concentrator.</span>
+            <span>A bottling line from syrup to finished pallets, every machine a unit Claude designed and drew, running in the desktop app.</span>
             <span style={{ ...mono, fontSize: 11, letterSpacing: '0.1em' }}>RECORDED FROM THE CURRENT BUILD</span>
           </div>
         </div>
