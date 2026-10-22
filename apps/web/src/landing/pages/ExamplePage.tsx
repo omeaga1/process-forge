@@ -1,12 +1,11 @@
 import React from 'react';
-import { SITE as D } from '../palette.js';
 import { WorkedExample } from '../WorkedExample.js';
 import { ControlDemo } from '../ControlDemo.js';
-import { CLIPS, Clip, PageHeader, Section } from '../ui.js';
+import { PageHeader, Section } from '../ui.js';
 
 /**
- * One unit nobody ships, end to end: the loop as it ran, its operating
- * conditions to set, and the same line in the desktop app.
+ * One unit nobody ships, end to end: the loop as it ran, then its operating
+ * conditions to set yourself.
  */
 export const ExamplePage: React.FC = () => (
   <>
@@ -28,18 +27,5 @@ export const ExamplePage: React.FC = () => (
       <ControlDemo />
     </Section>
 
-    <Section id="app" n="03" kicker="IN THE APP" title="The same line, in the desktop app." note="Recorded from the current build.">
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))', gap: 20 }}>
-        {CLIPS.map((c) => (
-          <figure key={c.src} style={{ margin: 0 }}>
-            <Clip src={c.src} title={c.title} />
-            <figcaption style={{ marginTop: 10 }}>
-              <div style={{ fontSize: 15, fontWeight: 650 }}>{c.title}</div>
-              <div style={{ fontSize: 13, lineHeight: 1.55, color: D.text.secondary, marginTop: 4 }}>{c.text}</div>
-            </figcaption>
-          </figure>
-        ))}
-      </div>
-    </Section>
   </>
 );

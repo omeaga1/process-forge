@@ -6,6 +6,7 @@ describe('Landing page: the site is split into pages, each at its own address', 
   it('opens each page from its path, with or without a trailing slash', () => {
     assert.equal(pageOf('/'), 'home');
     assert.equal(pageOf('/studio'), 'studio');
+    assert.equal(pageOf('/docs'), 'docs');
     assert.equal(pageOf('/example'), 'example');
     assert.equal(pageOf('/library/'), 'library');
     assert.equal(pageOf('/claude'), 'claude');

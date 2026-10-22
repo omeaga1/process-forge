@@ -33,7 +33,9 @@ try {
     cases.push(
       { name: 'site: /example', path: '/example', desktop: false, expect: /freeze-concentrated/ },
       { name: 'site: /library', path: '/library', desktop: false, expect: /ProcessForge Library/ },
-      { name: 'site: /claude', path: '/claude', desktop: false, expect: /tools, one engine/ },
+      { name: 'site: /claude', path: '/claude', desktop: false, expect: /The engine does the physics/ },
+      { name: 'site: /studio', path: '/studio', desktop: false, expect: /Build the line, run it, read it/ },
+      { name: 'site: /docs', path: '/docs', desktop: false, expect: /tools, one engine/ },
       { name: 'site: /download', path: '/download', desktop: false, expect: /Up and running/ }
     );
   }

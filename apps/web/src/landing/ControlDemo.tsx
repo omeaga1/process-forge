@@ -1,16 +1,15 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
 import { fontFamily } from '@process-forge/theme';
 import { SITE as D } from './palette.js';
-import { UnitGlance } from '@process-forge/canvas-ui';
+import { ThemeScope, UnitGlance } from '@process-forge/canvas-ui';
+import { OsakaJadeDarkPalette as DARK } from '@process-forge/theme';
 import { evaluateUnitOp } from '@process-forge/protocol';
-import { Crosshair, LineChart, Lock, Ruler, Table2, ShieldAlert } from 'lucide-react';
 import { COLD_BREW_CONTRACT, COLD_BREW_FEED, atFeed, runColdBrew, withValues } from './coldBrew.js';
 
 /**
  * The worked example's operating conditions, yours to set: the unit's panel
  * as the app draws it (its own component, laid out by the contract), and an
- * hour of the line run again by the engine at every change. Then what else
- * the spec sheet does, in one line each.
+ * hour of the line run again by the engine at every change.
  */
 
 const mono: React.CSSProperties = { fontFamily: fontFamily.mono, fontVariantNumeric: 'tabular-nums' };
@@ -27,15 +26,6 @@ const START: Record<string, number> = {
   feedGpm: COLD_BREW_FEED.gpm,
   ...Object.fromEntries(KNOBS.filter((k) => k.name !== 'feedGpm').map((k) => [k.name, COLD_BREW_CONTRACT.parameters.find((p) => p.name === k.name)!.value]))
 };
-
-const FEATURES: { icon: React.ElementType; title: string; text: string }[] = [
-  { icon: Ruler, title: 'Any unit you like', text: 'Type 40 psi into a bar field or 120 °F into a °C one. Drag a setting’s name to scrub it through its range.' },
-  { icon: Crosshair, title: 'Specify a result', text: 'Name the result you want and the setting to vary. The engine solves for the value.' },
-  { icon: Lock, title: 'Held results', text: 'Keep the concentrate at 30% TDS while you change everything else, the way a simulator’s design spec does. Claude’s edits respect the hold too.' },
-  { icon: LineChart, title: 'Sensitivity studies', text: 'Step one setting across a range, plot any result, and copy the table into a spreadsheet.' },
-  { icon: Table2, title: 'Stream table', text: 'Flow, temperature and composition on every pipe, averaged over the run, as on a real PFD.' },
-  { icon: ShieldAlert, title: 'Off-spec diversion', text: 'Product made while a must-hold check is broken is marked off spec and kept out of the line totals.' }
-];
 
 export const ControlDemo: React.FC = () => {
   const [values, setValues] = useState<Record<string, number>>(START);
@@ -106,26 +96,18 @@ export const ControlDemo: React.FC = () => {
             </button>
           )}
         </div>
-        <div style={{ border: `1px solid ${D.border.default}`, borderRadius: 14, background: D.background.base, padding: 14 }}>
+        {/* The app's own panel, on the app's own dark canvas, like the unit drawings. */}
+        <div style={{ border: `1px solid ${D.border.default}`, borderRadius: 14, background: D.background.canvas, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', margin: '2px 4px 12px' }}>
-            <span style={{ ...mono, fontSize: 11, letterSpacing: '0.12em', color: D.text.muted }}>AT A GLANCE</span>
-            <span style={{ fontSize: 12, color: D.text.muted }}>The app’s own panel, laid out by the contract Claude wrote. Click the chart to set the strength.</span>
+            <span style={{ ...mono, fontSize: 11, letterSpacing: '0.12em', color: DARK.jade.glow }}>AT A GLANCE</span>
+            <span style={{ fontSize: 12, color: DARK.text.muted }}>The app’s own panel, laid out by the contract Claude wrote.</span>
           </div>
-          <UnitGlance contract={contract} evaluation={evaluation} />
+          <ThemeScope mode="dark">
+            <UnitGlance contract={contract} evaluation={evaluation} />
+          </ThemeScope>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 10 }}>
-        {FEATURES.map(({ icon: Icon, title, text }) => (
-          <div key={title} className="pf-feature" style={{ border: `1px solid ${D.border.subtle}`, borderRadius: 12, padding: '14px 16px', background: `${D.background.surface}99` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 650, color: D.text.primary }}>
-              <Icon size={16} color={D.jade.glow} aria-hidden />
-              {title}
-            </div>
-            <div style={{ fontSize: 13, lineHeight: 1.55, color: D.text.secondary, marginTop: 6 }}>{text}</div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 };
