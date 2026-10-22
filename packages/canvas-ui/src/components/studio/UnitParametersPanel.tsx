@@ -117,12 +117,11 @@ export const UnitParametersPanel: React.FC<UnitParametersPanelProps> = ({ node, 
     justifyContent: 'center'
   };
   const heading: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: palette.text.muted,
-    margin: '18px 0 2px'
+    fontSize: 15,
+    fontWeight: 600,
+    letterSpacing: '-0.01em',
+    color: palette.text.primary,
+    margin: '18px 0 4px'
   };
 
   // ---- a unit run by a contract: designed, or a standard unit built from its config ----

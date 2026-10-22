@@ -12,10 +12,9 @@ import {
   type UnitOpEvaluation
 } from '@process-forge/protocol';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
-import { ArrowDownRight, ArrowUpRight, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, CircleDashed } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChevronRight, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, CircleDashed } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
-import { EquipmentFigure } from '../../nozzles/EquipmentFigure.js';
 import { formatQuantity } from '../../model/parameterUi.js';
 
 /**
@@ -26,7 +25,7 @@ import { formatQuantity } from '../../model/parameterUi.js';
  * it is held to and the governing relations, with their numbers).
  */
 
-export type SectionId = 'glance' | 'settings' | 'streams' | 'equations' | 'checks' | 'physics';
+export type SectionId = 'settings' | 'results' | 'checks' | 'streams' | 'equations' | 'physics';
 
 /** A quantity's value and unit, for a name in an equation. */
 export interface Lookup {
@@ -47,46 +46,37 @@ export const SpecHeader: React.FC<{
   verdict: { tone: 'ok' | 'warn' | 'fail'; text: string };
   kpis: { label: string; value: string; unit: string }[];
   actions?: React.ReactNode;
-}> = ({ node, contract, own, alignment, verdict, kpis, actions }) => {
+  /** The verdict clicked: show the checks behind it. */
+  onVerdict?: () => void;
+}> = ({ contract, own, alignment, verdict, kpis, actions, onVerdict }) => {
   const { palette, font } = useTheme();
   const toneColor = verdict.tone === 'ok' ? palette.jade[500] : verdict.tone === 'warn' ? palette.status.blocked : palette.status.failed;
   const Icon = verdict.tone === 'ok' ? CheckCircle2 : verdict.tone === 'warn' ? AlertTriangle : XCircle;
   const archetype = alignment?.archetype;
   return (
-    <div style={{ paddingBottom: 20, borderBottom: `1px solid ${palette.border.subtle}` }}>
-      <div style={{ display: 'flex', gap: 18, alignItems: 'flex-start' }}>
-        <div aria-hidden="true" style={{ flex: '0 0 auto', width: 72, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.95 }}>
-          <EquipmentFigure kind={node.kind} dressing={node.dressing} width={60} style={{ maxHeight: 70 }} />
-        </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px', alignItems: 'center', marginBottom: 6, fontSize: 12, color: palette.text.muted }}>
-            <span style={{ color: palette.text.secondary, fontWeight: 600 }}>{archetype ? archetype.name.replace(/ \(.*\)$/, '') : own ? 'Custom unit' : 'Standard unit'}</span>
+    <div style={{ paddingBottom: 18, borderBottom: `1px solid ${palette.border.subtle}` }}>
+      {/* The panel's title bar already shows the drawing and the name: this says what it is and how it is doing. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 8px', alignItems: 'center', fontSize: 12, color: palette.text.muted }}>
+        <span style={{ color: palette.text.secondary, fontWeight: 600 }}>{archetype ? archetype.name.replace(/ \(.*\)$/, '') : own ? 'Custom unit' : 'Standard unit'}</span>
+        <span aria-hidden>·</span>
+        <span>{modeName(contract.behavior.mode)}</span>
+        {alignment?.decidedBy === 'declared' && (
+          <>
             <span aria-hidden>·</span>
-            <span>{modeName(contract.behavior.mode)}</span>
-            {alignment?.decidedBy === 'declared' && (
-              <>
-                <span aria-hidden>·</span>
-                <span title="The contract declares this equipment, so the engine holds it to that physics." style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <ShieldCheck size={12} color={palette.jade[500]} /> held to its physics
-                </span>
-              </>
-            )}
-          </div>
-          {contract.description && (
-            <Brief text={contract.description} style={{ fontSize: 14, lineHeight: 1.6, color: palette.text.primary, maxWidth: 620 }} mutedColor={palette.text.secondary} />
-          )}
-        </div>
+            <span title="The contract declares this equipment, so the engine holds it to that physics." style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <ShieldCheck size={12} color={palette.jade[500]} /> held to its physics
+            </span>
+          </>
+        )}
       </div>
-      <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, fontSize: 13, color: palette.text.primary }}>
-        <Icon size={16} color={toneColor} style={{ flexShrink: 0 }} />
-        <span style={{ flex: 1 }}>{verdict.text}</span>
-        {actions}
-      </div>
+      {contract.description && (
+        <Brief text={contract.description} lines={2} style={{ fontSize: 14, lineHeight: 1.55, color: palette.text.primary, maxWidth: 640, marginTop: 6 }} mutedColor={palette.text.secondary} />
+      )}
       {kpis.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px 40px', marginTop: 20 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 36px', marginTop: 18 }}>
           {kpis.map((k) => (
             <div key={k.label}>
-              <div style={{ fontFamily: font.mono, fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em', color: palette.text.primary, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
+              <div style={{ fontFamily: font.mono, fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em', color: palette.text.primary, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
                 {k.value} <span style={{ fontSize: 12, color: palette.text.muted, fontWeight: 400, letterSpacing: 0 }}>{k.unit}</span>
               </div>
               <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 4 }}>{k.label}</div>
@@ -94,6 +84,17 @@ export const SpecHeader: React.FC<{
           ))}
         </div>
       )}
+      <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, fontSize: 13, color: palette.text.primary }}>
+        <Icon size={15} color={toneColor} style={{ flexShrink: 0 }} />
+        {onVerdict && verdict.tone !== 'ok' ? (
+          <button type="button" className="pf-focus" onClick={onVerdict} style={{ all: 'unset', flex: 1, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: palette.border.default, textUnderlineOffset: 3 }}>
+            {verdict.text}
+          </button>
+        ) : (
+          <span style={{ flex: 1 }}>{verdict.text}</span>
+        )}
+        {actions}
+      </div>
     </div>
   );
 };
@@ -102,66 +103,7 @@ function modeName(mode: UnitOpContract['behavior']['mode']): string {
   return mode === 'CONTINUOUS_RATE' ? 'continuous' : mode === 'DISCRETE_CYCLE' ? 'cycle by cycle' : mode === 'BATCH' ? 'batch' : 'storage';
 }
 
-// ------------------------------------------------------------------ nav
-
-export const SectionNav: React.FC<{
-  sections: { id: SectionId; label: string; badge?: { text: string; tone: 'ok' | 'warn' | 'fail' | 'muted' } }[];
-  active: SectionId;
-  onGo: (id: SectionId) => void;
-}> = ({ sections, active, onGo }) => {
-  const { palette } = useTheme();
-  return (
-    <nav
-      aria-label="Unit sections"
-      style={{
-        position: 'sticky',
-        // Over the studio's own top padding, so nothing shows above the bar as it scrolls.
-        top: -8,
-        zIndex: 5,
-        display: 'flex',
-        gap: 2,
-        padding: '8px 0 0',
-        margin: '0 0 4px',
-        background: palette.background.surfaceElevated,
-        borderBottom: `1px solid ${palette.border.subtle}`,
-        overflowX: 'auto',
-        scrollbarWidth: 'none'
-      }}
-    >
-      {sections.map((s) => {
-        const on = s.id === active;
-        const badgeColor =
-          s.badge?.tone === 'ok' ? palette.jade[500] : s.badge?.tone === 'warn' ? palette.status.blocked : s.badge?.tone === 'fail' ? palette.status.failed : palette.text.muted;
-        return (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => onGo(s.id)}
-            aria-current={on ? 'true' : undefined}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              flex: '0 0 auto',
-              padding: '8px 12px',
-              marginBottom: -1,
-              border: 'none',
-              borderBottom: `2px solid ${on ? palette.jade[500] : 'transparent'}`,
-              background: 'transparent',
-              color: on ? palette.text.primary : palette.text.muted,
-              fontSize: 13,
-              fontWeight: on ? 600 : 500,
-              cursor: 'pointer'
-            }}
-          >
-            {s.label}
-            {s.badge && <span style={{ fontSize: 12, fontWeight: 500, color: s.badge.tone === 'muted' ? palette.text.muted : badgeColor }}>{s.badge.text}</span>}
-          </button>
-        );
-      })}
-    </nav>
-  );
-};
+// ------------------------------------------------------------------ sections
 
 /**
  * One section of the sheet. With onToggle it folds: the reference sections
@@ -173,10 +115,10 @@ export const Section = React.forwardRef<
   { id: SectionId; title: string; hint?: string; children: React.ReactNode; right?: React.ReactNode; open?: boolean; onToggle?: () => void }
 >(({ id, title, hint, children, right, open = true, onToggle }, ref) => {
   const { palette } = useTheme();
-  const heading = <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', color: palette.text.primary }}>{title}</h3>;
+  const heading = <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: palette.text.primary }}>{title}</h3>;
   return (
-    <section ref={ref} id={`unit-${id}`} data-section={id} style={{ scrollMarginTop: 52, paddingTop: 32 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: open ? 14 : 0, flexWrap: 'wrap' }}>
+    <section ref={ref} id={`unit-${id}`} data-section={id} style={{ scrollMarginTop: 12, paddingTop: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 28, marginBottom: open ? 10 : 0, flexWrap: 'wrap' }}>
         {onToggle ? (
           <button
             type="button"
@@ -185,13 +127,13 @@ export const Section = React.forwardRef<
             onClick={onToggle}
             style={{ all: 'unset', cursor: 'pointer', display: 'inline-flex', alignItems: 'baseline', gap: 6 }}
           >
-            <span aria-hidden style={{ fontSize: 10, color: palette.text.muted, width: 8 }}>{open ? '▾' : '▸'}</span>
+            <ChevronRight aria-hidden size={14} color={palette.text.muted} style={{ alignSelf: 'center', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }} />
             {heading}
           </button>
         ) : (
           heading
         )}
-        {hint && open && <span style={{ fontSize: 12, color: palette.text.muted, flex: 1 }}>{hint}</span>}
+        <span style={{ fontSize: 12, color: palette.text.muted, flex: 1 }}>{hint}</span>
         {right}
       </div>
       {open && children}

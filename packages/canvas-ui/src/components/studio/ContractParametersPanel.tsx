@@ -6,6 +6,7 @@ import {
   isTemperatureDifference,
   designSpecsOf,
   resolveDesignSpecs,
+  resolvePanel,
   resultsOf,
   type DesignSpec,
   evaluateUnitOp,
@@ -22,13 +23,13 @@ import {
 import { AlertTriangle, CheckCircle2, ChevronRight, RotateCcw, XCircle } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
-import { controlFor, displayUnitsFor, formatQuantity, isConstantParameter, unitPreferenceKey } from '../../model/parameterUi.js';
+import { controlFor, displayUnitsFor, formatQuantity, isConstantParameter, ownSweep, unitPreferenceKey } from '../../model/parameterUi.js';
 import { ParameterControl } from './ParameterControl.js';
-import { SpecSheet } from './SpecSheet.js';
+import { allResults, SpecSheet } from './SpecSheet.js';
 import { layoutGroups } from '../../model/specLayout.js';
 import { UNIT_SYSTEMS, unitSystemPrefs, type UnitSystem } from '../../model/unitSystems.js';
 import { UnitGlance } from './UnitGlance.js';
-import { engineLabel, engineValue, ExpressionView, PhysicsSection, Section, SectionNav, SpecHeader, StreamsSection, type Lookup, type SectionId } from './UnitSpecSections.js';
+import { engineLabel, engineValue, ExpressionView, PhysicsSection, Section, SpecHeader, StreamsSection, type Lookup, type SectionId } from './UnitSpecSections.js';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
 
 interface ContractParametersPanelProps {
@@ -127,10 +128,14 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
   const deferred = useDeferredValue(contract);
   const sweeps = useMemo(() => {
     const out: Record<string, ReturnType<typeof sweepParameter>> = {};
+    const moves = parameterInfluence(deferred);
+    const severity = (id: string) => deferred.constraints.find((c) => c.id === id)?.severity ?? 'ERROR';
     for (const p of deferred.parameters) {
       const kind = controlFor(p);
       if (kind === 'fixed' || kind === 'toggle') continue;
-      out[p.name] = kind === 'select' && p.options ? sweepOptions(deferred, p) : sweepParameter(deferred, p.name, 41);
+      const whole = kind === 'select' && p.options ? sweepOptions(deferred, p) : sweepParameter(deferred, p.name, 41);
+      // Each input is judged only by the checks it can move.
+      out[p.name] = ownSweep(whole, new Set(moves.constraints[p.name] ?? []), severity);
     }
     return out;
   }, [deferred]);
@@ -142,36 +147,19 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
   // Standard units are checked against the equipment they are too (inferred, so advice only).
   const alignment = useMemo(() => physicsAlignment(contract, evaluation), [contract, evaluation]);
 
-  // Sections: the bar above follows the one in view, and jumps to one when clicked.
+  // Sections: the reference ones start folded; jumping to one opens it and scrolls it into view.
   const sectionRefs = useRef<Partial<Record<SectionId, HTMLElement | null>>>({});
   const refFor = (id: SectionId) => (el: HTMLElement | null) => {
     sectionRefs.current[id] = el;
   };
-  const [active, setActive] = useState<SectionId>('settings');
-  // The reference sections start folded; jumping to one opens it.
   const [unfolded, setUnfolded] = useState<Partial<Record<SectionId, boolean>>>({});
   const fold = (id: SectionId) => ({ open: Boolean(unfolded[id]), onToggle: () => setUnfolded((u) => ({ ...u, [id]: !u[id] })) });
-  // While a jump scrolls, the bar keeps the section asked for rather than each one passed.
-  const jumping = useRef(0);
   const go = useCallback((id: SectionId) => {
-    setActive(id);
     setUnfolded((u) => ({ ...u, [id]: true }));
-    jumping.current = Date.now();
     requestAnimationFrame(() => sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }, []);
-  useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        const id = top?.target.getAttribute('data-section') as SectionId | null;
-        if (id && Date.now() - jumping.current > 900) setActive(id);
-      },
-      { rootMargin: '-60px 0px -60% 0px' }
-    );
-    for (const el of Object.values(sectionRefs.current)) if (el) io.observe(el);
-    return () => io.disconnect();
-  }, [contract.derived.length, contract.constraints.length]);
+  const [showRules, setShowRules] = useState(false);
+  const [showInert, setShowInert] = useState(false);
 
   const [hover, setHover] = useState<{ param?: string; check?: string }>({});
   const [flash, setFlash] = useState<string | null>(null);
@@ -248,16 +236,17 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
     return s;
   }, [hover, influence]);
 
-  const heading: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: palette.text.muted,
-    margin: '18px 0 4px'
-  };
 
-  const kpis = behaviorKpis(evaluation);
+  // The engine's own figures, headline size, in the engineer's units: what the unit is doing.
+  const kpis = evaluation.error
+    ? []
+    : allResults(contract, evaluation, engineMovers).defs
+        .filter((d) => d.name.startsWith('engine.'))
+        .map((d) => {
+          const du = unitFor(d.unit, displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 }));
+          const v = resultsOf(evaluation)[d.name]!;
+          return { label: d.label ?? d.name, value: formatQuantity(convertUnit(v, d.unit, du) ?? v), unit: du !== '-' ? du : '' };
+        });
   const groups = layoutGroups(contract, influence, engineMovers);
   // A pipe brings the feed in: the design-point feed only matters until the line runs.
   const fedByLine = contract.ports.some((p) => p.direction === 'INLET' && p.role !== 'ENERGY' && connectedPortIds?.has(p.id));
@@ -271,12 +260,14 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
       ? {
           tone: 'fail' as const,
           text: errors.length
-            ? `${errors.length} check${errors.length > 1 ? 's' : ''} fail: the simulation will refuse to run this unit.`
-            : `${alignment!.errors.length} physics problem${alignment!.errors.length > 1 ? 's' : ''}: see Physics.`
+            ? `${errors.length > 1 ? `${errors.length} checks fail` : 'A check fails'}: the simulation will not run this unit until ${errors.length > 1 ? 'they pass' : 'it passes'}.`
+            : `${alignment!.errors.length > 1 ? `${alignment!.errors.length} physics problems` : 'A physics problem'}: see Physics.`
         }
       : warnings.length
-        ? { tone: 'warn' as const, text: `Runs, with ${warnings.length} warning${warnings.length > 1 ? 's' : ''}.` }
-        : { tone: 'ok' as const, text: 'Every check passes.' };
+        ? { tone: 'warn' as const, text: `Runs, with ${warnings.length > 1 ? `${warnings.length} warnings` : 'a warning'}.` }
+        : evaluation.constraints.length
+          ? { tone: 'ok' as const, text: 'Every check passes.' }
+          : { tone: 'ok' as const, text: 'No checks stated: the engine runs it as written.' };
 
   // Names in equations: what each one is called and what it is worth at the design point.
   const lookup: Lookup = {
@@ -295,46 +286,46 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
     }
   };
 
-  const relationsFailing = alignment?.relations.filter((x) => x.status === 'fails').length ?? 0;
-  const sectionList: { id: SectionId; label: string; badge?: { text: string; tone: 'ok' | 'warn' | 'fail' | 'muted' } }[] = [
-    ...(evaluation.error ? [] : [{ id: 'glance' as const, label: 'Glance' }]),
-    { id: 'settings', label: 'Settings', badge: { text: String(contract.parameters.length), tone: 'muted' } },
-    { id: 'streams', label: 'Streams', badge: { text: String(contract.ports.length), tone: 'muted' } },
-    ...(contract.derived.length ? [{ id: 'equations' as const, label: 'Equations', badge: { text: String(contract.derived.length), tone: 'muted' as const } }] : []),
-    ...(evaluation.constraints.length
-      ? [
-          {
-            id: 'checks' as const,
-            label: 'Checks',
-            badge: errors.length
-              ? { text: `${errors.length} fail`, tone: 'fail' as const }
-              : warnings.length
-                ? { text: `${warnings.length} warn`, tone: 'warn' as const }
-                : { text: 'all pass', tone: 'ok' as const }
-          }
-        ]
-      : []),
-    ...(alignment
-      ? [
-          {
-            id: 'physics' as const,
-            label: 'Physics',
-            badge: alignment.errors.length
-              ? { text: `${alignment.errors.length} fail`, tone: 'fail' as const }
-              : relationsFailing
-                ? { text: 'check', tone: 'warn' as const }
-                : alignment.checklist.length || alignment.relations.length
-                  ? { text: `${alignment.checklist.filter((c) => c.met).length + alignment.relations.filter((x) => x.status === 'holds').length}/${alignment.checklist.length + alignment.relations.length}`, tone: 'ok' as const }
-                  : undefined
-          }
-        ].map((s) => (s.badge ? s : { id: s.id, label: s.label }))
-      : [])
-  ];
+  // Checks a gauge above already shows, so the list below need not say them again unless asked.
+  const gauged = useMemo(() => new Set(resolvePanel(deferred).widgets.flatMap((w) => (w.kind === 'gauge' && w.check ? [w.check] : []))), [deferred]);
+  const listed = evaluation.constraints.filter((c) => !c.satisfied || showRules || !gauged.has(c.id));
+  const hiddenRules = evaluation.constraints.length - listed.length;
+  // Each failing check's counter-offer, on the setting it turns.
+  const fixesFor: Record<string, Fix> = {};
+  for (const f of visibleFixes) if (!fixesFor[f.parameter]) fixesFor[f.parameter] = f;
+
+  const unitSwitch = contract.parameters.length > 0 && (
+    <div role="group" aria-label="Units" style={{ display: 'inline-flex', alignItems: 'center', gap: 2, padding: 2, borderRadius: r.md, border: `1px solid ${palette.border.subtle}` }}>
+      {(['design', 'us', 'si'] as const).map((s) => (
+        <button
+          key={s}
+          type="button"
+          aria-pressed={system === s}
+          className="pf-focus"
+          onClick={() => setSystem(s)}
+          title={UNIT_SYSTEMS[s].title}
+          style={{
+            border: 'none',
+            borderRadius: r.sm,
+            padding: '2px 9px',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            background: system === s ? tint(palette.jade[500], 0.16) : 'transparent',
+            color: system === s ? palette.text.primary : palette.text.muted
+          }}
+        >
+          {UNIT_SYSTEMS[s].label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  const passingCount = evaluation.constraints.filter((c) => c.satisfied).length;
 
   return (
-    <div
-      style={{ display: 'flex', flexDirection: 'column' }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
       <SpecHeader
         node={node}
         contract={contract}
@@ -342,10 +333,12 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
         alignment={alignment}
         verdict={verdict}
         kpis={evaluation.error ? [] : kpis}
+        onVerdict={() => go(errors.length || warnings.length ? 'checks' : 'physics')}
         actions={
           changed.length > 0 ? (
             <button
               type="button"
+              className="pf-focus"
               onClick={() => writeParams(Object.fromEntries(changed.map((p) => [p.name, baseline.current!.params[p.name]!])))}
               title={`Put back ${changed.map((p) => p.label).join(', ')}`}
               style={{
@@ -353,7 +346,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                 alignItems: 'center',
                 gap: 4,
                 border: `1px solid ${palette.border.default}`,
-                background: palette.background.surface,
+                background: 'transparent',
                 color: palette.text.secondary,
                 borderRadius: r.md,
                 padding: '3px 8px',
@@ -361,178 +354,209 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                 cursor: 'pointer'
               }}
             >
-              <RotateCcw size={12} /> Revert {changed.length}
+              <RotateCcw size={12} /> Undo {count(changed.length, 'change')}
             </button>
           ) : undefined
         }
       />
 
-      <SectionNav sections={sectionList} active={active} onGo={go} />
-
-      {!evaluation.error && (
-        <Section ref={refFor('glance')} id="glance" title="At a glance" hint={contract.panel?.length ? "Laid out by the unit's contract." : 'How close each check runs to its limit.'}>
-          <UnitGlance
-            contract={contract}
-            evaluation={evaluation}
-            onPickCheck={(id) => {
-              go('checks');
-              setHover({ check: id });
-            }}
-          />
-        </Section>
-      )}
-
-      <Section
-        ref={refFor('settings')}
-        id="settings"
-        title="Settings"
-        hint="Type a value in any unit of its kind; Enter moves to the next."
-      >
-        <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-        {contract.parameters.length > 0 && (
-          <div role="group" aria-label="Units" style={{ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 2, padding: 2, margin: '2px 0 8px', borderRadius: r.md, border: `1px solid ${palette.border.subtle}`, background: palette.background.surface }}>
-            {(['design', 'us', 'si'] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                aria-pressed={system === s}
-                className="pf-focus"
-                onClick={() => setSystem(s)}
-                title={UNIT_SYSTEMS[s].title}
-                style={{
-                  border: 'none',
-                  borderRadius: r.sm,
-                  padding: '3px 10px',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  background: system === s ? tint(palette.jade[500], 0.16) : 'transparent',
-                  color: system === s ? palette.text.primary : palette.text.secondary
-                }}
-              >
-                {UNIT_SYSTEMS[s].label}
-              </button>
-            ))}
-          </div>
-        )}
-        </div>
-        {/* The engine's counter-offers: one knob, the value that clears a check. */}
-        {visibleFixes.length > 0 && (
-          <div style={{ margin: '4px 0 6px', padding: '10px 12px', borderRadius: r.md, border: `1px dashed ${tint(palette.jade[500], 0.5)}`, background: tint(palette.jade[500], 0.04) }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: palette.text.secondary, marginBottom: 6 }}>
-              The engine solved for values that clear the failing checks
-            </div>
-            {visibleFixes.slice(0, 4).map((f) => {
-              const p = paramOf(f.parameter)!;
-              const du = unitFor(p.unit, displayUnitsFor(p));
-              const difference = isTemperatureDifference(p);
-              const shown = convertUnit(f.value, p.unit, du, { difference }) ?? f.value;
-              const now = convertUnit(p.value, p.unit, du, { difference }) ?? p.value;
-              return (
-                <button
-                  key={`${f.parameter}:${f.value}`}
-                  type="button"
-                  onClick={() => {
-                    setParam(f.parameter, f.value);
-                    setFlash(f.parameter);
-                  }}
-                  onMouseEnter={() => setHover({ param: f.parameter })}
-                  onMouseLeave={() => setHover({})}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '6px 8px',
-                    marginTop: 2,
-                    border: 'none',
-                    borderRadius: r.sm,
-                    background: 'transparent',
-                    color: palette.text.primary,
-                    fontSize: 13,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <ChevronRight size={13} color={palette.jade[500]} />
-                  <span style={{ flex: 1 }}>
-                    Set <b>{p.label}</b> from {formatQuantity(now)} to <b style={{ fontFamily: font.mono }}>{formatQuantity(shown)}</b> {du !== '-' ? du : ''}
-                    <span style={{ color: palette.text.muted }}>
-                      {' '}
-                      · clears {f.fixes.map((id) => checkName(contract, id)).join(', ')}
-                      {f.allPass ? ' · then every check passes' : f.allErrorsPass ? ' · then nothing fails' : ''}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
+      <Section ref={refFor('settings')} id="settings" title="Inputs" right={unitSwitch || undefined}>
+        {contract.parameters.length === 0 ? (
+          <EmptyNote>Nothing to set: this unit runs on what its streams bring in.</EmptyNote>
+        ) : null}
         <SpecSheet
-            contract={contract}
-            evaluation={evaluation}
-            groups={groups}
-            sweeps={sweeps}
-            influence={influence}
-            engineMovers={engineMovers}
-            baselineParams={baseline.current!.params}
-            baselineDerived={baseline.current!.derived}
-            unitFor={unitFor}
-            setUnit={setUnit}
-            setParam={setParam}
-            lit={(k) => lit.has(k) || (k.startsWith('p:') && hover.param === k.slice(2))}
-            onHoverParam={(name) => setHover(name ? { param: name } : {})}
-            flash={flash}
-            onFlash={setFlash}
-            holds={holds}
-            onHold={hold}
-            onRelease={release}
-            {...(own && contract.designInlet
-              ? {
-                  feed: {
-                    fromLine: fedByLine,
-                    params: designFields(contract.designInlet).map((f) => f.param),
-                    baseline: Object.fromEntries(baseline.current!.design ? designFields(baseline.current!.design).map((f) => [f.param.name, f.param.value]) : []),
-                    onChange: (name: string, v: number) => {
-                      const f = designFields(contract.designInlet!).find((x) => x.param.name === name);
-                      if (f) setDesign(f.apply(v, contract.designInlet!));
-                    }
+          contract={contract}
+          evaluation={evaluation}
+          groups={groups}
+          sweeps={sweeps}
+          influence={influence}
+          engineMovers={engineMovers}
+          baselineParams={baseline.current!.params}
+          baselineDerived={baseline.current!.derived}
+          unitFor={unitFor}
+          setUnit={setUnit}
+          setParam={setParam}
+          lit={(k) => lit.has(k) || (k.startsWith('p:') && hover.param === k.slice(2))}
+          onHoverParam={(name) => setHover(name ? { param: name } : {})}
+          flash={flash}
+          onFlash={setFlash}
+          holds={holds}
+          onHold={hold}
+          onRelease={release}
+          fixes={fixesFor}
+          checkName={(id) => checkName(contract, id)}
+          resultsSection={(children, right) => (
+            <Section ref={refFor('results')} id="results" title="Results" right={right}>
+              {evaluation.error ? <EmptyNote tone="fail">No results until the design evaluates: {evaluation.error.message}</EmptyNote> : children}
+            </Section>
+          )}
+          {...(own && contract.designInlet
+            ? {
+                feed: {
+                  fromLine: fedByLine,
+                  params: designFields(contract.designInlet).map((f) => f.param),
+                  baseline: Object.fromEntries(baseline.current!.design ? designFields(baseline.current!.design).map((f) => [f.param.name, f.param.value]) : []),
+                  onChange: (name: string, v: number) => {
+                    const f = designFields(contract.designInlet!).find((x) => x.param.name === name);
+                    if (f) setDesign(f.apply(v, contract.designInlet!));
                   }
                 }
-              : {})}
-          />
-        {contract.parameters.length === 0 && <div style={{ fontSize: 13, color: palette.text.muted }}>This unit has no settings of its own: it runs on what reaches it.</div>}
+              }
+            : {})}
+        />
 
         {inert.length > 0 && (
-          <details style={{ marginTop: 12 }}>
-            <summary style={{ ...heading, margin: 0, cursor: 'pointer', listStyle: 'revert' }}>Not used by the simulation · {inert.length}</summary>
-            <div style={{ fontSize: 12, color: palette.text.muted, lineHeight: 1.5, margin: '4px 0 2px' }}>Kept with the design; changing them does not change the results.</div>
-            {inert.map(([k, v]) => (
-              <ParameterControl
-                key={k}
-                param={{ name: k, label: k.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase()), unit: '-', value: v }}
-                displayUnit="-"
-                displayUnits={[]}
-                onDisplayUnit={() => undefined}
-                onChange={(x) => onUpdateConfig(node.id, { ...config, [k]: x })}
-              />
-            ))}
-          </details>
+          <div style={{ marginTop: 12 }}>
+            <button type="button" className="pf-disclose" aria-expanded={showInert} onClick={() => setShowInert((v) => !v)}>
+              <ChevronRight size={13} aria-hidden style={{ transform: showInert ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }} />
+              Kept with the design, not simulated ({inert.length})
+            </button>
+            {showInert && (
+              <>
+                <div style={{ fontSize: 12, color: palette.text.muted, lineHeight: 1.5, margin: '4px 0 2px' }}>Changing these does not change the results.</div>
+                {inert.map(([k, v]) => (
+                  <ParameterControl
+                    key={k}
+                    param={{ name: k, label: k.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase()), unit: '-', value: v }}
+                    displayUnit="-"
+                    displayUnits={[]}
+                    onDisplayUnit={() => undefined}
+                    onChange={(x) => onUpdateConfig(node.id, { ...config, [k]: x })}
+                  />
+                ))}
+              </>
+            )}
+          </div>
         )}
       </Section>
 
-      <Section ref={refFor('streams')} id="streams" {...fold('streams')} title="Streams" hint={live?.portFlows ? 'Design point, and what is moving now.' : 'What each connection carries, at the design point.'}>
+      {(evaluation.constraints.length > 0 || Boolean(contract.panel?.length)) && (
+        <Section
+          ref={refFor('checks')}
+          id="checks"
+          title="Checks"
+          hint={
+            evaluation.constraints.length === 0
+              ? undefined
+              : errors.length
+                ? `${errors.length} failing`
+                : warnings.length
+                  ? `${count(warnings.length, 'warning')}`
+                  : `all ${passingCount} pass`
+          }
+        >
+          {!evaluation.error && (
+            <UnitGlance
+              contract={contract}
+              evaluation={evaluation}
+              onPickCheck={(id) => {
+                setShowRules(true);
+                setHover({ check: id });
+              }}
+            />
+          )}
+          {listed.length > 0 && (
+            <div style={{ marginTop: gauged.size ? 12 : 0 }}>
+              {listed.map((c) => {
+                const bad = !c.satisfied;
+                const color = !bad ? palette.jade[500] : c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked;
+                const Icon = !bad ? CheckCircle2 : c.severity === 'ERROR' ? XCircle : AlertTriangle;
+                // The knobs worth turning: constants and correlation coefficients are not.
+                const levers = (influence.levers[c.id] ?? []).filter((n) => {
+                  const p = paramOf(n);
+                  return p && !p.ui?.advanced && !isConstantParameter(p);
+                });
+                const rule = contract.constraints.find((x) => x.id === c.id)?.expr;
+                return (
+                  <div
+                    key={c.id}
+                    onMouseEnter={() => setHover({ check: c.id })}
+                    onMouseLeave={() => setHover({})}
+                    style={{
+                      display: 'flex',
+                      gap: 10,
+                      padding: bad ? '12px 10px' : '8px 10px',
+                      margin: '0 -10px',
+                      borderRadius: r.md,
+                      borderBottom: `1px solid ${palette.border.subtle}`,
+                      backgroundColor: lit.has(`c:${c.id}`) ? tint(color, 0.08) : bad ? tint(color, 0.05) : 'transparent'
+                    }}
+                  >
+                    <Icon size={15} color={color} style={{ flexShrink: 0, marginTop: 3 }} />
+                    <div style={{ fontSize: 13, lineHeight: 1.5, color: palette.text.primary, minWidth: 0, flex: 1 }}>
+                      {/* A passing check reads as the rule it holds to; a failing one says what goes wrong, then the rule. */}
+                      {bad ? (
+                        <>
+                          <div>{c.message}</div>
+                          {rule && (
+                            <div style={{ fontSize: 12, marginTop: 4 }}>
+                              <ExpressionView expr={rule} lookup={lookup} compact />
+                            </div>
+                          )}
+                          {c.hint && <div style={{ fontSize: 12, color: palette.text.secondary, marginTop: 2 }}>Try: {c.hint}</div>}
+                          {levers.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 12px', marginTop: 6 }}>
+                              <span style={{ fontSize: 12, color: palette.text.muted }}>Moved by</span>
+                              {levers.map((name) => (
+                                <button
+                                  key={name}
+                                  type="button"
+                                  className="pf-focus"
+                                  onClick={() => lookup.onPick!(name)}
+                                  title="Show this input"
+                                  style={{
+                                    fontSize: 12,
+                                    padding: 0,
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: palette.text.secondary,
+                                    textDecoration: 'underline',
+                                    textDecorationColor: palette.border.default,
+                                    textUnderlineOffset: 3,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {labelOf(name)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : rule ? (
+                        <span title={`Guards against: ${c.message}`}>
+                          <ExpressionView expr={rule} lookup={lookup} compact />
+                        </span>
+                      ) : (
+                        <span style={{ color: palette.text.secondary }}>{c.message}</span>
+                      )}
+                    </div>
+                    {c.severity !== 'ERROR' && <span style={{ fontSize: 11, color: palette.text.muted, whiteSpace: 'nowrap', marginTop: 3 }}>advisory</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {(hiddenRules > 0 || (showRules && gauged.size > 0)) && (
+            <button
+              type="button"
+              className="pf-focus"
+              onClick={() => setShowRules((v) => !v)}
+              style={{ all: 'unset', marginTop: 10, fontSize: 12, color: palette.text.secondary, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: palette.border.default, textUnderlineOffset: 3 }}
+            >
+              {showRules ? 'Hide the rules' : `Show the rule behind each gauge (${hiddenRules})`}
+            </button>
+          )}
+        </Section>
+      )}
+
+      <Section ref={refFor('streams')} id="streams" {...fold('streams')} title="Streams" hint={count(contract.ports.length, 'connection')}>
         <StreamsSection contract={contract} evaluation={evaluation} live={live} unitFor={unitFor} />
       </Section>
 
       {contract.derived.length > 0 && (
-        <Section ref={refFor('equations')} id="equations" {...fold('equations')} title="Equations" hint="Worked out in order, each from the ones above it. Click a setting to change it.">
+        <Section ref={refFor('equations')} id="equations" {...fold('equations')} title="Equations" hint={count(contract.derived.length, 'equation')}>
           {contract.derived.map((d) => {
             const v = evaluation.derived[d.name];
-            const before = baseline.current!.derived[d.name];
-            const delta = v !== undefined && before !== undefined && Number.isFinite(v) && Number.isFinite(before) && Math.abs(v - before) > 1e-9 * Math.max(1, Math.abs(before)) ? v - before : 0;
-            const pct = before ? (delta / Math.abs(before)) * 100 : 0;
             const choices = displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 });
             const du = unitFor(d.unit, choices);
             const difference = isTemperatureDifference(d);
@@ -542,7 +566,7 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
               <div
                 key={d.name}
                 style={{
-                  padding: '14px 10px',
+                  padding: '12px 10px',
                   margin: '0 -10px',
                   borderRadius: r.md,
                   borderBottom: `1px solid ${palette.border.subtle}`,
@@ -551,19 +575,14 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
                 }}
               >
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'baseline', columnGap: 12 }}>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: palette.text.primary }} title={d.description}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: palette.text.primary }} title={d.description}>
                     {d.label ?? d.name}
                   </span>
-                  <span style={{ fontFamily: font.mono, fontSize: 14, color: palette.text.primary, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                    {delta !== 0 && (
-                      <span style={{ fontSize: 11, marginRight: 6, color: palette.text.muted }} title={`When you opened it: ${formatQuantity(convertUnit(before!, d.unit, du, { difference }) ?? before!)}`}>
-                        {delta > 0 ? '▲' : '▼'} {Math.abs(pct) >= 0.1 && Number.isFinite(pct) ? `${Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%` : ''}
-                      </span>
-                    )}
+                  <span style={{ fontFamily: font.mono, fontSize: 13, color: palette.text.primary, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                     {formatQuantity(shown)} <span style={{ color: palette.text.muted }}>{du !== '-' ? du : ''}</span>
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: palette.text.secondary, marginTop: 6 }}>
+                <div style={{ fontSize: 12, color: palette.text.secondary, marginTop: 4 }}>
                   <span style={{ color: palette.text.muted }}>= </span>
                   <ExpressionView expr={d.expr} lookup={lookup} compact />
                 </div>
@@ -574,95 +593,42 @@ export const ContractParametersPanel: React.FC<ContractParametersPanelProps> = (
         </Section>
       )}
 
-      {evaluation.constraints.length > 0 && (
-        <Section ref={refFor('checks')} id="checks" title="Checks" hint="The physics that must hold. Hover one to light the settings that move it.">
-          {evaluation.constraints.map((c) => {
-            const bad = !c.satisfied;
-            const color = !bad ? palette.jade[500] : c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked;
-            const Icon = !bad ? CheckCircle2 : c.severity === 'ERROR' ? XCircle : AlertTriangle;
-            // The knobs worth turning: constants and correlation coefficients are not.
-            const levers = (influence.levers[c.id] ?? []).filter((n) => {
-              const p = paramOf(n);
-              return p && !p.ui?.advanced && !isConstantParameter(p);
-            });
-            const rule = contract.constraints.find((x) => x.id === c.id)?.expr;
-            return (
-              <div
-                key={c.id}
-                onMouseEnter={() => setHover({ check: c.id })}
-                onMouseLeave={() => setHover({})}
-                style={{
-                  display: 'flex',
-                  gap: 12,
-                  padding: '14px 10px',
-                  margin: '0 -10px',
-                  borderRadius: r.md,
-                  borderBottom: `1px solid ${palette.border.subtle}`,
-                  backgroundColor: lit.has(`c:${c.id}`) ? tint(color, 0.08) : bad ? tint(color, 0.04) : 'transparent'
-                }}
-              >
-                <Icon size={16} color={color} style={{ flexShrink: 0, marginTop: 2 }} />
-                <div style={{ fontSize: 14, lineHeight: 1.5, color: bad ? palette.text.primary : palette.text.secondary, minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                    {/* A message says what goes wrong; when the check holds, it is what the check guards against. */}
-                    <span style={{ flex: 1 }}>
-                      {bad ? (
-                        c.message
-                      ) : (
-                        <>
-                          <span style={{ color: palette.text.muted }}>Guards against: </span>
-                          {c.message.replace(/^./, (ch) => ch.toLowerCase())}
-                        </>
-                      )}
-                    </span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: bad ? (c.severity === 'ERROR' ? palette.status.failed : palette.status.blocked) : palette.text.muted }}>
-                      {c.severity === 'ERROR' ? 'must hold' : 'should hold'}
-                    </span>
-                  </div>
-                  {bad && c.hint && <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 2 }}>Try: {c.hint}</div>}
-                  {rule && (
-                    <div style={{ fontSize: 12, marginTop: 8 }}>
-                      <ExpressionView expr={rule} lookup={lookup} compact />
-                    </div>
-                  )}
-                  {levers.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 12px', marginTop: 8 }}>
-                      <span style={{ fontSize: 12, color: palette.text.muted }}>Moved by</span>
-                      {levers.map((name) => (
-                        <button
-                          key={name}
-                          type="button"
-                          onClick={() => lookup.onPick!(name)}
-                          title="Show this setting"
-                          style={{
-                            fontSize: 12,
-                            padding: 0,
-                            border: 'none',
-                            background: 'transparent',
-                            color: palette.text.secondary,
-                            textDecoration: 'underline',
-                            textDecorationColor: palette.border.default,
-                            textUnderlineOffset: 3,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {labelOf(name)}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </Section>
-      )}
-
       {alignment && (
-        <Section ref={refFor('physics')} id="physics" {...fold('physics')} title="Physics" hint={alignment.archetype ? alignment.archetype.name : undefined}>
+        <Section
+          ref={refFor('physics')}
+          id="physics"
+          {...fold('physics')}
+          title="Physics"
+          hint={
+            alignment.errors.length
+              ? `${count(alignment.errors.length, 'problem')}`
+              : alignment.archetype
+                ? alignment.archetype.name
+                : undefined
+          }
+        >
           <PhysicsSection alignment={alignment} lookup={lookup} />
         </Section>
       )}
+    </div>
+  );
+};
+
+/** A quiet line where a section has nothing to show, saying why. */
+const EmptyNote: React.FC<{ children: React.ReactNode; tone?: 'muted' | 'fail' }> = ({ children, tone = 'muted' }) => {
+  const { palette, radius: r } = useTheme();
+  return (
+    <div
+      style={{
+        fontSize: 13,
+        lineHeight: 1.5,
+        padding: '10px 12px',
+        borderRadius: r.md,
+        border: `1px dashed ${tone === 'fail' ? tint(palette.status.failed, 0.5) : palette.border.subtle}`,
+        color: tone === 'fail' ? palette.text.primary : palette.text.muted
+      }}
+    >
+      {children}
     </div>
   );
 };
@@ -684,38 +650,6 @@ function sweepOptions(contract: UnitOpContract, p: UnitOpParameter): ReturnType<
 
 function checkName(_contract: UnitOpContract, id: string): string {
   return id.replace(/[-_]/g, ' ');
-}
-
-/** The figures the engine runs the unit on, from the evaluation. */
-function behaviorKpis(ev: ReturnType<typeof evaluateUnitOp>): { label: string; value: string; unit: string }[] {
-  const b = ev.behavior;
-  const f = formatQuantity;
-  switch (b.mode) {
-    case 'DISCRETE_CYCLE':
-      return [
-        { label: 'Rate', value: f(b.unitsPerMinute), unit: '/min' },
-        { label: 'Cycle', value: f(b.cycleSeconds), unit: 's' },
-        { label: 'Per cycle', value: f(b.unitsPerCycle), unit: 'units' }
-      ];
-    case 'CONTINUOUS_RATE':
-      return [
-        ...(b.capacityGpm !== undefined ? [{ label: 'Capacity', value: f(b.capacityGpm), unit: 'gal/min' }] : []),
-        ...(b.capacityKgPerHour !== undefined ? [{ label: 'Capacity', value: f(b.capacityKgPerHour), unit: 'kg/h' }] : []),
-        ...(b.dutyKw !== undefined ? [{ label: 'Duty', value: f(b.dutyKw), unit: 'kW' }] : []),
-        ...(b.residenceTimeSeconds !== undefined ? [{ label: 'Residence', value: f(b.residenceTimeSeconds), unit: 's' }] : [])
-      ].slice(0, 3);
-    case 'BATCH':
-      return [
-        { label: 'Batch', value: f(b.batchGallons), unit: 'gal' },
-        { label: 'Cycle', value: f(b.cycleSecondsEstimate / 60), unit: 'min' },
-        { label: 'Average', value: f(b.gallonsPerMinute), unit: 'gal/min' }
-      ];
-    case 'STORAGE':
-      return [
-        { label: 'Capacity', value: f(b.capacityGallons), unit: 'gal' },
-        ...(b.maxOutflowGpm !== undefined ? [{ label: 'Most out', value: f(b.maxOutflowGpm), unit: 'gal/min' }] : [])
-      ];
-  }
 }
 
 /** The design inlet's fields as parameters, keeping flow, mass flow and density consistent. */
