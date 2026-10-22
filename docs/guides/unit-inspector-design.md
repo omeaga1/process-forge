@@ -9,21 +9,29 @@ The panel has two jobs: let an engineer set the unit, and let them read what
 it does. Everything else (equations, physics, streams) is reference, so it
 stays folded.
 
-## Order
+## Structure
 
-1. **What it is and how it is doing.** The kind of equipment, a two-line
-   description, the engine's own figures at headline size (capacity, duty,
-   rate), and one verdict line. If the verdict is bad, clicking it goes to
-   the cause. The title bar already shows the drawing, so the panel doesn't
-   repeat it.
-2. **Inputs.** The first thing to edit sits right under the verdict. There is
-   no section bar and no gauge cards above it.
-3. **Results.** What the engine works out from the inputs. Anything the
-   header already shows is left out.
-4. **Checks.** A gauge for each check that has a limit, and the rule in words
-   for the rest.
-5. **Streams, Equations, Physics.** Folded. Each one shows a count so you
-   know what is inside without opening it.
+The panel is a set of zones. Each zone is its own card, with a title, a short
+state and its own controls in the card's head.
+
+1. **Identity.** The kind of equipment, how it runs and two lines of
+   description. The title bar already shows the drawing and name, so the
+   panel doesn't repeat them.
+2. **Status bar.** It stays pinned while you scroll. It shows whether the
+   unit runs ("All 3 checks pass", "1 check fails · it will not run"), the
+   first two figures the engine runs it at, and "Undo N changes". You can
+   edit inputs anywhere on the panel and still see what happened.
+3. **Inputs.** The card's head has the count and the As written / US / SI
+   switch. Groups are tinted bands across the card. A folded group is a
+   band with a chevron and a count.
+4. **Results.** The headline figures sit as tiles at the top. Below them is
+   every other result, one per row, and in the card's foot are the solver
+   and the sensitivity study.
+5. **Checks.** There is one row per check: status, name, a gauge with its
+   caption when the contract gives a limit, and the rule. A failing row is
+   expanded with the message, the hint and the inputs that move it.
+6. **Reference.** Streams, Equations and Physics are tabs in one card, and
+   only one shows at a time.
 
 ## Grouping
 
@@ -75,11 +83,9 @@ sheet as a table.
 
 ## Checks
 
-The gauges come first. A check a gauge already shows isn't listed again
-unless you ask to see the rules. A passing check reads as the rule it holds
-to ("Shaft power ≤ Motor rating"). A failing check opens with what goes
-wrong, then the rule, a hint, and the inputs that move it. Warnings are
-marked "advisory".
+Each check appears once. Its gauge, if the contract gives one, sits inside
+its row rather than on a separate card. Clicking a passing check opens its
+rule and what moves it. A failing check is open from the start.
 
 ## Empty states
 

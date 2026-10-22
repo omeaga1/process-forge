@@ -174,12 +174,56 @@ select option, select optgroup { background-color: var(--pf-bg-surface-elevated)
 .pf-scrub[data-scrubbing] { color: var(--pf-jade-glow); }
 .pf-scrub-cursor { color: var(--pf-text-primary); filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5)); pointer-events: none; }
 
+/* The unit inspector's zones (studio/ContractParametersPanel.tsx): a pinned status bar, then titled cards. */
+.pf-status-bar { position: sticky; top: -8px; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 -20px; padding: 10px 20px;
+  background: var(--pf-bg-surface-elevated); border-bottom: 1px solid var(--pf-border-subtle); font: 400 13px/1.35 ${fontFamily.sans}; color: var(--pf-text-primary); }
+.pf-status-bar[data-tone="fail"] { box-shadow: inset 3px 0 0 var(--pf-status-failed); }
+.pf-status-bar[data-tone="warn"] { box-shadow: inset 3px 0 0 var(--pf-status-blocked); }
+.pf-status-bar[data-tone="ok"] { box-shadow: inset 3px 0 0 var(--pf-jade-500); }
+.pf-status-figs { display: flex; gap: 14px; margin-left: auto; font: 500 12px/1 ${fontFamily.mono}; color: var(--pf-text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-status-figs span span { color: var(--pf-text-muted); font-weight: 400; }
+.pf-card { margin-top: 14px; border: 1px solid var(--pf-border-subtle); border-radius: 10px; background: color-mix(in srgb, var(--pf-bg-surface) 60%, transparent); overflow: hidden; scroll-margin-top: 56px; }
+.pf-card-head { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 14px; border-bottom: 1px solid var(--pf-border-subtle); }
+.pf-card-title { margin: 0; font: 600 13px/1.2 ${fontFamily.sans}; letter-spacing: 0; color: var(--pf-text-primary); }
+.pf-card-meta { font: 400 12px/1.2 ${fontFamily.sans}; color: var(--pf-text-muted); }
+.pf-card-meta[data-tone="fail"] { color: var(--pf-status-failed); }
+.pf-card-meta[data-tone="warn"] { color: var(--pf-status-blocked); }
+.pf-card-body { padding: 0 14px; }
+.pf-card-foot { padding: 8px 14px 10px; border-top: 1px solid var(--pf-border-subtle); }
+.pf-band { display: flex; align-items: center; gap: 8px; margin: 0 -14px; padding: 7px 14px; background: color-mix(in srgb, var(--pf-text-primary) 3.5%, transparent);
+  border-bottom: 1px solid var(--pf-border-subtle); font: 600 12px/1.3 ${fontFamily.sans}; color: var(--pf-text-secondary); text-align: left; }
+button.pf-band { all: unset; box-sizing: border-box; display: flex; width: calc(100% + 28px); cursor: pointer; align-items: center; gap: 8px; margin: 0 -14px; padding: 7px 14px;
+  background: color-mix(in srgb, var(--pf-text-primary) 3.5%, transparent); border-bottom: 1px solid var(--pf-border-subtle); font: 600 12px/1.3 ${fontFamily.sans}; color: var(--pf-text-secondary); }
+button.pf-band:hover { color: var(--pf-text-primary); }
+button.pf-band:focus-visible { outline: 2px solid var(--pf-jade-400); outline-offset: -2px; }
+.pf-band .pf-count { margin-left: auto; font-weight: 400; color: var(--pf-text-muted); font-variant-numeric: tabular-nums; }
+.pf-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin: 0 -14px; border-bottom: 1px solid var(--pf-border-subtle); }
+.pf-tile { padding: 12px 14px; border-right: 1px solid var(--pf-border-subtle); }
+.pf-tile:last-child { border-right: none; }
+.pf-tile-value { font: 500 20px/1.1 ${fontFamily.mono}; letter-spacing: -0.02em; color: var(--pf-text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-tile-unit { margin-left: 5px; font: 400 12px/1 ${fontFamily.mono}; letter-spacing: 0; color: var(--pf-text-muted); }
+.pf-tile-label { margin-top: 5px; font: 400 12px/1.2 ${fontFamily.sans}; color: var(--pf-text-muted); }
+.pf-tabs-inline { display: flex; gap: 2px; align-self: stretch; }
+.pf-tab-inline { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; margin-bottom: -1px; border-bottom: 2px solid transparent;
+  font: 500 13px/1 ${fontFamily.sans}; color: var(--pf-text-muted); }
+.pf-tab-inline:hover { color: var(--pf-text-primary); }
+.pf-tab-inline[aria-selected="true"] { color: var(--pf-text-primary); border-bottom-color: var(--pf-jade-500); }
+.pf-tab-inline:focus-visible { outline: 2px solid var(--pf-jade-400); outline-offset: -2px; }
+.pf-tab-inline .pf-count { font-weight: 400; color: var(--pf-text-muted); }
+.pf-check { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 10px; row-gap: 4px; align-items: start; margin: 0 -14px; padding: 10px 14px; border-bottom: 1px solid var(--pf-border-subtle); }
+.pf-check:last-child { border-bottom: none; }
+.pf-check-name { font: 500 13px/1.35 ${fontFamily.sans}; color: var(--pf-text-primary); }
+.pf-check-state { font: 500 12px/1.35 ${fontFamily.sans}; color: var(--pf-text-muted); white-space: nowrap; }
+.pf-check-state[data-status="tight"], .pf-check-state[data-status="warning"] { color: var(--pf-status-blocked); }
+.pf-check-state[data-status="error"] { color: var(--pf-status-failed); }
+.pf-check-detail { grid-column: 2 / -1; font: 400 12px/1.45 ${fontFamily.sans}; color: var(--pf-text-muted); font-variant-numeric: tabular-nums; }
+.pf-check .pf-meter-track { margin: 4px 0 6px; }
+
 /* A unit's inputs and results (studio/SpecSheet.tsx): a quiet list, tools that show on the row in hand. */
 .pf-spec { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
 .pf-spec th, .pf-spec td { border-bottom: 1px solid var(--pf-border-subtle); vertical-align: middle; }
 .pf-spec tr:last-child > th, .pf-spec tr:last-child > td { border-bottom: none; }
-.pf-spec .pf-spec-group { padding: 18px 0 6px; font: 600 12px/1.2 ${fontFamily.sans}; color: var(--pf-text-muted); text-align: left; }
-.pf-spec tbody:first-of-type .pf-spec-group { padding-top: 4px; }
+.pf-spec .pf-spec-group { padding: 0; border-bottom: none; text-align: left; font-weight: inherit; }
 .pf-field { display: inline-flex; align-items: stretch; height: 30px; width: 100%; box-sizing: border-box; border-radius: 6px; overflow: hidden;
   border: 1px solid var(--pf-border-subtle); background: var(--pf-bg-surface); transition: border-color 120ms ease, box-shadow 120ms ease; }
 .pf-field:hover { border-color: var(--pf-border-strong); }
