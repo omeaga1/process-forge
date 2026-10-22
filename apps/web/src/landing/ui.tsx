@@ -110,6 +110,8 @@ export const LINE = {
   note: 'Syrup, water and CO₂ in, finished pallets out. Ten machines Claude designed, each drawn by the engine from its own numbers.'
 };
 
+const PLAYBACK_RATE = 0.5;
+
 /**
  * The running line, framed like the unit drawings: the dark canvas, then a
  * caption. It plays muted and looped while on screen, and stays on its
@@ -123,6 +125,9 @@ export function LineCard({ src, title, note }: { src: string; title: string; not
   useEffect(() => {
     const v = video.current;
     if (!v) return;
+    // Recorded with the line running at 5×: played at half speed it reads as a line, not a blur.
+    v.defaultPlaybackRate = PLAYBACK_RATE;
+    v.playbackRate = PLAYBACK_RATE;
     if (inView && !reduced && !paused) void v.play().catch(() => undefined);
     else v.pause();
   }, [inView, reduced, paused]);
