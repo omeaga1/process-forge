@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { fontFamily } from '@process-forge/theme';
 import { SITE as D } from './palette.js';
-import { COMPONENTS, EXAMPLE_LINES, STANDARD_EQUIPMENT_CATALOG, componentHvap, componentPsat, componentRhoLiquid } from '@process-forge/protocol';
+import { EXAMPLE_LINES, STANDARD_EQUIPMENT_CATALOG } from '@process-forge/protocol';
 import { simulateProcess } from '@process-forge/simulation-core';
 import { runColdBrew } from './coldBrew.js';
 
@@ -205,51 +205,7 @@ const CopilotArt: React.FC = () => (
   </div>
 );
 
-/** Property calls a contract makes by name, evaluated here by the component database. */
-const ComponentsArt: React.FC = () => {
-  const calls: [string, string][] = [
-    ["psat('ethanol', 78.3)", `${componentPsat('ethanol', 78.3).toFixed(1)} kPa`],
-    ["hvap('water', 100)", `${componentHvap('water', 100).toFixed(0)} kJ/kg`],
-    ["rho_liquid('glycerol', 25)", `${componentRhoLiquid('glycerol', 25).toFixed(0)} kg/m³`]
-  ];
-  return (
-    <div style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: 6, ...mono, fontSize: 12 }} aria-hidden>
-      {calls.map(([call, value]) => (
-        <div key={call} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '7px 10px', borderRadius: 7, background: D.background.surface, border: `1px solid ${D.border.subtle}` }}>
-          <span style={{ color: D.jade.glow }}>{call}</span>
-          <span style={{ color: D.text.primary }}>{value}</span>
-        </div>
-      ))}
-    </div>
-  );
-};
 
-/** A sweep: one setting across a range, the result against a target. */
-const StudyArt: React.FC = () => {
-  const pts = Array.from({ length: 9 }, (_, i) => {
-    const x = i / 8;
-    return [24 + x * 280, 100 - 70 * (1 - Math.exp(-2.6 * x))] as const;
-  });
-  const path = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
-  return (
-    <svg viewBox="0 0 320 120" aria-hidden style={{ width: '100%', maxWidth: 360, height: 'auto' }}>
-      <path d="M24 10 V100 H306" fill="none" stroke={D.border.strong} />
-      <path d="M24 52 H306" stroke={D.text.gold} strokeDasharray="4 4" opacity="0.8" />
-      <text x="30" y="46" fill={D.text.gold} fontSize="9" fontFamily={fontFamily.mono}>
-        target
-      </text>
-      <path d={path} fill="none" stroke={D.jade.glow} strokeWidth="2" />
-      {pts.map(([x, y]) => (
-        <circle key={x} cx={x} cy={y} r="3" fill={D.background.base} stroke={D.jade.glow} strokeWidth="1.4" />
-      ))}
-      <path d="M118 52 V100" stroke={D.text.gold} strokeDasharray="2 3" />
-      <circle cx="118" cy="52" r="5" fill={D.text.gold} />
-      <text x="28" y="114" fill={D.text.muted} fontSize="9" fontFamily={fontFamily.mono}>
-        steam duty →
-      </text>
-    </svg>
-  );
-};
 
 export const StudioFeatures: React.FC = () => (
   <ul className="pf-bento" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
@@ -283,19 +239,6 @@ export const StudioFeatures: React.FC = () => (
       title="Ask the line what limits it"
       text="The Copilot reads the board: what sets the pace, where a buffer would help, which unit to add. The basics answer offline, with no model at all."
       art={<CopilotArt />}
-    />
-    <Tile
-      kicker="PROPERTIES"
-      title="Looked up, not recalled"
-      text={`A component database of ${COMPONENTS.length}, from the Poling, PSRK and CRC tables, that a unit's equations call by name.`}
-      art={<ComponentsArt />}
-    />
-    <Tile
-      wide
-      kicker="STUDIES"
-      title="Sweep a setting, or solve for a target"
-      text="“What steam duty gives 50 °Brix?” The engine runs full simulations to answer. A multi-step change is tried on a copy first and shown as a diff, before and after."
-      art={<StudyArt />}
     />
   </ul>
 );

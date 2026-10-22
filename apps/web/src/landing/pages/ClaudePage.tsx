@@ -1,7 +1,7 @@
 import React from 'react';
 import { SITE as D } from '../palette.js';
 import { McpDemo } from '../McpDemo.js';
-import { CopyCommand, MCPB, MCP_TOOLS, MCP_TOOL_COUNT, NPX, PageHeader, REPO, Section, card, mono, textLink } from '../ui.js';
+import { CopyCommand, MCPB, NPX, PageHeader, REPO, Section, card, textLink } from '../ui.js';
 import { PageLink } from '../router.js';
 
 /** Driving ProcessForge from Claude, or any MCP client, and from the app itself. */
@@ -49,23 +49,12 @@ export const ClaudePage: React.FC = () => (
       </div>
     </Section>
 
-    <Section id="tools" n="02" kicker="THE TOOLS" title={`${MCP_TOOL_COUNT} tools, one engine.`} note="Every number a tool returns is computed by the engine, never estimated by the model.">
-      <div style={card}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 16 }}>
-          {MCP_TOOLS.map(([group, tools]) => (
-            <div key={group}>
-              <div style={{ ...mono, fontSize: 11, letterSpacing: '0.12em', color: D.jade.glow, marginBottom: 8 }}>{group.toUpperCase()}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {tools.map((t) => (
-                  <code key={t} className="pf-tool" style={mono}>
-                    {t}
-                  </code>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Section>
+    <p style={{ maxWidth: 1120, margin: '0 auto', padding: `28px clamp(16px, 4vw, 32px) 0`, fontSize: 14, color: D.text.secondary }}>
+      Every tool, grouped by what it does:{' '}
+      <PageLink to="/docs#tools" style={textLink}>
+        the docs
+      </PageLink>
+      .
+    </p>
   </>
 );

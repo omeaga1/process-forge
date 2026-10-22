@@ -93,7 +93,7 @@ export function CopyCommand({ text, prompt = '$' }: { text: string; prompt?: str
 /** One numbered step of a guide. */
 export function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
-    <li style={{ display: 'grid', gridTemplateColumns: '24px 1fr', gap: 10, alignItems: 'start' }}>
+    <li style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr)', gap: 10, alignItems: 'start' }}>
       <span style={{ ...mono, width: 24, height: 24, borderRadius: 12, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: D.jade.glow, border: `1px solid ${D.jade.glow}66` }}>{n}</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: D.text.primary, lineHeight: '24px' }}>{title}</div>
@@ -103,47 +103,63 @@ export function Step({ n, title, children }: { n: number; title: string; childre
   );
 }
 
-/** Clips of the studio, recorded from the current build by scripts/record-landing.mjs. */
-export const CLIPS: { src: string; title: string; text: string }[] = [
-  { src: '/landing/studio-run', title: 'Run the line', text: 'The desktop app opens the example, runs it at 5×, and shows every stream: flow, temperature and composition, as on a PFD.' },
-  { src: '/landing/studio-unit', title: 'Open the unit', text: 'What comes in and goes out, then the panel its contract lays out. Cut the chiller to 80 kW and the engine fails that check, with the reason.' }
-];
+/** The front page's line: a soft-drink line of ten designed units, recorded from the current build (scripts/record-landing.mjs). */
+export const LINE = {
+  src: '/landing/studio-bottling',
+  title: 'Carbonated soft-drink line',
+  note: 'Syrup, water and CO₂ in, finished pallets out. Ten machines Claude designed, each drawn by the engine from its own numbers.'
+};
 
-/** The front page's clip: a bottling line of designed units, each drawn by its kit, running. */
-export const HERO_CLIP = { src: '/landing/studio-bottling', title: 'Bottling line' };
-
-/** A recorded clip, framed like a desktop window. Plays muted and looped while on screen. */
-export function Clip({ src, title, priority = false }: { src: string; title: string; priority?: boolean }) {
-  const [ref, inView] = useInView<HTMLDivElement>(0.25);
+/**
+ * The running line, framed like the unit drawings: the dark canvas, then a
+ * caption. It plays muted and looped while on screen, and stays on its
+ * first frame for anyone who prefers less motion.
+ */
+export function LineCard({ src, title, note }: { src: string; title: string; note: string }) {
+  const [ref, inView] = useInView<HTMLElement>(0.2);
   const video = useRef<HTMLVideoElement>(null);
+  const [paused, setPaused] = useState(false);
+  const reduced = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   useEffect(() => {
     const v = video.current;
     if (!v) return;
-    const reduced = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (inView && !reduced) void v.play().catch(() => undefined);
+    if (inView && !reduced && !paused) void v.play().catch(() => undefined);
     else v.pause();
-  }, [inView]);
+  }, [inView, reduced, paused]);
   return (
-    <div ref={ref} style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${D.border.strong}`, background: D.background.base, boxShadow: `0 30px 60px -30px ${D.text.primary}55, 0 2px 6px ${D.text.primary}14` }}>
-      <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderBottom: `1px solid ${D.border.default}`, background: D.background.surface }}>
-        {[D.status.failed, D.status.blocked, D.jade[500]].map((c) => (
-          <span key={c} style={{ width: 9, height: 9, borderRadius: 5, background: `${c}aa` }} />
-        ))}
-        <span style={{ ...mono, fontSize: 11, color: D.text.muted, marginLeft: 8 }}>ProcessForge · {title}</span>
+    <figure ref={ref} className="pf-line-card" style={{ margin: 0, borderRadius: 18, overflow: 'hidden', border: `1px solid ${D.border.default}`, background: D.background.surface, boxShadow: `0 40px 80px -48px ${D.text.primary}66, 0 2px 8px -2px ${D.text.primary}14` }}>
+      <div style={{ position: 'relative', background: D.background.canvas, aspectRatio: '1396 / 760' }}>
+        <video
+          ref={video}
+          muted
+          loop
+          playsInline
+          preload="auto"
+          poster={`${src}.jpg`}
+          aria-label={`Recording of the ProcessForge desktop app running the ${title.toLowerCase()}`}
+          style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+        >
+          <source src={`${src}.webm`} type="video/webm; codecs=vp9" />
+          <source src={`${src}.mp4`} type="video/mp4" />
+        </video>
+        {!reduced && (
+          <button
+            type="button"
+            className="pf-line-toggle"
+            onClick={() => setPaused((p) => !p)}
+            aria-label={paused ? 'Play the recording' : 'Pause the recording'}
+            style={{ ...mono, position: 'absolute', right: 12, bottom: 12, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 999, border: '1px solid #ffffff22', background: '#0d0f12b3', color: '#e8e6d4', fontSize: 11, cursor: 'pointer', backdropFilter: 'blur(6px)' }}
+          >
+            <span aria-hidden>{paused ? '▶' : '❚❚'}</span>
+            {paused ? 'Play' : 'Pause'}
+          </button>
+        )}
       </div>
-      <video
-        ref={video}
-        muted
-        loop
-        playsInline
-        controls
-        preload={priority ? 'auto' : 'metadata'}
-        poster={`${src}.jpg`}
-        aria-label={`Recording of the ProcessForge desktop app: ${title}`}
-        style={{ display: 'block', width: '100%', height: 'auto', aspectRatio: '16 / 10', background: D.background.canvas }}
-      >
-        <source src={`${src}.webm`} type="video/webm" />
-      </video>
-    </div>
+      <figcaption style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: '6px 24px', padding: '16px 22px 18px', borderTop: `1px solid ${D.border.subtle}` }}>
+        <span style={{ fontSize: 15, fontWeight: 650, color: D.text.primary }}>{title}</span>
+        <span style={{ ...mono, fontSize: 11, color: D.text.muted, letterSpacing: '0.08em' }}>RUNNING IN THE DESKTOP APP · RECORDED FROM THE CURRENT BUILD</span>
+        <span style={{ flexBasis: '100%', fontSize: 13, lineHeight: 1.55, color: D.text.secondary }}>{note}</span>
+      </figcaption>
+    </figure>
   );
 }

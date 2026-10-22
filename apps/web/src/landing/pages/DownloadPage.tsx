@@ -3,9 +3,10 @@ import { SITE as D } from '../palette.js';
 import { RELEASES_PAGE, formatSize, type DesktopOs } from '../../downloads/latestRelease.js';
 import { COLD_BREW_PROMPT } from '../coldBrew.js';
 import { OS_LABELS, useDownloads } from '../useDownloads.js';
+import { PageLink } from '../router.js';
 import { CopyCommand, MCPB, MCP_CONFIG, PageHeader, Section, Step, card, mono, textLink } from '../ui.js';
 
-/** Installing the desktop app and the MCP server, and what neither does yet. */
+/** Installing the desktop app and the MCP server. */
 
 /** Clears the quarantine flag macOS puts on downloads, which is what blocks an app that is not notarized. */
 const MAC_UNQUARANTINE = 'xattr -dr com.apple.quarantine /Applications/ProcessForge.app';
@@ -19,15 +20,6 @@ function FirstRunNote({ os, children }: { os: string; children: React.ReactNode 
     </div>
   );
 }
-
-const LIMITS: [string, string][] = [
-  ['Pressure', "No pressure network: flow is capped by each unit's rated capacity."],
-  ['Properties', 'IAPWS-IF97 for water and steam, ideal gas for gases. Other liquids use the density and heat capacity you give.'],
-  ['Items', 'Whole items split evenly down each branch.'],
-  ['The library', 'Engine-checked on publish, not reviewed by ProcessForge.'],
-  ['Subscriptions', 'Claude Pro and ChatGPT Plus work through an MCP client. In-app AI is billed per use.'],
-  ['The model matters', 'Smaller models write designs the engine rejects more often.']
-];
 
 export const DownloadPage: React.FC = () => {
   const { installers } = useDownloads();
@@ -44,7 +36,7 @@ export const DownloadPage: React.FC = () => {
             <div style={{ fontSize: 16, fontWeight: 650, marginTop: 6 }}>Windows, macOS and Linux</div>
             <ol style={{ listStyle: 'none', padding: 0, margin: '16px 0 0', display: 'grid', gap: 14 }}>
               <Step n={1} title="Download the installer">
-                <span style={{ display: 'grid', gap: 6, marginTop: 6 }}>
+                <span style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6, marginTop: 6 }}>
                   {(Object.keys(OS_LABELS) as DesktopOs[]).map((os) => {
                     const hit = installers[os];
                     return (
@@ -75,7 +67,7 @@ export const DownloadPage: React.FC = () => {
               </Step>
               <Step n={2} title="Run it, and get past the first-run warning">
                 The installers are not code-signed yet, so your system asks once before it opens them.
-                <span style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+                <span style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 10, marginTop: 10 }}>
                   <FirstRunNote os="Windows">
                     SmartScreen shows “Windows protected your PC”. Click <b>More info</b>, then <b>Run anyway</b>. The installer sets up for your user only and needs
                     no admin rights.{' '}
@@ -146,16 +138,13 @@ export const DownloadPage: React.FC = () => {
         </div>
       </Section>
 
-      <Section id="limits" kicker="HONESTLY" title="What it does not do yet.">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 10 }}>
-          {LIMITS.map(([k, t]) => (
-            <div key={k} style={{ border: `1px solid ${D.border.subtle}`, borderRadius: 10, padding: '12px 14px', background: `${D.background.surface}99` }}>
-              <div style={{ fontSize: 13, fontWeight: 650, color: D.text.primary }}>{k}</div>
-              <div style={{ fontSize: 13, lineHeight: 1.55, color: D.text.secondary, marginTop: 4 }}>{t}</div>
-            </div>
-          ))}
-        </div>
-      </Section>
+      <p style={{ maxWidth: 1120, margin: '0 auto', padding: `28px clamp(16px, 4vw, 32px) 0`, fontSize: 14, color: D.text.secondary }}>
+        What the engine doesn&rsquo;t model yet:{' '}
+        <PageLink to="/docs#limits" style={textLink}>
+          the limits
+        </PageLink>
+        .
+      </p>
     </>
   );
 };

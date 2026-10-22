@@ -3,14 +3,14 @@ import { RELEASES_PAGE } from '../downloads/latestRelease.js';
 import { fontFamily } from '@process-forge/theme';
 import { CANVAS_HOVER, DISPLAY_FONT_HREF, SITE as D } from '../landing/palette.js';
 
-// Drafting paper: a fine grid every 24px, a heavier line every 120px.
-const GRID = `linear-gradient(${D.border.subtle}99 1px, transparent 1px), linear-gradient(90deg, ${D.border.subtle}99 1px, transparent 1px), linear-gradient(${D.border.subtle}55 1px, transparent 1px), linear-gradient(90deg, ${D.border.subtle}55 1px, transparent 1px)`;
 import { ProcessForgeEmblem, ThemeScope } from '@process-forge/canvas-ui';
-import { GUTTER, MCPB, REPO, mono } from '../landing/ui.js';
+import { GUTTER, REPO, mono } from '../landing/ui.js';
+import { Backdrop } from '../landing/Backdrop.js';
 import { PageLink, useLocation, useScrollOnVisit, type PageId } from '../landing/router.js';
 import { useDownloads } from '../landing/useDownloads.js';
 import { HomePage } from '../landing/pages/HomePage.js';
 import { StudioPage } from '../landing/pages/StudioPage.js';
+import { DocsPage } from '../landing/pages/DocsPage.js';
 import { ExamplePage } from '../landing/pages/ExamplePage.js';
 import { LibraryPage } from '../landing/pages/LibraryPage.js';
 import { ClaudePage } from '../landing/pages/ClaudePage.js';
@@ -18,7 +18,7 @@ import { DownloadPage } from '../landing/pages/DownloadPage.js';
 
 /**
  * The public site, in the studio's own Osaka Jade: a short front page and a
- * page each for the studio, the worked example, the ProcessForge Library, Claude & MCP,
+ * page each for the studio, the worked example, the docs, the ProcessForge Library, Claude & MCP,
  * and the download (landing/router.tsx).
  *
  * Nothing on it is a mock-up. The worked example is computed by the real
@@ -36,9 +36,10 @@ export interface ProductLandingPageProps {
 
 const NAV: [string, string, PageId][] = [
   ['Studio', '/studio', 'studio'],
-  ['Worked example', '/example', 'example'],
+  ['Example', '/example', 'example'],
   ['Library', '/library', 'library'],
   ['Claude & MCP', '/claude', 'claude'],
+  ['Docs', '/docs', 'docs'],
   ['Download', '/download', 'download']
 ];
 
@@ -61,14 +62,12 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
       Download for {platform.name}
     </a>
   );
-  const secondaryStyle: React.CSSProperties = { ...sans, display: 'inline-flex', alignItems: 'center', padding: '12px 22px', borderRadius: 9, background: 'transparent', color: D.text.primary, border: `1px solid ${D.border.strong}`, fontWeight: 600, fontSize: 16, cursor: 'pointer', textDecoration: 'none' };
-  const secondary = (
-    <a className="pf-cta-secondary" href={MCPB} style={secondaryStyle}>
-      Add to Claude Desktop
-    </a>
-  );
   const devStudio = onLaunchStudio && (
-    <button className="pf-cta-secondary" onClick={onLaunchStudio} style={secondaryStyle}>
+    <button
+      className="pf-cta-secondary"
+      onClick={onLaunchStudio}
+      style={{ ...sans, display: 'inline-flex', alignItems: 'center', padding: '12px 22px', borderRadius: 9, background: 'transparent', color: D.text.primary, border: `1px solid ${D.border.strong}`, fontWeight: 600, fontSize: 16, cursor: 'pointer' }}
+    >
       Open the studio (development)
     </button>
   );
@@ -83,10 +82,12 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         return <LibraryPage />;
       case 'claude':
         return <ClaudePage />;
+      case 'docs':
+        return <DocsPage />;
       case 'download':
         return <DownloadPage />;
       default:
-        return <HomePage primary={primary} secondary={secondary} devStudio={devStudio} releaseTag={releaseTag} fileLabel={fileLabel} />;
+        return <HomePage primary={primary} devStudio={devStudio} releaseTag={releaseTag} fileLabel={fileLabel} />;
     }
   })();
 
@@ -99,9 +100,9 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
       style={{
         minHeight: '100vh',
         flexShrink: 0,
+        position: 'relative',
+        isolation: 'isolate',
         backgroundColor: D.background.base,
-        backgroundImage: GRID,
-        backgroundSize: '120px 120px, 120px 120px, 24px 24px, 24px 24px',
         color: D.text.primary,
         ...sans
       }}
@@ -150,6 +151,15 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         .pf-landing .pf-next .pf-next-arrow { transition: transform .15s ease; }
         .pf-landing .pf-next:hover .pf-next-arrow { transform: translateX(3px); }
         .pf-landing .pf-bento-wide { grid-column: span 2; }
+        @media (max-width: 720px) {
+          .pf-landing .pf-nav-links { flex-wrap: nowrap !important; width: 100%; overflow-x: auto; scrollbar-width: none; gap: 18px !important; -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
+          .pf-landing .pf-nav-links::-webkit-scrollbar { display: none; }
+          .pf-landing .pf-nav-links > a { white-space: nowrap; }
+        }
+        @media (max-width: 760px) { .pf-landing .pf-beats { grid-template-columns: 1fr !important; } }
+        .pf-landing .pf-line-toggle { opacity: 0; transition: opacity .2s ease; }
+        .pf-landing .pf-line-card:hover .pf-line-toggle, .pf-landing .pf-line-toggle:focus-visible { opacity: 1; }
+        @media (hover: none) { .pf-landing .pf-line-toggle { opacity: .85; } }
         @media (max-width: 960px) { .pf-landing .pf-bento { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
         @media (max-width: 620px) { .pf-landing .pf-bento { grid-template-columns: 1fr !important; } .pf-landing .pf-bento-wide { grid-column: auto; } .pf-landing .pf-stats > div:last-child { grid-column: 1 / -1; } }
         @keyframes pf-nozzle-slide { 0%, 12% { transform: translateY(40px); } 45%, 60% { transform: translateY(100px); } 92%, 100% { transform: translateY(40px); } }
@@ -158,6 +168,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
         .pf-landing .pf-kit:hover .pf-kit-art { background-color: ${CANVAS_HOVER} !important; }
         @media (prefers-reduced-motion: reduce) { .pf-landing * { animation: none !important; transition: none !important; } .pf-landing .pf-reveal, .pf-landing .pf-type { opacity: 1; transform: none; } .pf-landing .pf-letter { opacity: 1; transform: none; color: var(--pf-ink); text-shadow: none; font-variation-settings: 'opsz' 144, 'wght' 640, 'SOFT' 30; } }
       `}</style>
+      <Backdrop />
       <ThemeScope mode="light">
         {/* Nav: stays in reach while the page scrolls. */}
         <nav aria-label="ProcessForge" style={{ position: 'sticky', top: 0, zIndex: 10, background: `${D.background.base}cc`, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', borderBottom: `1px solid ${D.border.subtle}` }}>
@@ -168,7 +179,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
                 Process<span style={{ color: D.jade.glow }}>Forge</span>
               </span>
             </PageLink>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+            <div className="pf-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
               {NAV.map(([label, to, id]) => (
                 <PageLink key={id} to={to} className="pf-nav-link" aria-current={page === id ? 'page' : undefined} style={{ ...sans, fontSize: 14, color: D.text.secondary, textDecoration: 'none', padding: '4px 0' }}>
                   {label}
@@ -183,18 +194,7 @@ export const ProductLandingPage: React.FC<ProductLandingPageProps> = ({ onLaunch
 
         <main key={page}>{body}</main>
 
-        {/* Close: the call to action once more, on every page but the download itself. */}
-        {page !== 'download' && (
-          <section style={{ maxWidth: 1120, margin: '0 auto', padding: `clamp(64px, 10vw, 112px) ${GUTTER} clamp(48px, 7vw, 72px)`, textAlign: 'center' }}>
-            <ProcessForgeEmblem size={44} />
-            <h2 style={{ margin: '16px auto 0', fontSize: 'clamp(1.6rem, 3.4vw, 2.2rem)', fontWeight: 650, letterSpacing: '-0.025em', maxWidth: '22ch' }}>Simulate the unit nobody sells a model of.</h2>
-            <div style={{ display: 'flex', gap: 10, marginTop: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
-              {primary}
-              {secondary}
-            </div>
-          </section>
-        )}
-        {page === 'download' && <div style={{ height: 'clamp(48px, 7vw, 72px)' }} />}
+        <div style={{ height: 'clamp(72px, 10vw, 120px)' }} />
 
         <footer style={{ borderTop: `1px solid ${D.border.default}` }}>
           <div style={{ maxWidth: 1120, margin: '0 auto', padding: `18px ${GUTTER}`, display: 'flex', flexWrap: 'wrap', gap: '8px 24px', justifyContent: 'space-between', ...mono, fontSize: 12 }}>
