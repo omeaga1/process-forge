@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { DUST_COLLECTOR_CONTRACT, PUMP_CONTRACT, sweepParameter, type UnitOpParameter } from '@process-forge/protocol';
-import { controlFor, feasibleBand, groupParameters, isCountUnit, stepFor, unitPreferenceKey, displayUnitsFor } from '../model/parameterUi.js';
+import { controlFor, feasibleBand, groupParameters, isCountUnit, ownSweep, statusAt, stepFor, unitPreferenceKey, displayUnitsFor } from '../model/parameterUi.js';
 
 const P = (x: Partial<UnitOpParameter>): UnitOpParameter => ({ name: 'x', label: 'X', unit: '-', value: 1, ...x });
 
@@ -73,5 +73,35 @@ describe('where along a knob the design works', () => {
     assert.deepEqual(displayUnitsFor(P({ unit: 'nozzles' })), []);
     assert.equal(unitPreferenceKey('°C'), unitPreferenceKey('K'));
     assert.notEqual(unitPreferenceKey('psig'), unitPreferenceKey('psi'));
+  });
+});
+
+describe('an input judged by the checks it moves', () => {
+  // A motor check fails everywhere along this input; a flow check it does move fails above 40.
+  const sweep = {
+    range: { from: 0, to: 80, log: false },
+    points: [0, 20, 40, 60, 80].map((value) => ({ value, status: 'error' as const, failing: value > 40 ? ['motor', 'flow'] : ['motor'] })),
+    transitions: [{ value: 47.5, from: 'error' as const, to: 'error' as const }]
+  };
+  const severity = (id: string) => (id === 'flow' ? ('WARNING' as const) : ('ERROR' as const));
+
+  it('a check the input cannot move says nothing about it', () => {
+    const own = ownSweep(sweep, new Set(['flow']), severity);
+    assert.equal(statusAt(own, 20), 'ok');
+    assert.equal(statusAt(own, 70), 'warning');
+    assert.deepEqual(own.points[0]!.failing, []);
+  });
+
+  it('keeps the exact edge where the sweep found one between the samples', () => {
+    const own = ownSweep(sweep, new Set(['flow']), severity);
+    assert.deepEqual(own.transitions, [{ value: 47.5, from: 'ok', to: 'warning' }]);
+    const band = feasibleBand(own, 20);
+    assert.deepEqual(band.passing, { from: 0, to: 47.5, containsValue: true });
+  });
+
+  it('an input that moves no check passes everywhere', () => {
+    const own = ownSweep(sweep, new Set(), severity);
+    assert.ok(own.points.every((pt) => pt.status === 'ok'));
+    assert.equal(own.transitions.length, 0);
   });
 });

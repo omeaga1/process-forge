@@ -157,6 +157,32 @@ export function statusAt(sweep: Sweep, v: number): SweepPoint['status'] {
   return status;
 }
 
+/**
+ * The sweep as one input sees it: only the checks that input moves decide
+ * its verdict. A check the input cannot move fails or passes whatever it is
+ * set to, so it says nothing about that input. Edges come from the sweep's
+ * exact transitions where one lies between the samples, else the midpoint.
+ */
+export function ownSweep(sweep: Sweep, moves: ReadonlySet<string>, severity: (id: string) => 'ERROR' | 'WARNING'): Sweep {
+  const local = (pt: SweepPoint): SweepPoint['status'] => {
+    if (pt.status === 'invalid') return 'invalid';
+    const own = pt.failing.filter((id) => moves.has(id));
+    return own.some((id) => severity(id) === 'ERROR') ? 'error' : own.length ? 'warning' : 'ok';
+  };
+  const points = sweep.points.map((pt) => ({ ...pt, status: local(pt), failing: pt.failing.filter((id) => moves.has(id)) }));
+  const transitions: Sweep['transitions'] = [];
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    if (a.status === b.status) continue;
+    const lo = Math.min(a.value, b.value);
+    const hi = Math.max(a.value, b.value);
+    const exact = sweep.transitions.find((t) => t.value >= lo && t.value <= hi);
+    transitions.push({ value: exact?.value ?? (a.value + b.value) / 2, from: a.status, to: b.status });
+  }
+  return { range: sweep.range, points, transitions };
+}
+
 /** The sweep as coloured runs along the track, and the passing run nearest the value, with exact edges. */
 export function feasibleBand(sweep: Sweep, value: number): FeasibleBand {
   const { range, points, transitions } = sweep;

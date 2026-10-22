@@ -11,6 +11,7 @@ import {
   parseQuantity,
   solveForTarget,
   type DesignSpec,
+  type Fix,
   type Influence,
   type Sweep,
   type SweepPoint,
@@ -20,7 +21,7 @@ import {
   type UnitOpParameter
 } from '@process-forge/protocol';
 import { NumberField } from '@base-ui/react/number-field';
-import { Check, Copy, Crosshair, Lock, MoveHorizontal, RotateCcw } from 'lucide-react';
+import { Check, ChevronRight, Copy, Crosshair, Lock, MoveHorizontal, RotateCcw } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { Button, Chip, Switch } from '../../ui/index.js';
@@ -57,6 +58,12 @@ export interface SpecSheetProps {
   onRelease: (vary: string) => void;
   /** What arrives at the design point (a designed unit's feed), edited on the same sheet. */
   feed?: { params: UnitOpParameter[]; baseline: Record<string, number>; onChange: (name: string, value: number) => void; fromLine?: boolean };
+  /** The engine's counter-offer for an input, when a check fails: the value that clears it. */
+  fixes?: Record<string, Fix>;
+  /** A check's name, for saying what a fix clears. */
+  checkName?: (id: string) => string;
+  /** Wraps the results (and a copy button for the sheet) in the panel's own section. */
+  resultsSection?: (children: React.ReactNode, right: React.ReactNode) => React.ReactNode;
 }
 
 /**
@@ -70,7 +77,7 @@ export interface SpecSheetProps {
 type ResultDef = UnitOpContract['derived'][number];
 
 /** Every result to show and solve for: what the engine runs the unit at, then the contract's own. */
-function allResults(contract: UnitOpContract, evaluation: UnitOpEvaluation, engineMovers: Record<string, string[]>): { defs: ResultDef[]; values: Record<string, number> } {
+export function allResults(contract: UnitOpContract, evaluation: UnitOpEvaluation, engineMovers: Record<string, string[]>): { defs: ResultDef[]; values: Record<string, number> } {
   // A figure that only repeats one setting (a tank's capacity, a batch's volume) is not a result worth showing.
   const echoes = (name: string, value: number) => {
     const by = contract.parameters.filter((p) => (engineMovers[p.name] ?? []).includes(name));
@@ -104,53 +111,9 @@ const paramUnit = (unitFor: SpecSheetProps['unitFor'], p: UnitOpParameter) => {
 
 export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
   const { contract, evaluation, groups, baselineDerived, unitFor, setUnit } = props;
-  const { palette, font, radius: r } = useTheme();
+  const { palette, font } = useTheme();
   const [solveFor, setSolveFor] = useState<string | null>(null);
   const solverRef = useRef<HTMLDivElement>(null);
-
-  const th: React.CSSProperties = {
-    textAlign: 'left',
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: palette.text.muted,
-    padding: '9px 12px',
-    background: tint(palette.text.primary, 0.035),
-    borderBottom: `1px solid ${palette.border.default}`,
-    whiteSpace: 'nowrap'
-  };
-  // Each table is a card: hairline frame, rounded, the header row tinted.
-  const frame: React.CSSProperties = { border: `1px solid ${palette.border.subtle}`, borderRadius: 12, overflow: 'hidden', background: palette.background.canvas };
-  const caption: React.CSSProperties = { fontSize: 15, fontWeight: 600, letterSpacing: '-0.005em', color: palette.text.primary, padding: '28px 0 10px' };
-  // Both tables share their columns, so values and units line up down the sheet.
-  const table: React.CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 14, tableLayout: 'fixed' };
-  const cols = (
-    <colgroup>
-      <col />
-      <col style={{ width: 118 }} />
-      <col style={{ width: 96 }} />
-      <col style={{ width: 150 }} />
-      <col style={{ width: 34 }} />
-    </colgroup>
-  );
-  // A group is a band across the table: its name, how many settings, a jade tick.
-  const groupHead: React.CSSProperties = {
-    textAlign: 'left',
-    fontSize: 12,
-    fontWeight: 650,
-    padding: '14px 12px 6px',
-    color: palette.text.primary,
-    borderBottom: `1px solid ${palette.border.subtle}`,
-    background: 'transparent'
-  };
-  const groupTitle = (name: string, count?: number) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-      <span aria-hidden style={{ width: 3, height: 12, borderRadius: 2, background: palette.jade[500] }} />
-      {name}
-      {count !== undefined && <span style={{ fontWeight: 500, color: palette.text.muted, fontVariantNumeric: 'tabular-nums' }}>{count}</span>}
-    </span>
-  );
   const hidden: React.CSSProperties = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' };
   const [open, setOpen] = useState<Record<string, boolean>>({});
 
@@ -170,6 +133,8 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
       ),
     [defs, values, contract.parameters, props.feed?.params]
   );
+  // The engine's own figures lead the panel, large, above the inputs: the list here is the rest.
+  const listedRows = derivedRows.filter((d) => !isEngineResult(d.name));
   const [toolsOpen, setToolsOpen] = useState(false);
   // Settings worth stepping: continuous ones that move at least one result.
   const studyable = contract.parameters.filter((p) => {
@@ -177,6 +142,19 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
     return k !== 'fixed' && k !== 'toggle' && k !== 'select' && movedBy(props, p.name).length > 0;
   });
   const specifiable = derivedRows.filter((d) => Number.isFinite(values[d.name]!) && moversOf(d.name).length > 0);
+  const specify = (name: string) => {
+    setToolsOpen(true);
+    setSolveFor(name);
+    requestAnimationFrame(() => solverRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  };
+
+  // A folded group opens by itself when something in it needs the engineer: a failing value, a fix, a jump to it.
+  const needsEye = (p: UnitOpParameter) => {
+    if (props.fixes?.[p.name] || props.flash === p.name) return true;
+    const sw = props.sweeps[p.name];
+    const st = sw?.points.length ? statusAt(sw, p.value) : undefined;
+    return st === 'error' || st === 'warning' || (p.min !== undefined && p.value < p.min) || (p.max !== undefined && p.value > p.max);
+  };
 
   // The sheet as a table for a datasheet or a review: every specification, the feed, and what the engine calculates, in the shown units.
   const [sheetCopied, setSheetCopied] = useState(false);
@@ -186,13 +164,13 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
       return [section, name, String(Number(shown.toPrecision(6))), du === '-' ? '' : du].join('\t');
     };
     const lines = ['Section\tItem\tValue\tUnit'];
-    for (const g of groups) for (const p of g.params) lines.push(line(`Specification: ${g.name}`, p.label, p.value, p.unit, paramUnit(unitFor, p), isTemperatureDifference(p)));
+    for (const g of groups) for (const p of g.params) lines.push(line(`Input: ${g.name}`, p.label, p.value, p.unit, paramUnit(unitFor, p), isTemperatureDifference(p)));
     for (const p of props.feed?.params ?? []) lines.push(line('Feed at the design point', p.label, p.value, p.unit, paramUnit(unitFor, p), isTemperatureDifference(p)));
     for (const d of defs) {
       const v = values[d.name];
       if (v === undefined || !Number.isFinite(v)) continue;
       const du = unitFor(d.unit, displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 }));
-      lines.push(line('Calculated', d.label ?? d.name, v, d.unit, du, isTemperatureDifference(d)));
+      lines.push(line('Result', d.label ?? d.name, v, d.unit, du, isTemperatureDifference(d)));
     }
     try {
       await navigator.clipboard.writeText(`${contract.name}\n${lines.join('\n')}`);
@@ -203,57 +181,133 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
     }
   };
 
+  const inputCols = (
+    <colgroup>
+      <col />
+      <col style={{ width: 200 }} />
+      <col style={{ width: 32 }} />
+    </colgroup>
+  );
+  const disclose = (shown: boolean, text: React.ReactNode, onClick: () => void, title?: string) => (
+    <button type="button" className="pf-disclose" aria-expanded={shown} onClick={onClick} title={title}>
+      <ChevronRight size={13} style={{ transform: shown ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }} aria-hidden />
+      {text}
+    </button>
+  );
+
+  const tools = (specifiable.length > 0 || (studyable.length > 0 && derivedRows.length > 0)) && (
+    <div style={{ marginTop: 14 }}>
+      {disclose(toolsOpen || props.holds.length > 0, 'Solve for a target, or run a sensitivity study', () => setToolsOpen((o) => !o))}
+      {(toolsOpen || props.holds.length > 0) && (
+        <>
+          {specifiable.length > 0 && (
+            <div ref={solverRef}>
+              <TargetSolver {...props} results={specifiable} moversOf={moversOf} picked={solveFor} onPick={setSolveFor} radius={8} />
+            </div>
+          )}
+          {studyable.length > 0 && derivedRows.length > 0 && <CaseStudy {...props} settings={studyable} radius={8} />}
+        </>
+      )}
+    </div>
+  );
+
+  const results = (
+    <>
+      {listedRows.length > 0 && (
+        <table className="pf-spec">
+          <caption style={hidden}>Results</caption>
+          <colgroup>
+            <col />
+            <col style={{ width: 112 }} />
+            <col style={{ width: 76 }} />
+            <col style={{ width: 72 }} />
+            <col style={{ width: 32 }} />
+          </colgroup>
+          <thead style={hidden}>
+            <tr>
+              <th scope="col">Result</th>
+              <th scope="col">Value</th>
+              <th scope="col">Unit</th>
+              <th scope="col">Change since opened</th>
+              <th scope="col">Solve for it</th>
+            </tr>
+          </thead>
+          <tbody>
+            {listedRows.map((d) => {
+              const v = values[d.name]!;
+              const choices = displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 });
+              // A share between 0 and 1 reads as a percentage, as an input does.
+              const du = unitFor(d.unit, choices, d.unit === '-' && v >= 0 && v <= 1 && choices.includes('%') ? '%' : undefined);
+              const difference = isTemperatureDifference(d);
+              const shown = convertUnit(v, d.unit, du, { difference }) ?? v;
+              const before = baselineDerived[d.name];
+              const moved = before !== undefined && Number.isFinite(before) && Math.abs(v - before) > 1e-9 * Math.max(1, Math.abs(before));
+              const pct = moved && before ? ((v - before) / Math.abs(before)) * 100 : 0;
+              const td: React.CSSProperties = { padding: '8px 0' };
+              const up = moved && v > before!;
+              return (
+                <tr key={d.name} style={{ backgroundColor: props.lit(`d:${d.name}`) ? tint(palette.jade[500], 0.08) : 'transparent', transition: 'background-color 200ms ease' }}>
+                  <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 400, color: palette.text.secondary, paddingRight: 12 }} title={d.description}>
+                    {d.label ?? d.name}
+                  </th>
+                  <td style={{ ...td, textAlign: 'right', fontFamily: font.mono, fontWeight: 500, color: palette.text.primary, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{formatQuantity(shown)}</td>
+                  <td style={{ ...td, paddingLeft: 8 }}>
+                    <UnitCell label={d.label ?? d.name} unit={d.unit} shown={du} choices={choices} onPick={(u) => setUnit(d.unit, u)} />
+                  </td>
+                  <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {moved && (
+                      <span
+                        title={`When you opened it: ${formatQuantity(convertUnit(before!, d.unit, du, { difference }) ?? before!)}${du !== '-' ? ` ${du}` : ''}`}
+                        style={{ fontFamily: font.mono, fontSize: 11, color: up ? palette.jade[400] : palette.text.gold, fontVariantNumeric: 'tabular-nums' }}
+                      >
+                        {up ? '+' : '−'}
+                        {Number.isFinite(pct) && before ? `${Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%` : ''}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ ...td, padding: '3px 0 3px 4px' }}>
+                    {specifiable.includes(d) && (
+                      <span className="pf-row-tool" data-on={solveFor === d.name && toolsOpen ? '' : undefined}>
+                        <Button iconOnly label={`Solve for a ${d.label ?? d.name}`} size="sm" variant="ghost" icon={<Crosshair size={13} />} onClick={() => specify(d.name)} />
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {tools}
+    </>
+  );
+  const copyButton = (
+    <Button size="sm" variant="ghost" icon={sheetCopied ? <Check size={13} /> : <Copy size={13} />} onClick={copySheet} title="Copy every input and result as a table, for a datasheet or a spreadsheet">
+      {sheetCopied ? 'Copied' : 'Copy'}
+    </Button>
+  );
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '-34px 0 6px' }}>
-        <Button size="sm" variant="ghost" icon={sheetCopied ? <Check size={13} /> : <Copy size={13} />} onClick={copySheet}>
-          {sheetCopied ? 'Copied' : 'Copy sheet'}
-        </Button>
-      </div>
       {contract.parameters.length > 0 && (
-        <div style={frame}>
-        <table style={table} onKeyDown={nextOnEnter}>
-          <caption style={hidden}>Specifications</caption>
-          {cols}
-          <thead>
+        <table className="pf-spec" onKeyDown={nextOnEnter}>
+          <caption style={hidden}>Inputs</caption>
+          {inputCols}
+          <thead style={hidden}>
             <tr>
-              <th scope="col" style={th}>
-                Specification
-              </th>
-              <th scope="col" style={{ ...th, textAlign: 'right' }}>
-                Value
-              </th>
-              <th scope="col" style={th}>
-                Unit
-              </th>
-              <th scope="col" style={th}>
-                Passing range
-              </th>
-              <th scope="col" style={th}>
-                <span style={hidden}>Changed</span>
-              </th>
+              <th scope="col">Input</th>
+              <th scope="col">Value and unit</th>
+              <th scope="col">Put back</th>
             </tr>
           </thead>
           {groups.map((g) => {
-            const shown = !g.folded || open[g.name];
+            const shown = !g.folded || open[g.name] || g.params.some(needsEye);
             return (
               <tbody key={g.name}>
                 {(groups.length > 1 || g.folded) && (
                   <tr>
-                    <th scope="colgroup" colSpan={5} style={groupHead}>
-                      {g.folded ? (
-                        <button
-                          type="button"
-                          className="pf-focus"
-                          aria-expanded={Boolean(shown)}
-                          onClick={() => setOpen((o) => ({ ...o, [g.name]: !o[g.name] }))}
-                          style={{ all: 'inherit', padding: 0, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                        >
-                          {shown ? '▾' : '▸'} {groupTitle(g.name, g.params.length)}
-                        </button>
-                      ) : (
-                        groupTitle(g.name, g.params.length)
-                      )}
+                    <th scope="colgroup" colSpan={3} className="pf-spec-group" style={g.folded ? { borderBottom: shown ? undefined : 'none' } : undefined}>
+                      {g.folded ? disclose(Boolean(shown), `${g.name} (${g.params.length})`, () => setOpen((o) => ({ ...o, [g.name]: !shown }))) : g.name}
                     </th>
                   </tr>
                 )}
@@ -264,155 +318,37 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
           {props.feed && props.feed.params.length > 0 && (
             <tbody>
               <tr>
-                <th scope="colgroup" colSpan={5} style={groupHead}>
-                  {props.feed.fromLine ? (
-                    <button
-                      type="button"
-                      className="pf-focus"
-                      aria-expanded={Boolean(open.__feed)}
-                      onClick={() => setOpen((o) => ({ ...o, __feed: !o.__feed }))}
-                      style={{ all: 'inherit', padding: 0, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                      title="The pipe in brings the real feed. These figures are only used to check the design before the line runs."
-                    >
-                      {open.__feed ? '▾' : '▸'} Design feed · the line supplies it
-                    </button>
-                  ) : (
-                    groupTitle('Feed at the design point')
-                  )}
+                <th scope="colgroup" colSpan={3} className="pf-spec-group" style={props.feed.fromLine && !open.__feed ? { borderBottom: 'none' } : undefined}>
+                  {props.feed.fromLine
+                    ? disclose(
+                        Boolean(open.__feed),
+                        'Design feed (the line supplies it)',
+                        () => setOpen((o) => ({ ...o, __feed: !o.__feed })),
+                        'The pipe in brings the real feed. These figures are only used to check the design before the line runs.'
+                      )
+                    : 'Feed at the design point'}
                 </th>
               </tr>
-              {(!props.feed.fromLine || open.__feed) && props.feed.params.map((p) => (
-                <SpecRow key={p.name} p={p} {...props} sweeps={{}} baselineParams={props.feed!.baseline} setParam={props.feed!.onChange} />
-              ))}
+              {(!props.feed.fromLine || open.__feed) &&
+                props.feed.params.map((p) => <SpecRow key={p.name} p={p} {...props} sweeps={{}} fixes={{}} baselineParams={props.feed!.baseline} setParam={props.feed!.onChange} />)}
             </tbody>
           )}
         </table>
-        </div>
       )}
 
-      {derivedRows.length > 0 && (
-        <>
-        <div style={caption}>Calculated by the engine</div>
-        <div style={frame}>
-        <table style={table}>
-          <caption style={hidden}>Calculated by the engine</caption>
-          {cols}
-          <thead>
-            <tr>
-              <th scope="col" style={th}>
-                Result
-              </th>
-              <th scope="col" style={{ ...th, textAlign: 'right' }}>
-                Value
-              </th>
-              <th scope="col" style={th}>
-                Unit
-              </th>
-              <th scope="col" style={th}>
-                Since opened
-              </th>
-              <th scope="col" style={{ ...th, width: 28 }}>
-                <span style={hidden}>Specify</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {derivedRows.map((d) => {
-              const v = values[d.name]!;
-              const choices = displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 });
-              const du = unitFor(d.unit, choices);
-              const difference = isTemperatureDifference(d);
-              const shown = convertUnit(v, d.unit, du, { difference }) ?? v;
-              const before = baselineDerived[d.name];
-              const moved = before !== undefined && Number.isFinite(before) && Math.abs(v - before) > 1e-9 * Math.max(1, Math.abs(before));
-              const pct = moved && before ? ((v - before) / Math.abs(before)) * 100 : 0;
-              const td: React.CSSProperties = { padding: '9px 12px', borderBottom: `1px solid ${palette.border.subtle}` };
-              const up = moved && v > before!;
-              return (
-                <tr key={d.name} style={{ backgroundColor: props.lit(`d:${d.name}`) ? tint(palette.jade[500], 0.08) : 'transparent' }}>
-                  <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 400, color: palette.text.primary }} title={d.description}>
-                    {d.label ?? d.name}
-                  </th>
-                  <td style={{ ...td, textAlign: 'right', fontFamily: font.mono, fontWeight: 600, color: palette.text.primary, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{formatQuantity(shown)}</td>
-                  <td style={{ ...td, padding: '5px 10px' }}>
-                    <UnitCell label={d.label ?? d.name} unit={d.unit} shown={du} choices={choices} onPick={(u) => setUnit(d.unit, u)} />
-                  </td>
-                  <td style={{ ...td, fontSize: 12, color: palette.text.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-                    {moved ? (
-                      <span
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 3,
-                          padding: '1px 7px',
-                          borderRadius: 999,
-                          fontFamily: font.mono,
-                          fontSize: 11,
-                          background: tint(up ? palette.jade[500] : palette.text.gold, 0.14),
-                          color: up ? palette.jade[400] : palette.text.gold
-                        }}
-                      >
-                        {up ? '▲' : '▼'} {Number.isFinite(pct) && before ? `${Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%` : ''}
-                      </span>
-                    ) : (
-                      <span style={{ opacity: 0.5 }}>—</span>
-                    )}
-                  </td>
-                  <td style={{ ...td, padding: '3px 4px' }}>
-                    {specifiable.includes(d) && (
-                      <Button
-                        iconOnly
-                        label={`Specify ${d.label ?? d.name}`}
-                        size="sm"
-                        variant="ghost"
-                        icon={<Crosshair size={13} />}
-                        onClick={() => {
-                          setToolsOpen(true);
-                          setSolveFor(d.name);
-                          requestAnimationFrame(() => solverRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
-                        }}
-                      />
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        </div>
-        </>
-      )}
-
-      {/* The solver and the study are tools for a question, not part of the sheet: folded until asked for. */}
-      {(specifiable.length > 0 || (studyable.length > 0 && derivedRows.length > 0)) && (
-        <div style={{ marginTop: 12 }}>
-          <button
-            type="button"
-            className="pf-focus"
-            aria-expanded={toolsOpen || props.holds.length > 0}
-            onClick={() => setToolsOpen((o) => !o)}
-            style={{ ...th, border: 'none', background: 'transparent', padding: '8px 0', cursor: 'pointer', color: palette.text.secondary, fontSize: 13 }}
-          >
-            {toolsOpen || props.holds.length > 0 ? '▾' : '▸'} Solve for a result · sensitivity study
-          </button>
-          {(toolsOpen || props.holds.length > 0) && (
-            <>
-              {specifiable.length > 0 && (
-                <div ref={solverRef}>
-                  <TargetSolver {...props} results={specifiable} moversOf={moversOf} picked={solveFor} onPick={setSolveFor} radius={r.md} />
-                </div>
-              )}
-              {studyable.length > 0 && derivedRows.length > 0 && <CaseStudy {...props} settings={studyable} radius={r.md} />}
-            </>
-          )}
-        </div>
-      )}
+      {props.resultsSection
+        ? listedRows.length > 0 || tools
+          ? props.resultsSection(results, copyButton)
+          : null
+        : results}
     </div>
   );
 };
 
-/** One specification: typed value, unit, the passing range and whether it has been changed. */
-const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps, baselineParams, unitFor, setUnit, setParam, lit, onHoverParam, flash, holds, contract, evaluation, engineMovers }) => {
+const isEngineResult = (name: string) => name.startsWith('engine.');
+
+/** One input: its name (drag it to scrub), the value with its unit, and what the engine says about the value when that matters. */
+const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps, baselineParams, unitFor, setUnit, setParam, lit, onHoverParam, flash, onFlash, holds, contract, evaluation, engineMovers, fixes, checkName }) => {
   const { palette, font } = useTheme();
   const kind = controlFor(p);
   const choices = displayUnitsFor(p);
@@ -431,15 +367,13 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
     if (flashing) rowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [flashing]);
 
-  const statusColor =
-    here === 'ok' ? palette.jade[500] : here === 'warning' ? palette.status.blocked : here === 'error' ? palette.status.failed : palette.text.muted;
-  const statusText = here === 'ok' ? 'passes' : here === 'warning' ? 'warns' : here === 'error' ? 'fails' : 'not checked';
   const commit = (v: number) => {
     const x = p.integer || kind === 'stepper' ? Math.round(v) : v;
     if (Number.isFinite(x)) setParam(p.name, x);
   };
-  const td: React.CSSProperties = { padding: '6px 12px', borderBottom: `1px solid ${palette.border.subtle}`, verticalAlign: 'middle' };
-  const range = p.min !== undefined || p.max !== undefined ? `Allowed ${p.min !== undefined ? formatQuantity(toShown(p.min)) : '…'} to ${p.max !== undefined ? formatQuantity(toShown(p.max)) : '…'} ${du !== '-' ? du : ''}` : '';
+  const td: React.CSSProperties = { padding: '7px 0' };
+  const unitText = du !== '-' ? ` ${du}` : '';
+  const allowed = p.min !== undefined || p.max !== undefined ? `${p.min !== undefined ? formatQuantity(toShown(p.min)) : '…'} to ${p.max !== undefined ? formatQuantity(toShown(p.max)) : '…'}${unitText}` : '';
 
   const heldBy = holds.find((h) => h.vary === p.name);
   const scrubbable = !heldBy && (kind === 'number' || kind === 'stepper');
@@ -451,25 +385,76 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
   const shownMax = shownBounds[0] !== undefined && shownBounds[1] !== undefined ? Math.max(shownBounds[0], shownBounds[1]) : shownBounds[1];
   const heldFor = heldBy ? allResults(contract, evaluation, engineMovers).defs.find((d) => d.name === heldBy.result) : undefined;
 
+  // Where the design passes along this input, in words: "17.4 to 40 gal/min", "up to 241", "from 11.6".
+  const near = (a: number, b: number) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
+  const pr = band?.passing;
+  const fromBottom = Boolean(pr && sweep && (near(pr.from, sweep.range.from) || (pr.from >= 0 && pr.from <= 1e-3 * Math.abs(pr.to))));
+  const toTop = Boolean(pr && sweep && near(pr.to, sweep.range.to));
+  const passText = pr ? (fromBottom && toTop ? '' : fromBottom ? `up to ${formatQuantity(toShown(pr.to))}${unitText}` : toTop ? `from ${formatQuantity(toShown(pr.from))}${unitText}` : `${formatQuantity(toShown(pr.from))} to ${formatQuantity(toShown(pr.to))}${unitText}`) : '';
+  // Close to an edge of the passing band: worth knowing before the next nudge crosses it.
+  const tight = Boolean(
+    pr && sweep && here === 'ok' && passText &&
+      [!fromBottom ? pr.from : undefined, !toTop ? pr.to : undefined].some((edge) => edge !== undefined && Math.abs(fractionOf(sweep.range, p.value) - fractionOf(sweep.range, edge)) < 0.02)
+  );
+  const fix = fixes?.[p.name];
+
+  // What, if anything, to say under the name. Nothing when the value is fine: a quiet row is a good row.
+  let note: { tone: 'fail' | 'warn' | 'muted'; body: React.ReactNode } | null = null;
+  if (heldBy) {
+    note = { tone: 'muted', body: <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lock size={11} aria-hidden /> Solved to hold {heldFor?.label ?? heldBy.result} at its target</span> };
+  } else if (out) {
+    note = { tone: 'fail', body: <>Outside what this input allows: {allowed}</> };
+  } else if (here === 'error' || here === 'warning') {
+    note = {
+      tone: here === 'error' ? 'fail' : 'warn',
+      body: <>{here === 'error' ? 'A check fails at this value' : 'A check warns at this value'}{pr ? `; it passes ${passText || 'across the range'}` : ', and no value of this input alone clears it'}</>
+    };
+  } else if (tight) {
+    note = { tone: 'muted', body: <>Near the edge: passes {passText}</> };
+  }
+  const fixButton = fix && (
+    <button
+      type="button"
+      className="pf-spec-fix"
+      onClick={() => {
+        setParam(p.name, fix.value);
+        onFlash(p.name);
+      }}
+      title={`Clears ${fix.fixes.map((id) => checkName?.(id) ?? id).join(', ')}${fix.allPass ? '; then every check passes' : fix.allErrorsPass ? '; then nothing fails' : ''}`}
+    >
+      Use {formatQuantity(toShown(fix.value))}{unitText}
+    </button>
+  );
+  const fieldState = out || here === 'error' ? 'fail' : here === 'warning' ? 'warn' : changed ? 'changed' : undefined;
+  const tooltip = [p.description, allowed && `Allowed ${allowed}`, passText && here === 'ok' && `Passes ${passText}`].filter(Boolean).join('\n') || undefined;
+
   let value: React.ReactNode;
   if (heldBy) {
     value = (
-      <span
-        title={`Varied to hold ${heldFor?.label ?? heldBy.result} at its target. Release the hold (under Specify a result) to set it by hand.`}
-        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, width: 96, height: 28, padding: '0 8px', boxSizing: 'border-box', borderRadius: 4, border: `1px dashed ${palette.border.default}`, fontFamily: font.mono, color: palette.text.secondary }}
-      >
-        <Lock size={11} aria-hidden />
-        <span aria-label={`${p.label}, held by the solver`}>{formatQuantity(toShown(p.value))}</span>
+      <span className="pf-field" title={`Varied to hold ${heldFor?.label ?? heldBy.result} at its target. Release the hold under Solve for a target to set it by hand.`} style={{ borderStyle: 'dashed', background: 'transparent' }}>
+        <span aria-label={`${p.label}, held by the solver`} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 8px', fontFamily: font.mono, fontSize: 13, color: palette.text.secondary }}>
+          {formatQuantity(toShown(p.value))}
+        </span>
+        <UnitCell label={p.label} unit={p.unit} shown={du} choices={[]} onPick={() => undefined} suffix />
       </span>
     );
   } else if (kind === 'fixed') {
-    value = <span style={{ fontFamily: font.mono, color: palette.text.secondary }}>{formatQuantity(toShown(p.value))}</span>;
+    value = (
+      <span style={{ display: 'block', textAlign: 'right', paddingRight: 9, fontFamily: font.mono, color: palette.text.secondary }} title="Fixed by the design">
+        {formatQuantity(toShown(p.value))}
+        <span style={{ fontFamily: 'inherit', fontSize: 12, color: palette.text.muted }}>{unitText}</span>
+      </span>
+    );
   } else if (kind === 'toggle') {
-    value = <Switch checked={p.value >= 0.5} onCheckedChange={(on) => commit(on ? (p.max ?? 1) : (p.min ?? 0))} label={p.label} />;
+    value = (
+      <span style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Switch checked={p.value >= 0.5} onCheckedChange={(on) => commit(on ? (p.max ?? 1) : (p.min ?? 0))} label={p.label} />
+      </span>
+    );
   } else if (kind === 'select' && p.options?.length) {
     const known = p.options.some((o) => o.value === p.value);
     value = (
-      <select className="pf-select" aria-label={p.label} value={known ? String(p.value) : 'custom'} onChange={(e) => e.target.value !== 'custom' && commit(Number(e.target.value))} style={{ height: 28, minWidth: 140 }}>
+      <select className="pf-select" aria-label={p.label} value={known ? String(p.value) : 'custom'} onChange={(e) => e.target.value !== 'custom' && commit(Number(e.target.value))} style={{ height: 30, width: '100%' }}>
         {!known && <option value="custom">{formatQuantity(p.value)}</option>}
         {p.options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -480,43 +465,11 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
     );
   } else {
     value = (
-      <span
-        title={range || undefined}
-        style={{
-          display: 'inline-flex',
-          height: 32,
-          borderRadius: 6,
-          border: `1px solid ${out ? palette.status.failed : changed ? palette.jade[500] : palette.border.subtle}`,
-          backgroundColor: changed ? tint(palette.jade[500], 0.06) : palette.background.surface,
-          overflow: 'hidden'
-        }}
-      >
-        <QuantityText value={p.value} unit={p.unit} displayUnit={du} difference={difference} label={p.label} onCommit={commit} width={96} step={stepFor(p)} />
+      <span className="pf-field" data-state={fieldState} title={tooltip}>
+        <QuantityText value={p.value} unit={p.unit} displayUnit={du} difference={difference} label={p.label} onCommit={commit} width="100%" step={stepFor(p)} />
+        <UnitCell label={p.label} unit={p.unit} shown={du} choices={choices} onPick={(u) => setUnit(p.unit, u)} suffix />
       </span>
     );
-  }
-
-  let passes: React.ReactNode = <span style={{ color: palette.text.muted }}>—</span>;
-  if (band) {
-    const pr = band.passing;
-    // Out of range is said in words and marked in red underneath, so it reads in either theme and without colour.
-    const miss: React.CSSProperties = { color: palette.text.primary, textDecoration: `underline 2px ${palette.status.failed}`, textUnderlineOffset: 3 };
-    if (!pr) passes = <span style={miss}>nowhere in range</span>;
-    else {
-      const near = (a: number, b: number) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(b));
-      // A band that starts a thousandth of the way up from nothing starts at nothing, as far as anyone setting it is concerned.
-      const fromBottom = Boolean(sweep && (near(pr.from, sweep.range.from) || (pr.from >= 0 && pr.from <= 1e-3 * Math.abs(pr.to))));
-      const toTop = Boolean(sweep && near(pr.to, sweep.range.to));
-      const whole = fromBottom && toTop;
-      passes = whole ? (
-        <span style={{ color: palette.text.muted }}>whole range</span>
-      ) : (
-        <span style={{ ...(pr.containsValue ? { color: palette.text.secondary } : miss), fontFamily: font.mono, fontSize: 12 }}>
-          {pr.containsValue ? '' : 'needs '}
-          {fromBottom ? `up to ${formatQuantity(toShown(pr.to))}` : toTop ? `from ${formatQuantity(toShown(pr.from))}` : `${formatQuantity(toShown(pr.from))} – ${formatQuantity(toShown(pr.to))}`}
-        </span>
-      );
-    }
   }
 
   return (
@@ -526,111 +479,61 @@ const SpecRow: React.FC<SpecSheetProps & { p: UnitOpParameter }> = ({ p, sweeps,
       onMouseLeave={() => onHoverParam(null)}
       style={{ backgroundColor: flashing ? tint(palette.jade[500], 0.16) : lit(`p:${p.name}`) ? tint(palette.jade[500], 0.08) : 'transparent', transition: 'background-color 300ms ease' }}
     >
-      <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 400, color: palette.text.primary, minWidth: 120 }} title={p.description}>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-          <span role="img" aria-label={`At this value the design ${statusText}`} style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, backgroundColor: statusColor, opacity: here ? 1 : 0.4 }} />
-          {scrubbable ? (
-            // Drag the name left or right to run the value through its range, the way a CAD inspector does; the field still takes typing.
-            <NumberField.Root
-              value={toShown(p.value)}
-              step={shownStep}
-              snapOnStep={kind === 'stepper'}
-              {...(shownMin !== undefined ? { min: shownMin } : {})}
-              {...(shownMax !== undefined ? { max: shownMax } : {})}
-              onValueChange={(v) => v !== null && commit(fromShown(v))}
-              render={<span />}
-            >
-              <NumberField.ScrubArea className="pf-scrub" pixelSensitivity={3} title={`Drag to change ${p.label}${p.description ? `. ${p.description}` : ''}`}>
-                {p.label}
-                <NumberField.ScrubAreaCursor className="pf-scrub-cursor">
-                  <MoveHorizontal size={16} />
-                </NumberField.ScrubAreaCursor>
-              </NumberField.ScrubArea>
-              {/* The scrub area drives the root through its input; the visible field is the unit-aware one in the next cell. */}
-              <NumberField.Input hidden tabIndex={-1} aria-hidden />
-            </NumberField.Root>
-          ) : (
-            p.label
-          )}
-        </span>
-      </th>
-      <td data-spec-value style={{ ...td, textAlign: 'right' }}>{value}</td>
-      <td style={td}>{kind === 'toggle' || kind === 'select' ? null : <UnitCell label={p.label} unit={p.unit} shown={du} choices={choices} onPick={(u) => setUnit(p.unit, u)} />}</td>
-      <td style={{ ...td, whiteSpace: 'nowrap', fontSize: 12 }}>
-        {band && sweep ? (
-          <RangeGauge segments={band.segments} at={fractionOf(sweep.range, p.value)} label={passes} />
+      <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 400, color: palette.text.primary, paddingRight: 14 }} title={tooltip}>
+        {scrubbable ? (
+          // Drag the name left or right to run the value through its range, the way a CAD inspector does; the field still takes typing.
+          <NumberField.Root
+            value={toShown(p.value)}
+            step={shownStep}
+            snapOnStep={kind === 'stepper'}
+            {...(shownMin !== undefined ? { min: shownMin } : {})}
+            {...(shownMax !== undefined ? { max: shownMax } : {})}
+            onValueChange={(v) => v !== null && commit(fromShown(v))}
+            render={<span />}
+          >
+            <NumberField.ScrubArea className="pf-scrub" pixelSensitivity={3} title={`Drag to change ${p.label}${p.description ? `. ${p.description}` : ''}`}>
+              {p.label}
+              <NumberField.ScrubAreaCursor className="pf-scrub-cursor">
+                <MoveHorizontal size={16} />
+              </NumberField.ScrubAreaCursor>
+            </NumberField.ScrubArea>
+            {/* The scrub area drives the root through its input; the visible field is the unit-aware one in the next cell. */}
+            <NumberField.Input hidden tabIndex={-1} aria-hidden />
+          </NumberField.Root>
         ) : (
-          passes
+          p.label
         )}
-      </td>
-      <td style={{ ...td, padding: '3px 4px' }}>
+        {(note || fixButton) && (
+          <div className="pf-spec-note" data-tone={note?.tone ?? 'muted'}>
+            {note && <span>{note.body}</span>}
+            {fixButton}
+          </div>
+        )}
+      </th>
+      <td data-spec-value style={td}>{value}</td>
+      <td style={{ ...td, padding: '3px 0 3px 4px' }}>
         {changed && (
-          <Button iconOnly size="sm" variant="ghost" label={`Put ${p.label} back to ${formatQuantity(toShown(base!))} ${du !== '-' ? du : ''}`} icon={<RotateCcw size={12} />} onClick={() => setParam(p.name, base!)} />
+          <Button iconOnly size="sm" variant="ghost" label={`Put ${p.label} back to ${formatQuantity(toShown(base!))}${unitText}`} icon={<RotateCcw size={12} />} onClick={() => setParam(p.name, base!)} />
         )}
       </td>
     </tr>
   );
 };
 
-/**
- * A setting's range at a glance: the track is its allowed range, coloured where
- * the design passes, warns or fails, with a marker at the value. The words
- * under it say the passing range for anyone not reading colour.
- */
-const RangeGauge: React.FC<{ segments: { from: number; to: number; status: SweepPoint['status'] }[]; at: number; label: React.ReactNode }> = ({ segments, at, label }) => {
+/** The unit a value is shown in: a picker when the quantity has others, else the unit as text. As a suffix it sits inside the value's field. */
+const UnitCell: React.FC<{ label: string; unit: string; shown: string; choices: string[]; onPick: (u: string) => void; suffix?: boolean }> = ({ label, unit, shown, choices, onPick, suffix }) => {
   const { palette } = useTheme();
-  const color = (st: SweepPoint['status']) =>
-    st === 'ok' ? palette.jade[500] : st === 'warning' ? palette.status.blocked : st === 'error' ? palette.status.failed : palette.border.default;
-  const x = Math.min(1, Math.max(0, Number.isFinite(at) ? at : 0));
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 2 }}>
-      <div aria-hidden style={{ position: 'relative', height: 6, borderRadius: 3, background: palette.border.subtle, overflow: 'visible' }}>
-        {segments.map((sg, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: `${sg.from * 100}%`,
-              width: `${Math.max(0, sg.to - sg.from) * 100}%`,
-              background: color(sg.status),
-              opacity: sg.status === 'ok' ? 0.75 : 0.55,
-              borderRadius: 3
-            }}
-          />
-        ))}
-        <div
-          style={{
-            position: 'absolute',
-            top: -3,
-            left: `calc(${x * 100}% - 1.5px)`,
-            width: 3,
-            height: 12,
-            borderRadius: 2,
-            background: palette.text.primary,
-            boxShadow: `0 0 0 2px ${palette.background.canvas}`
-          }}
-        />
-      </div>
-      <div style={{ lineHeight: 1.2 }}>{label}</div>
-    </div>
-  );
-};
-
-/** The unit a value is shown in: a picker when the quantity has others, else the unit as text. */
-const UnitCell: React.FC<{ label: string; unit: string; shown: string; choices: string[]; onPick: (u: string) => void }> = ({ label, unit, shown, choices, onPick }) => {
-  const { palette } = useTheme();
+  const text = shown && shown !== '-' ? shown : unit && unit !== '-' ? unit : '';
   if (choices.length > 1)
     return (
       // Reads as the unit, not a control: click it for the others (the US/SI switch above sets them all).
       <select
-        className="pf-focus"
+        className={suffix ? 'pf-field-unit pf-focus' : 'pf-focus'}
         aria-label={`${label} unit`}
         title="Show in another unit"
         value={shown}
         onChange={(e) => onPick(e.target.value)}
-        style={{ appearance: 'none', WebkitAppearance: 'none', border: 'none', background: 'transparent', color: palette.text.muted, fontSize: 12, padding: '2px 0', cursor: 'pointer', fontFamily: 'inherit' }}
+        style={suffix ? undefined : { appearance: 'none', WebkitAppearance: 'none', border: 'none', background: 'transparent', color: palette.text.muted, fontSize: 12, padding: '2px 0', cursor: 'pointer', fontFamily: 'inherit' }}
       >
         {choices.map((u) => (
           <option key={u} value={u}>
@@ -639,7 +542,8 @@ const UnitCell: React.FC<{ label: string; unit: string; shown: string; choices: 
         ))}
       </select>
     );
-  return <span style={{ fontSize: 12, color: palette.text.muted }}>{unit && unit !== '-' ? unit : ''}</span>;
+  if (suffix) return text ? <span className="pf-field-unit">{text}</span> : null;
+  return <span style={{ fontSize: 12, color: palette.text.muted }}>{text}</span>;
 };
 
 /**

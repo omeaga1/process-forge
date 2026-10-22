@@ -252,7 +252,7 @@ export const QuantityText: React.FC<{
   difference: boolean;
   label: string;
   onCommit: (v: number) => void;
-  width: number;
+  width: number | string;
   step: number;
 }> = ({ value, unit, displayUnit, difference, label, onCommit, width, step }) => {
   const { palette, font } = useTheme();
@@ -298,6 +298,8 @@ export const QuantityText: React.FC<{
       }}
       style={{
         width,
+        minWidth: 0,
+        flex: typeof width === 'string' ? 1 : undefined,
         height: '100%',
         border: 'none',
         outline: 'none',

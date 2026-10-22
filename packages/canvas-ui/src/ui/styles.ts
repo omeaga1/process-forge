@@ -174,6 +174,36 @@ select option, select optgroup { background-color: var(--pf-bg-surface-elevated)
 .pf-scrub[data-scrubbing] { color: var(--pf-jade-glow); }
 .pf-scrub-cursor { color: var(--pf-text-primary); filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.5)); pointer-events: none; }
 
+/* A unit's inputs and results (studio/SpecSheet.tsx): a quiet list, tools that show on the row in hand. */
+.pf-spec { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.pf-spec th, .pf-spec td { border-bottom: 1px solid var(--pf-border-subtle); vertical-align: middle; }
+.pf-spec tr:last-child > th, .pf-spec tr:last-child > td { border-bottom: none; }
+.pf-spec .pf-spec-group { padding: 18px 0 6px; font: 600 12px/1.2 ${fontFamily.sans}; color: var(--pf-text-muted); text-align: left; }
+.pf-spec tbody:first-of-type .pf-spec-group { padding-top: 4px; }
+.pf-field { display: inline-flex; align-items: stretch; height: 30px; width: 100%; box-sizing: border-box; border-radius: 6px; overflow: hidden;
+  border: 1px solid var(--pf-border-subtle); background: var(--pf-bg-surface); transition: border-color 120ms ease, box-shadow 120ms ease; }
+.pf-field:hover { border-color: var(--pf-border-strong); }
+.pf-field:focus-within { border-color: var(--pf-jade-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pf-jade-500) 18%, transparent); }
+.pf-field[data-state="changed"] { border-color: color-mix(in srgb, var(--pf-jade-500) 70%, transparent); }
+.pf-field[data-state="warn"] { border-color: var(--pf-status-blocked); }
+.pf-field[data-state="fail"] { border-color: var(--pf-status-failed); }
+.pf-field-unit { flex: 0 0 auto; display: inline-flex; align-items: center; min-width: 44px; max-width: 86px; padding: 0 8px; box-sizing: border-box;
+  border: none; border-left: 1px solid var(--pf-border-subtle); background: transparent; color: var(--pf-text-muted);
+  font: 400 12px/1 ${fontFamily.sans}; appearance: none; -webkit-appearance: none; text-overflow: ellipsis; }
+select.pf-field-unit { cursor: pointer; }
+select.pf-field-unit:hover { color: var(--pf-text-primary); }
+.pf-row-tool { opacity: 0; transition: opacity 120ms ease; }
+.pf-spec tr:hover .pf-row-tool, .pf-row-tool:focus-visible, .pf-row-tool:focus-within, .pf-row-tool[data-on] { opacity: 1; }
+.pf-spec-note { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 3px; font: 400 12px/1.4 ${fontFamily.sans}; color: var(--pf-text-muted); }
+.pf-spec-note[data-tone="fail"] { color: var(--pf-status-failed); }
+.pf-spec-note[data-tone="warn"] { color: var(--pf-status-blocked); }
+.pf-spec-fix { all: unset; cursor: pointer; color: var(--pf-text-primary); font: 500 12px/1.4 ${fontFamily.sans}; text-decoration: underline; text-decoration-color: var(--pf-jade-500); text-underline-offset: 3px; }
+.pf-spec-fix:hover { color: var(--pf-jade-glow); }
+.pf-spec-fix:focus-visible { outline: 2px solid var(--pf-jade-400); outline-offset: 2px; border-radius: 2px; }
+.pf-disclose { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: 500 13px/1.4 ${fontFamily.sans}; color: var(--pf-text-secondary); }
+.pf-disclose:hover { color: var(--pf-text-primary); }
+.pf-disclose:focus-visible { outline: 2px solid var(--pf-jade-400); outline-offset: 2px; border-radius: 2px; }
+
 /* The unit's panel at a glance (studio/UnitGlance.tsx). */
 .pf-glance { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
 .pf-glance-card {
@@ -208,6 +238,6 @@ button.pf-glance-card:focus-visible { outline: 2px solid var(--pf-jade-400); out
 .pf-glance-note[data-tone="caution"] { background: color-mix(in srgb, var(--pf-status-blocked) 8%, transparent); border-color: color-mix(in srgb, var(--pf-status-blocked) 35%, transparent); }
 
 @media (prefers-reduced-motion: reduce) {
-  .pf-backdrop, .pf-dialog, .pf-sheet, .pf-tip, .pf-menu, .pf-tabs-indicator, .pf-switch-thumb, .pf-meter-indicator, .pf-meter-limit { transition: none; }
+  .pf-backdrop, .pf-dialog, .pf-sheet, .pf-tip, .pf-menu, .pf-tabs-indicator, .pf-switch-thumb, .pf-meter-indicator, .pf-meter-limit, .pf-field, .pf-row-tool { transition: none; }
 }
 `;
