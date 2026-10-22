@@ -28,6 +28,7 @@ import { Button, Chip, Switch } from '../../ui/index.js';
 import { controlFor, displayUnitsFor, feasibleBand, formatQuantity, statusAt, stepFor, type ParameterGroup } from '../../model/parameterUi.js';
 import { QuantityText } from './ParameterControl.js';
 import { distinctResults } from '../../model/specLayout.js';
+import { Card } from './UnitSpecSections.js';
 
 /** A design spec: keep a result at its target by varying one setting (protocol's DesignSpec). */
 export type HeldSpec = DesignSpec;
@@ -62,8 +63,12 @@ export interface SpecSheetProps {
   fixes?: Record<string, Fix>;
   /** A check's name, for saying what a fix clears. */
   checkName?: (id: string) => string;
-  /** Wraps the results (and a copy button for the sheet) in the panel's own section. */
-  resultsSection?: (children: React.ReactNode, right: React.ReactNode) => React.ReactNode;
+  /** Which half to draw: the inputs, or the results card (headline figures, every other result, the solver and study). */
+  part: 'inputs' | 'results';
+  /** The figures the engine runs the unit at, drawn large at the top of the results. */
+  headline?: { label: string; value: string; unit: string }[];
+  /** Shown instead of results when the design does not evaluate. */
+  resultsError?: string;
 }
 
 /**
@@ -184,164 +189,197 @@ export const SpecSheet: React.FC<SpecSheetProps> = (props) => {
   const inputCols = (
     <colgroup>
       <col />
-      <col style={{ width: 200 }} />
-      <col style={{ width: 32 }} />
+      <col style={{ width: 176 }} />
+      <col style={{ width: 30 }} />
     </colgroup>
   );
-  const disclose = (shown: boolean, text: React.ReactNode, onClick: () => void, title?: string) => (
-    <button type="button" className="pf-disclose" aria-expanded={shown} onClick={onClick} title={title}>
-      <ChevronRight size={13} style={{ transform: shown ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }} aria-hidden />
-      {text}
-    </button>
-  );
+  const chevron = (shown: boolean) => <ChevronRight size={13} style={{ transform: shown ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease', flexShrink: 0 }} aria-hidden />;
+  // A group is a band across the card: its name, and (folded) a count and a chevron.
+  const band = (name: string, count: number | undefined, fold?: { shown: boolean; onClick: () => void; title?: string }) =>
+    fold ? (
+      <button type="button" className="pf-band" aria-expanded={fold.shown} onClick={fold.onClick} title={fold.title}>
+        {chevron(fold.shown)}
+        {name}
+        {count !== undefined && <span className="pf-count">{count}</span>}
+      </button>
+    ) : (
+      <div className="pf-band">{name}</div>
+    );
 
-  const tools = (specifiable.length > 0 || (studyable.length > 0 && derivedRows.length > 0)) && (
-    <div style={{ marginTop: 14 }}>
-      {disclose(toolsOpen || props.holds.length > 0, 'Solve for a target, or run a sensitivity study', () => setToolsOpen((o) => !o))}
-      {(toolsOpen || props.holds.length > 0) && (
-        <>
-          {specifiable.length > 0 && (
-            <div ref={solverRef}>
-              <TargetSolver {...props} results={specifiable} moversOf={moversOf} picked={solveFor} onPick={setSolveFor} radius={8} />
-            </div>
-          )}
-          {studyable.length > 0 && derivedRows.length > 0 && <CaseStudy {...props} settings={studyable} radius={8} />}
-        </>
-      )}
-    </div>
-  );
-
-  const results = (
-    <>
-      {listedRows.length > 0 && (
-        <table className="pf-spec">
-          <caption style={hidden}>Results</caption>
-          <colgroup>
-            <col />
-            <col style={{ width: 112 }} />
-            <col style={{ width: 76 }} />
-            <col style={{ width: 72 }} />
-            <col style={{ width: 32 }} />
-          </colgroup>
-          <thead style={hidden}>
-            <tr>
-              <th scope="col">Result</th>
-              <th scope="col">Value</th>
-              <th scope="col">Unit</th>
-              <th scope="col">Change since opened</th>
-              <th scope="col">Solve for it</th>
-            </tr>
-          </thead>
-          <tbody>
-            {listedRows.map((d) => {
-              const v = values[d.name]!;
-              const choices = displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 });
-              // A share between 0 and 1 reads as a percentage, as an input does.
-              const du = unitFor(d.unit, choices, d.unit === '-' && v >= 0 && v <= 1 && choices.includes('%') ? '%' : undefined);
-              const difference = isTemperatureDifference(d);
-              const shown = convertUnit(v, d.unit, du, { difference }) ?? v;
-              const before = baselineDerived[d.name];
-              const moved = before !== undefined && Number.isFinite(before) && Math.abs(v - before) > 1e-9 * Math.max(1, Math.abs(before));
-              const pct = moved && before ? ((v - before) / Math.abs(before)) * 100 : 0;
-              const td: React.CSSProperties = { padding: '8px 0' };
-              const up = moved && v > before!;
-              return (
-                <tr key={d.name} style={{ backgroundColor: props.lit(`d:${d.name}`) ? tint(palette.jade[500], 0.08) : 'transparent', transition: 'background-color 200ms ease' }}>
-                  <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 400, color: palette.text.secondary, paddingRight: 12 }} title={d.description}>
-                    {d.label ?? d.name}
+  if (props.part === 'inputs') {
+    if (!contract.parameters.length) return null;
+    return (
+      <table className="pf-spec" onKeyDown={nextOnEnter}>
+        <caption style={hidden}>Inputs</caption>
+        {inputCols}
+        <thead style={hidden}>
+          <tr>
+            <th scope="col">Input</th>
+            <th scope="col">Value and unit</th>
+            <th scope="col">Put back</th>
+          </tr>
+        </thead>
+        {groups.map((g) => {
+          const shown = !g.folded || open[g.name] || g.params.some(needsEye);
+          return (
+            <tbody key={g.name}>
+              {(groups.length > 1 || g.folded) && (
+                <tr>
+                  <th scope="colgroup" colSpan={3} className="pf-spec-group">
+                    {band(g.name, g.folded ? g.params.length : undefined, g.folded ? { shown: Boolean(shown), onClick: () => setOpen((o) => ({ ...o, [g.name]: !shown })) } : undefined)}
                   </th>
-                  <td style={{ ...td, textAlign: 'right', fontFamily: font.mono, fontWeight: 500, color: palette.text.primary, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{formatQuantity(shown)}</td>
-                  <td style={{ ...td, paddingLeft: 8 }}>
-                    <UnitCell label={d.label ?? d.name} unit={d.unit} shown={du} choices={choices} onPick={(u) => setUnit(d.unit, u)} />
-                  </td>
-                  <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {moved && (
-                      <span
-                        title={`When you opened it: ${formatQuantity(convertUnit(before!, d.unit, du, { difference }) ?? before!)}${du !== '-' ? ` ${du}` : ''}`}
-                        style={{ fontFamily: font.mono, fontSize: 11, color: up ? palette.jade[400] : palette.text.gold, fontVariantNumeric: 'tabular-nums' }}
-                      >
-                        {up ? '+' : '−'}
-                        {Number.isFinite(pct) && before ? `${Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%` : ''}
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ ...td, padding: '3px 0 3px 4px' }}>
-                    {specifiable.includes(d) && (
-                      <span className="pf-row-tool" data-on={solveFor === d.name && toolsOpen ? '' : undefined}>
-                        <Button iconOnly label={`Solve for a ${d.label ?? d.name}`} size="sm" variant="ghost" icon={<Crosshair size={13} />} onClick={() => specify(d.name)} />
-                      </span>
-                    )}
-                  </td>
                 </tr>
-              );
-            })}
+              )}
+              {shown && g.params.map((p) => <SpecRow key={p.name} p={p} {...props} />)}
+            </tbody>
+          );
+        })}
+        {props.feed && props.feed.params.length > 0 && (
+          <tbody>
+            <tr>
+              <th scope="colgroup" colSpan={3} className="pf-spec-group">
+                {props.feed.fromLine
+                  ? band('Design feed · the line supplies it', props.feed.params.length, {
+                      shown: Boolean(open.__feed),
+                      onClick: () => setOpen((o) => ({ ...o, __feed: !o.__feed })),
+                      title: 'The pipe in brings the real feed. These figures are only used to check the design before the line runs.'
+                    })
+                  : band('Feed at the design point', undefined)}
+              </th>
+            </tr>
+            {(!props.feed.fromLine || open.__feed) &&
+              props.feed.params.map((p) => <SpecRow key={p.name} p={p} {...props} sweeps={{}} fixes={{}} baselineParams={props.feed!.baseline} setParam={props.feed!.onChange} />)}
           </tbody>
-        </table>
-      )}
-      {tools}
-    </>
-  );
-  const copyButton = (
-    <Button size="sm" variant="ghost" icon={sheetCopied ? <Check size={13} /> : <Copy size={13} />} onClick={copySheet} title="Copy every input and result as a table, for a datasheet or a spreadsheet">
-      {sheetCopied ? 'Copied' : 'Copy'}
-    </Button>
-  );
+        )}
+      </table>
+    );
+  }
+
+  const hasTools = specifiable.length > 0 || (studyable.length > 0 && derivedRows.length > 0);
+  const toolsShown = toolsOpen || props.holds.length > 0;
+  const headline = props.headline ?? [];
+  if (!props.resultsError && !headline.length && !listedRows.length && !hasTools) return null;
 
   return (
-    <div>
-      {contract.parameters.length > 0 && (
-        <table className="pf-spec" onKeyDown={nextOnEnter}>
-          <caption style={hidden}>Inputs</caption>
-          {inputCols}
-          <thead style={hidden}>
-            <tr>
-              <th scope="col">Input</th>
-              <th scope="col">Value and unit</th>
-              <th scope="col">Put back</th>
-            </tr>
-          </thead>
-          {groups.map((g) => {
-            const shown = !g.folded || open[g.name] || g.params.some(needsEye);
-            return (
-              <tbody key={g.name}>
-                {(groups.length > 1 || g.folded) && (
-                  <tr>
-                    <th scope="colgroup" colSpan={3} className="pf-spec-group" style={g.folded ? { borderBottom: shown ? undefined : 'none' } : undefined}>
-                      {g.folded ? disclose(Boolean(shown), `${g.name} (${g.params.length})`, () => setOpen((o) => ({ ...o, [g.name]: !shown }))) : g.name}
-                    </th>
-                  </tr>
+    <Card
+      id="results"
+      title="Results"
+      meta={props.resultsError ? undefined : listedRows.length ? `${headline.length + listedRows.length}` : undefined}
+      right={
+        !props.resultsError && (
+          <Button size="sm" variant="ghost" icon={sheetCopied ? <Check size={13} /> : <Copy size={13} />} onClick={copySheet} title="Copy every input and result as a table, for a datasheet or a spreadsheet">
+            {sheetCopied ? 'Copied' : 'Copy'}
+          </Button>
+        )
+      }
+      foot={
+        !props.resultsError && hasTools ? (
+          <>
+            <button type="button" className="pf-disclose" aria-expanded={toolsShown} onClick={() => setToolsOpen((o) => !o)}>
+              {chevron(toolsShown)}
+              Solve for a target, or run a sensitivity study
+            </button>
+            {toolsShown && (
+              <>
+                {specifiable.length > 0 && (
+                  <div ref={solverRef}>
+                    <TargetSolver {...props} results={specifiable} moversOf={moversOf} picked={solveFor} onPick={setSolveFor} radius={8} />
+                  </div>
                 )}
-                {shown && g.params.map((p) => <SpecRow key={p.name} p={p} {...props} />)}
-              </tbody>
-            );
-          })}
-          {props.feed && props.feed.params.length > 0 && (
-            <tbody>
-              <tr>
-                <th scope="colgroup" colSpan={3} className="pf-spec-group" style={props.feed.fromLine && !open.__feed ? { borderBottom: 'none' } : undefined}>
-                  {props.feed.fromLine
-                    ? disclose(
-                        Boolean(open.__feed),
-                        'Design feed (the line supplies it)',
-                        () => setOpen((o) => ({ ...o, __feed: !o.__feed })),
-                        'The pipe in brings the real feed. These figures are only used to check the design before the line runs.'
-                      )
-                    : 'Feed at the design point'}
-                </th>
-              </tr>
-              {(!props.feed.fromLine || open.__feed) &&
-                props.feed.params.map((p) => <SpecRow key={p.name} p={p} {...props} sweeps={{}} fixes={{}} baselineParams={props.feed!.baseline} setParam={props.feed!.onChange} />)}
-            </tbody>
+                {studyable.length > 0 && derivedRows.length > 0 && <CaseStudy {...props} settings={studyable} radius={8} />}
+              </>
+            )}
+          </>
+        ) : undefined
+      }
+    >
+      {props.resultsError ? (
+        <div style={{ padding: '12px 0', fontSize: 13, lineHeight: 1.5, color: palette.text.primary }}>
+          <span style={{ color: palette.status.failed }}>No results until the design evaluates.</span> {props.resultsError}
+        </div>
+      ) : (
+        <>
+          {headline.length > 0 && (
+            <div className="pf-tiles" style={listedRows.length ? undefined : { borderBottom: 'none' }}>
+              {headline.map((k) => (
+                <div key={k.label} className="pf-tile">
+                  <div className="pf-tile-value">
+                    {k.value}
+                    {k.unit && <span className="pf-tile-unit">{k.unit}</span>}
+                  </div>
+                  <div className="pf-tile-label">{k.label}</div>
+                </div>
+              ))}
+            </div>
           )}
-        </table>
+          {listedRows.length > 0 && (
+            <table className="pf-spec">
+              <caption style={hidden}>Results</caption>
+              <colgroup>
+                <col />
+                <col style={{ width: 104 }} />
+                <col style={{ width: 72 }} />
+                <col style={{ width: 64 }} />
+                <col style={{ width: 30 }} />
+              </colgroup>
+              <thead style={hidden}>
+                <tr>
+                  <th scope="col">Result</th>
+                  <th scope="col">Value</th>
+                  <th scope="col">Unit</th>
+                  <th scope="col">Change since opened</th>
+                  <th scope="col">Solve for it</th>
+                </tr>
+              </thead>
+              <tbody>
+                {listedRows.map((d) => {
+                  const v = values[d.name]!;
+                  const choices = displayUnitsFor({ name: d.name, label: d.label, unit: d.unit, value: 0 });
+                  // A share between 0 and 1 reads as a percentage, as an input does.
+                  const du = unitFor(d.unit, choices, d.unit === '-' && v >= 0 && v <= 1 && choices.includes('%') ? '%' : undefined);
+                  const difference = isTemperatureDifference(d);
+                  const shown = convertUnit(v, d.unit, du, { difference }) ?? v;
+                  const before = baselineDerived[d.name];
+                  const moved = before !== undefined && Number.isFinite(before) && Math.abs(v - before) > 1e-9 * Math.max(1, Math.abs(before));
+                  const pct = moved && before ? ((v - before) / Math.abs(before)) * 100 : 0;
+                  const td: React.CSSProperties = { padding: '8px 0' };
+                  const up = moved && v > before!;
+                  return (
+                    <tr key={d.name} style={{ backgroundColor: props.lit(`d:${d.name}`) ? tint(palette.jade[500], 0.08) : 'transparent', transition: 'background-color 200ms ease' }}>
+                      <th scope="row" style={{ ...td, textAlign: 'left', fontWeight: 400, color: palette.text.secondary, paddingRight: 12 }} title={d.description}>
+                        {d.label ?? d.name}
+                      </th>
+                      <td style={{ ...td, textAlign: 'right', fontFamily: font.mono, fontWeight: 500, color: palette.text.primary, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{formatQuantity(shown)}</td>
+                      <td style={{ ...td, paddingLeft: 8 }}>
+                        <UnitCell label={d.label ?? d.name} unit={d.unit} shown={du} choices={choices} onPick={(u) => setUnit(d.unit, u)} />
+                      </td>
+                      <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        {moved && (
+                          <span
+                            title={`When you opened it: ${formatQuantity(convertUnit(before!, d.unit, du, { difference }) ?? before!)}${du !== '-' ? ` ${du}` : ''}`}
+                            style={{ fontFamily: font.mono, fontSize: 11, color: up ? palette.jade[400] : palette.text.gold, fontVariantNumeric: 'tabular-nums' }}
+                          >
+                            {up ? '+' : '−'}
+                            {Number.isFinite(pct) && before ? `${Math.abs(pct) < 10 ? Math.abs(pct).toFixed(1) : Math.round(Math.abs(pct))}%` : ''}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ ...td, padding: '3px 0 3px 2px' }}>
+                        {specifiable.includes(d) && (
+                          <span className="pf-row-tool" data-on={solveFor === d.name && toolsOpen ? '' : undefined}>
+                            <Button iconOnly label={`Solve for a ${d.label ?? d.name}`} size="sm" variant="ghost" icon={<Crosshair size={13} />} onClick={() => specify(d.name)} />
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
-
-      {props.resultsSection
-        ? listedRows.length > 0 || tools
-          ? props.resultsSection(results, copyButton)
-          : null
-        : results}
-    </div>
+    </Card>
   );
 };
 

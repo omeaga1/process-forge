@@ -12,7 +12,7 @@ import {
   type UnitOpEvaluation
 } from '@process-forge/protocol';
 import type { NodeTelemetrySnapshot } from '@process-forge/simulation-core';
-import { ArrowDownRight, ArrowUpRight, ChevronRight, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, CircleDashed } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, AlertTriangle, XCircle, ShieldCheck, CircleDashed } from 'lucide-react';
 import { tint } from '@process-forge/theme';
 import { useTheme } from '../../hooks/useTheme.js';
 import { formatQuantity } from '../../model/parameterUi.js';
@@ -43,19 +43,12 @@ export const SpecHeader: React.FC<{
   contract: UnitOpContract;
   own: boolean;
   alignment?: PhysicsAlignment | undefined;
-  verdict: { tone: 'ok' | 'warn' | 'fail'; text: string };
-  kpis: { label: string; value: string; unit: string }[];
-  actions?: React.ReactNode;
-  /** The verdict clicked: show the checks behind it. */
-  onVerdict?: () => void;
-}> = ({ contract, own, alignment, verdict, kpis, actions, onVerdict }) => {
-  const { palette, font } = useTheme();
-  const toneColor = verdict.tone === 'ok' ? palette.jade[500] : verdict.tone === 'warn' ? palette.status.blocked : palette.status.failed;
-  const Icon = verdict.tone === 'ok' ? CheckCircle2 : verdict.tone === 'warn' ? AlertTriangle : XCircle;
+}> = ({ contract, own, alignment }) => {
+  const { palette } = useTheme();
   const archetype = alignment?.archetype;
+  // The panel's title bar already shows the drawing and the name: this says what it is.
   return (
-    <div style={{ paddingBottom: 18, borderBottom: `1px solid ${palette.border.subtle}` }}>
-      {/* The panel's title bar already shows the drawing and the name: this says what it is and how it is doing. */}
+    <div style={{ padding: '4px 0 14px' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 8px', alignItems: 'center', fontSize: 12, color: palette.text.muted }}>
         <span style={{ color: palette.text.secondary, fontWeight: 600 }}>{archetype ? archetype.name.replace(/ \(.*\)$/, '') : own ? 'Custom unit' : 'Standard unit'}</span>
         <span aria-hidden>·</span>
@@ -70,31 +63,8 @@ export const SpecHeader: React.FC<{
         )}
       </div>
       {contract.description && (
-        <Brief text={contract.description} lines={2} style={{ fontSize: 14, lineHeight: 1.55, color: palette.text.primary, maxWidth: 640, marginTop: 6 }} mutedColor={palette.text.secondary} />
+        <Brief text={contract.description} lines={2} style={{ fontSize: 13, lineHeight: 1.55, color: palette.text.secondary, maxWidth: 640, marginTop: 6 }} mutedColor={palette.text.muted} />
       )}
-      {kpis.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 36px', marginTop: 18 }}>
-          {kpis.map((k) => (
-            <div key={k.label}>
-              <div style={{ fontFamily: font.mono, fontSize: 24, fontWeight: 500, letterSpacing: '-0.02em', color: palette.text.primary, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
-                {k.value} <span style={{ fontSize: 12, color: palette.text.muted, fontWeight: 400, letterSpacing: 0 }}>{k.unit}</span>
-              </div>
-              <div style={{ fontSize: 12, color: palette.text.muted, marginTop: 4 }}>{k.label}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, fontSize: 13, color: palette.text.primary }}>
-        <Icon size={15} color={toneColor} style={{ flexShrink: 0 }} />
-        {onVerdict && verdict.tone !== 'ok' ? (
-          <button type="button" className="pf-focus" onClick={onVerdict} style={{ all: 'unset', flex: 1, cursor: 'pointer', textDecoration: 'underline', textDecorationColor: palette.border.default, textUnderlineOffset: 3 }}>
-            {verdict.text}
-          </button>
-        ) : (
-          <span style={{ flex: 1 }}>{verdict.text}</span>
-        )}
-        {actions}
-      </div>
     </div>
   );
 };
@@ -106,41 +76,29 @@ function modeName(mode: UnitOpContract['behavior']['mode']): string {
 // ------------------------------------------------------------------ sections
 
 /**
- * One section of the sheet. With onToggle it folds: the reference sections
- * (streams, equations, physics) start folded, so the sheet opens on what the
- * engineer sets and what the engine says about it.
+ * One zone of the inspector: a titled card. The head carries the title, a
+ * short state ("all 3 pass", "2 changed") and the zone's own controls; the
+ * body is the zone; a foot holds its tools.
  */
-export const Section = React.forwardRef<
+export const Card = React.forwardRef<
   HTMLElement,
-  { id: SectionId; title: string; hint?: string; children: React.ReactNode; right?: React.ReactNode; open?: boolean; onToggle?: () => void }
->(({ id, title, hint, children, right, open = true, onToggle }, ref) => {
-  const { palette } = useTheme();
-  const heading = <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', color: palette.text.primary }}>{title}</h3>;
-  return (
-    <section ref={ref} id={`unit-${id}`} data-section={id} style={{ scrollMarginTop: 12, paddingTop: 28 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 28, marginBottom: open ? 10 : 0, flexWrap: 'wrap' }}>
-        {onToggle ? (
-          <button
-            type="button"
-            className="pf-focus"
-            aria-expanded={open}
-            onClick={onToggle}
-            style={{ all: 'unset', cursor: 'pointer', display: 'inline-flex', alignItems: 'baseline', gap: 6 }}
-          >
-            <ChevronRight aria-hidden size={14} color={palette.text.muted} style={{ alignSelf: 'center', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 120ms ease' }} />
-            {heading}
-          </button>
-        ) : (
-          heading
-        )}
-        <span style={{ fontSize: 12, color: palette.text.muted, flex: 1 }}>{hint}</span>
-        {right}
-      </div>
-      {open && children}
-    </section>
-  );
-});
-Section.displayName = 'Section';
+  { id?: SectionId; title: React.ReactNode; meta?: React.ReactNode; metaTone?: 'fail' | 'warn'; right?: React.ReactNode; foot?: React.ReactNode; children?: React.ReactNode; label?: string }
+>(({ id, title, meta, metaTone, right, foot, children, label }, ref) => (
+  <section ref={ref} className="pf-card" {...(id ? { id: `unit-${id}`, 'data-section': id } : {})} aria-label={label}>
+    <div className="pf-card-head">
+      {typeof title === 'string' ? <h3 className="pf-card-title">{title}</h3> : title}
+      {meta !== undefined && (
+        <span className="pf-card-meta" data-tone={metaTone}>
+          {meta}
+        </span>
+      )}
+      {right && <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{right}</span>}
+    </div>
+    {children !== undefined && children !== null && children !== false && <div className="pf-card-body">{children}</div>}
+    {foot && <div className="pf-card-foot">{foot}</div>}
+  </section>
+));
+Card.displayName = 'Card';
 
 // ------------------------------------------------------------------ equations
 
