@@ -130,7 +130,10 @@ describe('the extension updater', () => {
     try {
       assert.ok(await until(() => fs.existsSync(path.join(home, 'current.json')), 20000), 'kept the new server');
       assert.equal(JSON.parse(fs.readFileSync(path.join(home, 'current.json'), 'utf8')).sha256, remote.sha256);
-      assert.match(fs.readFileSync(path.join(home, 'updater.log'), 'utf8'), /checksum verified; this runtime cannot test-start it/);
+      // current.json is written before the download is logged.
+      const log = () => fs.readFileSync(path.join(home, 'updater.log'), 'utf8');
+      await until(() => /checksum verified; this runtime cannot test-start it/.test(log()), 5000);
+      assert.match(log(), /checksum verified; this runtime cannot test-start it/);
     } finally {
       child.kill();
       await rel.close();
