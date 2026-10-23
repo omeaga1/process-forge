@@ -2,10 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { JUICE_CONCENTRATION_LINE, applyFlowsheetEdit, type PlanChange, type ProcessGraph } from '@process-forge/protocol';
 import { FORGE_TOOLS } from '../registry.js';
+import { planReceipt } from '../plan.js';
 import type { ToolHost } from '../host.js';
 
 /** A host whose open flowsheet is held in memory and edited with the app's own rules. */
-function memoryHost(start: ProcessGraph, options: { dropLastNode?: boolean } = {}): ToolHost & { graph: ProcessGraph } {
+function memoryHost(start: ProcessGraph, options: { dropLastNode?: boolean; keepsVersions?: boolean } = {}): ToolHost & { graph: ProcessGraph } {
   const host = {
     graph: start,
     surface: 'mcp' as const,
@@ -18,7 +19,14 @@ function memoryHost(start: ProcessGraph, options: { dropLastNode?: boolean } = {
       if (!r.ok) return { success: false, changed: false, error: r.error };
       // A host that loses part of the change, to prove the read-back notices.
       host.graph = options.dropLastNode ? { ...r.graph, nodes: r.graph.nodes.slice(0, -1) } : r.graph;
-      return { success: true, changed: true, message: r.message, ...(r.steps ? { steps: r.steps } : {}) };
+      return {
+        success: true,
+        changed: true,
+        message: r.message,
+        ...(r.steps ? { steps: r.steps } : {}),
+        // The app keeps the flowsheet as it was before a plan.
+        ...(options.keepsVersions ? { restorePoint: { id: 'v-1', label: 'Before plan' } } : {})
+      };
     },
     requestPublish: async () => ({ success: false }),
     decider: {} as ToolHost['decider'],
@@ -80,6 +88,28 @@ describe('plan_changes, then apply_changes', () => {
     assert.equal(r.readBack.verified, false);
     assert.deepEqual(r.readBack.missingUnits, ['Concentrate Tank T-501']);
     assert.match(r.warning, /does not show every planned change/);
+  });
+
+  it('hands back a receipt: the diff, the run before and after, the read-back and where to go back to', async () => {
+    const host = memoryHost(JUICE_CONCENTRATION_LINE, { keepsVersions: true });
+    const plan = (await tool('plan_changes').run({ changes }, host)) as Record<string, any>;
+    const r = (await tool('apply_changes').run({ changes, planId: plan.planId }, host)) as Record<string, any>;
+    assert.equal(r.receipt.planId, plan.planId);
+    assert.deepEqual(r.receipt.diff, plan.diff);
+    assert.deepEqual(r.receipt.run, plan.run, 'the same runs the plan showed, on the same seed');
+    assert.equal(r.receipt.readBack.verified, true);
+    assert.deepEqual(r.receipt.restorePoint, { id: 'v-1', label: 'Before plan' });
+    assert.match(r.undo, /History/);
+    assert.ok(!Number.isNaN(Date.parse(r.receipt.appliedAt)));
+  });
+
+  it('builds the same receipt from the flowsheet as it was, for the app', () => {
+    const receipt = planReceipt(JUICE_CONCENTRATION_LINE, changes, { restorePoint: { id: 'v-2', label: 'x' } });
+    assert.ok(receipt);
+    assert.deepEqual(receipt.diff.unitsAdded, ['Concentrate Tank T-501']);
+    assert.equal(receipt.readBack, undefined);
+    assert.equal(receipt.restorePoint?.id, 'v-2');
+    assert.equal(planReceipt(JUICE_CONCENTRATION_LINE, [{ op: 'remove-unit', unit: 'Z-999' }]), undefined);
   });
 
   it('reports the step a bad plan fails at, with the steps before it', async () => {

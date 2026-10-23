@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Layers, Cpu, ChevronDown, FolderOpen, AlertCircle, Sun, Moon, RotateCw, Download, User, LayoutDashboard, CloudOff, CloudUpload, Check, Loader2 } from 'lucide-react';
+import { Layers, Cpu, ChevronDown, FolderOpen, AlertCircle, Sun, Moon, RotateCw, Download, User, LayoutDashboard, CloudOff, CloudUpload, Check, Loader2, History } from 'lucide-react';
 import { Button, Tooltip, useMobileViewport, useTheme, ProcessForgeLogo } from '@process-forge/canvas-ui';
 import { useAccount } from '../auth/useAccount.js';
 import { hasCloudSession } from '../auth/accountManager.js';
@@ -30,6 +30,8 @@ interface HeaderBarProps {
   onOpenSaveModal: () => void;
   onOpenGuestModal: () => void;
   onImportFile: (file: File) => void;
+  /** Earlier versions of the open project. */
+  onOpenHistory?: () => void;
   onOpenAccountModal?: () => void;
   onCheckForUpdates?: () => void;
   isCheckingUpdates?: boolean;
@@ -51,6 +53,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onQuickCloudSave,
   onOpenGuestModal,
   onImportFile,
+  onOpenHistory,
   onOpenAccountModal,
   onCheckForUpdates,
   isCheckingUpdates = false,
@@ -239,6 +242,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           </Tooltip>
           <Button iconOnly icon={<ChevronDown size={13} />} label="More save options: rename, save on this device, download a file" onClick={onOpenSaveModal} />
         </div>
+        {onOpenHistory && (
+          <Button variant="ghost" iconOnly icon={<History size={14} />} label="History: earlier versions of this flowsheet, and a way back" onClick={onOpenHistory} />
+        )}
 
         <Divider />
 

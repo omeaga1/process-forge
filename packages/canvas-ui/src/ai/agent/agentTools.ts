@@ -12,6 +12,7 @@ import { FORGE_TOOLS, inputSchemaFor, portsOf, type AddUnitOptions, type ForgeTo
 import { communityApiUrl } from '../../marketplace/communityLibraryClient.js';
 import { saveUnitOp } from '../../library/savedUnitOps.js';
 import { rasterizeSvg } from '../../utils/rasterize.js';
+import { checkpoint } from '../../history/checkpoints.js';
 import type { SourcedDecisionProvider } from './jevProvider.js';
 
 /**
@@ -91,10 +92,13 @@ function place(host: AgentHost, node: ProcessNode, options: AddUnitOptions) {
 }
 
 function edit(host: AgentHost, e: FlowsheetEdit) {
-  const r = applyFlowsheetEdit(host.getGraph(), e);
+  const before = host.getGraph();
+  const r = applyFlowsheetEdit(before, e);
   if (!r.ok) return { success: false, changed: false, error: r.error };
+  // Never overwrite: the flowsheet as it was before a plan is kept as a version.
+  const restorePoint = e.op === 'apply-plan' ? checkpoint('before-plan', `Before the assistant's plan (${r.steps?.length ?? e.changes.length} steps)`, before) : undefined;
   host.commit(r.graph);
-  return { success: true, changed: true, message: r.message, ...(r.changes ? { changes: r.changes } : {}), ...(r.warnings ? { warnings: r.warnings } : {}), ...(r.steps ? { steps: r.steps } : {}) };
+  return { success: true, changed: true, message: r.message, ...(restorePoint ? { restorePoint } : {}), ...(r.changes ? { changes: r.changes } : {}), ...(r.warnings ? { warnings: r.warnings } : {}), ...(r.steps ? { steps: r.steps } : {}) };
 }
 
 /** The studio as a host for the shared tools: the canvas's own flowsheet, changed in place. */

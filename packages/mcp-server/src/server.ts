@@ -21,8 +21,9 @@ import { executeDesignUnitOp } from './tools/designUnitOp.js';
 import { bridgeHost, executeGetOpenFlowsheet } from './tools/desktopBridge.js';
 import { PROMPTS, renderPrompt } from './prompts.js';
 import { MCP_APP_MIME_TYPE, UNIT_PANEL_META_KEY, UNIT_PANEL_TOOLS, UNIT_PANEL_URI, unitPanelFor, unitPanelHtml, unitPanelToolMeta } from './apps/unitPanel.js';
+import { PLAN_RECEIPT_TOOLS, PLAN_RECEIPT_URI, planReceiptHtml, planReceiptToolMeta } from './apps/planReceipt.js';
 
-export const SERVER_VERSION = '0.24.1';
+export const SERVER_VERSION = '0.25.0';
 
 /**
  * Sent to every client at connect time (the MCP `instructions` field), so a
@@ -35,7 +36,7 @@ Typical workflow:
 2. Find the limit. diagnose_bottlenecks is instant (static capacities); simulate_process_line runs the line over time (throughput, starved/blocked time, OEE, liquid levels, temperatures, heat duty); solve_steady_state gives a liquid, gas or powder line's heat and mass balance and stream table at steady state in milliseconds (recycles converged).
 3. Test changes before making them. compare_scenarios runs the same line with settings changed (e.g. a bigger pump, a second filler nozzle count, a larger reactor jacket) and reports the difference. Nothing on the flowsheet changes. sweep_line runs one setting across a range and tabulates the results you name; solve_line_target finds the value of a setting that brings a result of the line to a target ("what feed rate gives 1,500 kg/h?", "what steam duty gives 50 °Brix?"). Use them rather than estimating or iterating by hand.
 4. Build. Prefer standard equipment: list_standard_unit_ops, then add_standard_unit_op. Next, search_community_unit_ops / add_community_unit_op (community listings are unreviewed; say so). Only for equipment neither has, design one (take every chemical's properties from lookup_component, or psat('ethanol', T), hvap, cp_gas and rho_liquid in the contract, never from memory): design_unit_op gives the brief and the units like it others have published to the ProcessForge library (offer those first), you ask the engineer for the operating conditions it lists (temperatures, pressures, flows; never assume them), you write a UnitOpContract, draw_unit_op draws it (never draw a unit by hand; look at the drawing with preview_unit_drawing and reshape it where the unit differs), validate_unit_op checks it, add_unit_op_to_flowsheet places it. When the engineer wants their own version of equipment that is modelled, or asks you to design rather than reuse, fork_unit_op gives you the modelled unit's contract and drawing to reshape. Connect units with add_stream (by id, name or tag like P-101). Change an existing unit with update_unit; remove_unit and remove_stream delete, so confirm with the engineer first. Once a designed unit is accepted and placed, offer to publish it to the ProcessForge library so the next engineer can start from it: publish_unit_op opens the publish dialog in the app for the engineer to confirm.
-5. For any change of more than one step (a section of line, re-piping, retuning several units), plan it: plan_changes applies the changes to a copy, all or nothing, and shows the diff and a run before and after; show the engineer, and on their yes apply_changes with the same changes and planId applies them in one step (refused if the flowsheet moved on) and reads the result back.
+5. For any change of more than one step (a section of line, re-piping, retuning several units), plan it: plan_changes applies the changes to a copy, all or nothing, and shows the diff and a run before and after; show the engineer, and on their yes apply_changes with the same changes and planId applies them in one step (refused if the flowsheet moved on), reads the result back and returns a receipt (the diff, the run before and after, the read-back). The app keeps the flowsheet as it was before the plan; the engineer can go back to it from History.
 6. Re-simulate after changes and report what moved.
 
 Every run audits itself. simulate_process_line returns "status" (ok, warnings or failed) and "issues", each with a code, from the engine's own checks: contract constraints at the conditions each unit actually saw, the line's mass balance (it must close; if it does not, that is an engine fault to report), each heating, cooling or phase-changing unit's stated duty against the heat its streams carried, and whether the line had settled. Lead with the status. A failed run is a failed run: say what failed and what to change; never present its figures as the answer. Quote percentages and differences as the tools compute them (compare_scenarios gives them) rather than working them out yourself.
@@ -199,12 +200,15 @@ const RESOURCES = [
     description: 'A built-in example line, as a ProcessGraph.'
   })),
   // MCP Apps: the view explore_unit_op and validate_unit_op name in their _meta.
-  { uri: UNIT_PANEL_URI, name: 'unit-panel', title: 'Unit at a glance', mimeType: MCP_APP_MIME_TYPE, description: "A unit's panel drawn in the chat: gauges, figures and notes.", _meta: { ui: { prefersBorder: true } } }
+  { uri: UNIT_PANEL_URI, name: 'unit-panel', title: 'Unit at a glance', mimeType: MCP_APP_MIME_TYPE, description: "A unit's panel drawn in the chat: gauges, figures and notes.", _meta: { ui: { prefersBorder: true } } },
+  // The view plan_changes and apply_changes name: the plan, and the receipt once applied.
+  { uri: PLAN_RECEIPT_URI, name: 'plan-receipt', title: 'Run receipt', mimeType: MCP_APP_MIME_TYPE, description: 'A plan and its run evidence drawn in the chat: the diff, the run before and after, the read-back.', _meta: { ui: { prefersBorder: true } } }
 ];
 
 async function readResource(uri: string): Promise<{ mimeType: string; text: string; _meta?: Json }> {
   const json = (v: unknown) => ({ mimeType: 'application/json', text: JSON.stringify(v, null, 2) });
   if (uri === UNIT_PANEL_URI) return { mimeType: MCP_APP_MIME_TYPE, text: unitPanelHtml(), _meta: { ui: { prefersBorder: true } } };
+  if (uri === PLAN_RECEIPT_URI) return { mimeType: MCP_APP_MIME_TYPE, text: planReceiptHtml(), _meta: { ui: { prefersBorder: true } } };
   if (uri === 'processforge://guide/workflow') return { mimeType: 'text/markdown', text: SERVER_INSTRUCTIONS };
   if (uri === 'processforge://catalog/standard') return json(listStandardUnitOps({}));
   if (uri === 'processforge://guide/unit-op-contract') return json(executeDesignUnitOp({ description: 'Any unit operation' } as never));
@@ -237,6 +241,7 @@ export function toolResult(result: unknown) {
 }
 
 const PANEL_TOOLS: readonly string[] = UNIT_PANEL_TOOLS;
+const RECEIPT_TOOLS: readonly string[] = PLAN_RECEIPT_TOOLS;
 
 export async function callTool(name: string, args: Json = {}) {
   const tool = TOOLS.find((t) => t.name === name);
@@ -270,7 +275,7 @@ export function createProcessForgeMcpServer(): Server {
       description,
       inputSchema,
       annotations: { title, ...annotations },
-      ...(PANEL_TOOLS.includes(name) ? { _meta: unitPanelToolMeta() } : {})
+      ...(PANEL_TOOLS.includes(name) ? { _meta: unitPanelToolMeta() } : RECEIPT_TOOLS.includes(name) ? { _meta: planReceiptToolMeta() } : {})
     }))
   }));
 

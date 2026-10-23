@@ -16,7 +16,8 @@ import {
 } from '@process-forge/protocol';
 import { isTauriEnvironment, invokeTauriCommand } from '../components/UpdateNotificationBanner.js';
 import { contractToProcessNode } from '../unitop/contractToNode.js';
-import { saveUnitOp, CommunityLibraryService, rasterizeSvg } from '@process-forge/canvas-ui';
+import { saveUnitOp, CommunityLibraryService, rasterizeSvg, checkpoint, PLAN_RECEIPT_EVENT } from '@process-forge/canvas-ui';
+import { planReceipt } from '@process-forge/tools';
 
 /**
  * The app's half of the MCP bridge (apps/desktop/src-tauri/src/mcp_bridge.rs).
@@ -179,8 +180,17 @@ export function useMcpBridge(
 
     // Same rules as the what-if tool (protocol/edit.ts); a rejected edit changes nothing.
     const handleEdit = (request: FlowsheetEdit) => {
-      const r = applyFlowsheetEdit(graphRef.current, request);
+      const before = graphRef.current;
+      const r = applyFlowsheetEdit(before, request);
       if (!r.ok) return { changed: false, error: r.error };
+      // Never overwrite: a plan from the client lands only after the flowsheet
+      // as it was is kept as a version, and the studio shows its run evidence.
+      const restorePoint =
+        request.op === 'apply-plan' ? checkpoint('before-plan', `Before your MCP client's plan (${r.steps?.length ?? request.changes.length} steps)`, before) : undefined;
+      if (request.op === 'apply-plan') {
+        const receipt = planReceipt(before, request.changes, restorePoint ? { restorePoint } : {});
+        if (receipt) window.dispatchEvent(new CustomEvent(PLAN_RECEIPT_EVENT, { detail: { receipt, source: 'mcp' } }));
+      }
       replaceRef.current(r.graph);
       graphRef.current = r.graph;
       window.dispatchEvent(
@@ -195,7 +205,8 @@ export function useMcpBridge(
         ...(r.changes ? { changes: r.changes } : {}),
         ...(r.removedStreams ? { removedStreams: r.removedStreams } : {}),
         ...(r.steps ? { steps: r.steps } : {}),
-        ...(r.warnings ? { warnings: r.warnings } : {})
+        ...(r.warnings ? { warnings: r.warnings } : {}),
+        ...(restorePoint ? { restorePoint } : {})
       };
     };
 

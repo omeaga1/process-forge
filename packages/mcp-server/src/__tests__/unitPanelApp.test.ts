@@ -95,7 +95,7 @@ describe('MCP Apps: the unit panel in the chat', () => {
   it('names the view on explore_unit_op and validate_unit_op only', async () => {
     const client = await connected();
     const { tools } = await client.listTools();
-    const withUi = tools.filter((t) => t._meta).map((t) => t.name).sort();
+    const withUi = tools.filter((t) => (t._meta?.ui as { resourceUri?: string } | undefined)?.resourceUri === UNIT_PANEL_URI).map((t) => t.name).sort();
     assert.deepEqual(withUi, ['explore_unit_op', 'validate_unit_op']);
     for (const name of withUi) {
       const meta = tools.find((t) => t.name === name)!._meta!;

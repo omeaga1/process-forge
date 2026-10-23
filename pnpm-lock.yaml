@@ -42,6 +42,9 @@ importers:
       '@process-forge/theme':
         specifier: workspace:*
         version: link:../../packages/theme
+      '@process-forge/tools':
+        specifier: workspace:*
+        version: link:../../packages/tools
       '@xyflow/react':
         specifier: ^12.4.4
         version: 12.11.6(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)

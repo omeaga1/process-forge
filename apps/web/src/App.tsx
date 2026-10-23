@@ -28,7 +28,9 @@ import { GuestAcknowledgementModal } from './components/GuestAcknowledgementModa
 import { StudioEntryGateModal } from './components/StudioEntryGateModal.js';
 import { initialViewMode, homeViewMode, isDesktopRuntime } from './runtime/desktop.js';
 import { contractToProcessNode } from './unitop/contractToNode.js';
-import { DialogShell, saveUnitOp, useUnitOpCloudSync } from '@process-forge/canvas-ui';
+import { DialogShell, saveUnitOp, useUnitOpCloudSync, setCheckpointHandler, RESTORE_VERSION_EVENT, type CheckpointReason } from '@process-forge/canvas-ui';
+import { VersionHistoryDialog } from './components/VersionHistoryDialog.js';
+import { dueForAutoVersion, listVersions, loadVersion, recordVersion } from './storage/versions.js';
 import { SaveProjectModal } from './components/SaveProjectModal.js';
 import { UpdateNotificationBanner } from './components/UpdateNotificationBanner.js';
 import { WhatsNewDialog } from './components/WhatsNewDialog.js';
@@ -99,7 +101,16 @@ const AppInner: React.FC = () => {
   // Persist project changes to local browser cache
   useEffect(() => {
     saveLocalProject(project);
+    // And every ten minutes of editing, a version to go back to.
+    if (dueForAutoVersion(project.id)) recordVersion(project.id, 'auto', 'Autosave', project.graph);
   }, [project]);
+
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  /** Keeps the open project's flowsheet (or the one given) as a version. */
+  const keepVersion = useCallback((reason: CheckpointReason, label: string, graph?: ProcessGraph) => {
+    const current = projectRef.current;
+    return recordVersion(current.id, reason, label, graph ?? current.graph);
+  }, []);
 
   const [isDockCollapsed, setIsDockCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -137,6 +148,11 @@ const AppInner: React.FC = () => {
   }, [isAuthenticated]);
 
   const handleOpenProject = useCallback((loaded: SimulationProject) => {
+    // A file opened over a project this device already has: keep what was here.
+    const existing = loadLocalProject(loaded.id);
+    if (existing && JSON.stringify(existing.graph) !== JSON.stringify(loaded.graph)) {
+      recordVersion(loaded.id, 'before-open', `Before “${loaded.name}” was opened over it`, existing.graph);
+    }
     setProject(loaded);
     saveLocalProject(loaded);
     setIsProjectBrowserOpen(false);
@@ -178,6 +194,7 @@ const AppInner: React.FC = () => {
   }, []);
 
   const handleSaveLocal = useCallback((name: string, description: string) => {
+    keepVersion('save', 'Saved on this device');
     setProject((prev) => {
       const updated: SimulationProject = {
         ...prev,
@@ -203,6 +220,7 @@ const AppInner: React.FC = () => {
   }, [project]);
 
   const handleSaveCloud = useCallback(async (name: string, description: string) => {
+    keepVersion('save', 'Saved to the cloud');
     const updated: SimulationProject = {
       ...project,
       name,
@@ -232,6 +250,7 @@ const AppInner: React.FC = () => {
       return;
     }
     const snapshot: SimulationProject = { ...project, isGuestProject: false, updatedAt: new Date().toISOString() };
+    keepVersion('save', 'Saved to the cloud');
     setCloudSaveState({ saving: true });
     const result = await saveProjectToCloud(snapshot);
     if (result.synced) {
@@ -303,6 +322,35 @@ const AppInner: React.FC = () => {
   // way the project menu and Save do.
   const projectRef = useRef(project);
   projectRef.current = project;
+
+  // Never overwrite: the assistant and the MCP bridge keep the flowsheet as it
+  // was before a plan lands, as a version of the open project.
+  useEffect(() => setCheckpointHandler((reason, label, graph) => keepVersion(reason, label, graph)), [keepVersion]);
+
+  /** Goes back to a version, keeping the flowsheet as it is now first. */
+  const handleRestoreVersion = useCallback(
+    (versionId: string) => {
+      const current = projectRef.current;
+      const version = loadVersion(current.id, versionId);
+      if (!version) {
+        alert('That version is not in this project’s history: it belongs to another project, or it was let go to make room.');
+        return;
+      }
+      const when = new Date(version.at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      recordVersion(current.id, 'before-restore', `Before going back to ${when}`, current.graph);
+      handleGraphChange(structuredClone(version.graph));
+      setIsHistoryOpen(false);
+    },
+    [handleGraphChange]
+  );
+  useEffect(() => {
+    const on = (e: Event) => {
+      const id = (e as CustomEvent<{ versionId?: string }>).detail?.versionId;
+      if (id) handleRestoreVersion(id);
+    };
+    window.addEventListener(RESTORE_VERSION_EVENT, on);
+    return () => window.removeEventListener(RESTORE_VERSION_EVENT, on);
+  }, [handleRestoreVersion]);
   const handleMcpProject = useCallback<ProjectHandler>(
     async (request) => {
       const current = projectRef.current;
@@ -394,6 +442,7 @@ const AppInner: React.FC = () => {
         description: request.description ?? current.description,
         updatedAt: new Date().toISOString()
       };
+      keepVersion('save', 'Saved by your MCP client');
       setProject(updated);
       saveLocalProject(updated);
       const renamed = name !== current.name ? ` (renamed from "${current.name}")` : '';
@@ -557,6 +606,7 @@ const AppInner: React.FC = () => {
             onQuickCloudSave={() => void handleQuickCloudSave()}
             onOpenGuestModal={() => setIsGuestModalOpen(true)}
             onImportFile={handleImportFile}
+            onOpenHistory={() => setIsHistoryOpen(true)}
             onOpenAccountModal={openAccountModal}
             onCheckForUpdates={() => updater.checkForUpdates(true)}
             isCheckingUpdates={updater.isChecking}
@@ -592,6 +642,9 @@ const AppInner: React.FC = () => {
 
       <McpArrivalNotice arrival={mcpBridge.lastArrival} onDismiss={mcpBridge.dismiss} />
 
+      {isHistoryOpen && (
+        <VersionHistoryDialog open onOpenChange={setIsHistoryOpen} projectName={project.name} versions={listVersions(project.id)} onRestore={handleRestoreVersion} />
+      )}
       <WhatsNewDialog open={whatsNew.open} onOpenChange={whatsNew.setOpen} notes={whatsNew.notes} currentVersion={whatsNew.version} claudeTools={whatsNew.claudeTools} />
 
 
