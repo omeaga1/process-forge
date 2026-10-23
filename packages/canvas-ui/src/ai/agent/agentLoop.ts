@@ -1,6 +1,7 @@
 import { OPENROUTER_CHAT_URL, openRouterErrorMessage, openRouterHeaders, type LlmCredentials } from '../llmClient.js';
 import { AGENT_TOOLS, findAgentTool, type AgentHost, type AgentTool } from './agentTools.js';
 import { offlineDecider, type SourcedDecisionProvider } from './jevProvider.js';
+import type { PlanReceipt } from '@process-forge/tools';
 
 /**
  * The in-app assistant's loop: the model answers or calls tools, the tools run
@@ -39,7 +40,7 @@ interface ToolCall {
 }
 
 export type AgentEvent =
-  | { type: 'tool'; id: string; name: string; summary: string; access: AgentTool['access']; status: 'running' | 'done' | 'failed' | 'declined'; detail?: string; decidedBy?: string }
+  | { type: 'tool'; id: string; name: string; summary: string; access: AgentTool['access']; status: 'running' | 'done' | 'failed' | 'declined'; detail?: string; decidedBy?: string; receipt?: PlanReceipt }
   | { type: 'text'; text: string };
 
 export interface ApprovalRequest {
@@ -125,7 +126,8 @@ export async function runAgent(opts: AgentRunOptions): Promise<string> {
             result = await tool.run(args, host, { decider: opts.decider ?? offlineDecider('no decision model') });
             const failed = isFailure(result);
             const decided = decidedByOf(result);
-            onEvent({ type: 'tool', id: call.id, name: tool.name, summary, access: tool.access, status: failed ? 'failed' : 'done', ...(failed ? { detail: failed } : {}), ...(decided ? { decidedBy: decided } : {}) });
+            const receipt = (result as { receipt?: PlanReceipt } | null)?.receipt;
+            onEvent({ type: 'tool', id: call.id, name: tool.name, summary, access: tool.access, status: failed ? 'failed' : 'done', ...(failed ? { detail: failed } : {}), ...(decided ? { decidedBy: decided } : {}), ...(receipt ? { receipt } : {}) });
           } catch (e) {
             result = { error: e instanceof Error ? e.message : String(e) };
             onEvent({ type: 'tool', id: call.id, name: tool.name, summary, access: tool.access, status: 'failed', detail: (result as { error: string }).error });

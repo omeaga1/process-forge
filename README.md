@@ -41,7 +41,12 @@ Licence: [Apache-2.0](LICENSE)
   run by the engine over full simulations.
 - **Plan, then act.** A multi-step change is applied to a copy first and shown
   as a diff with a run before and after; applied for real in one step, only if
-  the flowsheet has not changed since, and read back.
+  the flowsheet has not changed since, and read back. Every applied plan leaves
+  a receipt (in Claude's chat and in the studio) with that evidence.
+- **Never overwritten.** Before a plan lands, before a file is opened over a
+  project, before going back, on every save and every ten minutes of editing,
+  the studio keeps the flowsheet as it was. History lists those versions, and
+  going back keeps the current one too.
 - **Projects.** Save to a local `.pfg.json` file without an account. With
   optional Google sign-in, save projects to the cloud and publish unit ops to
   the ProcessForge Library.

@@ -4,6 +4,9 @@ import { AlertTriangle, XCircle, Copy, Check, ExternalLink, Plus, ChevronRight }
 import { useTheme } from '../../hooks/useTheme.js';
 import { claudeDesktopFlowsheetPrompt } from '../../ai/assistantRoute.js';
 import { tint } from '@process-forge/theme';
+import type { PlanReceipt } from '@process-forge/tools';
+import { PLAN_RECEIPT_EVENT } from '../../history/checkpoints.js';
+import { PlanReceiptCard } from '../../history/PlanReceiptCard.js';
 
 /** Fired by the desktop app's MCP bridge for each unit op an MCP client adds. */
 const MCP_ACTIVITY_EVENT = 'pf-mcp-activity';
@@ -41,6 +44,7 @@ export const McpAssistantPanel: React.FC<McpAssistantPanelProps> = ({ graph, bot
   const { palette, font, radius: r } = useTheme();
   const [bridge, setBridge] = useState<BridgeState>('checking');
   const [activity, setActivity] = useState<Activity[]>([]);
+  const [receipts, setReceipts] = useState<PlanReceipt[]>([]);
   const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,6 +65,16 @@ export const McpAssistantPanel: React.FC<McpAssistantPanelProps> = ({ graph, bot
     };
     window.addEventListener(MCP_ACTIVITY_EVENT, on);
     return () => window.removeEventListener(MCP_ACTIVITY_EVENT, on);
+  }, []);
+
+  // Plans the client applied, with their run evidence.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const r = (e as CustomEvent<{ receipt?: PlanReceipt }>).detail?.receipt;
+      if (r) setReceipts((prev) => [r, ...prev].slice(0, 3));
+    };
+    window.addEventListener(PLAN_RECEIPT_EVENT, on);
+    return () => window.removeEventListener(PLAN_RECEIPT_EVENT, on);
   }, []);
 
   const issues = useMemo(() => {
@@ -239,6 +253,15 @@ export const McpAssistantPanel: React.FC<McpAssistantPanelProps> = ({ graph, bot
               </button>
             );
           })}
+        </div>
+      )}
+
+      {receipts.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ ...heading, margin: 0 }}>Plans your client applied</div>
+          {receipts.map((r) => (
+            <PlanReceiptCard key={`${r.planId}-${r.appliedAt}`} receipt={r} source="MCP" />
+          ))}
         </div>
       )}
 

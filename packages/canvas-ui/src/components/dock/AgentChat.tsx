@@ -5,6 +5,8 @@ import { Button, Tooltip } from '../../ui/index.js';
 import { loadLlmCredentials } from '../../ai/aiModelManager.js';
 import { runAgent, type AgentMessage, type ApprovalRequest } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
+import type { PlanReceipt } from '@process-forge/tools';
+import { PlanReceiptCard } from '../../history/PlanReceiptCard.js';
 import { JevOpenRouterProvider, isJevEnabled, offlineDecider, setJevEnabled, testJev } from '../../ai/agent/jevProvider.js';
 
 /**
@@ -18,7 +20,8 @@ type Line =
   | { kind: 'user'; id: string; text: string }
   | { kind: 'assistant'; id: string; text: string }
   | { kind: 'tool'; id: string; summary: string; access: 'read' | 'write'; status: 'running' | 'done' | 'failed' | 'declined'; detail?: string; decidedBy?: string }
-  | { kind: 'error'; id: string; text: string };
+  | { kind: 'error'; id: string; text: string }
+  | { kind: 'receipt'; id: string; receipt: PlanReceipt };
 
 const EXAMPLES = [
   'Where is the bottleneck, and what would fix it?',
@@ -97,7 +100,11 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
         signal: abort.current.signal,
         onEvent: (e) => {
           if (e.type === 'text') add({ kind: 'assistant', id: `a-${Date.now()}-${Math.random()}`, text: e.text });
-          else upsertTool({ kind: 'tool', id: e.id, summary: e.summary, access: e.access, status: e.status, ...(e.detail ? { detail: e.detail } : {}), ...(e.decidedBy ? { decidedBy: e.decidedBy } : {}) });
+          else {
+            upsertTool({ kind: 'tool', id: e.id, summary: e.summary, access: e.access, status: e.status, ...(e.detail ? { detail: e.detail } : {}), ...(e.decidedBy ? { decidedBy: e.decidedBy } : {}) });
+            // An applied plan's run evidence, under the tool line.
+            if (e.receipt) add({ kind: 'receipt', id: `r-${e.id}`, receipt: e.receipt });
+          }
         },
         approve: (req) => new Promise<boolean>((resolve) => setPending({ ...req, resolve }))
       });
@@ -164,6 +171,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ host, modelLabel }) => {
         {lines.map((l) => {
           if (l.kind === 'user') return <div key={l.id} style={bubble(true)}>{l.text}</div>;
           if (l.kind === 'assistant') return <div key={l.id} style={bubble(false)}>{l.text}</div>;
+          if (l.kind === 'receipt') return <PlanReceiptCard key={l.id} receipt={l.receipt} />;
           if (l.kind === 'error')
             return (
               <div key={l.id} role="alert" style={{ ...bubble(false), borderColor: palette.status.blocked, color: palette.text.primary }}>

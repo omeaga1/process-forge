@@ -36,3 +36,5 @@ export * from './components/dock/SplitFlap.js';
 export * from './components/CommandPalette.js';
 export * from './ui/index.js';
 export * from './components/studio/UnitGlance.js';
+export * from './history/checkpoints.js';
+export * from './history/PlanReceiptCard.js';

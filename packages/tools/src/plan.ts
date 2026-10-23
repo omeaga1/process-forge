@@ -5,6 +5,7 @@ import {
   planIdFor,
   validateProcessGraph,
   type PlanChange,
+  type PlanStep,
   type ProcessGraph,
   type ProcessNode
 } from '@process-forge/protocol';
@@ -123,6 +124,52 @@ function readBack(expected: ProcessGraph, actual: ProcessGraph) {
   return { verified, ...(missing.length ? { missingUnits: missing } : {}), ...(unexpected.length ? { unexpectedUnits: unexpected } : {}), ...(settingsNotApplied.length ? { settingsNotApplied } : {}), streams };
 }
 
+/** Where the flowsheet stood before a plan was applied, kept by the app so the engineer can go back to it. */
+export interface RestorePoint {
+  id: string;
+  label: string;
+}
+
+/**
+ * The run evidence for an applied plan: what changed, what the run said
+ * before and after (same seed), whether the app shows every change, and the
+ * version the app kept of the flowsheet as it was. One record for the model,
+ * the chat view and the studio's card.
+ */
+export interface PlanReceipt {
+  planId: string;
+  appliedAt: string;
+  steps: PlanStep[];
+  diff: ReturnType<typeof diff>;
+  staticCheck: { newErrors: string[]; clearedErrors: string[] };
+  run: { minutes: number; seed?: number; before: RunSummary; after: RunSummary };
+  /** Absent when the app itself built the receipt: it holds the flowsheet, so there is nothing to read back. */
+  readBack?: ReturnType<typeof readBack> | { verified: false; note: string };
+  restorePoint?: RestorePoint;
+}
+
+type RunSummary = ReturnType<typeof runSummary>['summary'];
+
+/**
+ * The receipt for changes applied to `before`, worked out again from the
+ * flowsheet as it was: the app builds it this way for a plan an MCP client
+ * applied.
+ */
+export function planReceipt(before: ProcessGraph, changes: PlanChange[], extras: { restorePoint?: RestorePoint; durationMinutes?: number } = {}): PlanReceipt | undefined {
+  const plan = planChanges(before, { changes, ...(extras.durationMinutes ? { durationMinutes: extras.durationMinutes } : {}) });
+  if (!plan.success) return undefined;
+  const p = plan as Extract<typeof plan, { planId: string }>;
+  return {
+    planId: p.planId,
+    appliedAt: new Date().toISOString(),
+    steps: p.steps,
+    diff: p.diff,
+    staticCheck: p.staticCheck,
+    run: p.run,
+    ...(extras.restorePoint ? { restorePoint: extras.restorePoint } : {})
+  };
+}
+
 export async function applyChanges(args: { changes: PlanChange[]; planId: string }, host: ToolHost) {
   const open = await host.readOpen();
   if ('error' in open) return { success: false, applied: false, error: open.error };
@@ -136,14 +183,24 @@ export async function applyChanges(args: { changes: PlanChange[]; planId: string
     };
   }
   const expected = applyPlan(open.graph, changes);
+  // The evidence is worked out on the flowsheet as it was, before anything changes.
+  const evidence = planReceipt(open.graph, changes);
   const result = await host.edit({ op: 'apply-plan', changes, planId: args.planId });
   if (!result.success) return { ...result, applied: false };
   const after = await host.readOpen();
-  const check = expected.ok && !('error' in after) ? readBack(expected.graph, after.graph) : { verified: false, note: 'Could not read the flowsheet back to confirm.' };
+  const check = expected.ok && !('error' in after) ? readBack(expected.graph, after.graph) : { verified: false as const, note: 'Could not read the flowsheet back to confirm.' };
+  const restorePoint = isRestorePoint(result.restorePoint) ? result.restorePoint : undefined;
+  const receipt: PlanReceipt | undefined = evidence && { ...evidence, readBack: check, ...(restorePoint ? { restorePoint } : {}) };
   return {
     ...result,
     applied: true,
     readBack: check,
-    ...(check.verified ? {} : { warning: 'The flowsheet read back from the app does not show every planned change: check it with get_open_flowsheet before going on, and tell the engineer.' })
+    ...(receipt ? { receipt } : {}),
+    ...(check.verified ? {} : { warning: 'The flowsheet read back from the app does not show every planned change: check it with get_open_flowsheet before going on, and tell the engineer.' }),
+    ...(restorePoint ? { undo: `The app kept the flowsheet as it was before this plan ("${restorePoint.label}"); the engineer can go back to it from History in ProcessForge.` } : {})
   };
+}
+
+function isRestorePoint(v: unknown): v is RestorePoint {
+  return Boolean(v && typeof v === 'object' && typeof (v as RestorePoint).id === 'string' && typeof (v as RestorePoint).label === 'string');
 }

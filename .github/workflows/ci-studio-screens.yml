@@ -1,0 +1,64 @@
+name: Studio Screens
+
+# Drives the built studio through its main screens (the line, the unit panel,
+# History, a plan's receipt, going back) and fails if one breaks. Then
+# captures the base branch the same way and reports which screens look
+# different, with every capture in the run's artifact, so a change to how the
+# studio looks is seen in review rather than after a release.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  screens:
+    name: Studio screens
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile && pnpm exec playwright install --with-deps chromium
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Check and capture this branch
+        run: node apps/web/scripts/studio-screens.mjs --out "$RUNNER_TEMP/screens/after"
+
+      # The base branch, captured by this branch's script: a screen the base
+      # does not have yet is skipped, not failed.
+      - name: Capture the base branch
+        if: success() || failure()
+        run: |
+          cp apps/web/scripts/studio-screens.mjs "$RUNNER_TEMP/studio-screens.mjs"
+          git worktree add "$RUNNER_TEMP/base" "origin/${{ github.base_ref }}"
+          cd "$RUNNER_TEMP/base"
+          pnpm install --frozen-lockfile
+          pnpm run build
+          cp "$RUNNER_TEMP/studio-screens.mjs" apps/web/scripts/studio-screens.mjs
+          node apps/web/scripts/studio-screens.mjs --capture-only --out "$RUNNER_TEMP/screens/before"
+
+      - name: Report what looks different
+        if: success() || failure()
+        run: node apps/web/scripts/studio-screens.mjs --compare "$RUNNER_TEMP/screens/before" "$RUNNER_TEMP/screens/after" --report "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the captures
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-screens
+          path: ${{ runner.temp }}/screens
+          retention-days: 14

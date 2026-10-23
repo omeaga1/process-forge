@@ -3,6 +3,7 @@ import {
   importSimulationProject,
   type SimulationProject
 } from '@process-forge/protocol';
+import { deleteVersions } from './versions.js';
 
 /** The open project, kept whole so the app can reopen it on launch. */
 const STORAGE_KEY_CURRENT = 'pf_current_project';
@@ -105,6 +106,7 @@ export function deleteLocalProject(id: string): void {
   try {
     localStorage.removeItem(PROJECT_KEY_PREFIX + id);
     writeIndex(readIndex().filter((p) => p.id !== id));
+    deleteVersions(id);
     for (const key of legacyKeys()) {
       const records = JSON.parse(localStorage.getItem(key) || '[]') as { id?: string; bundle?: { id?: string } }[];
       const kept = records.filter((r) => r.id !== id && r.bundle?.id !== id);
