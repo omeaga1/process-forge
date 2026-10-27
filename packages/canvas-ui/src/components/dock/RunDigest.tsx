@@ -51,7 +51,8 @@ export const RunDigest: React.FC<{
   ];
   const mass = result.balance?.mass;
   // Where the end of the line's time went: running, and each unit (and phase) it waited on.
-  const losses = React.useMemo(() => lineLosses(graph, result), [graph, result]);
+  // On the flowsheet the run was made on: after an edit the line may have other units at its end.
+  const losses = React.useMemo(() => lineLosses(run.graph, result), [run.graph, result]);
   const isPinned = pinned?.result === result;
   // This run against the pinned one: what moved, beside what was changed in between.
   const vs = React.useMemo(() => (pinned && !isPinned ? compareRuns(pinned, { graph: run.graph, result }) : undefined), [pinned, isPinned, run.graph, result]);

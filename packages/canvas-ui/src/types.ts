@@ -77,6 +77,8 @@ export interface CanvasEdgeData extends Record<string, unknown> {
   steady?: { label: string; temperatureC?: number };
   /** What the pipe carries, for the card on hover: from the run at the playhead, else the steady state. */
   card?: StreamCard;
+  /** A unit is held over this pipe and would go into it if dropped. */
+  spliceTarget?: boolean;
 }
 
 export interface StreamCard {

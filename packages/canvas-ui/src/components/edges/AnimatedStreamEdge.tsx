@@ -126,7 +126,8 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
   const designLabel =
     phase === 'GAS' ? 'gas' : phase === 'SOLID' ? 'solids' : isFluid ? `${stream.designFlowRateGpm} gpm` : stream ? `${stream.targetPiecesPerMinute} cpm` : '';
   const labelText = isBlocked ? 'BLOCKED' : flowing ? (edgeData?.liveText ?? liveLabel(isFluid, rate, temperatureC)) : steadyFigure?.label ?? designLabel;
-  const emphasis = selected || hovered;
+  const spliceTarget = edgeData?.spliceTarget ?? false;
+  const emphasis = selected || hovered || spliceTarget;
   // On the pipe where the tag clears every unit (10 px mono: ~6.1 px a character, plus padding and the swatch).
   const labelAt = useMemo(
     () => (labelText ? labelSpot(shown, labelText.length * 6.1 + 26, 16, obstacles) : rounded.mid),
@@ -144,6 +145,9 @@ export const AnimatedStreamEdge: React.FC<EdgeProps> = ({
           <path d="M 0 1 L 10 5 L 0 9 z" fill={color} />
         </marker>
       </defs>
+
+      {/* A unit held over the pipe goes into it when dropped: say so with a glow. */}
+      {spliceTarget && <path d={path} fill="none" stroke={palette.jade.glow} strokeWidth={14} strokeOpacity={0.35} strokeLinejoin="round" />}
 
       {/* Wide invisible hit area: hover and click the pipe, not a 2px line. */}
       <path
