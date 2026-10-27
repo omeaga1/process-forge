@@ -392,7 +392,7 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
         name === 'interp'
           ? 'interp(x, x1, y1, x2, y2, ...): piecewise-linear table, x ascending, clamped at the ends'
           : PROPERTY_FUNCTIONS[name]
-            ? `${name}(${PROPERTY_FUNCTIONS[name]!.argNames.map((a, i) => (PROPERTY_FUNCTIONS[name]!.args[i] === 'component' ? "'component' in quotes" : `${a} in ${PROPERTY_FUNCTIONS[name]!.args[i]}`)).join(', ')}) -> ${PROPERTY_FUNCTIONS[name]!.returns}: ${PROPERTY_FUNCTIONS[name]!.what}`
+            ? `${name}(${PROPERTY_FUNCTIONS[name]!.argNames.map((a, i) => (PROPERTY_FUNCTIONS[name]!.args[i] === 'component' ? "'component' in quotes" : PROPERTY_FUNCTIONS[name]!.args[i] === 'composition' ? `${a} as a stream's x group (inlet.x)` : `${a} in ${PROPERTY_FUNCTIONS[name]!.args[i]}`)).join(', ')}) -> ${PROPERTY_FUNCTIONS[name]!.returns}: ${PROPERTY_FUNCTIONS[name]!.what}`
             : Array.isArray(def.arity)
             ? `${def.arity[0]}-${def.arity[1]} args`
             : `${def.arity} arg(s)`
@@ -460,7 +460,9 @@ export function executeDesignUnitOp(params: DesignUnitOpParams): DesignUnitOpRes
     "boiling, hvap('ethanol', T) for latent heat, cp_liquid('ethanol'),",
     "cp_gas('nitrogen', T), rho_liquid('toluene', T), molar_mass('co2'). Name the",
     'component in quotes; lookup_component lists the components and their figures,',
-    'and validate_unit_op rejects a name the database does not know. Give a phase',
+    'and validate_unit_op rejects a name the database does not know. For a liquid',
+    "mixture (ethanol and water), bubble_point(inlet.x, P), bubble_vapour('ethanol',",
+    "inlet.x, P) and gamma('ethanol', inlet.x, T) are NRTL, not Raoult. Give a phase",
     "change's latentHeatKjPerKg from hvap() so the engine's energy balance can check",
     "the unit's duty against its streams.",
     '',

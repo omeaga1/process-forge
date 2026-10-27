@@ -1,6 +1,7 @@
 import { COMPONENT_DATA } from './componentData.js';
 import { closestNames, editDistance } from '../nearest.js';
 import { waterCp, waterHvap, waterPsat, waterRho, waterTsat } from './water.js';
+import { nrtlGammas } from './activity.js';
 
 /**
  * Pure-component properties: enough thermodynamics for a contract to boil,
@@ -27,6 +28,8 @@ import { waterCp, waterHvap, waterPsat, waterRho, waterTsat } from './water.js';
  *  - ideal-gas heat capacity: Cp/R = a0 + a1 T + a2 T² + a3 T³ + a4 T⁴ (Poling).
  *  - liquid density: the 20 °C value carried to T by Rackett's ratio
  *    V(T)/V(20 °C) = Z_RA^((1 − Tr)^(2/7) − (1 − Tr20)^(2/7)). Water: Kell.
+ *  - liquid mixtures' bubble point: modified Raoult with NRTL activity
+ *    coefficients (activity.ts, ChemSep parameters), ideal for a pair with none.
  */
 
 export interface ComponentData {
@@ -345,19 +348,53 @@ export function moleFractions(composition: Record<string, number>): { x: Record<
   return { x: total > 0 ? Object.fromEntries(Object.entries(kmol).map(([k, v]) => [k, v / total])) : {}, unknown };
 }
 
-/**
- * Bubble point of a liquid mixture, °C, at P kPa absolute, for an ideal
- * solution (Raoult: Σ xᵢ·Psatᵢ(T) = P), with the vapour's mole fractions
- * there. Non-volatile solutes (sugar, salt) stay in the liquid and only dilute
- * it. Real mixtures of unlike liquids (ethanol and water) deviate: treat this
- * as a first estimate there.
- */
-export function bubblePoint(composition: Record<string, number>, pKpa: number): { temperatureC: number; vapour: Record<string, number> } {
+/** Mole fractions of a liquid from its mass fractions, refusing a name the database does not know. */
+function liquidMoleFractions(composition: Record<string, number>): Record<string, number> {
   const { x, unknown } = moleFractions(composition);
   if (unknown.length) throw new ComponentError(`not in the component database: ${unknown.join(', ')}`);
+  return x;
+}
+
+/**
+ * Activity coefficient of one component in a liquid of these mass fractions
+ * at T °C, by NRTL (thermo/activity.ts). 1 for a pair with no parameters; a
+ * component the liquid lacks gets its value at infinite dilution.
+ */
+export function componentGamma(name: string, composition: Record<string, number>, tC: number): number {
+  const c = requireComponent(name);
+  const x = liquidMoleFractions(composition);
+  return nrtlGammas({ [c.id]: 0, ...x }, tC).gamma[c.id]!;
+}
+
+export interface BubblePoint {
+  temperatureC: number;
+  /** The first vapour's mole fractions. */
+  vapour: Record<string, number>;
+  /** Activity coefficients there (1: ideal). */
+  gamma: Record<string, number>;
+  /** 'NRTL' when some pair had parameters, else 'ideal'. */
+  model: 'NRTL' | 'ideal';
+  /** Pairs with NRTL parameters, and pairs taken as ideal for want of them. */
+  pairs: string[];
+  missing: string[];
+}
+
+/**
+ * Bubble point of a liquid mixture, °C, at P kPa absolute, with the first
+ * vapour's mole fractions: modified Raoult, Σ xᵢ·γᵢ(T, x)·Psatᵢ(T) = P, with
+ * γ from NRTL where a pair has parameters and 1 (an ideal solution) where it
+ * does not. Non-volatile solutes (sugar, salt) stay in the liquid and only
+ * dilute it. The vapour is an ideal gas: right at ordinary pressures.
+ */
+export function bubblePoint(composition: Record<string, number>, pKpa: number): BubblePoint {
+  const x = liquidMoleFractions(composition);
   const volatile = Object.keys(x).filter((c) => !findComponent(c)!.nonVolatile);
   if (!volatile.length) throw new ComponentError('nothing in it evaporates');
-  const p = (t: number) => volatile.reduce((a, c) => a + x[c]! * componentPsat(c, t), 0);
+  const partial = (t: number) => {
+    const { gamma } = nrtlGammas(x, t);
+    return Object.fromEntries(volatile.map((c) => [c, x[c]! * gamma[c]! * componentPsat(c, t)]));
+  };
+  const p = (t: number) => Object.values(partial(t)).reduce((a, b) => a + b, 0);
   // Half a kelvin under the lightest component's critical point (IF97's water stops at 373.946 °C).
   const tcMin = Math.min(...volatile.map((c) => (findComponent(c)!.tcK ?? 1000) - 273.15)) - 0.5;
   let lo = -150;
@@ -377,8 +414,25 @@ export function bubblePoint(composition: Record<string, number>, pKpa: number): 
     else hi = mid;
   }
   const t = (lo + hi) / 2;
-  const total = p(t);
-  return { temperatureC: t, vapour: Object.fromEntries(volatile.map((c) => [c, (x[c]! * componentPsat(c, t)) / total])) };
+  const parts = partial(t);
+  const total = Object.values(parts).reduce((a, b) => a + b, 0);
+  const { gamma, pairs, missing } = nrtlGammas(x, t);
+  return {
+    temperatureC: t,
+    vapour: Object.fromEntries(volatile.map((c) => [c, parts[c]! / total])),
+    gamma,
+    model: pairs.length ? 'NRTL' : 'ideal',
+    pairs,
+    missing
+  };
+}
+
+/** Mass fraction of a component in a liquid's first vapour (at its bubble point at P kPa absolute); 0 for one that is not there or does not evaporate. */
+export function bubbleVapourFraction(name: string, composition: Record<string, number>, pKpa: number): number {
+  const c = requireComponent(name);
+  const { vapour } = bubblePoint(composition, pKpa);
+  const mass = Object.entries(vapour).reduce((a, [k, y]) => a + y * findComponent(k)!.molarMass, 0);
+  return ((vapour[c.id] ?? 0) * c.molarMass) / mass;
 }
 
 /** Everything the database says about one component, for lookup_component. */
