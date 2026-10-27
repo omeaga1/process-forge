@@ -11,6 +11,7 @@ import {
   type ProcessNode
 } from '@process-forge/protocol';
 import { auditHeadline, auditRun, type RunAudit, type RunIssue } from './audit.js';
+import { lineLosses, type LineLosses } from './losses.js';
 import { averageStreamStates, simulateProcess, type HeatReport, type MachineOeeReport, type StreamState, type TerminalReport } from '@process-forge/simulation-core';
 
 /**
@@ -22,7 +23,8 @@ import { averageStreamStates, simulateProcess, type HeatReport, type MachineOeeR
 export function bottleneckAdvice(node: ProcessNode | undefined, unitsPerMin: number, graph?: ProcessGraph, per = 'units/min'): string {
   if (!node) return 'No unit limits the line in the static analysis.';
   const rate = Math.round(unitsPerMin * 10) / 10;
-  const who = `"${node.name}" limits the line at about ${rate} ${per}.`;
+  // A unit that delivered nothing in the run (a first batch still under way) has no rate to quote.
+  const who = rate > 0 ? `"${node.name}" limits the line at about ${rate} ${per}.` : `"${node.name}" limits the line.`;
   if (terminalRole(node)) {
     return `${who} It is a feed: the supply rate set on it is what limits the line. Raise it (or set it to 0 to supply whatever the line takes) if the real supply allows.`;
   }
@@ -69,6 +71,8 @@ export interface SimulationResultPayload {
   identifiedBottleneckMachine: string;
   /** A liquid line no unit was seen holding back: what sets its rate (a feed's supply, a unit at capacity) and every rated unit's headroom. */
   lineLimit?: LineLimit;
+  /** When the end of the line waited a tenth of the run or more: for how long, and which unit (and phase) made it wait. */
+  losses?: LineLosses;
   machineMetrics: Array<{
     nodeId: string;
     machineName: string;
@@ -312,7 +316,8 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
   const items = result.totalUnitsPackaged > 0 || !liquid ? ` ${result.totalUnitsPackaged} units finished, ${result.averageLineThroughputUnitsPerMin}/min on average.` : '';
   const limitText = limit ? limit.summary : bottleneckAdvice(bottleneckNode, bottleneckRate, graph, observedLiquid ? 'gal/min' : 'units/min');
   const audit = auditRun(graph, result);
-  const diagnosis = `${auditHeadline(audit)} Simulated ${duration} minutes:${items}${liquid}${offSpec}${fed}${side}${notes.length ? ` ${notes.join(' ')}` : ''} ${limitText}`;
+  const losses = lineLosses(graph, result);
+  const diagnosis = `${auditHeadline(audit)} Simulated ${duration} minutes:${items}${liquid}${offSpec}${fed}${side}${notes.length ? ` ${notes.join(' ')}` : ''} ${limitText}${losses ? ` ${losses.summary}` : ''}`;
 
   return {
     success: true,
@@ -331,6 +336,7 @@ export function simulateLine(graph: ProcessGraph, durationMinutes?: number, seed
     identifiedBottleneckNodeId: bottleneckId,
     identifiedBottleneckMachine: bottleneckNode ? bottleneckNode.name : bottleneckId,
     ...(limit ? { lineLimit: limit } : {}),
+    ...(losses ? { losses } : {}),
     machineMetrics,
     streams: result.terminals,
     pipes: averageStreamStates(graph, result.telemetryLog),

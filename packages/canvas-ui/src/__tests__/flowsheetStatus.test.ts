@@ -29,10 +29,15 @@ describe('the flowsheet status line', () => {
   });
 
   it('gives the run\'s verdict, and says when the results no longer match the flowsheet', () => {
-    const result = simulateProcess(PAINT_CANNING_LINE, 30);
+    // Long enough for its batch reactor to finish two batches.
+    const result = simulateProcess(PAINT_CANNING_LINE, 480);
     const done = flowsheetStatus({ graph: PAINT_CANNING_LINE, result });
-    assert.equal(done.tone, 'ok');
+    assert.equal(done.tone, 'ok', JSON.stringify(done.problems));
     assert.match(done.headline, /^Run done: [\d.]+\/min, mass balances/);
+    // 30 minutes is the reactor's first fill: the bar says so, on the reactor.
+    const short = flowsheetStatus({ graph: PAINT_CANNING_LINE, result: simulateProcess(PAINT_CANNING_LINE, 30) });
+    assert.equal(short.tone, 'warnings');
+    assert.ok(short.problems.some((p) => p.nodeId === 'reactor-101' && /mostly start-up/.test(p.message)), JSON.stringify(short.problems));
     const stale = flowsheetStatus({ graph: PAINT_CANNING_LINE, result, stale: true });
     assert.equal(stale.tone, 'stale');
     assert.match(stale.headline, /before your last edit/);

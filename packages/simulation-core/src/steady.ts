@@ -272,7 +272,9 @@ export function solveSteadyState(graph: ProcessGraph, options: SteadyOptions = {
     }
     prev = now;
     errs.push(worst);
-    if (k <= 60 || k % 10 === 0) {
+    // A line with nothing left to move repeats "0" until the minimum steps are done: keep the first and the last of those.
+    const stillZero = worst === 0 && history[history.length - 1]?.maxRelativeChange === 0;
+    if ((k <= 60 || k % 10 === 0) && !stillZero) {
       const [unitId, port] = (worstKey ?? '').split(':');
       const name = unitId ? units.get(unitId)?.node.name : undefined;
       history.push({ iteration: k, maxRelativeChange: Number(worst.toPrecision(3)), ...(name ? { stream: `${name}${port ? ` (${port})` : ''}` } : {}) });
@@ -284,6 +286,7 @@ export function solveSteadyState(graph: ProcessGraph, options: SteadyOptions = {
     }
   }
   const iterations = Math.min(k, maxIter);
+  if (history.length && history[history.length - 1]!.iteration !== iterations && errs[iterations - 1] === 0) history.push({ iteration: iterations, maxRelativeChange: 0 });
 
   // At the converged step: every rate, from what moved in one last step (tallies before and after it).
   const before = new Map([...units.values()].map((u) => [u.id, { received: u.received.kg, outflow: u.outflow.kg, leftLine: u.leftLine.kg, lost: u.lost.kg, hold: u.hold.kg + Object.values(u.channelHold).reduce((a, p) => a + p.kg, 0), recvH: heat(u.received), outH: heat(u.outflow), latent: u.latentKj, duty: u.heat.energyKwh, broken: Object.fromEntries(Object.entries(u.run?.broken ?? {}).map(([id, b]) => [id, b.seconds])) }]));

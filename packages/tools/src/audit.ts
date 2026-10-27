@@ -15,6 +15,7 @@ import type { LineBalance, SimulationResult } from '@process-forge/simulation-co
  *             evaluate, or mass did not balance (an engine fault);
  *   warnings  the numbers stand, with caveats to say: a duty its streams do
  *             not bear out, a line still changing at the end of the run, a
+ *             run too short for its batch units to cycle, a
  *             reaction that ran short;
  *   ok        every check held.
  */
@@ -28,6 +29,7 @@ export type IssueCode =
   | 'BATCH_HEAT_MISMATCH'
   | 'REACTION_SHORT'
   | 'NOT_STEADY'
+  | 'RUN_TOO_SHORT'
   | 'CONTRACT_WARNING';
 
 export interface RunIssue {
@@ -98,6 +100,57 @@ export function steadiness(graph: ProcessGraph, result: SimulationResult): RunAu
   };
 }
 
+/** The run lengths the app offers, in minutes; a recommendation picks one of them. */
+const RUN_LENGTHS = [30, 120, 480, 1440];
+const runLength = (minutes: number) => (minutes >= 60 ? `${minutes / 60} h` : `${minutes} min`);
+
+/**
+ * Batch units that finished fewer than two batches. The line's average rate
+ * over such a run is mostly the first fill and hold, not the line: a 60 min
+ * run of a line whose first batch takes 45 min reads a third of its real rate.
+ * The run length to use instead is three of its cycles (the first batch's,
+ * read off the phases it went through), or four times this run when not one
+ * batch finished; whichever run length the app offers covers it.
+ */
+export function shortRunIssues(graph: ProcessGraph, result: SimulationResult): RunIssue[] {
+  const total = result.simulatedTimeSeconds;
+  if (total <= 0) return [];
+  return graph.nodes.flatMap((node): RunIssue[] => {
+    if (node.kind === 'TERMINAL' || effectiveContract(node, graph.edges)?.behavior.mode !== 'BATCH') return [];
+    const rep = result.nodeReports[node.id];
+    const batches = rep?.fluid?.batches ?? 0;
+    if (batches >= 2) return [];
+    // Starved for its feed: the run's length is not what held it back.
+    if ((rep?.starvedTimeSeconds ?? 0) / total > 0.5) return [];
+    let first: string | undefined;
+    let left = false;
+    let cycleSeconds: number | undefined;
+    for (const s of result.telemetryLog) {
+      if (s.nodeId !== node.id || !s.phaseName) continue;
+      if (first === undefined) first = s.phaseName;
+      else if (s.phaseName !== first) left = true;
+      else if (left) {
+        cycleSeconds = s.timeSeconds;
+        break;
+      }
+    }
+    const minutes = total / 60;
+    const need = batches >= 1 && cycleSeconds ? (3 * cycleSeconds) / 60 : 4 * minutes;
+    const pick = RUN_LENGTHS.find((m) => m >= need);
+    const advice = pick ? `Run ${runLength(pick)} or more` : 'Run a day or more';
+    const done = batches === 0 ? 'Not one batch finished' : 'Only 1 batch finished';
+    return [
+      {
+        code: 'RUN_TOO_SHORT',
+        severity: 'warning',
+        unitId: node.id,
+        unit: node.name,
+        message: `${done} in ${runLength(Math.round(minutes))}, so this run is mostly start-up and its rate is not the line's. ${advice} before quoting it.`
+      }
+    ];
+  });
+}
+
 export function auditRun(graph: ProcessGraph, result: SimulationResult): RunAudit {
   const total = result.simulatedTimeSeconds || 1;
   const issues: RunIssue[] = [];
@@ -151,6 +204,7 @@ export function auditRun(graph: ProcessGraph, result: SimulationResult): RunAudi
       message: `The line was still changing at the end of the run: product ${steady.lastWindowKgPerHour} kg/h over the last fifth against ${steady.previousWindowKgPerHour} kg/h over the fifth before (${steady.changePercent > 0 ? '+' : ''}${steady.changePercent}%). Run it longer before quoting its rate.`
     });
   }
+  issues.push(...shortRunIssues(graph, result));
 
   const order = { error: 0, warning: 1, info: 2 } as const;
   issues.sort((a, b) => order[a.severity] - order[b.severity]);

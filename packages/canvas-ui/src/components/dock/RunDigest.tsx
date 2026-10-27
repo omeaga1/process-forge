@@ -2,6 +2,7 @@ import React from 'react';
 import { terminalRole, type ProcessGraph } from '@process-forge/protocol';
 import type { NodeTelemetrySnapshot, SimulationResult } from '@process-forge/simulation-core';
 import { tint } from '@process-forge/theme';
+import { lineLosses } from '@process-forge/tools';
 import { useTheme } from '../../hooks/useTheme.js';
 import { unitTag } from '../../model/unitTag.js';
 
@@ -35,6 +36,8 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: bo
     ...(result.balance?.energy ?? []).filter((e) => e.verdict === 'mismatch').map((e) => ({ unit: unitTag(e.name) ?? e.name, message: e.note, severity: 'WARNING' as const }))
   ];
   const mass = result.balance?.mass;
+  // Where the end of the line's time went: running, and each unit (and phase) it waited on.
+  const losses = React.useMemo(() => lineLosses(graph, result), [graph, result]);
 
   const label: React.CSSProperties = {
     fontSize: 10,
@@ -137,6 +140,36 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: bo
               </div>
             );
           })}
+        </div>
+      )}
+
+      {losses && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={label}>Where the time went</span>
+            <span style={{ fontSize: 11, color: palette.text.muted }} title={losses.summary}>
+              {unitTag(losses.unit) ?? losses.unit} waited {losses.starvedPercent + losses.blockedPercent}%
+            </span>
+          </div>
+          {/* The end of the line's run, as one bar: running, then each wait by its cause. */}
+          <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: palette.border.default }}>
+            <div title={`Running ${losses.runningPercent}%`} style={{ width: `${losses.runningPercent}%`, backgroundColor: palette.status.busy }} />
+            {losses.causes.slice(0, 3).map((c, i) => (
+              <div
+                key={i}
+                title={`${c.unit}: ${c.doing} ${c.percentOfRun}%`}
+                style={{ width: `${c.percentOfRun}%`, backgroundColor: c.wait === 'starved' ? palette.status.starved : palette.status.blocked, opacity: 1 - i * 0.25 }}
+              />
+            ))}
+          </div>
+          {losses.causes.slice(0, 3).map((c, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, fontSize: 12, color: palette.text.secondary }} title={c.unit}>
+              <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ fontFamily: font.mono, color: palette.text.primary }}>{unitTag(c.unit) ?? c.unit}</span> {c.doing.toLowerCase()}
+              </span>
+              <span style={{ fontFamily: font.mono, fontVariantNumeric: 'tabular-nums' }}>{c.percentOfRun}%</span>
+            </div>
+          ))}
         </div>
       )}
 
