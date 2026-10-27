@@ -3186,7 +3186,7 @@ dependencies = [
 
 [[package]]
 name = "process-forge-desktop"
-version = "0.1.114"
+version = "0.1.115"
 dependencies = [
  "getrandom 0.2.17",
  "keyring",
