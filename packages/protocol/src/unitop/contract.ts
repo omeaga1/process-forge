@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { UnitOpDrawingSchema } from './drawing.js';
 import { MaterialPhaseSchema, PHASE_ARCHETYPES, UnitOpPhaseChangeSchema } from './phases.js';
 import { phaseIssues } from './phaseBalance.js';
-import { parseExpression, referencedNames, ExpressionError, type Ast } from './expression.js';
+import { COMPOSITION_GROUP, parseExpression, referencedNames, ExpressionError, type Ast } from './expression.js';
 import { PROPERTY_FUNCTIONS } from './properties.js';
 import { findComponent, nearComponents } from '../thermo/components.js';
 import { convertUnit } from './unitConversion.js';
@@ -578,6 +578,12 @@ export function portScopeNames(contract: Pick<UnitOpContract, 'ports' | 'compone
   return out;
 }
 
+/** The x groups a mixture function can read whole: inlet.x, batch.x in a BATCH unit, port.<id>.x per inlet port. */
+export function compositionGroups(contract: Pick<UnitOpContract, 'ports' | 'components' | 'behavior'>): string[] {
+  const ports = [...new Set(portScopeNames(contract).map((n) => /^port\.([^.]+)\./.exec(n)?.[1]).filter((id): id is string => !!id))];
+  return ['inlet.x', ...(contract.behavior.mode === 'BATCH' ? ['batch.x'] : []), ...ports.map((id) => `port.${id}.x`)];
+}
+
 export const BATCH_SCOPE_NAMES = ['batch.gallons', 'batch.temperatureC', 'batch.massKg', 'batch.number', 'batch.cpKjPerKgK', 'batch.densityGPerCm3'] as const;
 
 /**
@@ -603,6 +609,8 @@ export function validateUnitOpContract(contract: UnitOpContract): ContractValida
     if (contract.behavior.mode === 'BATCH') known.add(`batch.x.${c}`);
   }
   for (const name of portScopeNames(contract)) known.add(name);
+  // A stream's mass fractions whole, for a mixture function: gamma('ethanol', inlet.x, T).
+  for (const name of compositionGroups(contract)) known.add(name);
   for (const id of Object.keys(contract.designPorts ?? {})) {
     if (!contract.ports.some((p) => p.id === id && p.direction === 'INLET' && p.flowDimension === 'CONTINUOUS_FLUID')) {
       issues.push({ path: `designPorts.${id}`, message: `names "${id}", which is not a continuous INLET port. Inlets: ${contract.ports.filter((p) => p.direction === 'INLET').map((p) => p.id).join(', ') || 'none'}` });
@@ -961,7 +969,7 @@ function propertyUnitIssues(contract: UnitOpContract): ContractValidationIssue[]
             if (a.k !== 'ref') return;
             const unit = unitOf(a.name);
             const want = prop.args[i];
-            if (!unit || !want) return;
+            if (!unit || !want || want === 'component' || want === 'composition') return;
             // Same size and the same zero: °C into °C, kPa into kPa.
             if (want === 'kPa' && ['psig', 'barg', 'kPag'].includes(unit.trim())) {
               issues.push({ path, unit: true, message: `${n.name}() takes ${prop.argNames[i]} in kPa absolute, but "${a.name}" is a gauge pressure (${unit}): add the atmosphere and convert (e.g. (${a.name} + 14.696) * 6.894757 for psig).` });
@@ -1005,17 +1013,35 @@ function componentNameIssues(contract: UnitOpContract): ContractValidationIssue[
     } catch {
       continue;
     }
-    const walk = (n: Ast, componentArg: boolean): void => {
-      if (n.k === 'str') {
+    const walk = (n: Ast, componentArg: boolean, compositionArg = false): void => {
+      if (n.k === 'ref' && COMPOSITION_GROUP.test(n.name) !== compositionArg) {
+        issues.push({
+          path,
+          message: compositionArg
+            ? `a mixture function takes a stream's mass fractions whole, as inlet.x (or batch.x, port.<id>.x), not "${n.name}"`
+            : `"${n.name}" is a stream's whole composition: read one component as ${n.name}.<name>, or pass it to gamma(), bubble_point() or bubble_vapour()`
+        });
+      } else if (compositionArg && n.k !== 'ref') {
+        issues.push({ path, message: "a mixture function takes a stream's mass fractions whole, as inlet.x (or batch.x, port.<id>.x)" });
+      } else if (n.k === 'str') {
         if (!componentArg) issues.push({ path, message: `a quoted name ("${n.v}") can only name a component, as the first argument of a property function such as psat('ethanol', T)` });
         else if (!findComponent(n.v)) {
           const near = nearComponents(n.v);
           issues.push({ path, message: `"${n.v}" is not in the component database${near.length ? `; did you mean ${near.join(', ')}?` : ''} (lookup_component lists what is, with their properties)` });
         }
       } else if (n.k === 'call') {
-        const takesComponent = PROPERTY_FUNCTIONS[n.name]?.args[0] === 'component';
+        const prop = PROPERTY_FUNCTIONS[n.name];
+        const takesComponent = prop?.args[0] === 'component';
         if (takesComponent && n.args[0]?.k !== 'str') issues.push({ path, message: `${n.name}() takes a component name first, in quotes: ${n.name}('ethanol', ...)` });
-        n.args.forEach((a, i) => walk(a, takesComponent && i === 0));
+        n.args.forEach((a, i) => walk(a, takesComponent && i === 0, prop?.args[i] === 'composition'));
+        // A mixture function works out every component of the liquid, so each must be in the database.
+        if (prop?.args.includes('composition')) {
+          const named = [...(contract.components ?? []), ...Object.keys(contract.designInlet?.composition ?? {})];
+          for (const c of [...new Set(named)].filter((c) => !findComponent(c))) {
+            const near = nearComponents(c);
+            issues.push({ path, message: `${n.name}() needs every component of the liquid in the database, and "${c}" is not${near.length ? ` (did you mean ${near.join(', ')}?)` : ''}` });
+          }
+        }
       } else if (n.k === 'bin') {
         walk(n.a, false);
         walk(n.b, false);

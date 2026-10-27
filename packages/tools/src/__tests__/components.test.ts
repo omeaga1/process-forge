@@ -36,6 +36,13 @@ describe('lookup_component', () => {
     assert.ok(r.bubblePointC > 90 && r.bubblePointC < 94);
     assert.ok(r.firstVapourMoleFractions.benzene > 0.6, 'the vapour is richer in the lighter one');
     assert.match(r.model, /Raoult/);
+    // Ethanol and water are far from ideal: NRTL puts 40 % ethanol at about 83 °C (Raoult said 93.6).
+    const spirit = lookupComponent({ composition: { water: 0.6, ethanol: 0.4 } }) as Record<string, any>;
+    assert.ok(Math.abs(spirit.bubblePointC - 83) < 1, String(spirit.bubblePointC));
+    assert.ok(spirit.firstVapourMoleFractions.ethanol > 0.5);
+    assert.match(spirit.model, /NRTL \(ChemSep\) for water–ethanol\./);
+    const syrup = lookupComponent({ composition: { water: 0.6, sugar: 0.4 } }) as Record<string, any>;
+    assert.match(syrup.model, /ideal solution \(Raoult\)\. No NRTL data, taken as ideal: water–sucrose\./);
     const bad = lookupComponent({ composition: { water: 0.5, resin: 0.5 } }) as Record<string, any>;
     assert.equal(bad.success, false);
     assert.match(bad.error, /resin/);

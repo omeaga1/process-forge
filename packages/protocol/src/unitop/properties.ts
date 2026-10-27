@@ -16,9 +16,11 @@
  *  - water_hvap: 2500.9 kJ/kg falling linearly to 2256.4 at 100 °C (within
  *    0.2 %), then the Watson form (exponent 0.33, within 0.5 % to 200 °C).
  *  - gas_rho / air_rho: ideal gas, rho = P M / (R T).
+ *  - gamma / bubble_point / bubble_vapour: NRTL activity coefficients from
+ *    ChemSep's binary parameters (thermo/activity.ts), modified Raoult.
  */
 
-import { componentCpGas, componentCpLiquid, componentHvap, componentMolarMass, componentPsat, componentRhoLiquid, componentTsat } from '../thermo/components.js';
+import { bubblePoint, bubbleVapourFraction, componentCpGas, componentCpLiquid, componentGamma, componentHvap, componentMolarMass, componentPsat, componentRhoLiquid, componentTsat } from '../thermo/components.js';
 
 import { SOLUBILITY_SOLUTES, crystalYieldFraction, solubilityKgPerKgWater } from '../thermo/solubility.js';
 
@@ -38,6 +40,10 @@ export const PROPERTY_FUNCTIONS: Record<string, { args: string[]; argNames: stri
   cp_liquid: { args: ['component'], argNames: ['component'], returns: 'kJ/kg-K', fn: (c: string) => componentCpLiquid(c), what: 'liquid specific heat of a component at 25 °C (a dissolved sugar or salt: what it adds to a solution)' },
   cp_gas: { args: ['component', '°C'], argNames: ['component', 'T'], returns: 'kJ/kg-K', fn: (c: string, t: number) => componentCpGas(c, t), what: 'ideal-gas specific heat of a component' },
   rho_liquid: { args: ['component', '°C'], argNames: ['component', 'T'], returns: 'kg/m3', fn: (c: string, t: number) => componentRhoLiquid(c, t), what: 'liquid density of a component (Rackett from its 20 °C value; water: Kell)' },
+  // A liquid's mass fractions, passed whole as a stream's x group: gamma('ethanol', inlet.x, T).
+  gamma: { args: ['component', 'composition', '°C'], argNames: ['component', 'liquid mass fractions', 'T'], returns: '-', fn: (c: string, x: Record<string, number>, t: number) => componentGamma(c, x, t), what: 'liquid activity coefficient of a component in that liquid (NRTL, ChemSep parameters; 1 for a pair with none)' },
+  bubble_point: { args: ['composition', 'kPa'], argNames: ['liquid mass fractions', 'P absolute'], returns: '°C', fn: (x: Record<string, number>, p: number) => bubblePoint(x, p).temperatureC, what: 'bubble point of that liquid (modified Raoult with NRTL; ideal for a pair with no parameters)' },
+  bubble_vapour: { args: ['component', 'composition', 'kPa'], argNames: ['component', 'liquid mass fractions', 'P absolute'], returns: '-', fn: (c: string, x: Record<string, number>, p: number) => bubbleVapourFraction(c, x, p), what: "mass fraction of a component in that liquid's first vapour, at its bubble point" },
   molar_mass: { args: ['component'], argNames: ['component'], returns: 'kg/kmol', fn: (c: string) => componentMolarMass(c), what: 'molar mass of a component' },
   solubility: { args: ['component', '°C'], argNames: ['solute', 'T'], returns: '-', fn: (c: string, t: number) => solubilityKgPerKgWater(c, t), what: `saturated strength of a solute in water, kg solute per kg water (CRC tables; ${SOLUBILITY_SOLUTES.join(', ')})` },
   crystal_yield: { args: ['component', '-', '°C'], argNames: ['solute', 'solute mass fraction of the solution', 'T'], returns: '-', fn: (c: string, w: number, t: number) => crystalYieldFraction(c, w, t), what: 'fraction of the dissolved solute that crystallises when that solution is cooled to T and reaches equilibrium (hydrate water leaves with the crystals); use as a reaction conversion' },
