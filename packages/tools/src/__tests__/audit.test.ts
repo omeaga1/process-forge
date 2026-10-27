@@ -49,7 +49,9 @@ const feed = (config: Record<string, unknown>): ProcessNode => {
 describe('a run that audits itself', () => {
   it('reports ok on the example lines, with the balance behind it', () => {
     for (const [name, g] of Object.entries(EXAMPLE_LINES)) {
-      const r = simulateLine(g, 90);
+      // 90 minutes, or long enough for every batch unit to finish two batches.
+      const first = simulateLine(g, 90);
+      const r = first.issues.some((i) => i.code === 'RUN_TOO_SHORT') ? simulateLine(g, 480) : first;
       assert.equal(r.status, 'ok', `${name}: ${JSON.stringify(r.issues)}`);
       assert.ok(r.balance.mass.closes, name);
       assert.match(r.engineeringDiagnosis, /^Status: ok \(mass balances/, name);
@@ -91,5 +93,46 @@ describe('a run that audits itself', () => {
     assert.ok(issue, JSON.stringify(r.issues));
     assert.equal(r.status, 'warnings');
     assert.match(r.engineeringDiagnosis, /Heater H-2: Its stated duty added up to/);
+  });
+
+  it('says a run too short for its batch units is mostly start-up, and how long to run', () => {
+    const bottling = EXAMPLE_LINES['beverage-bottling-line']!;
+    const short = simulateLine(bottling, 60, 1);
+    const issue = short.issues.find((i) => i.code === 'RUN_TOO_SHORT');
+    assert.ok(issue, JSON.stringify(short.issues));
+    assert.equal(issue.unitId, 'carbonator-100');
+    assert.equal(short.status, 'warnings');
+    assert.match(issue.message, /^Not one batch finished in 1 h.*Run 8 h or more/);
+    // Two batches and it stands.
+    const long = simulateLine(bottling, 480, 1);
+    assert.ok(!long.issues.some((i) => i.code === 'RUN_TOO_SHORT'), JSON.stringify(long.issues));
+  });
+
+  it('never quotes a rate of 0 for a unit that has not delivered yet', () => {
+    const r = simulateLine(EXAMPLE_LINES['paint-canning-line']!, 20, 1);
+    assert.ok(r.issues.some((i) => i.code === 'RUN_TOO_SHORT'));
+    assert.doesNotMatch(r.engineeringDiagnosis, /at about 0 /);
+  });
+});
+
+describe("where the line's time went", () => {
+  it("traces the end of the line's waits to the batch phase that caused them", () => {
+    const r = simulateLine(EXAMPLE_LINES['beverage-bottling-line']!, 480, 1);
+    assert.ok(r.losses, 'a line that waits most of the run says so');
+    assert.equal(r.losses.unitId, 'labeler-400');
+    const top = r.losses.causes[0]!;
+    assert.equal(top.unitId, 'carbonator-100');
+    assert.equal(top.doing, 'Reacting');
+    assert.equal(top.wait, 'starved');
+    // The shares are of the run, and add up to no more than the time it waited.
+    const sum = r.losses.causes.reduce((a, c) => a + c.seconds, 0);
+    assert.ok(sum <= ((r.losses.starvedPercent + 1) / 100) * 480 * 60, `${sum}`);
+    assert.match(r.engineeringDiagnosis, /waited \d+% of the run: \d+% on "Carbo-Cooler Blending Matrix" \(\d+% reacting, \d+% filling\)/);
+  });
+
+  it('says nothing when the end of the line hardly waited', () => {
+    const tank = place('surge-tank', 'tank', { parameters: { capacityGallons: 1000, initialLevelGallons: 0, maxDischargeRateGpm: 30 } });
+    const r = simulateLine(line([feed({ supplyRate: 10 }), tank, place('product', 'out')]), 60);
+    assert.equal(r.losses, undefined);
   });
 });

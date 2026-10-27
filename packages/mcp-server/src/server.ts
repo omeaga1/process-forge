@@ -23,7 +23,7 @@ import { PROMPTS, renderPrompt } from './prompts.js';
 import { MCP_APP_MIME_TYPE, UNIT_PANEL_META_KEY, UNIT_PANEL_TOOLS, UNIT_PANEL_URI, unitPanelFor, unitPanelHtml, unitPanelToolMeta } from './apps/unitPanel.js';
 import { PLAN_RECEIPT_TOOLS, PLAN_RECEIPT_URI, planReceiptHtml, planReceiptToolMeta } from './apps/planReceipt.js';
 
-export const SERVER_VERSION = '0.25.0';
+export const SERVER_VERSION = '0.26.0';
 
 /**
  * Sent to every client at connect time (the MCP `instructions` field), so a

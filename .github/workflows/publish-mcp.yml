@@ -1,0 +1,63 @@
+name: Publish MCP Server to npm
+
+# The MCP server on npm (what `npx @process-forge/mcp-server` runs for Codex,
+# VS Code, Antigravity and others) follows every release, without anyone's
+# npm login: npm Trusted Publishing gives this workflow a short-lived OIDC
+# token, so there is no token to store or expire.
+#
+# One-time setup on npmjs.com (package settings, "Trusted Publisher"):
+#   GitHub Actions · omeaga1/process-forge · workflow publish-mcp.yml
+# Until that is set, the publish step fails with a 404/401 and nothing else
+# breaks. A version already on npm is skipped, so re-runs are harmless.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish @process-forge/mcp-server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      # Trusted Publishing needs npm 11.5.1 or later, which Node 24 ships.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Skip a version npm already has
+        id: check
+        working-directory: packages/mcp-server
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view "@process-forge/mcp-server@$version" version >/dev/null 2>&1; then
+            echo "$version is already on npm."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Publishing $version."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Dependencies
+        if: steps.check.outputs.publish == 'true'
+        run: pnpm install --frozen-lockfile
+
+      # prepublishOnly builds the workspace packages it bundles, bundles, and smoke-tests the bundle.
+      - name: Publish with provenance
+        if: steps.check.outputs.publish == 'true'
+        working-directory: packages/mcp-server
+        run: npm publish --provenance --access public

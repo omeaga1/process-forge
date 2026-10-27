@@ -43,8 +43,11 @@ const FUNCTIONS =
   "In a contract: psat('name', T °C) -> kPa, tsat('name', P kPa) -> °C, hvap('name', T) -> kJ/kg, cp_liquid('name') -> kJ/kg-K, cp_gas('name', T) -> kJ/kg-K, rho_liquid('name', T) -> kg/m3, molar_mass('name') -> kg/kmol; for a liquid stream, gamma('name', inlet.x, T), bubble_point(inlet.x, P kPa) -> °C, bubble_vapour('name', inlet.x, P) -> mass fraction.";
 
 /** One or two short lines: which model gave the bubble point, and which pairs it had to take as ideal. */
-function mixtureModel(bubble: BubblePoint | undefined): string {
-  const density = 'Density and cp: ideal mixing (alcohol–water density up to 4 % low).';
+function mixtureModel(bubble: BubblePoint | undefined, names: string[]): string {
+  // Alcohols shrink when mixed with water; sugars and salts hardly do.
+  const ids = names.map((n) => (findComponent(n)?.name ?? n).toLowerCase());
+  const shrinks = ids.includes('water') && ids.some((n) => /ol\b/.test(n));
+  const density = shrinks ? 'Density and cp: ideal mixing (alcohol–water density up to 4 % low).' : 'Density and cp: ideal mixing.';
   if (!bubble) return density;
   const ideal = bubble.missing.length ? ` No NRTL data, taken as ideal: ${bubble.missing.join(', ')}.` : '';
   return bubble.model === 'NRTL'
@@ -86,7 +89,7 @@ export function lookupComponent(params: LookupComponentParams): Record<string, u
             ...(bubble.model === 'NRTL' ? { activityCoefficients: Object.fromEntries(Object.entries(bubble.gamma).map(([k, v]) => [k, sig(v)])) } : {})
           }
         : { bubblePointNote: bubbleNote }),
-      model: mixtureModel(bubble)
+      model: mixtureModel(bubble, Object.keys(params.composition))
     };
   }
 

@@ -331,7 +331,20 @@ the engine does not model. A phase change with no latent heat stated is
 reported as not checked. The tools turn these into the run's `status` and
 `issues` (`packages/tools/src/audit.ts`), with the line's steadiness: a liquid
 line whose product rate over the last fifth of the run differs by more than
-2 % from the fifth before had not settled (`NOT_STEADY`).
+2 % from the fifth before had not settled (`NOT_STEADY`). A line with a batch
+unit runs in cycles, so it is judged by batches instead: a batch unit that
+finished fewer than two in the run makes the run mostly start-up
+(`RUN_TOO_SHORT`), and the issue names a run length, from the ones the app
+offers, that covers three of its cycles.
+
+Where the line's time went (`packages/tools/src/losses.ts`): the last unit on
+the line, and for each minute it was starved, the telemetry is followed
+upstream through the units that were starved too, to the first one that was
+not. That unit and what it was doing (its batch phase, broken down, running)
+is the cause; a blocked minute is followed downstream the same way. The
+snapshot shares are scaled to the exact starved and blocked seconds, so a
+batch line reads "waited 66 % of the run: 63 % on the carbonator (42 %
+reacting, 21 % filling)", which says which phase to shorten.
 
 ## Components
 
