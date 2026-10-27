@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import type { ProcessGraph } from '@process-forge/protocol';
-import { averageStreamStates, streamStates, type NodeTelemetrySnapshot } from '@process-forge/simulation-core';
+import { averageStreamStates, streamStates, type NodeTelemetrySnapshot, type SteadyResult } from '@process-forge/simulation-core';
 import { Check, Copy, Rows3 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme.js';
 import { Button, Modal } from '../ui/index.js';
 import { formatQuantity } from '../model/parameterUi.js';
 import { unitTag } from '../model/unitTag.js';
+import { specifiedFigures, type StreamFigure } from '../model/streamSpecs.js';
 
 interface StreamRow {
   id: string;
@@ -20,6 +21,8 @@ interface StreamRow {
   /** What it carries, largest first: "water 88%, sugar 12%". */
   mix?: string;
   blocked: boolean;
+  /** Figures the engineer set (a feed's supply, temperature, mix); the rest are calculated. */
+  specified: Set<StreamFigure>;
 }
 
 /**
@@ -40,32 +43,52 @@ export const StreamTable: React.FC<{
   log?: readonly NodeTelemetrySnapshot[];
   /** Shows a stream on the flowsheet: selects its pipe and brings its two units into view. */
   onShow?: (edgeId: string) => void;
-}> = ({ open, onOpenChange, graph, snapshots, simulatedSeconds, log, onShow }) => {
+  /** The line solved at steady state: what the table shows before a run. */
+  steady?: SteadyResult | null;
+}> = ({ open, onOpenChange, graph, snapshots, simulatedSeconds, log, onShow, steady }) => {
   const { palette, font } = useTheme();
   const [copied, setCopied] = useState(false);
   const hasRun = snapshots.size > 0;
   // At the playhead, or averaged over the run so far: a line between batches can read zero at a moment.
   const [view, setView] = useState<'now' | 'average'>('now');
   const averaging = view === 'average' && hasRun && !!log?.length;
+  const solved = !hasRun && steady?.status === 'converged';
 
   // The same rows the MCP tools report (simulation-core's streamStates), put in words for the table.
-  const rows = useMemo<StreamRow[]>(
-    () =>
-      (averaging ? averageStreamStates(graph, log!, simulatedSeconds) : streamStates(graph, snapshots)).map((r) => ({
+  const rows = useMemo<StreamRow[]>(() => {
+    const figures = (r: { kgPerHour?: number; gpm?: number; itemsPerMin?: number; temperatureC?: number; composition?: Record<string, number> }) => ({
+      ...(r.kgPerHour !== undefined ? { kgPerHour: r.kgPerHour } : {}),
+      ...(r.gpm !== undefined ? { gpm: r.gpm } : {}),
+      ...(r.itemsPerMin !== undefined ? { itemsPerMin: r.itemsPerMin } : {}),
+      ...(r.temperatureC !== undefined ? { temperatureC: r.temperatureC } : {}),
+      ...(r.composition ? { mix: mixText(r.composition) } : {})
+    });
+    // Before a run: the steady state, solved from the flowsheet as it is.
+    if (solved) {
+      return steady!.streams.map((r) => ({
         id: r.id,
         number: r.number,
-        from: `${unitTag(r.from.unit) ?? r.from.unit}${r.from.port ? ` · ${r.from.port}` : ''}`,
-        to: `${unitTag(r.to.unit) ?? r.to.unit}${r.to.port ? ` · ${r.to.port}` : ''}`,
+        from: unitTag(r.from) ?? r.from,
+        to: unitTag(r.to) ?? r.to,
         phase: PHASE_WORD[r.phase] ?? r.phase.toLowerCase(),
-        ...(r.kgPerHour !== undefined ? { kgPerHour: r.kgPerHour } : {}),
-        ...(r.gpm !== undefined ? { gpm: r.gpm } : {}),
-        ...(r.itemsPerMin !== undefined ? { itemsPerMin: r.itemsPerMin } : {}),
-        ...(r.temperatureC !== undefined ? { temperatureC: r.temperatureC } : {}),
-        ...(r.composition ? { mix: mixText(r.composition) } : {}),
-        blocked: r.blocked
-      })),
-    [graph, snapshots, averaging, log, simulatedSeconds]
-  );
+        ...figures(r),
+        blocked: false,
+        specified: specifiedFigures(graph, r.id, r)
+      }));
+    }
+    return (averaging ? averageStreamStates(graph, log!, simulatedSeconds) : streamStates(graph, snapshots)).map((r) => ({
+      id: r.id,
+      number: r.number,
+      from: `${unitTag(r.from.unit) ?? r.from.unit}${r.from.port ? ` · ${r.from.port}` : ''}`,
+      to: `${unitTag(r.to.unit) ?? r.to.unit}${r.to.port ? ` · ${r.to.port}` : ''}`,
+      phase: PHASE_WORD[r.phase] ?? r.phase.toLowerCase(),
+      ...figures(r),
+      blocked: r.blocked,
+      // Mid-run a feed's flow swings; averaged, or at a settled moment, it is the supply.
+      specified: hasRun ? specifiedFigures(graph, r.id, r) : new Set<StreamFigure>()
+    }));
+  }, [graph, snapshots, averaging, log, simulatedSeconds, solved, steady, hasRun]);
+  const anySpecified = rows.some((r) => r.specified.size > 0);
 
   const allColumns: { key: keyof StreamRow; head: string; unit?: string; num?: boolean }[] = [
     { key: 'number', head: 'Stream' },
@@ -119,7 +142,9 @@ export const StreamTable: React.FC<{
       onOpenChange={onOpenChange}
       title="Stream table"
       description={
-        !hasRun
+        solved
+          ? 'Every stream at steady state, solved from the flowsheet as it is. Run the line (Space) to see it over time.'
+          : !hasRun
           ? 'Every stream on the flowsheet. Run the line (Space) to fill in what each one carries.'
           : averaging
             ? `Every stream, averaged over the first ${formatTime(simulatedSeconds)} of the run (temperature and mix weighted by what flowed).`
@@ -147,9 +172,19 @@ export const StreamTable: React.FC<{
       width={980}
       flush
       footer={
-        <Button icon={copied ? <Check size={14} /> : <Copy size={14} />} onClick={copy} disabled={!rows.length}>
-          {copied ? 'Copied' : 'Copy table'}
-        </Button>
+        <>
+          {anySpecified && (
+            <span style={{ marginRight: 'auto', alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: palette.text.muted }}>
+              <span aria-hidden style={{ width: 8, height: 8, borderRadius: 2, background: palette.text.accent }} />
+              <span>
+                <span style={{ color: palette.text.accent, fontWeight: 600 }}>Set by you</span>; the rest is calculated.
+              </span>
+            </span>
+          )}
+          <Button icon={copied ? <Check size={14} /> : <Copy size={14} />} onClick={copy} disabled={!rows.length}>
+            {copied ? 'Copied' : 'Copy table'}
+          </Button>
+        </>
       }
     >
       {rows.length === 0 ? (
@@ -198,8 +233,11 @@ export const StreamTable: React.FC<{
                         style={{
                           ...td,
                           ...(c.num ? { textAlign: 'right', fontFamily: font.mono, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' } : {}),
-                          ...(c.key === 'from' || c.key === 'to' ? { color: palette.text.secondary } : {})
+                          ...(c.key === 'from' || c.key === 'to' ? { color: palette.text.secondary } : {}),
+                          // An input, not a result: what a simulator's stream report shows in its own colour.
+                          ...(r.specified.has(c.key as StreamFigure) ? { color: palette.text.accent, fontWeight: 600 } : {})
                         }}
+                        {...(r.specified.has(c.key as StreamFigure) ? { title: 'Set by you' } : {})}
                       >
                         {cellText(r, c.key)}
                       </td>

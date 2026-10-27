@@ -1780,6 +1780,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         simulatedSeconds={runView?.timeSeconds ?? 0}
         {...(simResult ? { log: simResult.telemetryLog } : {})}
         onShow={showStream}
+        steady={steady}
       />
       <EquipmentPaletteModal
         isOpen={isEquipmentPaletteOpen}
