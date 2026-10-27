@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert/strict';
-import { planStream } from '../connect.js';
+import { planStream, spliceUnit } from '../connect.js';
 import { addStreamToGraph, createTerminalNode, setTerminalRole } from '../terminals.js';
 import { validateProcessGraph } from '../graph.js';
 import { ProcessEdgeSchema } from '../streams.js';
@@ -105,5 +105,62 @@ describe('Feeds and outlets: the arrows at the edge of the flowsheet', () => {
     assert.equal((setTerminalRole(out, 'waste').config as { role: string }).role, 'waste');
     const feed = createTerminalNode('feed');
     assert.equal(setTerminalRole(feed, 'waste'), feed);
+  });
+});
+
+describe('spliceUnit: dropping a unit onto a pipe', () => {
+  /** The tank piped to the filler, and a pump not piped to anything. */
+  const piped = (): ProcessGraph => {
+    const g = graph();
+    const plan = planStream(g, { from: 'tank-1', to: 'filler-1' });
+    assert.ok(plan.ok);
+    const pump = unit('pump-1', 'Pump P-101', [['suction', 'CONTINUOUS_VOLUME']], [['discharge', 'CONTINUOUS_VOLUME']]);
+    return { ...addStreamToGraph(g, { ...plan.edge, id: 'pipe' }), nodes: [...g.nodes, pump] } as unknown as ProcessGraph;
+  };
+
+  it('puts the unit in the pipe: tank to pump, pump to filler, both carrying what the pipe did', () => {
+    const g = piped();
+    const r = spliceUnit(g, 'pump-1', 'pipe', 1);
+    assert.ok(r.ok, r.ok ? '' : r.reason);
+    assert.equal(r.graph.edges.length, 2);
+    assert.ok(!r.graph.edges.some((e) => e.id === 'pipe'));
+    assert.deepEqual([r.into.sourceNodeId, r.into.sourcePortId, r.into.targetNodeId, r.into.targetPortId], ['tank-1', 'out', 'pump-1', 'suction']);
+    assert.deepEqual([r.out.sourceNodeId, r.out.sourcePortId, r.out.targetNodeId, r.out.targetPortId], ['pump-1', 'discharge', 'filler-1', 'product']);
+    const was = g.edges.find((e) => e.id === 'pipe')!.stream;
+    assert.deepEqual(r.into.stream, was);
+    assert.deepEqual(r.out.stream, was);
+    for (const e of r.graph.edges) ProcessEdgeSchema.parse(e);
+    assert.equal(new Set(r.graph.edges.map((e) => e.id)).size, 2);
+  });
+
+  it('refuses a unit that cannot take what the pipe carries, and changes nothing', () => {
+    const r = spliceUnit(piped(), 'labeler-1', 'pipe');
+    assert.equal(r.ok, false);
+    assert.match(!r.ok ? r.reason : '', /no inlet for the liquid/);
+  });
+
+  it('refuses a unit that is already piped', () => {
+    let g = piped();
+    const plan = planStream(g, { from: 'pump-1', to: 'labeler-1' });
+    if (plan.ok) g = addStreamToGraph(g, plan.edge);
+    else g = { ...g, edges: [...g.edges, { ...g.edges[0]!, id: 'other', sourceNodeId: 'pump-1', sourcePortId: 'discharge' }] };
+    const r = spliceUnit(g, 'pump-1', 'pipe');
+    assert.equal(r.ok, false);
+    assert.match(!r.ok ? r.reason : '', /already piped/);
+  });
+
+  it('gives the pipe out a new stream when the unit changes what flows, and the outlet takes it on', () => {
+    let g = graph();
+    g = { ...g, nodes: [...g.nodes, createTerminalNode('product', { id: 'out-1' })] };
+    const plan = planStream(g, { from: 'tank-1', to: 'out-1' });
+    assert.ok(plan.ok);
+    g = addStreamToGraph(g, { ...plan.edge, id: 'pipe' });
+    const r = spliceUnit(g, 'filler-1', 'pipe', 1);
+    assert.ok(r.ok, r.ok ? '' : r.reason);
+    assert.equal(r.into.stream.type, 'CONTINUOUS_FLUID');
+    assert.equal(r.out.stream.type, 'DISCRETE_CONTAINER_STREAM');
+    const outlet = r.graph.nodes.find((n) => n.id === 'out-1')!;
+    assert.equal(outlet.inputs[0]!.flowDimension, 'DISCRETE_CONTAINER');
+    assert.equal(validateProcessGraph(r.graph).diagnostics.filter((d) => d.severity === 'ERROR').length, 0, JSON.stringify(validateProcessGraph(r.graph).diagnostics));
   });
 });

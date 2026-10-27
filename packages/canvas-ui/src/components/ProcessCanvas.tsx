@@ -23,6 +23,7 @@ import {
   defaultStreamFor,
   defaultFluidFor,
   addStreamToGraph,
+  spliceUnit,
   effectivePortKind,
   portsFit,
   PAINT_CANNING_LINE,
@@ -745,6 +746,66 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     },
     [updateGraph]
   );
+
+  /**
+   * The pipe a unit being dragged would drop into: a unit with nothing piped
+   * to it, held over a pipe. Dropped there, it goes into the pipe
+   * (protocol spliceUnit): A to B becomes A to the unit to B.
+   */
+  const [spliceEdgeId, setSpliceEdgeId] = useState<string | null>(null);
+  const spliceRef = useRef<string | null>(null);
+  const setSplice = (id: string | null) => {
+    if (spliceRef.current === id) return;
+    spliceRef.current = id;
+    setSpliceEdgeId(id);
+  };
+  const pipeUnder = (x: number, y: number): string | null => {
+    for (const el of document.elementsFromPoint(x, y)) {
+      const id = el.closest('.react-flow__edge')?.getAttribute('data-id');
+      if (id) return id;
+    }
+    return null;
+  };
+  const unpiped = (nodeId: string) => {
+    const g = graphRef.current;
+    const n = g.nodes.find((x) => x.id === nodeId);
+    return Boolean(n) && !terminalRole(n!) && !g.edges.some((e) => e.sourceNodeId === nodeId || e.targetNodeId === nodeId);
+  };
+  const onNodeDrag = useCallback((event: MouseEvent | TouchEvent, n: { id: string }) => {
+    // A touch drag reads its first finger.
+    const at = 'touches' in event ? event.touches[0] : event;
+    setSplice(unpiped(n.id) && at ? pipeUnder(at.clientX, at.clientY) : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const onNodeDragStop = useCallback(
+    (_event: MouseEvent | TouchEvent, n: { id: string }) => {
+      const edgeId = spliceRef.current;
+      setSplice(null);
+      if (!edgeId) return;
+      const tried = spliceUnit(graphRef.current, n.id, edgeId);
+      if (!tried.ok) {
+        setNotice(tried.reason);
+        return;
+      }
+      updateGraph((prev) => {
+        const r = spliceUnit(prev, n.id, edgeId);
+        return r.ok ? r.graph : prev;
+      });
+      const name = graphRef.current.nodes.find((x) => x.id === n.id)?.name ?? 'The unit';
+      setNotice(`${unitTag(name) ?? name} is in the pipe now.`);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [updateGraph]
+  );
+  // The pipe it would go into, lit while the unit is held over it.
+  useEffect(() => {
+    setEdges((eds) =>
+      eds.map((e) => {
+        const on = e.id === spliceEdgeId;
+        return Boolean((e.data as CanvasEdgeData).spliceTarget) === on ? e : { ...e, data: { ...e.data, spliceTarget: on } };
+      })
+    );
+  }, [spliceEdgeId]);
 
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
@@ -1515,6 +1576,8 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDragStop}
           isValidConnection={isValidConnection}
           connectionLineComponent={PipeConnectionLine}
           connectionRadius={28}

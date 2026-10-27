@@ -1,7 +1,7 @@
 import type { ProcessGraph } from './graph.js';
 import type { ProcessNode } from './nodes.js';
 import type { ProcessEdge } from './streams.js';
-import { effectivePortKind, feedLiquid, portsFit, terminalRole, type Carries } from './terminals.js';
+import { addStreamToGraph, effectivePortKind, feedLiquid, portsFit, terminalRole, type Carries } from './terminals.js';
 import { effectiveContract } from './unitop/standardKinds.js';
 
 /**
@@ -172,4 +172,54 @@ export function planStream(graph: ProcessGraph, req: StreamRequest, now: number 
     to: { id: to.id, name: to.name, port: best.in.name },
     carries
   };
+}
+
+export type SpliceOutcome = { ok: true; graph: ProcessGraph; into: ProcessEdge; out: ProcessEdge } | { ok: false; reason: string };
+
+/**
+ * Drops a unit into a pipe: the pipe from A to B becomes A to the unit and the
+ * unit to B, as a simulator does when a unit is dropped on a stream. The unit
+ * must have nothing piped to it yet, and an inlet and an outlet that fit what
+ * the pipe carries; otherwise nothing changes and the reason says why. The
+ * pipe in keeps the stream as it was (it carries the same thing); so does the
+ * pipe out, unless the unit changes what flows (a filler: liquid in, cans
+ * out), when it gets a new stream of its outlet's kind.
+ */
+export function spliceUnit(graph: ProcessGraph, unitId: string, edgeId: string, now: number = Date.now()): SpliceOutcome {
+  const unit = graph.nodes.find((n) => n.id === unitId);
+  const edge = graph.edges.find((e) => e.id === edgeId);
+  if (!unit || !edge) return { ok: false, reason: 'There is no such unit or pipe.' };
+  if (terminalRole(unit)) return { ok: false, reason: `${unit.name} is a feed or outlet: it goes at the end of a pipe, not in one.` };
+  if (edge.sourceNodeId === unitId || edge.targetNodeId === unitId) return { ok: false, reason: `${unit.name} is already on that pipe.` };
+  if (graph.edges.some((e) => e.sourceNodeId === unitId || e.targetNodeId === unitId)) {
+    return { ok: false, reason: `${unit.name} is already piped. Drop a unit with nothing piped to it.` };
+  }
+  const from = graph.nodes.find((n) => n.id === edge.sourceNodeId);
+  const to = graph.nodes.find((n) => n.id === edge.targetNodeId);
+  const out = from?.outputs.find((p) => p.id === edge.sourcePortId);
+  const inp = to?.inputs.find((p) => p.id === edge.targetPortId);
+  if (!from || !to || !out || !inp) return { ok: false, reason: 'That pipe has a loose end.' };
+
+  // Without the old pipe, so the ends it freed count as free.
+  const rest = { ...graph, edges: graph.edges.filter((e) => e.id !== edgeId) };
+  const unitIn = unit.inputs.find((p) => portsFit(rest, from, out, unit, p));
+  const unitOut = unit.outputs.find((p) => portsFit(rest, unit, p, to, inp));
+  const carries = edge.stream.type === 'CONTINUOUS_FLUID' ? 'liquid' : 'items';
+  if (!unitIn) return { ok: false, reason: `${unit.name} has no inlet for the ${carries} this pipe carries.` };
+  if (!unitOut) return { ok: false, reason: `${unit.name} has no outlet that can feed ${to.name}.` };
+
+  const into: ProcessEdge = { ...edge, id: `e-${from.id}-${unit.id}-${now}`, targetNodeId: unit.id, targetPortId: unitIn.id };
+  delete into.waypoints;
+  const kindOut = effectivePortKind(rest, unit, unitOut, to, inp);
+  const sameKind = kindOut === carries;
+  const outEdge: ProcessEdge = {
+    ...edge,
+    id: `e-${unit.id}-${to.id}-${now}`,
+    sourceNodeId: unit.id,
+    sourcePortId: unitOut.id,
+    stream: sameKind ? edge.stream : defaultStreamFor(kindOut, defaultFluidFor(unit, to))
+  };
+  delete outEdge.waypoints;
+  const next = addStreamToGraph(addStreamToGraph(rest, into), outEdge);
+  return { ok: true, graph: next, into, out: outEdge };
 }
