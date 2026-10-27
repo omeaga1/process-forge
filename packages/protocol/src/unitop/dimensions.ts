@@ -370,7 +370,7 @@ export function inferDimension(src: string, env: DimensionEnv): { result: Inferr
             if (!prop) return UNKNOWN;
             // Each argument must be the kind of quantity the function takes.
             prop.args.forEach((unit, i) => {
-              if (unit === 'component') return;
+              if (unit === 'component' || unit === 'composition') return;
               const want = parseUnit(unit);
               const got = args[i];
               if (!want || !got || got.kind !== 'dim') return;

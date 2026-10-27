@@ -56,18 +56,49 @@ tables to fetch.
 - **Liquid density:** the 20 °C value carried to T by Rackett's ratio. Water
   uses Kell.
 - **Mixtures:**
-  - Ideal mixing: volumes add, and cp is mass-weighted.
-  - The bubble point is an ideal solution (Raoult). Non-volatile solutes stay
-    in the liquid.
-  - Ideal mixing is right to about 1 % for sugar and salt solutions.
-    Alcohol–water mixtures shrink on mixing and boil below Raoult.
-    `lookup_component` says so in its `model` field.
+  - Density and cp: ideal mixing. Volumes add, and cp is mass-weighted.
+    Right to about 1 % for sugar and salt solutions; alcohol–water
+    mixtures shrink on mixing, so their density comes out up to 4 % low.
+  - Bubble point and first vapour: modified Raoult,
+    $\sum_i x_i \gamma_i P^{sat}_i(T) = P$, with γ from NRTL. A pair with no
+    NRTL parameters is taken as ideal (γ = 1). Non-volatile solutes stay in
+    the liquid. `lookup_component`'s `model` field says which pairs had
+    parameters and which were taken as ideal.
 
-The tests (`protocol/src/__tests__/thermo.test.ts`) check these against
-published values, each with its tolerance:
+## Activity coefficients (NRTL)
+
+$\tau_{ij} = b_{ij}/T$, $G_{ij} = \exp(-\alpha_{ij}\tau_{ij})$, multicomponent
+NRTL (`thermo/activity.ts`). The binary parameters are in
+`thermo/nrtlData.ts`, and each pair names its source:
+
+- **57 pairs** from ChemSep's NRTL table (Artistic-2.0, Kooijman & Taylor):
+  DECHEMA's 1 atm fits. These include ethanol, methanol, acetone, MEK,
+  1-butanol and ethyl acetate with water, ethanol–methanol, and the
+  alcohols with the hydrocarbons and ketones.
+- **3 pairs** ChemSep has only as Wilson (isopropanol, 1-propanol and
+  acetic acid with water). These are NRTL (α = 0.3) fitted to ChemSep's
+  Wilson model from 330 to 375 K, to 0.05 in ln γ or better.
+- **No data yet:** the glycols and glycerol with water. ChemSep has no
+  parameters for them, so they mix ideally. Water–glycol deviates only
+  mildly, and the glycol hardly evaporates.
+
+To regenerate the table, run `packages/protocol/scripts/gen-nrtl.cjs`. Its
+header says which ChemSep files to fetch.
+
+The vapour is an ideal gas, which is right at ordinary pressures. NRTL here
+covers the liquid only: it does not split a liquid into two phases, so
+butanol–water and ethyl acetate–water are good only while they stay
+miscible.
+
+The tests (`protocol/src/__tests__/thermo.test.ts`, `nrtl.test.ts`) check
+these against published values, each with its tolerance:
 
 - normal boiling points within 1 %;
 - CRC vapour pressures at 25 °C within 1–2 %;
+- ethanol–water bubble points at 1 atm within 1 °C, and the vapour within
+  0.03, at twelve compositions (Perry's). The azeotrope comes out at
+  89 mol % ethanol and 78.0 °C (measured: 89.4 % and 78.15 °C);
+- the isopropanol–water azeotrope, and methanol–water;
 - sugar solution densities within 0.5 %.
 
 ## In a contract
@@ -84,6 +115,18 @@ cp_gas('nitrogen', T)     kJ/kg-K  ideal-gas specific heat at T °C
 rho_liquid('toluene', T)  kg/m3    liquid density at T °C
 molar_mass('co2')         kg/kmol
 ```
+
+Mixture functions take a liquid's mass fractions whole: a stream's `x`
+group (`inlet.x`, `batch.x` in a BATCH unit, `port.<id>.x`):
+
+```
+gamma('ethanol', inlet.x, T)          -        activity coefficient at T °C
+bubble_point(inlet.x, P)              °C       bubble point at P kPa absolute
+bubble_vapour('ethanol', inlet.x, P)  -        mass fraction in the first vapour
+```
+
+They need every component of the liquid in the database. A contract that
+lists a pseudo-component (`solids`) cannot use them.
 
 A quoted name is allowed only there. `validate_unit_op` rejects a name the
 database does not know and suggests the names it probably meant

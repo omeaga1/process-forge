@@ -11,7 +11,8 @@ import {
   findComponent,
   liquidMixture,
   moleFractions,
-  nearComponents
+  nearComponents,
+  type BubblePoint
 } from '@process-forge/protocol';
 
 /**
@@ -39,7 +40,17 @@ const tryNum = (f: () => number): number | undefined => {
 };
 
 const FUNCTIONS =
-  "In a contract: psat('name', T °C) -> kPa, tsat('name', P kPa) -> °C, hvap('name', T) -> kJ/kg, cp_liquid('name') -> kJ/kg-K, cp_gas('name', T) -> kJ/kg-K, rho_liquid('name', T) -> kg/m3, molar_mass('name') -> kg/kmol.";
+  "In a contract: psat('name', T °C) -> kPa, tsat('name', P kPa) -> °C, hvap('name', T) -> kJ/kg, cp_liquid('name') -> kJ/kg-K, cp_gas('name', T) -> kJ/kg-K, rho_liquid('name', T) -> kg/m3, molar_mass('name') -> kg/kmol; for a liquid stream, gamma('name', inlet.x, T), bubble_point(inlet.x, P kPa) -> °C, bubble_vapour('name', inlet.x, P) -> mass fraction.";
+
+/** One or two short lines: which model gave the bubble point, and which pairs it had to take as ideal. */
+function mixtureModel(bubble: BubblePoint | undefined): string {
+  const density = 'Density and cp: ideal mixing (alcohol–water density up to 4 % low).';
+  if (!bubble) return density;
+  const ideal = bubble.missing.length ? ` No NRTL data, taken as ideal: ${bubble.missing.join(', ')}.` : '';
+  return bubble.model === 'NRTL'
+    ? `${density} Bubble point: modified Raoult, NRTL (ChemSep) for ${bubble.pairs.join(', ')}.${ideal}`
+    : `${density} Bubble point: ideal solution (Raoult).${ideal}`;
+}
 
 export function lookupComponent(params: LookupComponentParams): Record<string, unknown> {
   const t = params.temperatureC ?? 25;
@@ -54,7 +65,7 @@ export function lookupComponent(params: LookupComponentParams): Record<string, u
       };
     }
     const mix = liquidMixture(params.composition, t);
-    let bubble: { temperatureC: number; vapour: Record<string, number> } | undefined;
+    let bubble: BubblePoint | undefined;
     let bubbleNote: string | undefined;
     try {
       bubble = bubblePoint(params.composition, p);
@@ -68,10 +79,14 @@ export function lookupComponent(params: LookupComponentParams): Record<string, u
       atTemperatureC: t,
       ...(mix ? { liquidDensityKgPerM3: sig(mix.densityKgPerM3), liquidCpKjPerKgK: sig(mix.cpKjPerKgK) } : { liquidNote: 'Some component has no liquid data (a gas at ordinary conditions): no liquid density or specific heat.' }),
       ...(bubble
-        ? { bubblePointC: sig(bubble.temperatureC), atPressureKpa: p, firstVapourMoleFractions: Object.fromEntries(Object.entries(bubble.vapour).map(([k, v]) => [k, sig(v)])) }
+        ? {
+            bubblePointC: sig(bubble.temperatureC),
+            atPressureKpa: p,
+            firstVapourMoleFractions: Object.fromEntries(Object.entries(bubble.vapour).map(([k, v]) => [k, sig(v)])),
+            ...(bubble.model === 'NRTL' ? { activityCoefficients: Object.fromEntries(Object.entries(bubble.gamma).map(([k, v]) => [k, sig(v)])) } : {})
+          }
         : { bubblePointNote: bubbleNote }),
-      model:
-        'Ideal mixing (volumes add, cp by mass) and an ideal solution (Raoult). Right for sugar and salt solutions to about 1 %; mixtures of unlike liquids (ethanol and water) shrink when mixed and boil below Raoult: treat those figures as first estimates and say so.'
+      model: mixtureModel(bubble)
     };
   }
 

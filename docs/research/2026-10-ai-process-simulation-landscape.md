@@ -118,7 +118,9 @@ failed run described as a result, or the model's own arithmetic.
 2. **Activity coefficients.**
    - NRTL with ChemSep binary parameters (Artistic-2.0, attributed), for
      ethanol–water and other non-ideal liquid pairs.
-   - Today's bubble point is Raoult, and `lookup_component` says so.
+   - Shipped: bubble points use modified Raoult with NRTL wherever a pair
+     has parameters, ideal elsewhere, and `lookup_component` names both.
+     Glycol–water has no open parameters yet, so it stays ideal.
 3. **Sketch / P&ID → graph IR → `plan_changes`.**
    - Claude's own vision does the extraction.
    - A rule-based normaliser checks it (single-inlet ports, implicit

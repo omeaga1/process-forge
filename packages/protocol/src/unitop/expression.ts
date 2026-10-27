@@ -290,7 +290,7 @@ class Parser {
  * ambient state. Adding a function to this table is the only way to widen what
  * a contract can compute.
  */
-export const EXPRESSION_FUNCTIONS: Record<string, { arity: number | [number, number]; fn: (...a: number[]) => number; component?: boolean }> = {
+export const EXPRESSION_FUNCTIONS: Record<string, { arity: number | [number, number]; fn: (...a: number[]) => number; component?: boolean; composition?: number }> = {
   min: { arity: [2, 8], fn: (...a) => Math.min(...a) },
   max: { arity: [2, 8], fn: (...a) => Math.max(...a) },
   abs: { arity: 1, fn: (a) => Math.abs(a as number) },
@@ -310,7 +310,13 @@ export const EXPRESSION_FUNCTIONS: Record<string, { arity: number | [number, num
    */
   interp: { arity: [5, 41], fn: interpolate },
   // Physical properties (properties.ts): water on the saturation line and as a liquid, ideal gases.
-  ...Object.fromEntries(Object.entries(PROPERTY_FUNCTIONS).map(([name, f]) => [name, { arity: f.args.length, fn: f.fn as (...a: number[]) => number, ...(f.args[0] === 'component' ? { component: true } : {}) }]))
+  // A component function takes a quoted name first; a mixture function takes a stream's mass fractions (inlet.x) whole.
+  ...Object.fromEntries(
+    Object.entries(PROPERTY_FUNCTIONS).map(([name, f]) => [
+      name,
+      { arity: f.args.length, fn: f.fn as (...a: number[]) => number, ...(f.args[0] === 'component' ? { component: true } : {}), ...(f.args.includes('composition') ? { composition: f.args.indexOf('composition') } : {}) }
+    ])
+  )
 };
 
 /**
@@ -364,6 +370,19 @@ function lookup(scope: ExprScope, path: string, src: string, pos: number): ExprV
     throw new ExpressionError(`Reference "${path}" is a group, not a value`, src, pos);
   }
   return cur;
+}
+
+/** Names a stream's mass fractions as a whole, for a mixture function: inlet.x, batch.x, port.<id>.x. */
+export const COMPOSITION_GROUP = /^(inlet|utility|batch|port\.[A-Za-z_][A-Za-z0-9_]*)\.x$/;
+
+/** A mixture function's composition argument: a stream's mass fractions, read whole (inlet.x). */
+function compositionArg(fn: string, i: number, a: Ast, scope: ExprScope, src: string): Record<string, number> {
+  const hint = `"${fn}" takes a liquid's mass fractions as argument ${i + 1}, written as a stream's x group: inlet.x (or batch.x, port.<id>.x)`;
+  if (a.k !== 'ref' || !COMPOSITION_GROUP.test(a.name)) throw new ExpressionError(hint, src, 'pos' in a ? a.pos : undefined);
+  let cur: ExprValue | ExprScope | undefined = scope;
+  for (const part of a.name.split('.')) cur = cur !== null && typeof cur === 'object' ? (cur as ExprScope)[part] : undefined;
+  if (cur === undefined || cur === null || typeof cur !== 'object') throw new ExpressionError(`Unknown reference "${a.name}": this unit has no such stream`, src, a.pos);
+  return Object.fromEntries(Object.entries(cur).filter((e): e is [string, number] => typeof e[1] === 'number'));
 }
 
 function asNumber(v: ExprValue, src: string, pos: number): number {
@@ -462,7 +481,9 @@ function evalAst(node: Ast, scope: ExprScope, src: string): ExprValue {
       if (def.component && node.args[0]?.k !== 'str') {
         throw new ExpressionError(`"${node.name}" takes a component name first, in quotes, e.g. ${node.name}('ethanol', ...)`, src, node.pos);
       }
-      const args: (number | string)[] = node.args.map((a, i) => (def.component && i === 0 && a.k === 'str' ? a.v : asNumber(evalAst(a, scope, src), src, node.pos)));
+      const args: (number | string | Record<string, number>)[] = node.args.map((a, i) =>
+        def.component && i === 0 && a.k === 'str' ? a.v : def.composition === i ? compositionArg(node.name, i, a, scope, src) : asNumber(evalAst(a, scope, src), src, node.pos)
+      );
       let out: number;
       try {
         out = def.fn(...(args as number[]));
