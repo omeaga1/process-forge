@@ -47,6 +47,7 @@ import { cardsFromRun, cardsFromSteady, pipeFigure } from '../model/streamCards.
 import { copyPng, imageFileName, renderFlowsheetPng, saveBlob } from '../model/exportImage.js';
 import { RUN_LENGTHS, defaultRunMinutes, playbackStep } from '../model/runLength.js';
 import type { RunView } from './dock/RunDigest.js';
+import type { RunSide } from '@process-forge/tools';
 import { Button, PointMenu, Tooltip } from '../ui/index.js';
 
 import { IndustrialNode } from './nodes/IndustrialNode.js';
@@ -460,6 +461,11 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   const [simResult, setSimResult] = useState<SimulationResult | null>(null);
   /** The flowsheet the last run was made on (its process content, not its drawing): results go stale when it changes. */
   const [runFingerprint, setRunFingerprint] = useState<string | null>(null);
+  /** The flowsheet the last run was made on, for comparing it with a pinned run. */
+  const [runGraph, setRunGraph] = useState<ProcessGraph | null>(null);
+  /** A run the engineer pinned: later runs are shown against it. A different flowsheet drops it. */
+  const [pinnedRun, setPinnedRun] = useState<RunSide | null>(null);
+  useEffect(() => setPinnedRun(null), [graph.id]);
   const fingerprint = useMemo(() => graphFingerprint(graph), [graph]);
   // The steady state of the flowsheet as it is, solved (in milliseconds) whenever its process content changes.
   // Not while a run is shown: the run's figures are the ones on the canvas then.
@@ -512,8 +518,9 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
   /** The run at the playhead, for the copilot and the toolbar: they move with the canvas, not jump to the end. */
   const runView = useMemo<RunView | undefined>(() => {
     if (!simResult || sampleTimes.length === 0) return undefined;
-    return { result: simResult, timeSeconds: sampleTimes[Math.min(playheadIndex, sampleTimes.length - 1)]!, snapshot: snapshotByNode };
-  }, [simResult, sampleTimes, playheadIndex, snapshotByNode]);
+    return { result: simResult, graph: runGraph ?? graph, timeSeconds: sampleTimes[Math.min(playheadIndex, sampleTimes.length - 1)]!, snapshot: snapshotByNode };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [simResult, runGraph, sampleTimes, playheadIndex, snapshotByNode]);
 
   /** A line whose product is bulk (liquid, powder): read in kg, not units. */
   const bulkLine = useMemo(
@@ -963,6 +970,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
       const validation = validateProcessGraph(graph);
       setSimResult(res);
       setRunFingerprint(graphFingerprint(graph));
+      setRunGraph(graph);
       setPlayheadIndex(0);
 
       setTelemetry({
@@ -1093,6 +1101,7 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
     });
     setSimResult(null);
     setRunFingerprint(null);
+    setRunGraph(null);
     setPlayheadIndex(0);
   };
 
@@ -1598,6 +1607,9 @@ export const ProcessCanvas: React.FC<ProcessCanvasProps> = ({
         bulkLine={bulkLine}
         steady={steady}
         stale={status.tone === 'stale'}
+        pinned={pinnedRun}
+        onPin={() => simResult && setPinnedRun({ graph: runGraph ?? graph, result: simResult })}
+        onUnpin={() => setPinnedRun(null)}
         onSeek={(fraction: number) => setPlayheadIndex(Math.round(Math.max(0, Math.min(1, fraction)) * Math.max(0, sampleTimes.length - 1)))}
         isCollapsed={isDockCollapsed}
         onToggleCollapse={handleToggleDock}

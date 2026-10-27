@@ -34,7 +34,8 @@ export interface PlanChangesParams {
 
 const nodeLabel = (n: ProcessNode) => n.name;
 
-function diff(before: ProcessGraph, after: ProcessGraph) {
+/** What differs between two versions of a flowsheet: units and streams added or removed, and every setting that changed. */
+export function flowsheetDiff(before: ProcessGraph, after: ProcessGraph) {
   const byId = (g: ProcessGraph) => new Map(g.nodes.map((n) => [n.id, n]));
   const b = byId(before);
   const a = byId(after);
@@ -96,7 +97,7 @@ export function planChanges(graph: ProcessGraph, params: PlanChangesParams) {
     planId,
     flowsheetFingerprint: graphFingerprint(graph),
     steps: r.steps,
-    diff: diff(graph, r.graph),
+    diff: flowsheetDiff(graph, r.graph),
     staticCheck: { newErrors: afterErrors.filter((e) => !beforeErrors.has(e)), clearedErrors: [...beforeErrors].filter((e) => !afterErrors.includes(e)) },
     run: { minutes, seed: before.seed, before: before.summary, after: after.summary },
     nextStep:
@@ -140,7 +141,7 @@ export interface PlanReceipt {
   planId: string;
   appliedAt: string;
   steps: PlanStep[];
-  diff: ReturnType<typeof diff>;
+  diff: ReturnType<typeof flowsheetDiff>;
   staticCheck: { newErrors: string[]; clearedErrors: string[] };
   run: { minutes: number; seed?: number; before: RunSummary; after: RunSummary };
   /** Absent when the app itself built the receipt: it holds the flowsheet, so there is nothing to read back. */
