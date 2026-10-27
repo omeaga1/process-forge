@@ -3,6 +3,7 @@ export * from './graphSource.js';
 export * from './line.js';
 export * from './audit.js';
 export * from './losses.js';
+export * from './runCompare.js';
 export * from './components.js';
 export * from './plan.js';
 export * from './study.js';

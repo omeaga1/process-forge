@@ -47,7 +47,8 @@ const WAITING: ReadonlySet<MachineOperationalState> = new Set(['STARVED', 'IDLE'
 /** Only worth saying when the end of the line waited at least this share of the run. */
 const MIN_WAIT_SHARE = 0.1;
 
-export function lineLosses(graph: ProcessGraph, result: SimulationResult): LineLosses | undefined {
+/** `minWaitShare` 0 gives the breakdown however little the end of the line waited (to compare two runs). */
+export function lineLosses(graph: ProcessGraph, result: SimulationResult, minWaitShare = MIN_WAIT_SHARE): LineLosses | undefined {
   const total = result.simulatedTimeSeconds;
   if (total <= 0) return undefined;
   const units = new Map(graph.nodes.filter((n) => n.kind !== 'TERMINAL').map((n) => [n.id, n]));
@@ -66,7 +67,7 @@ export function lineLosses(graph: ProcessGraph, result: SimulationResult): LineL
   const rep = result.nodeReports[end]!;
   const starved = rep.starvedTimeSeconds ?? 0;
   const blocked = rep.blockedTimeSeconds ?? 0;
-  if ((starved + blocked) / total < MIN_WAIT_SHARE) return undefined;
+  if ((starved + blocked) / total < minWaitShare) return undefined;
 
   // Every unit's state at each snapshot.
   const at = new Map<number, Map<string, { state: MachineOperationalState; phase?: string }>>();

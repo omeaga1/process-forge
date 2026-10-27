@@ -2,12 +2,15 @@ import React from 'react';
 import { terminalRole, type ProcessGraph } from '@process-forge/protocol';
 import type { NodeTelemetrySnapshot, SimulationResult } from '@process-forge/simulation-core';
 import { tint } from '@process-forge/theme';
-import { lineLosses } from '@process-forge/tools';
+import { compareRuns, lineLosses, type RunComparison, type RunSide } from '@process-forge/tools';
+import { Pin, PinOff } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme.js';
 import { unitTag } from '../../model/unitTag.js';
 
 export interface RunView {
   result: SimulationResult;
+  /** The flowsheet the run was made on (it may have changed since). */
+  graph: ProcessGraph;
   /** Seconds into the run the canvas is showing. */
   timeSeconds: number;
   /** Every unit's recorded state at that moment. */
@@ -15,6 +18,8 @@ export interface RunView {
 }
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const signed = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(Math.round(v * 10) / 10)}`;
+const runLengthLabel = (min: number) => (min >= 60 && min % 60 === 0 ? `${min / 60} h` : `${min} min`);
 const kg = (v: number) => (v >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1));
 
 /**
@@ -22,7 +27,16 @@ const kg = (v: number) => (v >= 100 ? Math.round(v).toLocaleString() : v.toFixed
  * has received so far and is receiving now, and every check a unit broke.
  * Follows the same playhead as the canvas, so it moves with the line.
  */
-export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: boolean; onSeek?: (fraction: number) => void }> = ({ graph, run, stale, onSeek }) => {
+export const RunDigest: React.FC<{
+  graph: ProcessGraph;
+  run: RunView;
+  stale?: boolean;
+  onSeek?: (fraction: number) => void;
+  /** The run pinned to compare against, and pinning this one or letting it go. */
+  pinned?: RunSide | null;
+  onPin?: () => void;
+  onUnpin?: () => void;
+}> = ({ graph, run, stale, onSeek, pinned, onPin, onUnpin }) => {
   const { palette, font } = useTheme();
   const { result, timeSeconds, snapshot } = run;
   const outlets = graph.nodes
@@ -38,6 +52,9 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: bo
   const mass = result.balance?.mass;
   // Where the end of the line's time went: running, and each unit (and phase) it waited on.
   const losses = React.useMemo(() => lineLosses(graph, result), [graph, result]);
+  const isPinned = pinned?.result === result;
+  // This run against the pinned one: what moved, beside what was changed in between.
+  const vs = React.useMemo(() => (pinned && !isPinned ? compareRuns(pinned, { graph: run.graph, result }) : undefined), [pinned, isPinned, run.graph, result]);
 
   const label: React.CSSProperties = {
     fontSize: 10,
@@ -59,8 +76,33 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: bo
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
           <span style={label}>This run</span>
-          <span style={{ fontFamily: font.mono, fontSize: 11, color: palette.text.secondary, fontVariantNumeric: 'tabular-nums' }}>
-            {clock(timeSeconds)} / {clock(result.simulatedTimeSeconds)}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: font.mono, fontSize: 11, color: palette.text.secondary, fontVariantNumeric: 'tabular-nums' }}>
+              {clock(timeSeconds)} / {clock(result.simulatedTimeSeconds)}
+            </span>
+            {onPin && onUnpin && (
+              <button
+                type="button"
+                onClick={isPinned ? onUnpin : onPin}
+                aria-pressed={isPinned}
+                title={isPinned ? 'Unpin this run' : pinned ? 'Pin this run instead' : 'Pin this run, change the line, run again: see what moved'}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '2px 6px',
+                  fontSize: 11,
+                  border: `1px solid ${isPinned ? palette.jade[400] : palette.border.default}`,
+                  borderRadius: 4,
+                  background: isPinned ? tint(palette.jade[400], 0.12) : 'transparent',
+                  color: isPinned ? palette.jade.glow : palette.text.secondary,
+                  cursor: 'pointer'
+                }}
+              >
+                {isPinned ? <PinOff size={11} /> : <Pin size={11} />}
+                {isPinned ? 'Pinned' : 'Pin'}
+              </button>
+            )}
           </span>
         </div>
         {onSeek ? (
@@ -112,6 +154,61 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: bo
           </div>
         )}
       </div>
+
+      {isPinned && <span style={{ fontSize: 12, color: palette.text.muted }}>Change the line and run again to compare.</span>}
+
+      {vs && (
+        <div data-testid="run-compare" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={label}>Against pinned run</span>
+            {onUnpin && (
+              <button type="button" onClick={onUnpin} style={{ padding: 0, fontSize: 11, border: 'none', background: 'none', color: palette.text.muted, cursor: 'pointer', textDecoration: 'underline' }}>
+                Unpin
+              </button>
+            )}
+          </div>
+          <span style={{ fontSize: 12, color: palette.text.secondary, lineHeight: 1.4 }} title={vs.changes.map((c) => (c.unit ? `${c.unit}: ${c.what}` : c.what)).join('\n')}>
+            {vs.changes.length === 0
+              ? 'Nothing changed on the flowsheet.'
+              : vs.changes.slice(0, 2).map((c, i) => (
+                  <span key={i}>
+                    {i > 0 && '; '}
+                    {c.unit && <span style={{ fontFamily: font.mono, color: palette.text.primary }}>{unitTag(c.unit) ?? c.unit} </span>}
+                    {c.what}
+                  </span>
+                ))}
+            {vs.changes.length > 2 && <span style={{ color: palette.text.muted }}> +{vs.changes.length - 2} more</span>}
+          </span>
+          {vs.minutes.before !== vs.minutes.after && (
+            <span style={{ fontSize: 11, color: palette.status.blocked }}>
+              Pinned run was {runLengthLabel(vs.minutes.before)}, this one {runLengthLabel(vs.minutes.after)}.
+            </span>
+          )}
+          {compareRows(vs).map((row) => (
+            <div
+              key={row.name}
+              title={row.title}
+              style={{ display: 'grid', gridTemplateColumns: '1fr auto 52px', gap: 8, fontSize: 12, color: palette.text.secondary, paddingLeft: row.indent ? 8 : 0 }}
+            >
+              <span style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name}</span>
+              <span style={{ fontFamily: font.mono, fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ color: palette.text.muted }}>{row.before}</span> → <span style={{ color: palette.text.primary }}>{row.after}</span>
+                <span style={{ fontSize: 10, color: palette.text.muted }}> {row.unit}</span>
+              </span>
+              <span
+                style={{
+                  textAlign: 'right',
+                  fontFamily: font.mono,
+                  fontVariantNumeric: 'tabular-nums',
+                  color: row.delta === null ? palette.text.muted : row.good ? palette.jade.glow : palette.status.failed
+                }}
+              >
+                {row.delta ?? '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {outlets.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -214,3 +311,49 @@ export const RunDigest: React.FC<{ graph: ProcessGraph; run: RunView; stale?: bo
     </div>
   );
 };
+
+interface CompareRow {
+  name: string;
+  title: string;
+  before: string;
+  after: string;
+  unit: string;
+  /** Null when the figure did not move. */
+  delta: string | null;
+  /** Moved the right way: more rate or OEE, less waiting. */
+  good: boolean;
+  indent?: boolean;
+}
+
+/** The comparison as rows: rate, the end of the line's OEE and waiting, then what it waited on. */
+function compareRows(vs: RunComparison): CompareRow[] {
+  const rate = vs.per === '/min' ? (v: number) => v.toFixed(1) : (v: number) => v.toLocaleString();
+  const pts = (before: number, after: number) => (before === after ? null : `${signed(after - before)} pts`);
+  return [
+    {
+      name: 'Rate',
+      title: 'Product out, over the whole run',
+      before: rate(vs.rate.before),
+      after: rate(vs.rate.after),
+      unit: vs.per,
+      delta: vs.rate.before === vs.rate.after ? null : vs.rate.changePercent === null ? 'new' : `${signed(vs.rate.changePercent)}%`,
+      good: vs.rate.after > vs.rate.before
+    },
+    ...(vs.oee
+      ? [{ name: `OEE ${unitTag(vs.oee.unit) ?? vs.oee.unit}`, title: `${vs.oee.unit}, the end of the line`, before: String(vs.oee.before), after: String(vs.oee.after), unit: '%', delta: pts(vs.oee.before, vs.oee.after), good: vs.oee.after > vs.oee.before }]
+      : []),
+    ...(vs.waited
+      ? [{ name: 'Waited', title: `Time ${vs.waited.unit} waited, starved or blocked`, before: String(vs.waited.before), after: String(vs.waited.after), unit: '%', delta: pts(vs.waited.before, vs.waited.after), good: vs.waited.after < vs.waited.before }]
+      : []),
+    ...vs.causes.slice(0, 3).map((c) => ({
+      name: `${unitTag(c.unit) ?? c.unit} ${c.doing.toLowerCase()}`,
+      title: `Waiting on ${c.unit} (${c.wait})`,
+      before: String(c.before),
+      after: String(c.after),
+      unit: '%',
+      delta: pts(c.before, c.after),
+      good: c.after < c.before,
+      indent: true
+    }))
+  ];
+}

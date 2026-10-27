@@ -21,7 +21,7 @@ import { SplitFlap } from './SplitFlap.js';
 import { unitTag } from '../../model/unitTag.js';
 import { AgentChat } from './AgentChat.js';
 import { RunDigest, type RunView } from './RunDigest.js';
-import { liquidLimit } from '@process-forge/tools';
+import { liquidLimit, type RunSide } from '@process-forge/tools';
 import { Button, Tooltip } from '../../ui/index.js';
 import { supportsAgent } from '../../ai/agent/agentLoop.js';
 import type { AgentHost } from '../../ai/agent/agentTools.js';
@@ -47,6 +47,11 @@ interface MasterOrchestratorDockProps {
   stale?: boolean;
   /** Move the run's playhead to a fraction of it (the digest's timeline). */
   onSeek?: (fraction: number) => void;
+  /** The run the engineer pinned to compare later runs against. */
+  pinned?: RunSide | null;
+  /** Pin the run shown (replacing any pinned run). */
+  onPin?: () => void;
+  onUnpin?: () => void;
 }
 
 export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
@@ -62,7 +67,10 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
   bulkLine,
   steady,
   stale,
-  onSeek
+  onSeek,
+  pinned,
+  onPin,
+  onUnpin
 }) => {
   const { palette, font } = useTheme();
   const OsakaJadePalette = palette;
@@ -366,7 +374,7 @@ export const MasterOrchestratorDock: React.FC<MasterOrchestratorDockProps> = ({
         })()}
       </div>
 
-      {run && <RunDigest graph={graph} run={run} stale={stale} {...(onSeek ? { onSeek } : {})} />}
+      {run && <RunDigest graph={graph} run={run} stale={stale} pinned={pinned ?? null} {...(onSeek ? { onSeek } : {})} {...(onPin ? { onPin } : {})} {...(onUnpin ? { onUnpin } : {})} />}
 
       {agentMode && agentHost && <AgentChat host={agentHost} modelLabel={agentCreds.modelId} />}
 
