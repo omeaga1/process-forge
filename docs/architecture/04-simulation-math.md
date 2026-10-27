@@ -346,6 +346,13 @@ snapshot shares are scaled to the exact starved and blocked seconds, so a
 batch line reads "waited 66 % of the run: 63 % on the carbonator (42 %
 reacting, 21 % filling)", which says which phase to shorten.
 
+Comparing runs (`packages/tools/src/runCompare.ts`): the studio can pin a
+run and show later ones against it. Both replay the same seed (the engine
+seeds from the flowsheet's id), so what moves is the change's doing: the rate
+(items a minute, or kg an hour for a bulk product), the last unit's OEE, how
+long it waited and on what, beside the settings changed in between, named by
+their contract labels (a designed unit's are read from its contract).
+
 ## Components
 
 A liquid can carry components: mass fractions by name, such as
